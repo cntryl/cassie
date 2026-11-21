@@ -266,6 +266,22 @@ pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, su
     }
 }
 
+/// A keyword may directly follow a closing delimiter, as in `(a = 1)AND(b = 2)`.
+fn closing_delimiter_before(input: &str, index: usize) -> bool {
+    input[..index]
+        .chars()
+        .next_back()
+        .is_some_and(|character| matches!(character, ')' | ']' | '\'' | '"'))
+}
+
+/// A keyword may directly precede an opening delimiter, as in `ON(a = b)` or `AND'x' = y`.
+fn opening_delimiter_at(input: &str, index: usize) -> bool {
+    input[index..]
+        .chars()
+        .next()
+        .is_some_and(|character| matches!(character, '(' | '[' | '\'' | '"'))
+}
+
 pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<usize> {
     let bytes = input.as_bytes();
     // A non-separator ASCII prefix must match before any keyword can match.
@@ -282,7 +298,7 @@ pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<us
     let mut index = start;
     if pattern.starts_with(char::is_whitespace) {
         index = separator_end(input, index);
-        if index == start {
+        if index == start && !closing_delimiter_before(input, start) {
             return None;
         }
     }
@@ -322,7 +338,7 @@ pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<us
     }
     if pattern.ends_with(char::is_whitespace) {
         let end = separator_end(input, index);
-        if end == index {
+        if end == index && !opening_delimiter_at(input, index) {
             return None;
         }
         index = end;

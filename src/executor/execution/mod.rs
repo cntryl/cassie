@@ -189,6 +189,7 @@ mod table_like_comments;
 mod type_alter;
 mod type_command;
 mod type_publish;
+mod view_dependents;
 pub(crate) use session_command::show_result_columns;
 mod vector_index_command;
 

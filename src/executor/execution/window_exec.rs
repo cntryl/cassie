@@ -753,7 +753,7 @@ where
             .iter()
             .find(|(start, end)| (*start..=*end).contains(&position))
             .map_or(position, |group| group.0),
-        bound => range_boundary(values, signed(bound).unwrap_or(current), direction, true),
+        bound => range_start_boundary(values, signed(bound).unwrap_or(current), direction),
     };
     let end = match frame.end {
         WindowFrameBound::UnboundedFollowing => partition_len.saturating_sub(1),
@@ -761,7 +761,14 @@ where
             .iter()
             .find(|(start, end)| (*start..=*end).contains(&position))
             .map_or(position, |group| group.1),
-        bound => range_boundary(values, signed(bound).unwrap_or(current), direction, false),
+        bound => {
+            let Some(end) = range_end_boundary(values, signed(bound).unwrap_or(current), direction)
+            else {
+                // No row satisfies the end bound, so the frame ends before the first row.
+                return Ok(None);
+            };
+            end
+        }
     };
     Ok((start <= end && start < partition_len)
         .then_some((start, end.min(partition_len.saturating_sub(1)))))
@@ -801,39 +808,56 @@ fn peer_range_bounds(
     Ok((start <= end && start < partition_len).then_some((start, end)))
 }
 
-fn range_boundary<T: Copy + PartialOrd>(
+fn range_start_boundary<T: Copy + PartialOrd>(
     values: &[Option<T>],
     target: T,
     direction: &SortDirection,
-    start: bool,
 ) -> usize {
-    if start {
-        values
-            .iter()
-            .position(|value| {
-                value.is_some_and(|value| {
-                    if matches!(direction, SortDirection::Asc) {
-                        value >= target
-                    } else {
-                        value <= target
-                    }
-                })
+    values
+        .iter()
+        .position(|value| {
+            value.is_some_and(|value| {
+                if matches!(direction, SortDirection::Asc) {
+                    value >= target
+                } else {
+                    value <= target
+                }
             })
-            .unwrap_or(values.len())
-    } else {
-        values
-            .iter()
-            .rposition(|value| {
-                value.is_some_and(|value| {
-                    if matches!(direction, SortDirection::Asc) {
-                        value <= target
-                    } else {
-                        value >= target
-                    }
-                })
+        })
+        // No ordered value reaches the bound: only trailing NULL rows, which an
+        // unbounded end still covers, can follow it.
+        .unwrap_or_else(|| {
+            let trailing_nulls = values
+                .iter()
+                .rev()
+                .take_while(|value| value.is_none())
+                .count();
+            values.len() - trailing_nulls
+        })
+}
+
+/// Last row within the end bound, or `None` when no row lies within it. Leading
+/// NULL rows precede every bound, so an unbounded start still covers them.
+fn range_end_boundary<T: Copy + PartialOrd>(
+    values: &[Option<T>],
+    target: T,
+    direction: &SortDirection,
+) -> Option<usize> {
+    values
+        .iter()
+        .rposition(|value| {
+            value.is_some_and(|value| {
+                if matches!(direction, SortDirection::Asc) {
+                    value <= target
+                } else {
+                    value >= target
+                }
             })
-            .unwrap_or(0)
-    }
+        })
+        .or_else(|| {
+            let leading_nulls = values.iter().take_while(|value| value.is_none()).count();
+            leading_nulls.checked_sub(1)
+        })
 }
 
 fn frame_row_bounds(

@@ -62,6 +62,8 @@ mod binary_timestamp_bounds_tests;
 #[path = "input/binary_timetz_bounds_tests.rs"]
 mod binary_timetz_bounds_tests;
 
+pub(super) use super::input_text::parse_text_payload;
+
 const BINARY_SIGNATURE: &[u8; 11] = b"PGCOPY\n\xff\r\n\0";
 
 type CopyRowsWithMemory = (
@@ -89,143 +91,6 @@ struct CopyColumnType {
     oid: i64,
     is_vector: bool,
     expected_vector_dimensions: Option<usize>,
-}
-
-pub(super) fn parse_text_payload(
-    payload: &[u8],
-    delimiter: char,
-    null_marker: &str,
-    controls: &crate::runtime::QueryExecutionControls,
-) -> Result<CopyRowsWithMemory, CassieError> {
-    crate::app::copy_decode::validate_payload_utf8(payload, controls)?;
-    let mut memory = controls.reserve_query_memory(0)?;
-    let mut row_memory = controls.reserve_query_memory(0)?;
-    let mut rows = Vec::new();
-    let mut row = Vec::new();
-    let mut delimiter_bytes = [0_u8; 4];
-    let delimiter = delimiter.encode_utf8(&mut delimiter_bytes).as_bytes();
-    let mut field_start = 0;
-    let mut index = 0;
-    let mut next_check = 0;
-    while index < payload.len() {
-        if index >= next_check {
-            controls.check_interruption()?;
-            next_check = index.saturating_add(4096);
-        }
-        let delimiter_match = payload[index..].starts_with(delimiter);
-        let newline = !delimiter_match && payload[index] == b'\n';
-        let crlf =
-            !delimiter_match && payload[index] == b'\r' && payload.get(index + 1) == Some(&b'\n');
-        if delimiter_match || newline || crlf {
-            push_text_field(
-                &mut row,
-                &mut row_memory,
-                &payload[field_start..index],
-                null_marker,
-                controls,
-            )?;
-            index += if delimiter_match {
-                delimiter.len()
-            } else if crlf {
-                2
-            } else {
-                1
-            };
-            field_start = index;
-            if newline || crlf {
-                crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
-                rows.push(std::mem::take(&mut row));
-                memory.absorb(row_memory);
-                row_memory = controls.reserve_query_memory(0)?;
-            }
-        } else {
-            index += 1;
-        }
-    }
-    if field_start < payload.len() || !row.is_empty() {
-        push_text_field(
-            &mut row,
-            &mut row_memory,
-            &payload[field_start..],
-            null_marker,
-            controls,
-        )?;
-        crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
-        rows.push(row);
-        memory.absorb(row_memory);
-    }
-    Ok((rows, memory))
-}
-
-fn push_text_field(
-    row: &mut Vec<Option<String>>,
-    memory: &mut crate::runtime::QueryMemoryReservation,
-    raw: &[u8],
-    null_marker: &str,
-    controls: &crate::runtime::QueryExecutionControls,
-) -> Result<(), CassieError> {
-    controls.check_interruption()?;
-    crate::app::copy_decode::grow_text_vec(row, memory, controls)?;
-    let mut is_null = raw.len() == null_marker.len();
-    if is_null {
-        for (left, right) in raw.chunks(4096).zip(null_marker.as_bytes().chunks(4096)) {
-            controls.check_interruption()?;
-            if left != right {
-                is_null = false;
-                break;
-            }
-        }
-    }
-    if is_null {
-        row.push(None);
-        return Ok(());
-    }
-    let field_memory = controls.reserve_query_memory(raw.len())?;
-    let mut field = String::new();
-    field
-        .try_reserve_exact(raw.len())
-        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
-    if field.capacity() > raw.len() {
-        return Err(CassieError::ResourceLimit(
-            "allocator exceeded admitted COPY field capacity".into(),
-        ));
-    }
-    let mut start = 0;
-    let mut escaped = false;
-    while start < raw.len() {
-        controls.check_interruption()?;
-        let mut end = (start + 4096).min(raw.len());
-        while end > start && end < raw.len() && raw[end] & 0xc0 == 0x80 {
-            end -= 1;
-        }
-        let chunk = std::str::from_utf8(&raw[start..end])
-            .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".into()))?;
-        for character in chunk.chars() {
-            if escaped {
-                field.push(match character {
-                    'b' => '\u{0008}',
-                    'f' => '\u{000c}',
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    'v' => '\u{000b}',
-                    other => other,
-                });
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else {
-                field.push(character);
-            }
-        }
-        start = end;
-    }
-    if escaped {
-        field.push('\\');
-    }
-    memory.absorb(field_memory);
-    row.push(Some(field));
-    Ok(())
 }
 
 #[cfg(test)]

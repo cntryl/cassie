@@ -20,8 +20,11 @@ use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp};
 
 #[path = "rollups/incremental.rs"]
 mod incremental;
+#[path = "rollups/matching.rs"]
+mod matching;
 #[path = "rollups/output_order.rs"]
 mod output_order;
+use matching::{eligible_plan_shape, matching_rollup};
 #[path = "rollup_expression.rs"]
 mod rollup_expression;
 #[path = "rollup_payload.rs"]
@@ -876,82 +879,6 @@ fn stable_group_row_id(
         serde_json::Value::String(partition.to_owned()),
     );
     stable_rollup_row_id(meta, &serde_json::Value::Object(payload))
-}
-
-fn matching_rollup(cassie: &Cassie, source: &str, plan: &LogicalPlan) -> Option<RollupMeta> {
-    cassie
-        .catalog
-        .list_rollups_for_source(source)
-        .into_iter()
-        .find(|rollup| rollup_matches_plan(rollup, plan))
-}
-
-fn rollup_matches_plan(rollup: &RollupMeta, plan: &LogicalPlan) -> bool {
-    if rollup.version != RollupMeta::CURRENT_VERSION {
-        return false;
-    }
-    let expected_groups = std::iter::once(rollup.bucket_expr.clone())
-        .chain(rollup.group_keys.iter().cloned())
-        .collect::<Vec<_>>();
-    let actual_groups = plan.group_by.iter().map(expr_key).collect::<Vec<_>>();
-    if actual_groups != expected_groups {
-        return false;
-    }
-    if plan.filter.as_ref().map(expr_key) != rollup.filter_expr {
-        return false;
-    }
-    let Some(expected_aggregates) = rollup
-        .aggregates
-        .iter()
-        .map(stored_aggregate_signature)
-        .collect::<Option<Vec<_>>>()
-    else {
-        return false;
-    };
-    let actual_aggregates = plan_aggregate_signatures(plan);
-    actual_aggregates == expected_aggregates
-}
-
-fn stored_aggregate_signature(aggregate: &RollupAggregateMeta) -> Option<String> {
-    let Expr::Function(function) =
-        crate::sql::parser::parse_expression(&aggregate.expression).ok()?
-    else {
-        return None;
-    };
-    if !function.name.eq_ignore_ascii_case(&aggregate.function) {
-        return None;
-    }
-    Some(aggregate_signature(&function))
-}
-
-fn plan_aggregate_signatures(plan: &LogicalPlan) -> Vec<String> {
-    plan.projection
-        .iter()
-        .filter_map(|item| match item {
-            SelectItem::Function { function, .. }
-                if crate::sql::functions::is_aggregate_function(&function.name) =>
-            {
-                Some(aggregate_signature(function))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn eligible_plan_shape(plan: &LogicalPlan) -> bool {
-    matches!(plan.source, QuerySource::Collection(_))
-        && plan.command.is_none()
-        && !plan.grouping_subtotal
-        && !plan.group_by.is_empty()
-        && plan.having.is_none()
-        && plan.set.is_none()
-        && plan.ctes.is_empty()
-        && !plan.distinct
-        && plan.distinct_on.is_empty()
-        && !plan
-            .projection
-            .iter()
-            .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
 }
 
 fn value_to_json(value: Value) -> Result<serde_json::Value, QueryError> {

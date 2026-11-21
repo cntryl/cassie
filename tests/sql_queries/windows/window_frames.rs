@@ -400,7 +400,8 @@ fn should_reject_invalid_window_frame_order() {
         .expect_err("invalid frame order should be rejected");
 
     // Assert
-    assert!(matches!(error, CassieError::Unsupported(message) if message.contains("frame bounds")));
+    assert_eq!(error.sql_state(), "42P20");
+    assert!(error.to_string().contains("cannot have preceding rows"));
 }
 
 #[test]
@@ -413,7 +414,8 @@ fn should_reject_negative_window_frame_offset() {
         .expect_err("negative frame offset should be rejected");
 
     // Assert
-    assert!(matches!(error, CassieError::Unsupported(message) if message.contains("negative")));
+    assert_eq!(error.sql_state(), "22013");
+    assert!(error.to_string().contains("must not be negative"));
 }
 
 #[test]

@@ -183,3 +183,47 @@ fn should_import_standalone_backslash_dot_as_a_csv_field() {
         );
     });
 }
+
+#[test]
+fn should_import_escaped_tab_row_before_end_marker() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("copy_text_escaped_delimiter_eof").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_copy_text_eof (a TEXT, b TEXT)")
+            .await
+            .expect("create table for escaped-delimiter COPY");
+
+        // Act
+        let (response_tag, response_payload, error_code, command) = copy_from_stdin(
+            &server,
+            "COPY compat_copy_text_eof FROM STDIN",
+            b"x\\\ty\tz\n\\.\nignored\trow\n",
+        )
+        .await;
+        let rows = if response_tag == b'G' {
+            client
+                .query("SELECT a, b FROM compat_copy_text_eof", &[])
+                .await
+                .expect("read values imported by text COPY")
+        } else {
+            Vec::new()
+        };
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(
+            response_tag, b'G',
+            "text COPY should enter COPY IN; response: {response_payload:?}; \
+             SQLSTATE: {error_code:?}"
+        );
+        assert_eq!(error_code, None);
+        assert_eq!(command.as_deref(), Some("COPY 1"));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get::<_, String>(0), "x\ty");
+        assert_eq!(rows[0].get::<_, String>(1), "z");
+    });
+}

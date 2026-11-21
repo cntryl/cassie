@@ -1,6 +1,9 @@
 #[path = "sql_mutations/insert/default_cells.rs"]
 mod insert_default_cells;
 
+#[path = "sql_mutations/insert/integer_range.rs"]
+mod insert_integer_range;
+
 #[path = "sql_mutations/insert/unknown_literals.rs"]
 mod insert_unknown_literals;
 
@@ -66,6 +69,9 @@ mod repeatable_bounds;
 #[path = "sql_mutations/ddl/drop_view_options.rs"]
 mod drop_view_options;
 
+#[path = "sql_mutations/ddl/view_dependencies.rs"]
+mod view_dependencies;
+
 #[path = "sql_mutations/ddl/using_conversions.rs"]
 mod using_conversions;
 
@@ -94,6 +100,9 @@ mod copy_csv_null_fields;
 #[path = "sql_mutations/constraints/alter_add_column_constraints.rs"]
 mod alter_add_column_constraints;
 
+#[path = "sql_mutations/constraints/alter_add_column_default_violations.rs"]
+mod alter_add_column_default_violations;
+
 #[path = "sql_mutations/constraints/quoted_check_identifiers.rs"]
 mod quoted_check_identifiers;
 
@@ -104,6 +113,9 @@ mod dml_statement_atomicity;
 // Formerly tests/foreign_key_concurrency.rs.
 #[path = "sql_mutations/constraints/foreign_keys/foreign_key_concurrency.rs"]
 mod foreign_key_concurrency;
+
+#[path = "sql_mutations/constraints/numeric_check_equality.rs"]
+mod numeric_check_equality;
 
 // Formerly tests/integration_sql_constraints.rs.
 #[path = "sql_mutations/constraints/semantics/mod.rs"]

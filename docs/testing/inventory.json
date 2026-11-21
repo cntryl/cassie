@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1873,
-    "rust_files": 1829,
-    "rust_test_declarations": 11128,
+    "files": 1885,
+    "rust_files": 1841,
+    "rust_test_declarations": 11267,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11153,
+    "registered_rust_instances": 11292,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -31278,6 +31278,37 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/copy/text_format.rs::should_import_escaped_tab_row_before_end_marker",
+      "name": "should_import_escaped_tab_row_before_end_marker",
+      "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
+      "line": 188,
+      "end_line": 229,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::copy_forms::text_format::should_import_escaped_tab_row_before_end_marker"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/copy",
+        "directory": "tests/compatibility/lifecycle/copy",
+        "file": "tests/compatibility/lifecycle/copy/text_format.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/ctes/mutation_ddl/semantics.rs::should_attach_a_non_modifying_cte_to_update",
       "name": "should_attach_a_non_modifying_cte_to_update",
       "current_file": "tests/compatibility/lifecycle/ctes/mutation_ddl/semantics.rs",
@@ -52789,6 +52820,161 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_return_nested_aggregate_row_from_table_without_rollup",
+      "name": "should_return_nested_aggregate_row_from_table_without_rollup",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 36,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_return_nested_aggregate_row_from_table_without_rollup"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_aggregate_is_nested_in_projection_expression",
+      "name": "should_decline_rollup_when_aggregate_is_nested_in_projection_expression",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 51,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_aggregate_is_nested_in_projection_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_return_table_rows_for_nested_aggregate_the_rollup_holds",
+      "name": "should_return_table_rows_for_nested_aggregate_the_rollup_holds",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 65,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_return_table_rows_for_nested_aggregate_the_rollup_holds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_order_by_uses_aggregate_it_lacks",
+      "name": "should_decline_rollup_when_order_by_uses_aggregate_it_lacks",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 80,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_order_by_uses_aggregate_it_lacks"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs::should_decline_rollup_when_case_expression_nests_aggregate_it_lacks",
+      "name": "should_decline_rollup_when_case_expression_nests_aggregate_it_lacks",
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "line": 94,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_nested_aggregate_match::should_decline_rollup_when_case_expression_nests_aggregate_it_lacks"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -247322,6 +247508,223 @@
       }
     },
     {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_exists",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_exists",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 21,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_in_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_in_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 34,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_in_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 46,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 58,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine",
+      "name": "should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 70,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias",
+      "name": "should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 83,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 96,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs::should_evaluate_correlated_exists_per_outer_row",
       "name": "should_evaluate_correlated_exists_per_outer_row",
       "current_file": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs",
@@ -248466,6 +248869,440 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_add_column_whose_default_violates_its_check",
+      "name": "should_reject_add_column_whose_default_violates_its_check",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 29,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_add_column_whose_default_violates_its_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_add_column_after_rejected_check_default",
+      "name": "should_allow_add_column_after_rejected_check_default",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 43,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_add_column_after_rejected_check_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_add_column_default_that_satisfies_its_check",
+      "name": "should_backfill_add_column_default_that_satisfies_its_check",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 61,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_add_column_default_that_satisfies_its_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_unique_add_column_with_constant_default_on_two_rows",
+      "name": "should_reject_unique_add_column_with_constant_default_on_two_rows",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 78,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_unique_add_column_with_constant_default_on_two_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_add_column_after_rejected_unique_default",
+      "name": "should_allow_add_column_after_rejected_unique_default",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 92,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_add_column_after_rejected_unique_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_unique_add_column_with_constant_default_on_one_row",
+      "name": "should_allow_unique_add_column_with_constant_default_on_one_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 110,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_unique_add_column_with_constant_default_on_one_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_unique_add_column_with_constant_default_on_empty_table",
+      "name": "should_allow_unique_add_column_with_constant_default_on_empty_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 130,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_unique_add_column_with_constant_default_on_empty_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_add_column_whose_default_has_no_referenced_row",
+      "name": "should_reject_add_column_whose_default_has_no_referenced_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 145,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_add_column_whose_default_has_no_referenced_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_add_column_default_that_has_a_referenced_row",
+      "name": "should_backfill_add_column_default_that_has_a_referenced_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 167,
+      "end_line": 189,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_add_column_default_that_has_a_referenced_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_not_null_add_column_without_default_on_populated_table",
+      "name": "should_reject_not_null_add_column_without_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 192,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_not_null_add_column_without_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_not_null_add_column_with_null_default_on_populated_table",
+      "name": "should_reject_not_null_add_column_with_null_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 206,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_not_null_add_column_with_null_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_not_null_add_column_with_default_on_populated_table",
+      "name": "should_backfill_not_null_add_column_with_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 220,
+      "end_line": 234,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_not_null_add_column_with_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_not_null_add_column_without_default_on_empty_table",
+      "name": "should_allow_not_null_add_column_without_default_on_empty_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 237,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_not_null_add_column_without_default_on_empty_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_check_violating_add_column_default_inside_a_transaction",
+      "name": "should_reject_check_violating_add_column_default_inside_a_transaction",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 252,
+      "end_line": 266,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_check_violating_add_column_default_inside_a_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -249923,6 +250760,285 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_float_value_equal_to_integer_bound",
+      "name": "should_accept_float_value_equal_to_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 18,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_float_value_equal_to_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_float_zero_for_not_equal_integer_bound",
+      "name": "should_reject_float_zero_for_not_equal_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 30,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_float_zero_for_not_equal_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_integer_value_equal_to_float_bound",
+      "name": "should_accept_integer_value_equal_to_float_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 42,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_integer_value_equal_to_float_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_integer_value_not_equal_to_fractional_bound",
+      "name": "should_accept_integer_value_not_equal_to_fractional_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 54,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_integer_value_not_equal_to_fractional_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_bigint_differing_from_bound_beyond_float_precision",
+      "name": "should_reject_bigint_differing_from_bound_beyond_float_precision",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 66,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_bigint_differing_from_bound_beyond_float_precision"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_accept_numeric_value_equal_to_integer_bound",
+      "name": "should_accept_numeric_value_equal_to_integer_bound",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 78,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_accept_numeric_value_equal_to_integer_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_enforce_float_equality_check_on_update",
+      "name": "should_enforce_float_equality_check_on_update",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 90,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_enforce_float_equality_check_on_update"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_treat_float_equal_to_integer_bound_as_not_distinct",
+      "name": "should_treat_float_equal_to_integer_bound_as_not_distinct",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 118,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_treat_float_equal_to_integer_bound_as_not_distinct"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/numeric_check_equality.rs::should_reject_float_equal_to_integer_bound_for_is_distinct_from",
+      "name": "should_reject_float_equal_to_integer_bound_for_is_distinct_from",
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "line": 130,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "numeric_check_equality::should_reject_float_equal_to_integer_bound_for_is_distinct_from"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/numeric",
+        "directory": "tests/sql_mutations/types/numeric",
+        "file": "tests/sql_mutations/types/numeric/numeric_check_equality.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -253091,8 +254207,8 @@
       "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_drop_a_view_list_given_the_default_restrict_option",
       "name": "should_drop_a_view_list_given_the_default_restrict_option",
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
-      "line": 26,
-      "end_line": 37,
+      "line": 25,
+      "end_line": 36,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253119,11 +254235,11 @@
       }
     },
     {
-      "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_reject_drop_view_cascade_without_dropping_any_view",
-      "name": "should_reject_drop_view_cascade_without_dropping_any_view",
+      "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_drop_a_view_list_given_the_cascade_option",
+      "name": "should_drop_a_view_list_given_the_cascade_option",
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
-      "line": 40,
-      "end_line": 51,
+      "line": 39,
+      "end_line": 50,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253131,7 +254247,7 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "drop_view_options::should_reject_drop_view_cascade_without_dropping_any_view"
+          "name": "drop_view_options::should_drop_a_view_list_given_the_cascade_option"
         }
       ],
       "attributes": [
@@ -256343,6 +257459,533 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_view_another_view_reads",
+      "name": "should_reject_dropping_a_view_another_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 27,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_view_another_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_view_list_that_contains_the_dependent_view",
+      "name": "should_drop_a_view_list_that_contains_the_dependent_view",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 41,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_view_list_that_contains_the_dependent_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_every_view_in_the_chain_with_drop_view_cascade",
+      "name": "should_drop_every_view_in_the_chain_with_drop_view_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 55,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_every_view_in_the_chain_with_drop_view_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_through_a_comma_join",
+      "name": "should_reject_dropping_a_table_a_view_reads_through_a_comma_join",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 92,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_through_a_comma_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_in_a_subquery",
+      "name": "should_reject_dropping_a_table_a_view_reads_in_a_subquery",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 104,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_in_a_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_in_a_cte",
+      "name": "should_reject_dropping_a_table_a_view_reads_in_a_cte",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 116,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_in_a_cte"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_through_an_explicit_join",
+      "name": "should_reject_dropping_a_table_a_view_reads_through_an_explicit_join",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 128,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_through_an_explicit_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_the_whole_view_chain_with_drop_table_cascade",
+      "name": "should_drop_the_whole_view_chain_with_drop_table_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 140,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_the_whole_view_chain_with_drop_table_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_filters_on",
+      "name": "should_reject_dropping_a_column_a_view_filters_on",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 179,
+      "end_line": 188,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_filters_on"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier",
+      "name": "should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 191,
+      "end_line": 200,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_selects_through_a_wildcard",
+      "name": "should_reject_dropping_a_column_a_view_selects_through_a_wildcard",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 203,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_selects_through_a_wildcard"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_uses_through_an_alias",
+      "name": "should_reject_dropping_a_column_a_view_uses_through_an_alias",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 215,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_uses_through_an_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery",
+      "name": "should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 227,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_only_names_in_a_string_literal",
+      "name": "should_drop_a_column_a_view_only_names_in_a_string_literal",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 240,
+      "end_line": 255,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_only_names_in_a_string_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_only_names_as_an_output_alias",
+      "name": "should_drop_a_column_a_view_only_names_as_an_output_alias",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 258,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_only_names_as_an_output_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_reads_from_another_table",
+      "name": "should_drop_a_column_a_view_reads_from_another_table",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 273,
+      "end_line": 285,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_reads_from_another_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_the_view_chain_with_drop_column_cascade",
+      "name": "should_drop_the_view_chain_with_drop_column_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 288,
+      "end_line": 305,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_the_view_chain_with_drop_column_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/delete/semantics.rs::should_execute_delete_where_returning_rows",
       "name": "should_execute_delete_where_returning_rows",
       "current_file": "tests/sql_mutations/delete/semantics.rs",
@@ -257518,6 +259161,254 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_insert",
+      "name": "should_report_integer_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 27,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_smallint_out_of_range_on_insert",
+      "name": "should_report_smallint_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 39,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_smallint_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_bigint_out_of_range_on_insert",
+      "name": "should_report_bigint_out_of_range_on_insert",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 51,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_bigint_out_of_range_on_insert"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_update_literal",
+      "name": "should_report_integer_out_of_range_on_update_literal",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 63,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_update_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_update_expression",
+      "name": "should_report_integer_out_of_range_on_update_expression",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 75,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_update_expression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_for_bound_parameter",
+      "name": "should_report_integer_out_of_range_for_bound_parameter",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 87,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_for_bound_parameter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_report_integer_out_of_range_on_copy",
+      "name": "should_report_integer_out_of_range_on_copy",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 106,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_report_integer_out_of_range_on_copy"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/insert/integer_range.rs::should_accept_integer_at_the_range_boundary",
+      "name": "should_accept_integer_at_the_range_boundary",
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "line": 127,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "insert_integer_range::should_accept_integer_at_the_range_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "types/ranges",
+        "directory": "tests/sql_mutations/types/ranges",
+        "file": "tests/sql_mutations/types/ranges/integer_range.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -259099,6 +260990,316 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_hide_pre_drop_rows_from_recreated_table_within_transaction",
+      "name": "should_hide_pre_drop_rows_from_recreated_table_within_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 26,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_hide_pre_drop_rows_from_recreated_table_within_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_publish_pre_drop_rows_into_recreated_table_at_commit",
+      "name": "should_not_publish_pre_drop_rows_into_recreated_table_at_commit",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 42,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_publish_pre_drop_rows_into_recreated_table_at_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged",
+      "name": "should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 59,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction",
+      "name": "should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 84,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_accept_key_reused_after_table_recreated_in_transaction",
+      "name": "should_accept_key_reused_after_table_recreated_in_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 108,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_accept_key_reused_after_table_recreated_in_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_restore_original_rows_when_drop_recreate_transaction_rolls_back",
+      "name": "should_restore_original_rows_when_drop_recreate_transaction_rolls_back",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 134,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_restore_original_rows_when_drop_recreate_transaction_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop",
+      "name": "should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 154,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_hide_pre_drop_rows_from_recreated_column_table",
+      "name": "should_hide_pre_drop_rows_from_recreated_column_table",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 179,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_hide_pre_drop_rows_from_recreated_column_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_surface_old_payload_columns_in_recreate_with_different_column_list",
+      "name": "should_not_surface_old_payload_columns_in_recreate_with_different_column_list",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 207,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_surface_old_payload_columns_in_recreate_with_different_column_list"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name",
+      "name": "should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 233,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -262577,8 +264778,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_transactional_catalog_at_savepoint_rollback",
       "name": "should_restore_transactional_catalog_at_savepoint_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 39,
-      "end_line": 72,
+      "line": 42,
+      "end_line": 75,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262608,8 +264809,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_dropped_table_after_transaction_rollback",
       "name": "should_restore_dropped_table_after_transaction_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 75,
-      "end_line": 98,
+      "line": 78,
+      "end_line": 101,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262639,8 +264840,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_commit_table_drop_after_staging_a_row_write",
       "name": "should_commit_table_drop_after_staging_a_row_write",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 101,
-      "end_line": 126,
+      "line": 104,
+      "end_line": 129,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262670,8 +264871,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_table_rename",
       "name": "should_publish_a_staged_row_after_transactional_table_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 129,
-      "end_line": 160,
+      "line": 132,
+      "end_line": 163,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262701,8 +264902,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_schema_rename",
       "name": "should_publish_a_staged_row_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 163,
-      "end_line": 202,
+      "line": 166,
+      "end_line": 205,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262732,8 +264933,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_view_after_transactional_schema_rename",
       "name": "should_publish_a_view_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 205,
-      "end_line": 239,
+      "line": 208,
+      "end_line": 242,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262763,8 +264964,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_preserve_staged_values_after_transactional_column_rename",
       "name": "should_preserve_staged_values_after_transactional_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 242,
-      "end_line": 267,
+      "line": 245,
+      "end_line": 270,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262794,8 +264995,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_resolve_staged_conflict_after_transactional_target_column_rename",
       "name": "should_resolve_staged_conflict_after_transactional_target_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 270,
-      "end_line": 303,
+      "line": 273,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262825,8 +265026,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_publication_with_transaction",
       "name": "should_rollback_materialized_view_publication_with_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 306,
-      "end_line": 353,
+      "line": 309,
+      "end_line": 356,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262856,8 +265057,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_materialized_view_after_commit",
       "name": "should_publish_materialized_view_after_commit",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 356,
-      "end_line": 402,
+      "line": 359,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262887,8 +265088,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_remove_failed_materialized_view_creation",
       "name": "should_remove_failed_materialized_view_creation",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 405,
-      "end_line": 427,
+      "line": 408,
+      "end_line": 430,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262918,8 +265119,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_refresh",
       "name": "should_rollback_materialized_view_refresh",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 430,
-      "end_line": 501,
+      "line": 433,
+      "end_line": 504,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262949,8 +265150,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_reject_view_commands_for_materialized_projection",
       "name": "should_reject_view_commands_for_materialized_projection",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 504,
-      "end_line": 542,
+      "line": 507,
+      "end_line": 545,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262980,8 +265181,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_report_unpopulated_view_scan_inside_transaction",
       "name": "should_report_unpopulated_view_scan_inside_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 545,
-      "end_line": 591,
+      "line": 548,
+      "end_line": 594,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282603,8 +284804,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_local_cte_before_the_catalog",
       "name": "should_resolve_a_quoted_local_cte_before_the_catalog",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 15,
-      "end_line": 22,
+      "line": 14,
+      "end_line": 21,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282634,8 +284835,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_inherit_quoted_cte_identity_in_a_nested_select",
       "name": "should_inherit_quoted_cte_identity_in_a_nested_select",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 25,
-      "end_line": 34,
+      "line": 24,
+      "end_line": 33,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282665,8 +284866,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_fold_unquoted_cte_identifiers_once",
       "name": "should_fold_unquoted_cte_identifiers_once",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 37,
-      "end_line": 52,
+      "line": 36,
+      "end_line": 51,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282696,8 +284897,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_keep_qualified_catalog_references_outside_cte_lookup",
       "name": "should_keep_qualified_catalog_references_outside_cte_lookup",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 55,
-      "end_line": 62,
+      "line": 54,
+      "end_line": 61,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282727,8 +284928,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_materialize_case_distinct_ctes_independently",
       "name": "should_materialize_case_distinct_ctes_independently",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 65,
-      "end_line": 72,
+      "line": 64,
+      "end_line": 71,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282758,8 +284959,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_inline_case_distinct_ctes_independently",
       "name": "should_inline_case_distinct_ctes_independently",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 75,
-      "end_line": 82,
+      "line": 74,
+      "end_line": 81,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282789,8 +284990,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_reject_duplicate_resolved_cte_identifiers",
       "name": "should_reject_duplicate_resolved_cte_identifiers",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 85,
-      "end_line": 101,
+      "line": 84,
+      "end_line": 98,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282817,11 +285018,42 @@
       }
     },
     {
+      "id": "tests/sql_queries/cte_identity.rs::should_report_postgresql_message_for_duplicate_cte_names",
+      "name": "should_report_postgresql_message_for_duplicate_cte_names",
+      "current_file": "tests/sql_queries/cte_identity.rs",
+      "line": 101,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "cte_identity::should_report_postgresql_message_for_duplicate_cte_names"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ctes",
+        "directory": "tests/sql_queries/ctes",
+        "file": "tests/sql_queries/ctes/cte_identity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_cte_identifier_contents",
       "name": "should_preserve_cte_identifier_contents",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 104,
-      "end_line": 122,
+      "line": 119,
+      "end_line": 137,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282851,8 +285083,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_nonrecursive_body_visibility",
       "name": "should_preserve_nonrecursive_body_visibility",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 125,
-      "end_line": 136,
+      "line": 140,
+      "end_line": 151,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282882,8 +285114,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_a_quoted_recursive_self_reference",
       "name": "should_resolve_a_quoted_recursive_self_reference",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 139,
-      "end_line": 156,
+      "line": 154,
+      "end_line": 171,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282913,8 +285145,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_preserve_quoted_cte_wildcard_descriptors",
       "name": "should_preserve_quoted_cte_wildcard_descriptors",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 159,
-      "end_line": 178,
+      "line": 174,
+      "end_line": 193,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282944,8 +285176,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_restore_outer_cte_identity_after_a_nested_shadow",
       "name": "should_restore_outer_cte_identity_after_a_nested_shadow",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 181,
-      "end_line": 188,
+      "line": 196,
+      "end_line": 203,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -282975,8 +285207,8 @@
       "id": "tests/sql_queries/cte_identity.rs::should_resolve_implicit_qualifiers_of_case_distinct_ctes",
       "name": "should_resolve_implicit_qualifiers_of_case_distinct_ctes",
       "current_file": "tests/sql_queries/cte_identity.rs",
-      "line": 191,
-      "end_line": 220,
+      "line": 206,
+      "end_line": 235,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -299491,6 +301723,843 @@
         "file": "tests/sql_queries/grammar/identifiers/case_resolution.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_inner_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_inner_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 27,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_inner_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_left_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_left_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 46,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_left_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_right_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_right_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 58,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_right_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_full_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_full_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 70,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_full_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_join_on_between_a_derived_alias_then_a_parenthesis",
+      "name": "should_parse_join_on_between_a_derived_alias_then_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 82,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_join_on_between_a_derived_alias_then_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis",
+      "name": "should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 95,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_a_second_join_after_a_closing_parenthesis",
+      "name": "should_parse_a_second_join_after_a_closing_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 108,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_a_second_join_after_a_closing_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_parenthesis",
+      "name": "should_parse_conjunction_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 122,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_lowercase_conjunction_directly_before_a_parenthesis",
+      "name": "should_parse_lowercase_conjunction_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 134,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_lowercase_conjunction_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_directly_before_a_parenthesis",
+      "name": "should_parse_or_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 146,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_between_two_parenthesized_predicates",
+      "name": "should_parse_conjunction_between_two_parenthesized_predicates",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 158,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_between_two_parenthesized_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_between_two_parenthesized_predicates",
+      "name": "should_parse_or_between_two_parenthesized_predicates",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 170,
+      "end_line": 179,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_between_two_parenthesized_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_a_closing_parenthesis_before_not",
+      "name": "should_parse_conjunction_after_a_closing_parenthesis_before_not",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 182,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_a_closing_parenthesis_before_not"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_an_in_subquery_closing_parenthesis",
+      "name": "should_parse_conjunction_after_an_in_subquery_closing_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 194,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_an_in_subquery_closing_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_in_directly_before_a_parenthesis",
+      "name": "should_parse_in_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 206,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_in_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_not_in_directly_before_a_parenthesis",
+      "name": "should_parse_not_in_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 218,
+      "end_line": 227,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_not_in_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_between_bounds_that_touch_their_keywords",
+      "name": "should_parse_between_bounds_that_touch_their_keywords",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 230,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_between_bounds_that_touch_their_keywords"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_after_is_null_before_a_parenthesis",
+      "name": "should_parse_or_after_is_null_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 242,
+      "end_line": 251,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_after_is_null_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_is_not_null_before_a_parenthesis",
+      "name": "should_parse_conjunction_after_is_not_null_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 254,
+      "end_line": 263,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_is_not_null_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_is_distinct_from_directly_before_a_parenthesis",
+      "name": "should_parse_is_distinct_from_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 266,
+      "end_line": 275,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_is_distinct_from_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_string_literal",
+      "name": "should_parse_conjunction_directly_before_a_string_literal",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 278,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_string_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_quoted_identifier",
+      "name": "should_parse_conjunction_directly_before_a_quoted_identifier",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 290,
+      "end_line": 299,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_quoted_identifier"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_where_order_by_limit_touching_parentheses",
+      "name": "should_parse_where_order_by_limit_touching_parentheses",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 302,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_where_order_by_limit_touching_parentheses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_case_when_then_touching_parentheses",
+      "name": "should_parse_case_when_then_touching_parentheses",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 314,
+      "end_line": 323,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_case_when_then_touching_parentheses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_identifiers_that_contain_a_keyword",
+      "name": "should_not_split_identifiers_that_contain_a_keyword",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 326,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_identifiers_that_contain_a_keyword"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_keywords_inside_string_literals",
+      "name": "should_not_split_keywords_inside_string_literals",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 349,
+      "end_line": 361,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_keywords_inside_string_literals"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_keywords_inside_quoted_identifiers",
+      "name": "should_not_split_keywords_inside_quoted_identifiers",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 364,
+      "end_line": 379,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_keywords_inside_quoted_identifiers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -317320,6 +320389,161 @@
       }
     },
     {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_right_join_lateral_function_that_reads_the_left_side",
+      "name": "should_reject_right_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 16,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_right_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_full_join_lateral_function_that_reads_the_left_side",
+      "name": "should_reject_full_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 30,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_full_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_right_join_lateral_subquery_that_reads_the_left_side",
+      "name": "should_reject_right_join_lateral_subquery_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 44,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_right_join_lateral_subquery_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_accept_right_join_lateral_function_that_ignores_the_left_side",
+      "name": "should_accept_right_join_lateral_function_that_ignores_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 57,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_accept_right_join_lateral_function_that_ignores_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_accept_left_join_lateral_function_that_reads_the_left_side",
+      "name": "should_accept_left_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 76,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_accept_left_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/set_returning/series.rs::should_evaluate_scalar_subquery_series_bounds_with_native_result_identity",
       "name": "should_evaluate_scalar_subquery_series_bounds_with_native_result_identity",
       "current_file": "tests/sql_queries/set_returning/series.rs",
@@ -325504,6 +328728,998 @@
       }
     },
     {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_range_end_precedes_first_row",
+      "name": "should_count_zero_rows_when_range_end_precedes_first_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 38,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_range_end_precedes_first_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_sum_when_range_frame_lies_before_every_row",
+      "name": "should_return_null_sum_when_range_frame_lies_before_every_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 53,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_sum_when_range_frame_lies_before_every_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_range_start_follows_last_row",
+      "name": "should_count_zero_rows_when_range_start_follows_last_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 68,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_range_start_follows_last_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_sum_when_range_frame_lies_after_every_row",
+      "name": "should_return_null_sum_when_range_frame_lies_after_every_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 83,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_sum_when_range_frame_lies_after_every_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_descending_range_end_precedes_first_row",
+      "name": "should_count_zero_rows_when_descending_range_end_precedes_first_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 98,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_descending_range_end_precedes_first_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_descending_range_start_follows_last_row",
+      "name": "should_count_zero_rows_when_descending_range_start_follows_last_row",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 113,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_descending_range_start_follows_last_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_include_leading_nulls_in_range_frame_ending_before_current_peers",
+      "name": "should_include_leading_nulls_in_range_frame_ending_before_current_peers",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 128,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_include_leading_nulls_in_range_frame_ending_before_current_peers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_include_trailing_nulls_in_range_frame_starting_after_current_peers",
+      "name": "should_include_trailing_nulls_in_range_frame_starting_after_current_peers",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 143,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_include_trailing_nulls_in_range_frame_starting_after_current_peers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_rows_frame_lies_before_first_rows",
+      "name": "should_count_zero_rows_when_rows_frame_lies_before_first_rows",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 158,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_rows_frame_lies_before_first_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_return_null_value_functions_over_empty_rows_frame",
+      "name": "should_return_null_value_functions_over_empty_rows_frame",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 173,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_return_null_value_functions_over_empty_rows_frame"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_rows_frame_lies_after_last_rows",
+      "name": "should_count_zero_rows_when_rows_frame_lies_after_last_rows",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 199,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_rows_frame_lies_after_last_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset",
+      "name": "should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 214,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_preceding_start_offset_is_smaller_than_end_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset",
+      "name": "should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 229,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_following_start_offset_is_larger_than_end_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_peer_groups_for_groups_frame_ending_before_current_group",
+      "name": "should_count_peer_groups_for_groups_frame_ending_before_current_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 244,
+      "end_line": 256,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_peer_groups_for_groups_frame_ending_before_current_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_peer_groups_for_groups_frame_after_current_group",
+      "name": "should_count_peer_groups_for_groups_frame_after_current_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 259,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_peer_groups_for_groups_frame_after_current_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_empty_ranges.rs::should_count_zero_rows_when_groups_frame_lies_before_first_group",
+      "name": "should_count_zero_rows_when_groups_frame_lies_before_first_group",
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "line": 274,
+      "end_line": 286,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_empty_ranges::should_count_zero_rows_when_groups_frame_lies_before_first_group"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/ranges",
+        "directory": "tests/sql_queries/types/ranges",
+        "file": "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_frame_starting_at_unbounded_following",
+      "name": "should_reject_frame_starting_at_unbounded_following",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 39,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_frame_starting_at_unbounded_following"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_unbounded_following_start_with_current_row_end",
+      "name": "should_reject_unbounded_following_start_with_current_row_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 51,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_unbounded_following_start_with_current_row_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_short_form_unbounded_following",
+      "name": "should_reject_short_form_unbounded_following",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 63,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_short_form_unbounded_following"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_frame_ending_at_unbounded_preceding",
+      "name": "should_reject_frame_ending_at_unbounded_preceding",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 75,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_frame_ending_at_unbounded_preceding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_unbounded_preceding_to_unbounded_preceding",
+      "name": "should_reject_unbounded_preceding_to_unbounded_preceding",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 87,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_unbounded_preceding_to_unbounded_preceding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_offset_start_with_unbounded_preceding_end",
+      "name": "should_reject_offset_start_with_unbounded_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 99,
+      "end_line": 108,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_offset_start_with_unbounded_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_current_row_start_with_preceding_offset_end",
+      "name": "should_reject_current_row_start_with_preceding_offset_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 111,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_current_row_start_with_preceding_offset_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_following_start_with_current_row_end",
+      "name": "should_reject_following_start_with_current_row_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 126,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_following_start_with_current_row_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_following_start_with_preceding_end",
+      "name": "should_reject_following_start_with_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 141,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_following_start_with_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_short_form_following_offset",
+      "name": "should_reject_short_form_following_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 156,
+      "end_line": 168,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_short_form_following_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_negative_frame_offset",
+      "name": "should_reject_negative_frame_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 171,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_negative_frame_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_reject_null_frame_offset",
+      "name": "should_reject_null_frame_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 187,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_reject_null_frame_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_preceding_start_with_smaller_preceding_end",
+      "name": "should_accept_preceding_start_with_smaller_preceding_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 199,
+      "end_line": 201,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_preceding_start_with_smaller_preceding_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_following_start_with_smaller_following_end",
+      "name": "should_accept_following_start_with_smaller_following_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 204,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_following_start_with_smaller_following_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_following_start_with_unbounded_following_end",
+      "name": "should_accept_following_start_with_unbounded_following_end",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 209,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_following_start_with_unbounded_following_end"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/windows/window_frame_validation.rs::should_accept_short_form_preceding_offset",
+      "name": "should_accept_short_form_preceding_offset",
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "line": 214,
+      "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "window_frame_validation::should_accept_short_form_preceding_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/windows",
+        "directory": "tests/sql_queries/aggregates/windows",
+        "file": "tests/sql_queries/aggregates/windows/window_frame_validation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/windows/window_frames.rs::should_parse_explicit_rows_frame_bounds",
       "name": "should_parse_explicit_rows_frame_bounds",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
@@ -325911,7 +330127,7 @@
       "name": "should_reject_invalid_window_frame_order",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
       "line": 394,
-      "end_line": 404,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -325941,8 +330157,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_reject_negative_window_frame_offset",
       "name": "should_reject_negative_window_frame_offset",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 407,
-      "end_line": 417,
+      "line": 408,
+      "end_line": 419,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -325972,8 +330188,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_default_deserialized_window_frame_exclusion",
       "name": "should_default_deserialized_window_frame_exclusion",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 420,
-      "end_line": 430,
+      "line": 422,
+      "end_line": 432,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -326003,8 +330219,8 @@
       "id": "tests/sql_queries/windows/window_frames.rs::should_not_return_unsupported_window_frame_sqlstate",
       "name": "should_not_return_unsupported_window_frame_sqlstate",
       "current_file": "tests/sql_queries/windows/window_frames.rs",
-      "line": 433,
-      "end_line": 481,
+      "line": 435,
+      "end_line": 483,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -342143,6 +346359,99 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 53,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 68,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 87,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::results::should_match_brute_force_top_k_including_ties_on_heap_tables",
       "name": "should_match_brute_force_top_k_including_ties_on_heap_tables",
       "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
@@ -349108,9 +353417,9 @@
       "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 185,
-      "sha256": "8e936c884afce9475db5fb84b951ab6d7881dc0b6ad50aa5398642d4ab73d930",
-      "test_declarations": 4,
+      "lines": 229,
+      "sha256": "8a20ba4da983067697e67b911ed5ef2bda626b163223e66a2af50b0ebfacd061",
+      "test_declarations": 5,
       "registered_suites": [
         "compatibility"
       ],
@@ -351786,6 +356095,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 106,
+      "sha256": "256bc02df0e8cdde8ae0b5c56c01e602fbb2451089f8cb53334c84022b63df97",
+      "test_declarations": 5,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -351864,8 +356188,8 @@
       "current_file": "tests/domain_models.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 43,
-      "sha256": "2d2cfb6a071cc2a432aacadb9836e6806adb4f308c6e1751788c004e4e7cc217",
+      "lines": 46,
+      "sha256": "a08ca4d004161d4908a81dcedd306ba846b1866017142bd5724c8fbafb975afb",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"
@@ -365906,6 +370230,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 112,
+      "sha256": "029cb197885ab3d0f9e2a49fb0f861f9f4caa8b04073c6bed70fe88e09987cac",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_exists_subqueries"
+      ],
+      "destinations": [
+        "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs",
       "role": "test_module",
       "action": "keep",
@@ -365984,8 +370323,8 @@
       "current_file": "tests/sql_exists_subqueries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 22,
-      "sha256": "e3589900c8fe9898c4c278c877a64cf8c67b2911222235f086a3538e01ab6c01",
+      "lines": 25,
+      "sha256": "789c69ebc3e25fcff1e7419dd9c24d3f956c940967d6458832543c2145aa0b25",
       "test_declarations": 0,
       "registered_suites": [
         "sql_exists_subqueries"
@@ -366101,6 +370440,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 266,
+      "sha256": "79fd49ede4f13ebf317b6acc5f439f7382d8fb258a1b66e8ed6ad05ef9566af1",
+      "test_declarations": 14,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/constraints/alter_add_column_default_violations.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/drop_constraint.rs",
       "role": "test_module",
       "action": "keep",
@@ -366172,6 +370526,21 @@
       ],
       "destinations": [
         "tests/sql_mutations/constraints/foreign_keys/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/constraints/numeric_check_equality.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 139,
+      "sha256": "d9e5d7040309012787607bb88196ed4bcb62db8a06f88245e04f98cdc83a29c9",
+      "test_declarations": 9,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/types/numeric/numeric_check_equality.rs"
       ],
       "line_limit": 1000
     },
@@ -366464,8 +370833,8 @@
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "6a67d30baeb2646fc9b706a67d23a4a52d52d8d1d5b9b697684616e5804eeffe",
+      "lines": 50,
+      "sha256": "c145eb1371dd73f8b7884c69d4f0a79434b30485ce4647fe4159e596e0ab8ec8",
       "test_declarations": 2,
       "registered_suites": [
         "sql_mutations"
@@ -366686,6 +371055,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 305,
+      "sha256": "28ad6fe964e1a50148abc7e6d4c0653f07be2b73eb9ac25cf18f09b4bbdbf9bf",
+      "test_declarations": 17,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/view_dependencies.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/delete/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -366742,6 +371126,21 @@
       ],
       "destinations": [
         "tests/sql_mutations/insert/insert_values.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/insert/integer_range.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 143,
+      "sha256": "72d664610cc92ced88c0e09a688b78df5e5b5fa23529f9c5131be6badfe33aa8",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/types/ranges/integer_range.rs"
       ],
       "line_limit": 1000
     },
@@ -366967,6 +371366,21 @@
       ],
       "destinations": [
         "tests/sql_mutations/transactions/catalog_snapshot.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 261,
+      "sha256": "a47b2e085ebc6f05a1d7ee04326d0869cce18ef41479d6689f43465718448057",
+      "test_declarations": 10,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs"
       ],
       "line_limit": 1000
     },
@@ -367349,8 +371763,8 @@
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 591,
-      "sha256": "938ca3f4227375b5a3f3c30604ac9928942e850d9fd3ce4141d91f2edf365ee1",
+      "lines": 594,
+      "sha256": "23018d5810bf65e0ae6befcabe94a077b7164fbab263dd339648d99bdc8dbeac",
       "test_declarations": 14,
       "registered_suites": [
         "sql_mutations"
@@ -367467,8 +371881,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 248,
-      "sha256": "c78eab9376919bb2d016628939523378d7f3e1ede01926c63d2eb7917874890b",
+      "lines": 260,
+      "sha256": "50bb9e03d6298e009a82c94e6d21b1cd9a49812e09756987cac2b5699dc0ac58",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"
@@ -368773,9 +373187,9 @@
       "current_file": "tests/sql_queries/cte_identity.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 220,
-      "sha256": "de22088e4499de9c7a642eb8791514780cdfebc1c394f96e0d08d8e9676a5363",
-      "test_declarations": 13,
+      "lines": 235,
+      "sha256": "67b2aee214ae45d1d4dbd9d309b0005b74f3c3892926a2f1761dce98ea51ae54",
+      "test_declarations": 14,
       "registered_suites": [
         "sql_queries"
       ],
@@ -369397,6 +373811,21 @@
       ],
       "destinations": [
         "tests/sql_queries/grammar/identifiers/case_resolution.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 379,
+      "sha256": "71d0354c85821bf2857eb512efda876d8ff9fa0784a91f53a1f0993c6a6c01ff",
+      "test_declarations": 27,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/grammar/keyword_boundaries.rs"
       ],
       "line_limit": 1000
     },
@@ -370198,6 +374627,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 93,
+      "sha256": "382658798ecf6e467815ccb952f13901a8cc81421ae1432915c2e863a1aa03f0",
+      "test_declarations": 5,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/set_returning/lateral_outer_joins.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/set_returning/series.rs",
       "role": "test_module",
       "action": "keep",
@@ -370586,11 +375030,42 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/windows/window_frame_empty_ranges.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 286,
+      "sha256": "17cd20922f7f35a027bd38e2b8e1a387195de41a7e9018ba24a543dee3593012",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs",
+        "tests/sql_queries/types/ranges/window_frame_empty_ranges.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/windows/window_frame_validation.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 216,
+      "sha256": "ae3a2461b84f3aa3ba428f29e0191f1381767d0b304d799fed22890e882584df",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/windows/window_frame_validation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/windows/window_frames.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 481,
-      "sha256": "a89bff0578a03b4b763b1bdc897890965695481ee99d9208ce1ce0068dbd8ea0",
+      "lines": 483,
+      "sha256": "55eb159cf110e5e1969611dcdb435fcbbaa6e776c54159afee1be6cacbee57d5",
       "test_declarations": 17,
       "registered_suites": [
         "sql_queries"
@@ -370604,8 +375079,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 328,
-      "sha256": "ba789512bbeb0c46c05bdd31bbbcce58a9f3d05ecb5e3609474b8e6f8336db2d",
+      "lines": 338,
+      "sha256": "601897147cbf7eeeaaaa498a6d47b1d8748bcbf19b81734e5d52227453cbacb8",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -373700,6 +378175,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 103,
+      "sha256": "f7fa9979db350ce849cc15474fe4cba8bc71b245d1a818d86a13493ebd5c520a",
+      "test_declarations": 3,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/candidate_max_decline.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -373978,8 +378468,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 152,
-      "sha256": "4dc6e53c61f826a04e798ccaa64d3ed8a81e0d022ba7bab696c79f3047810667",
+      "lines": 155,
+      "sha256": "4aa2e97cd1ade621084dcb42b7f2485c55893175742e1f5932209a19f697db7b",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

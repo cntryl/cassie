@@ -98,6 +98,8 @@ struct CteBinding {
     row_fields: Vec<FieldSchema>,
 }
 
+#[path = "binder/inner_qualifiers.rs"]
+mod inner_qualifiers;
 #[path = "binder/references.rs"]
 mod references;
 #[path = "binder/scope.rs"]

@@ -41,6 +41,9 @@ pub enum SqlErrorKind {
     InvalidParameterValue,
     /// An option that the column's data type cannot take (SQLSTATE 42804).
     DatatypeMismatch,
+    /// A statement rejected with a specific PostgreSQL SQLSTATE, such as an
+    /// invalid window frame (42P20).
+    Diagnostic(&'static str),
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +103,14 @@ impl SqlError {
     pub fn datatype_mismatch(message: String) -> Self {
         Self {
             kind: SqlErrorKind::DatatypeMismatch,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn diagnostic(sql_state: &'static str, message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Diagnostic(sql_state),
             message,
         }
     }

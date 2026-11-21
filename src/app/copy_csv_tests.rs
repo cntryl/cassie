@@ -95,3 +95,38 @@ fn should_preserve_unicode_force_null_with_not_null_controls() {
     drop((rows, memory));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_keep_backslash_dot_line_as_csv_data() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let payload = b"a\n\\.\nc\n";
+    // Act
+    let (rows, _memory) = parse_csv_payload(payload, options(), true, &controls).expect("CSV");
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Some("a".into())],
+            vec![Some("\\.".into())],
+            vec![Some("c".into())]
+        ]
+    );
+}
+
+#[test]
+fn should_decode_escape_character_before_escape_character_in_quoted_csv() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let custom = CopyCsvOptions {
+        escape: '\\',
+        ..options()
+    };
+    let payload = b"\"a\\\\b\\\"c\"\n";
+    // Act
+    let (rows, _memory) = parse_csv_payload(payload, custom, true, &controls).expect("CSV");
+    // Assert
+    assert_eq!(rows, vec![vec![Some("a\\b\"c".into())]]);
+}

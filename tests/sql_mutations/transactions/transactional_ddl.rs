@@ -18,6 +18,9 @@ mod restart_publication;
 #[path = "rebuild_swap.rs"]
 mod rebuild_swap;
 
+#[path = "drop_recreate_staged_rows.rs"]
+mod drop_recreate_staged_rows;
+
 #[path = "multi_database.rs"]
 mod multi_database;
 

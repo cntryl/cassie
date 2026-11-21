@@ -31,6 +31,16 @@ impl<'a, 'c> ReferenceScope<'a, 'c> {
         }
     }
 
+    fn validate_inner_qualifiers(
+        self,
+        statement: &super::ParsedStatement,
+    ) -> Result<(), CassieError> {
+        let Some(nested) = self.nested else {
+            return Ok(());
+        };
+        super::inner_qualifiers::validate(statement, nested.catalog, nested.ctes)
+    }
+
     fn validate_nested(
         self,
         statement: &super::ParsedStatement,
@@ -206,9 +216,13 @@ pub(super) fn validate_expression_in_scope(
             return validate_aggregate_function_args(function, known_fields, scope);
         }
         Expr::Exists(statement) => {
+            scope.validate_inner_qualifiers(statement)?;
             return scope.validate_nested(statement, known_fields);
         }
-        Expr::Subquery(subquery) => scope.validate_nested(&subquery.query, known_fields)?,
+        Expr::Subquery(subquery) => {
+            scope.validate_inner_qualifiers(&subquery.query)?;
+            scope.validate_nested(&subquery.query, known_fields)?;
+        }
         _ => {}
     }
     expr.try_visit_children(|child| {

@@ -97,6 +97,7 @@ pub use error::{
     CassieError, CatalogObjectKind, DiagnosticError, OwnedNumericLiteralError,
     RetryableStorageError, StorageRetryKind,
 };
+pub(crate) use existing_constraint_checks::AddedColumnDefault;
 pub use session::CassieSession;
 pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
 pub(crate) use session::{
@@ -138,11 +139,13 @@ mod lifecycle;
 mod operational;
 mod portal_reads;
 pub(crate) use portal_reads::PortalReadSpec;
+mod check_numbers;
 mod domain_enforcement;
 mod domain_scope;
 mod enum_checks;
 mod enum_notice;
 mod enum_scope;
+mod integer_range;
 mod publication_intent;
 mod query;
 mod query_bind;

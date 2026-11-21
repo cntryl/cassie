@@ -5,6 +5,7 @@
 //! alias of another column and a source column, they would order by the wrong one. The generic
 //! sort resolves aliases first, so such plans skip the access paths.
 
+use crate::app::Cassie;
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::Expr;
 use crate::sql::ColumnIdentifierPath;
@@ -34,6 +35,21 @@ pub(super) fn order_alias_shadows_source_column(
                 .any(|field| ColumnIdentifierPath::stored_field_key(field) == reference_key)
         })
     })
+}
+
+/// Whether the plan's ORDER BY must skip the access paths, using the source schema from the catalog.
+pub(super) fn order_alias_shadows_source(cassie: &Cassie, plan: &LogicalPlan) -> bool {
+    if plan.order.is_empty() {
+        return false;
+    }
+    let fields = cassie.catalog.get_schema(&plan.collection).map(|schema| {
+        schema
+            .fields
+            .into_iter()
+            .map(|field| field.name)
+            .collect::<Vec<_>>()
+    });
+    order_alias_shadows_source_column(plan, fields.as_deref())
 }
 
 #[cfg(test)]

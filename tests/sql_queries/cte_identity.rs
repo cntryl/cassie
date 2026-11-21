@@ -1,7 +1,6 @@
 //! CTE identity is the parser-resolved identifier, including quoted contents.
 
 use crate::query_correctness_fixture::started;
-use cassie::app::CassieError;
 use cassie::types::Value;
 
 const CATALOG: &[&str] = &[
@@ -94,10 +93,26 @@ fn should_reject_duplicate_resolved_cte_identifiers() {
     .map(|sql| fixture.execute(sql).expect_err("duplicate identity"));
     // Assert
     for error in errors {
-        assert!(
-            matches!(error, CassieError::Planner(message) if message.contains("duplicate CTE name"))
-        );
+        assert_eq!(error.sql_state(), "42712");
     }
+}
+
+#[test]
+fn should_report_postgresql_message_for_duplicate_cte_names() {
+    // Arrange
+    let fixture = started("cte-identity-duplicate-message", CATALOG);
+
+    // Act
+    let error = fixture
+        .execute("WITH c AS (SELECT 1 AS a), c AS (SELECT 2 AS a) SELECT * FROM c")
+        .expect_err("duplicate CTE name");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42712");
+    assert_eq!(
+        error.to_string(),
+        "WITH query name \"c\" specified more than once"
+    );
 }
 
 #[test]

@@ -962,7 +962,8 @@ impl Builder {
             }
             match self.pm {
                 Some(true) if hour != 12 => hour += 12,
-                Some(false) if hour == 12 => hour = 0,
+                // Without a meridian, PostgreSQL treats the 12-hour clock as AM.
+                Some(false) | None if hour == 12 => hour = 0,
                 _ => {}
             }
         }

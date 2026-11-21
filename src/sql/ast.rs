@@ -801,6 +801,8 @@ pub struct DropViewStatement {
     #[serde(default)]
     pub additional_names: Vec<String>,
     pub if_exists: bool,
+    #[serde(default)]
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -20,3 +20,6 @@ mod exists_cte_scope;
 
 #[path = "sql_exists_subqueries/subqueries/correlated_exists.rs"]
 mod correlated_exists;
+
+#[path = "sql_exists_subqueries/subqueries/alias_shadowing.rs"]
+mod alias_shadowing;

@@ -30,8 +30,8 @@ pub(super) fn encode_header(request: &CopyRequest, columns: &[ColumnMeta]) -> Op
     for column in columns {
         fields.push(encode_csv_field(
             &column.name,
-            request.csv_delimiter(),
-            request.null_marker(),
+            &CsvStyle::of(request),
+            false,
             false,
         ));
     }
@@ -72,7 +72,7 @@ fn encode_text_row(request: &CopyRequest, columns: &[ColumnMeta], row: &[Value])
             Value::Null => bytes.extend_from_slice(request.null_marker().as_bytes()),
             value => {
                 let text = super::super::codecs::value_to_text(value, columns[index].type_oid);
-                encode_text_field(&mut bytes, &text);
+                encode_text_field(&mut bytes, &text, delimiter);
             }
         }
     }
@@ -81,7 +81,8 @@ fn encode_text_row(request: &CopyRequest, columns: &[ColumnMeta], row: &[Value])
 }
 
 fn encode_csv_row(request: &CopyRequest, columns: &[ColumnMeta], row: &[Value]) -> Vec<u8> {
-    let delimiter = request.csv_delimiter();
+    let style = CsvStyle::of(request);
+    let delimiter = style.delimiter;
     let mut fields = Vec::with_capacity(row.len());
     for (index, value) in row.iter().enumerate() {
         match value {
@@ -89,12 +90,7 @@ fn encode_csv_row(request: &CopyRequest, columns: &[ColumnMeta], row: &[Value]) 
             value => {
                 let text = super::super::codecs::value_to_text(value, columns[index].type_oid);
                 let force = should_force_quote(&request.force_quote, &columns[index].name);
-                fields.push(encode_csv_field(
-                    &text,
-                    delimiter,
-                    request.null_marker(),
-                    force,
-                ));
+                fields.push(encode_csv_field(&text, &style, force, row.len() == 1));
             }
         }
     }
@@ -128,18 +124,45 @@ fn encode_binary_row(columns: &[ColumnMeta], row: &[Value]) -> Result<Vec<u8>, C
     Ok(bytes)
 }
 
-fn encode_csv_field(value: &str, delimiter: char, null_marker: &str, force: bool) -> String {
+struct CsvStyle<'a> {
+    delimiter: char,
+    quote: char,
+    escape: char,
+    null_marker: &'a str,
+}
+
+impl<'a> CsvStyle<'a> {
+    fn of(request: &'a CopyRequest) -> Self {
+        Self {
+            delimiter: request.csv_delimiter(),
+            quote: request.quote,
+            escape: request.escape,
+            null_marker: request.null_marker(),
+        }
+    }
+}
+
+fn encode_csv_field(value: &str, style: &CsvStyle<'_>, force: bool, single_column: bool) -> String {
     let quote = force
-        || value == null_marker
-        || value.contains(delimiter)
-        || value.contains('"')
+        || value == style.null_marker
+        || (single_column && value == "\\.")
+        || value.contains(style.delimiter)
+        || value.contains(style.quote)
         || value.contains('\n')
         || value.contains('\r');
-    if quote {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        value.to_string()
+    if !quote {
+        return value.to_string();
     }
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push(style.quote);
+    for character in value.chars() {
+        if character == style.quote || character == style.escape {
+            out.push(style.escape);
+        }
+        out.push(character);
+    }
+    out.push(style.quote);
+    out
 }
 
 fn should_force_quote(force_quote: &ForceQuote, name: &str) -> bool {
@@ -150,7 +173,7 @@ fn should_force_quote(force_quote: &ForceQuote, name: &str) -> bool {
     }
 }
 
-fn encode_text_field(output: &mut Vec<u8>, value: &str) {
+fn encode_text_field(output: &mut Vec<u8>, value: &str, delimiter: char) {
     for character in value.chars() {
         match character {
             '\\' => output.extend_from_slice(b"\\\\"),
@@ -160,7 +183,12 @@ fn encode_text_field(output: &mut Vec<u8>, value: &str) {
             '\u{0008}' => output.extend_from_slice(b"\\b"),
             '\u{000c}' => output.extend_from_slice(b"\\f"),
             '\u{000b}' => output.extend_from_slice(b"\\v"),
-            other => push_char(output, other),
+            other => {
+                if other == delimiter {
+                    output.push(b'\\');
+                }
+                push_char(output, other);
+            }
         }
     }
 }

@@ -118,3 +118,65 @@ fn should_check_cancellation_while_rendering_a_long_literal() {
     assert_eq!(output.chars().count(), 2 * CHECK_INTERVAL);
     assert_eq!(checkpoints, 2);
 }
+
+#[test]
+fn should_map_twelve_o_clock_without_meridian_to_midnight() {
+    // Arrange
+    let template = "YYYY-MM-DD HH12:MI";
+
+    // Act
+    let parsed = parse("2024-01-05 12:15", template).expect("parse");
+
+    // Assert
+    assert_eq!((parsed.fields.hour, parsed.fields.minute), (0, 15));
+}
+
+#[test]
+fn should_map_twelve_o_clock_without_meridian_to_midnight_for_plain_hh() {
+    // Arrange
+    let template = "YYYY-MM-DD HH:MI";
+
+    // Act
+    let parsed = parse("2024-01-05 12:15", template).expect("parse");
+
+    // Assert
+    assert_eq!(parsed.fields.hour, 0);
+}
+
+#[test]
+fn should_keep_hours_one_to_eleven_without_meridian() {
+    // Arrange
+    let template = "YYYY-MM-DD HH12:MI";
+
+    // Act
+    let parsed = parse("2024-01-05 11:15", template).expect("parse");
+
+    // Assert
+    assert_eq!(parsed.fields.hour, 11);
+}
+
+#[test]
+fn should_keep_noon_with_pm_meridian() {
+    // Arrange
+    let template = "YYYY-MM-DD HH12:MI PM";
+
+    // Act
+    let parsed = parse("2024-01-05 12:15 PM", template).expect("parse");
+
+    // Assert
+    assert_eq!(parsed.fields.hour, 12);
+}
+
+#[test]
+fn should_reject_hours_outside_the_twelve_hour_clock() {
+    // Arrange
+    let template = "YYYY-MM-DD HH12:MI";
+
+    // Act
+    let states = ["2024-01-05 00:15", "2024-01-05 13:15"]
+        .map(|input| parse(input, template).map_err(|error| error.sqlstate).err());
+
+    // Assert
+    assert_eq!(states[0], states[1]);
+    assert!(states[0].is_some());
+}

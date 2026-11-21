@@ -9,6 +9,9 @@ use cassie_test_support::support_temp_dirs;
 #[path = "vector_embeddings/vectors/ann_candidate_exhaustion.rs"]
 mod ann_candidate_exhaustion;
 
+#[path = "vector_embeddings/vectors/candidate_max_decline.rs"]
+mod candidate_max_decline;
+
 // #1365: network-free checks of the opt-in embedding workload machinery.
 #[path = "vector_embeddings/embeddings/embedding_workloads.rs"]
 mod embedding_workloads;

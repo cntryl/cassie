@@ -392,8 +392,11 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
             force_not_null: ColumnSelection::None,
         });
     }
-    let Some(options) = strip_keyword_prefix(raw, "WITH") else {
-        return Err(CassieError::Parse("COPY options require WITH".to_string()));
+    let options = if raw.starts_with('(') {
+        raw
+    } else {
+        strip_keyword_prefix(raw, "WITH")
+            .ok_or_else(|| CassieError::Parse("COPY options require WITH".to_string()))?
     };
     let options = options.trim();
     let items = if options.starts_with('(') {
@@ -408,7 +411,7 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
     };
 
     let mut parsed = CopyOptions {
-        format: CopyWireFormat::Csv,
+        format: CopyWireFormat::Text,
         header: CopyHeader::None,
         delimiter: None,
         quote: '"',
@@ -430,6 +433,10 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
             continue;
         }
         parse_option_item(item, &mut parsed, &mut seen)?;
+    }
+    if !seen.contains("ESCAPE") {
+        // PostgreSQL defaults ESCAPE to the QUOTE character.
+        parsed.escape = parsed.quote;
     }
 
     Ok(parsed)

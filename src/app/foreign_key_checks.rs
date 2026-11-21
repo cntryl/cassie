@@ -89,6 +89,17 @@ impl Cassie {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
+        self.validate_existing_foreign_key_rows_after_added_column(collection, constraints, None)
+    }
+
+    /// Validates existing rows against FOREIGN KEY constraints, treating
+    /// `added` as the value each row will hold for a column being added.
+    pub(crate) fn validate_existing_foreign_key_rows_after_added_column(
+        &self,
+        collection: &str,
+        constraints: &[FieldConstraint],
+        added: Option<super::existing_constraint_checks::AddedColumnDefault<'_>>,
+    ) -> Result<(), CassieError> {
         if constraints
             .iter()
             .all(|constraint| constraint.references_table.is_none())
@@ -103,7 +114,18 @@ impl Cassie {
             .into_iter()
             .flatten()
         {
-            references.collect(collection, constraints, &document.payload, schema.as_ref())?;
+            if let (Some(default), Some(object)) = (added, document.payload.as_object()) {
+                let mut payload = object.clone();
+                payload.insert(default.field.to_string(), default.value.clone());
+                references.collect(
+                    collection,
+                    constraints,
+                    &serde_json::Value::Object(payload),
+                    schema.as_ref(),
+                )?;
+            } else {
+                references.collect(collection, constraints, &document.payload, schema.as_ref())?;
+            }
         }
         self.validate_foreign_key_references(None, collection, &references)
     }

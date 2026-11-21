@@ -28,6 +28,9 @@ mod support_read_equivalence;
 
 #[path = "domain_models/time_series/rollups/boolean_predicates.rs"]
 mod rollup_boolean_predicates;
+
+#[path = "domain_models/time_series/rollups/nested_aggregate_match.rs"]
+mod rollup_nested_aggregate_match;
 use cassie_test_support::support_sql_fixture;
 
 #[path = "domain_models/time_series/queries/column_time_series_read_equivalence.rs"]

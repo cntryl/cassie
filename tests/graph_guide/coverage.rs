@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use crate::guide;
 
-const WORLDS: [&str; 9] = [
+const WORLDS: [&str; 10] = [
     "identity",
     "define",
     "social",
@@ -15,6 +15,7 @@ const WORLDS: [&str; 9] = [
     "lifecycle",
     "permissions",
     "legacy",
+    "clone",
 ];
 
 #[test]

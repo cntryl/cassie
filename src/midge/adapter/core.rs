@@ -26,6 +26,7 @@ pub struct Midge {
     referential_write_gate: ReentrantMutex<()>,
     pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
+    graph_reference_reads: AtomicU64,
     column_validation_reads: AtomicU64,
     column_field_reads: super::ColumnFieldReadCounters,
     pub(super) column_pruning: super::ColumnPruningState,
@@ -134,6 +135,7 @@ impl Midge {
             referential_write_gate: ReentrantMutex::new(()),
             publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
+            graph_reference_reads: AtomicU64::new(0),
             column_validation_reads: AtomicU64::new(0),
             column_field_reads: super::ColumnFieldReadCounters::default(),
             column_pruning: super::ColumnPruningState::default(),
@@ -266,6 +268,19 @@ impl Midge {
     #[must_use]
     pub fn query_scan_entries_for_diagnostics(&self) -> u64 {
         self.query_scan_entries.load(Ordering::Relaxed)
+    }
+
+    /// Rows, index entries and point reads the `cassie_graph` reference constructors
+    /// performed to find their elements (#1355).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn graph_reference_reads_for_diagnostics(&self) -> u64 {
+        self.graph_reference_reads.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn record_graph_reference_reads(&self, reads: u64) {
+        self.graph_reference_reads
+            .fetch_add(reads, Ordering::Relaxed);
     }
 
     /// Field entries and owner-marker lookups performed by complete-source

@@ -16,6 +16,9 @@ mod constructors;
 #[path = "graph_types/refs.rs"]
 mod refs;
 
+#[path = "graph_types/refs_cost.rs"]
+mod refs_cost;
+
 #[path = "graph_types/paths.rs"]
 mod paths;
 
@@ -45,6 +48,15 @@ mod driver;
 
 #[path = "graph_types/images.rs"]
 mod images;
+
+#[path = "graph_types/clone_workflow.rs"]
+mod clone_workflow;
+
+#[path = "graph_types/clone_clients.rs"]
+mod clone_clients;
+
+#[path = "graph_types/clone_restart.rs"]
+mod clone_restart;
 
 #[path = "graph_types/driver_sqlx.rs"]
 mod driver_sqlx;

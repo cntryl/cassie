@@ -497,7 +497,7 @@ fn should_report_counted_reads_given_an_explain_analyze() {
     assert!(plan.contains("edge[l]=indexed("));
     assert!(plan.contains(
         "graph_reads=index_entries:7,row_fetches:7,full_rows:0,overlay_changes:0,cache_hits:0,\
-         validation_rows:0,frontier_peak:1"
+         validation_rows:0,frontier_peak:1,edges_admitted:3,neighborhoods:1"
     ));
 }
 

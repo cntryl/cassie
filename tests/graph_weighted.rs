@@ -44,6 +44,9 @@ mod variants;
 #[path = "graph_weighted/lazy_reads.rs"]
 mod lazy_reads;
 
+#[path = "graph_weighted/cost_curves.rs"]
+mod cost_curves;
+
 #[path = "graph_weighted/transactions.rs"]
 mod transactions;
 

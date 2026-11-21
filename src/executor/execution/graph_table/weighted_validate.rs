@@ -41,8 +41,18 @@ enum Rows<'a> {
 }
 
 impl<'a> Rows<'a> {
-    fn open(env: &SourceExecutionEnv<'a>, table: &str) -> Result<Self, QueryError> {
-        match Cursor::open(env, table, false, RowTraversal::CompleteSource)? {
+    fn open(
+        env: &SourceExecutionEnv<'a>,
+        table: &str,
+        fields: &[String],
+    ) -> Result<Self, QueryError> {
+        match Cursor::open_projected(
+            env,
+            table,
+            false,
+            RowTraversal::CompleteSource,
+            Some(fields),
+        )? {
             Some(cursor) => Ok(Self::Stream(Box::new(cursor))),
             None => Ok(Self::Full(read_rows(env, table)?.into_iter())),
         }
@@ -155,6 +165,23 @@ impl Endpoints<'_> {
     }
 }
 
+/// The only columns the scan judges a row by: the edge key, both endpoint column lists
+/// (needed to decide visibility of an invalid weight) and the weight column. Other
+/// properties of the edge row are never decoded by the validation scan.
+fn validation_fields(meta: &GraphEdgeMeta, weight: &str) -> Vec<String> {
+    let mut fields = meta
+        .key
+        .iter()
+        .map(|column| column.name.clone())
+        .chain(meta.source.columns.iter().cloned())
+        .chain(meta.destination.columns.iter().cloned())
+        .collect::<Vec<_>>();
+    fields.push(weight.to_owned());
+    fields.sort_unstable();
+    fields.dedup();
+    fields
+}
+
 /// Streams every selected edge mapping once and fails with `22023` on the first
 /// graph-visible edge whose weight is invalid. `columns` holds `(edge mapping, weight
 /// column)` pairs and `access` the statement's lazy access paths.
@@ -180,7 +207,7 @@ pub(super) fn validate(
     for (mapping, column) in columns {
         let meta = &graph.edges[*mapping];
         let (edge_columns, edge_types) = key_types(&meta.key);
-        let mut source = Rows::open(env, &meta.table)?;
+        let mut source = Rows::open(env, &meta.table, &validation_fields(meta, column))?;
         while let Some(row) = source.next(env)? {
             if key_of(|name| row.get(name), &edge_columns, &edge_types).is_none() {
                 continue;

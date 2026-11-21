@@ -98,7 +98,7 @@ impl Server {
     }
 }
 
-fn state(error: &tokio_postgres::Error) -> String {
+pub(crate) fn state(error: &tokio_postgres::Error) -> String {
     error
         .code()
         .map_or_else(|| "none".to_owned(), |code| code.code().to_owned())
@@ -125,7 +125,7 @@ async fn binary(client: &Client, sql: &str) -> Node {
 }
 
 /// The text form of `expression` through the simple query protocol.
-async fn text(client: &Client, sql: &str) -> String {
+pub(crate) async fn text(client: &Client, sql: &str) -> String {
     let messages = match client.simple_query(sql).await {
         Ok(messages) => messages,
         Err(error) => panic!("simple query failed with SQLSTATE {}", state(&error)),
@@ -160,7 +160,7 @@ async fn echoed(client: &Client, type_name: &str, node: &Node) -> String {
 }
 
 /// Binary result, text result and bound echo of `expression` agree.
-async fn round_trip(client: &Client, select: &str, type_name: &str) -> Node {
+pub(crate) async fn round_trip(client: &Client, select: &str, type_name: &str) -> Node {
     let node = binary(client, select).await;
     let expected = text(client, select).await;
     assert_eq!(echoed(client, type_name, &node).await, expected);
@@ -305,7 +305,7 @@ fn should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver(
     assert_eq!(edge_parts.len(), 1);
 }
 
-fn element_counts(node: Node) -> Vec<usize> {
+pub(crate) fn element_counts(node: Node) -> Vec<usize> {
     match node {
         Node::Record(fields) => fields
             .iter()

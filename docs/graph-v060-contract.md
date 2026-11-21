@@ -488,6 +488,23 @@ it by `CREATE PROPERTY GRAPH` with fresh graph and mapping identities. Copied
 graph-reference values retain their source identities and resolve as `42704` in
 the clone; detached structural inspection remains possible. There is no remap
 operation or identity-preserving restore into an existing logical database.
+The definition export and recreation workflow (#1354) is a catalog column, not a new
+function or procedure: `information_schema.property_graphs.property_graph_definition`
+renders each graph the reader may see (every mapped table readable, as for all graph
+discovery) as its exact `CREATE PROPERTY GRAPH` statement, naming the graph and tables by
+schema and local name and never by database or identity, vertex tables before edge tables,
+with ordered composite keys, labels and `column AS name` properties as stored. A clone
+recreates a graph by running that text after its tables are restored. Contract: the
+statement is atomic, so a missing mapped table (`42P01`) or an unreadable one (no
+definition is exported, or `42501` at creation) leaves no queryable graph; running it again
+for a defined graph fails with `42710` and changes no identity, so a rerunnable script
+checks the catalog view first; graphs are independent, so any order succeeds and name order
+is the repeatable one; a reference copied from the source or from a sibling clone resolves
+as `42704` in the clone, and the client mints a fresh reference from its explicit typed key
+with `vertex_ref`/`edge_ref`. The decision is the smallest option that is permission-aware
+and needs no new object class: the catalog views already filter by table authority.
+Executable evidence: `tests/graph_types/clone_workflow.rs`, `clone_clients.rs` and guide
+section 14.
 A reference never silently retargets across databases. Database, graph and
 mapping identities use the durable catalog allocators. Public labels and
 properties are resolved from the applicable graph snapshot; identity equality
@@ -726,7 +743,21 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
   merged. Arbitrary storage corruption of an index is out of the model, exactly as for
   indexed SQL queries; graph reads claim no stronger detection.
 - `graph_weighted_paths` keeps its full controlled validation scan of the selected edges and
-  is O(selected edges) by contract.
+  is O(selected edges) by contract (#1355): invalid-weight rejection must hold for every
+  graph-visible edge, including edges outside the visited neighbourhood, and no sidecar may
+  certify weights. The scan decodes only each edge row's key, endpoint and weight columns,
+  never its other properties, and is counted separately as `graph_validation_rows`.
+- The `cassie_graph.vertex_ref` and `edge_ref` constructors find the element through the
+  scalar index that backs the mapped key (one index entry and one row read, plus the
+  transaction's own pending changes, plus the two endpoint vertex lookups for an edge); only
+  when no usable index exists do they scan the mapped table. They never scan it otherwise.
+- Counted bounds (#1355), all in `read_paths.graph_*` and `EXPLAIN ANALYZE graph_reads=`:
+  degree `d` costs `1 + 2d` index entries and row fetches, `d` edges admitted and one
+  neighbourhood expansion; depth `n` over a path costs `n` expansions and `n` admitted
+  edges; unreachable edges cost nothing; a hub is paid for once when the traversal reaches
+  it and not at all when it is not reached. Evidence: `tests/graph_table/cost_curves.rs`
+  and `tests/graph_weighted/cost_curves.rs`. Timing criteria stay open: the machine is never
+  quiet, so no p95 is recorded or claimed.
 - Read counts are tested by varying total graph size independently of selected degree and by
   characterizing fallback separately. The O(degree) claim is conditional on the endpoint
   index existing and on an anchored start; fallback and unanchored starts are stated

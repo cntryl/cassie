@@ -114,3 +114,15 @@ fn should_run_every_stable_identity_example() {
     // Assert
     assert_eq!(failures, Vec::<String>::new());
 }
+
+#[test]
+fn should_run_every_database_clone_example() {
+    // Arrange
+    let world = "clone";
+
+    // Act
+    let failures = run(world);
+
+    // Assert
+    assert_eq!(failures, Vec::<String>::new());
+}

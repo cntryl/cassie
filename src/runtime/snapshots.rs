@@ -410,6 +410,10 @@ pub struct ReadPathSnapshot {
     pub graph_cache_hits: u64,
     /// Rows of the `graph_weighted_paths` validation scan.
     pub graph_validation_rows: u64,
+    /// Distinct edges admitted into graph adjacency (far endpoint existing).
+    pub graph_edges_admitted: u64,
+    /// Vertex-side neighborhood expansions of lazy graph reads.
+    pub graph_neighborhoods_expanded: u64,
     /// Frontier peak (vertices with a fetched neighborhood) of the latest graph read.
     pub graph_last_frontier_peak: u64,
     /// Edge hops each pattern of the latest joined graph read took, in pattern order.

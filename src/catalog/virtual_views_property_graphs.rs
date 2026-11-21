@@ -44,7 +44,7 @@ fn columns(own: &[(&str, DataType)]) -> Vec<(String, DataType)> {
 
 pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
     match name {
-        GRAPHS => Some(|| columns(&[])),
+        GRAPHS => Some(|| columns(&[("property_graph_definition", DataType::Text)])),
         ELEMENT_TABLES => Some(|| {
             columns(&[
                 ("element_table_alias", DataType::Text),
@@ -279,7 +279,10 @@ fn label_property_rows(graph: &PropertyGraphMeta) -> Vec<VirtualRow> {
 
 fn graph_rows(name: &str, graph: &PropertyGraphMeta, database: &str) -> Vec<VirtualRow> {
     match name {
-        GRAPHS => vec![Vec::new()],
+        GRAPHS => vec![vec![text(
+            "property_graph_definition",
+            crate::catalog::property_graph_definition::render_definition(graph),
+        )]],
         EDGE_COMPONENTS => edge_component_rows(graph),
         LABEL_PROPERTIES => label_property_rows(graph),
         IDENTITIES => elements(graph)

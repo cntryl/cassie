@@ -43,7 +43,7 @@ mod tests {
 
     fn plan(sql: &str) -> LogicalPlan {
         let parsed = crate::sql::parse_statement(sql).expect("parse statement");
-        crate::planner::logical::build_logical_plan(&crate::catalog::Catalog::new(), &parsed)
+        super::super::build_logical_plan(&crate::catalog::Catalog::new(), &parsed)
             .expect("build logical plan")
     }
 

@@ -210,7 +210,20 @@ impl Midge {
                 .then_with(|| left.index.name.cmp(&right.index.name))
         });
         for publication in pending {
-            self.publish_prepared_index(publication)?;
+            let collection = publication.index.collection.clone();
+            let name = publication.index.name.clone();
+            match self.publish_prepared_index(publication) {
+                Err(error) if is_deterministic_publication_failure(&error) => {
+                    // The failed publication already discarded its own record.
+                    tracing::warn!(
+                        %collection,
+                        index = %name,
+                        %error,
+                        "discarded a pending index publication that can no longer complete"
+                    );
+                }
+                other => other?,
+            }
         }
         Ok(())
     }
@@ -225,7 +238,40 @@ impl Midge {
         })
     }
 
+    /// Publishes a prepared index; the caller owns the collection's write gate.
+    ///
+    /// A deterministic failure (the rows violate the new unique index, or the
+    /// table no longer exists) cannot succeed on a later attempt, so the journal
+    /// record is removed in one transaction before the error is returned.
+    /// Crashes and storage errors keep the record for restart recovery.
     pub(super) fn publish_prepared_index_locked(
+        &self,
+        publication: PendingIndexPublication,
+    ) -> Result<(), CassieError> {
+        let collection = publication.index.collection.clone();
+        let name = publication.index.name.clone();
+        match self.publish_prepared_index_attempt(publication) {
+            Err(error) if is_deterministic_publication_failure(&error) => {
+                self.discard_prepared_index_publication(&collection, &name)?;
+                Err(error)
+            }
+            other => other,
+        }
+    }
+
+    fn discard_prepared_index_publication(
+        &self,
+        collection: &str,
+        name: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        tx.delete(Self::index_publication_key(collection, name))
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    fn publish_prepared_index_attempt(
         &self,
         mut publication: PendingIndexPublication,
     ) -> Result<(), CassieError> {
@@ -306,4 +352,12 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
     }
+}
+
+/// Failures that rerunning the same publication can never fix.
+fn is_deterministic_publication_failure(error: &CassieError) -> bool {
+    matches!(
+        error,
+        CassieError::UniqueViolation { .. } | CassieError::CollectionNotFound(_)
+    )
 }

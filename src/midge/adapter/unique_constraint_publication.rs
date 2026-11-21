@@ -51,11 +51,36 @@ impl Midge {
             .collect::<Result<Vec<_>, _>>()?;
         for publication in pending {
             let collection = publication.collection.clone();
-            self.with_collection_write_gates(std::slice::from_ref(&collection), || {
-                self.publish_unique_constraint_publication(&publication)
-            })?;
+            let published = self
+                .with_collection_write_gates(std::slice::from_ref(&collection), || {
+                    self.publish_unique_constraint_publication(&publication)
+                });
+            match published {
+                Err(
+                    error @ (CassieError::UniqueViolation { .. }
+                    | CassieError::CollectionNotFound(_)),
+                ) => {
+                    // Retrying cannot succeed: the table is gone or its rows violate
+                    // the constraint, so the record would only block every restart.
+                    self.discard_unique_constraint_publication(&collection)?;
+                    tracing::warn!(
+                        %collection,
+                        %error,
+                        "discarded a pending unique constraint publication that can no longer complete"
+                    );
+                }
+                other => other?,
+            }
         }
         Ok(())
+    }
+
+    fn discard_unique_constraint_publication(&self, collection: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        tx.delete(key_encoding::unique_constraint_publication_key(collection))
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn prepare_unique_constraint_publication(
@@ -272,6 +297,52 @@ mod tests {
             pending.is_empty(),
             "startup must retire the prepared record"
         );
+        drop(restarted);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn should_discard_unique_publication_record_when_its_table_no_longer_exists() {
+        // Arrange
+        let path = std::env::temp_dir().join(format!(
+            "cassie-unique-publication-orphan-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let cassie =
+            Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default()).unwrap();
+        cassie.startup().unwrap();
+        let mut constraint = FieldConstraint::new("value");
+        constraint.unique = true;
+        let publication = PendingUniqueConstraintPublication {
+            collection: CANONICAL.into(),
+            constraints: vec![constraint.clone()],
+            fields: vec![constraint],
+        };
+        cassie
+            .midge
+            .raw_put(
+                StorageFamily::Data,
+                &key_encoding::unique_constraint_publication_key(CANONICAL),
+                &serde_json::to_vec(&publication).unwrap(),
+            )
+            .unwrap();
+        drop(cassie);
+
+        // Act
+        let restarted =
+            Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default()).unwrap();
+        let started = restarted.startup();
+        let pending = restarted
+            .midge
+            .raw_scan_prefix(
+                StorageFamily::Data,
+                &key_encoding::unique_constraint_publication_prefix(),
+            )
+            .unwrap();
+
+        // Assert
+        assert!(started.is_ok(), "startup must survive an orphaned record");
+        assert!(pending.is_empty(), "orphaned record must be discarded");
         drop(restarted);
         std::fs::remove_dir_all(path).unwrap();
     }

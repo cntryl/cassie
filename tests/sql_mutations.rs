@@ -264,5 +264,8 @@ mod like_identity_sequence_restart;
 #[path = "sql_mutations/ddl/like_sequence_default_follow.rs"]
 mod like_sequence_default_follow;
 
+#[path = "sql_mutations/ddl/failed_index_publication.rs"]
+mod failed_index_publication;
+
 #[path = "sql_mutations/ddl/rebuild_swap_restart.rs"]
 mod rebuild_swap_restart;

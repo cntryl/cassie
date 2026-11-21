@@ -124,7 +124,10 @@ fn main() {
     if runner.is_enabled(&weighted) {
         let route = social.route(START, 4, 3);
         let sql = route.sql();
-        assert!(route.expected_rows > 0, "the route has at least one path");
+        assert!(
+            route.expected_rows > 0 && route.costs.len() == route.expected_rows,
+            "the route has at least one path and one oracle cost per path"
+        );
         runner.measure_counted(weighted.metadata("setup_time_ns", &setup_time_ns), || {
             let result = cassie
                 .execute_sql(&session, &sql, vec![])

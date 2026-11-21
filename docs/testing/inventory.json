@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1873,
-    "rust_files": 1829,
-    "rust_test_declarations": 11128,
+    "files": 1874,
+    "rust_files": 1830,
+    "rust_test_declarations": 11138,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11153,
+    "registered_rust_instances": 11163,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -259102,6 +259102,316 @@
       }
     },
     {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_hide_pre_drop_rows_from_recreated_table_within_transaction",
+      "name": "should_hide_pre_drop_rows_from_recreated_table_within_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 26,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_hide_pre_drop_rows_from_recreated_table_within_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_publish_pre_drop_rows_into_recreated_table_at_commit",
+      "name": "should_not_publish_pre_drop_rows_into_recreated_table_at_commit",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 42,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_publish_pre_drop_rows_into_recreated_table_at_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged",
+      "name": "should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 59,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_leave_recreated_table_empty_when_only_pre_drop_rows_were_staged"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction",
+      "name": "should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 84,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_accept_key_reused_after_drop_and_recreate_in_transaction",
+      "name": "should_accept_key_reused_after_drop_and_recreate_in_transaction",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 108,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_accept_key_reused_after_drop_and_recreate_in_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_restore_original_table_and_rows_when_drop_recreate_transaction_rolls_back",
+      "name": "should_restore_original_table_and_rows_when_drop_recreate_transaction_rolls_back",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 134,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_restore_original_table_and_rows_when_drop_recreate_transaction_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop",
+      "name": "should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 154,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_restore_staged_rows_when_rolling_back_to_savepoint_before_drop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_hide_pre_drop_rows_from_recreated_column_table",
+      "name": "should_hide_pre_drop_rows_from_recreated_column_table",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 179,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_hide_pre_drop_rows_from_recreated_column_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_surface_old_payload_columns_in_recreate_with_different_column_list",
+      "name": "should_not_surface_old_payload_columns_in_recreate_with_different_column_list",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 207,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_surface_old_payload_columns_in_recreate_with_different_column_list"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs::should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name",
+      "name": "should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name",
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "line": 233,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::drop_recreate_staged_rows::should_not_carry_pre_drop_rows_into_table_renamed_over_dropped_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/transactions/mixed_mode_transactions.rs::should_isolate_own_writes_in_both_modes_from_other_sessions",
       "name": "should_isolate_own_writes_in_both_modes_from_other_sessions",
       "current_file": "tests/sql_mutations/transactions/mixed_mode_transactions.rs",
@@ -262577,8 +262887,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_transactional_catalog_at_savepoint_rollback",
       "name": "should_restore_transactional_catalog_at_savepoint_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 39,
-      "end_line": 72,
+      "line": 42,
+      "end_line": 75,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262608,8 +262918,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_dropped_table_after_transaction_rollback",
       "name": "should_restore_dropped_table_after_transaction_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 75,
-      "end_line": 98,
+      "line": 78,
+      "end_line": 101,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262639,8 +262949,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_commit_table_drop_after_staging_a_row_write",
       "name": "should_commit_table_drop_after_staging_a_row_write",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 101,
-      "end_line": 126,
+      "line": 104,
+      "end_line": 129,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262670,8 +262980,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_table_rename",
       "name": "should_publish_a_staged_row_after_transactional_table_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 129,
-      "end_line": 160,
+      "line": 132,
+      "end_line": 163,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262701,8 +263011,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_schema_rename",
       "name": "should_publish_a_staged_row_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 163,
-      "end_line": 202,
+      "line": 166,
+      "end_line": 205,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262732,8 +263042,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_view_after_transactional_schema_rename",
       "name": "should_publish_a_view_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 205,
-      "end_line": 239,
+      "line": 208,
+      "end_line": 242,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262763,8 +263073,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_preserve_staged_values_after_transactional_column_rename",
       "name": "should_preserve_staged_values_after_transactional_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 242,
-      "end_line": 267,
+      "line": 245,
+      "end_line": 270,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262794,8 +263104,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_resolve_staged_conflict_after_transactional_target_column_rename",
       "name": "should_resolve_staged_conflict_after_transactional_target_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 270,
-      "end_line": 303,
+      "line": 273,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262825,8 +263135,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_publication_with_transaction",
       "name": "should_rollback_materialized_view_publication_with_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 306,
-      "end_line": 353,
+      "line": 309,
+      "end_line": 356,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262856,8 +263166,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_materialized_view_after_commit",
       "name": "should_publish_materialized_view_after_commit",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 356,
-      "end_line": 402,
+      "line": 359,
+      "end_line": 405,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262887,8 +263197,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_remove_failed_materialized_view_creation",
       "name": "should_remove_failed_materialized_view_creation",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 405,
-      "end_line": 427,
+      "line": 408,
+      "end_line": 430,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262918,8 +263228,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_refresh",
       "name": "should_rollback_materialized_view_refresh",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 430,
-      "end_line": 501,
+      "line": 433,
+      "end_line": 504,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262949,8 +263259,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_reject_view_commands_for_materialized_projection",
       "name": "should_reject_view_commands_for_materialized_projection",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 504,
-      "end_line": 542,
+      "line": 507,
+      "end_line": 545,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262980,8 +263290,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_report_unpopulated_view_scan_inside_transaction",
       "name": "should_report_unpopulated_view_scan_inside_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 545,
-      "end_line": 591,
+      "line": 548,
+      "end_line": 594,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -366971,6 +367281,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 261,
+      "sha256": "f6f27344a6ba32bc24fdc9a786c8d969b51a7f41519b3ce2752cc9cb920aa8b6",
+      "test_declarations": 10,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/transactions/drop_recreate_staged_rows.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/transactions/mixed_mode_transactions.rs",
       "role": "test_module",
       "action": "keep",
@@ -367349,8 +367674,8 @@
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 591,
-      "sha256": "938ca3f4227375b5a3f3c30604ac9928942e850d9fd3ce4141d91f2edf365ee1",
+      "lines": 594,
+      "sha256": "23018d5810bf65e0ae6befcabe94a077b7164fbab263dd339648d99bdc8dbeac",
       "test_declarations": 14,
       "registered_suites": [
         "sql_mutations"

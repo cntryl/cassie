@@ -25,6 +25,7 @@ mod wire_failure;
 mod wire_failure_tests;
 pub(crate) use failure_authority::{FailureAuthority, FailureAuthorityIdentity};
 mod savepoints;
+mod staged_discard;
 mod transaction_snapshot;
 use transaction_snapshot::TransactionReadSnapshot;
 

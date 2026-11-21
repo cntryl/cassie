@@ -258,6 +258,14 @@ fn drop_table_target(
         collection.storage_id,
     )?;
     schema_sequence_rename::drop_owned_table_sequences(cassie, table)?;
+    if let Some(session) = session {
+        // Rows staged for the dropped relation must not reach a successor
+        // relation created under the same name later in this transaction.
+        session.discard_staged_writes_for_dropped_relation(&collection.name);
+        if collection.name != table {
+            session.discard_staged_writes_for_dropped_relation(table);
+        }
+    }
     cassie
         .catalog
         .unregister_collection(table)

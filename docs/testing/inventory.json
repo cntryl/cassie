@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1881,
-    "rust_files": 1837,
-    "rust_test_declarations": 11224,
+    "files": 1885,
+    "rust_files": 1841,
+    "rust_test_declarations": 11266,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11249,
+    "registered_rust_instances": 11291,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -247477,6 +247477,223 @@
       }
     },
     {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_exists",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_exists",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 21,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_in_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_in_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 34,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_in_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 46,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_scalar_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 58,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_in_lateral_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine",
+      "name": "should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 70,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_keep_correlation_to_an_outer_alias_the_inner_scope_does_not_redefine"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias",
+      "name": "should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 83,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_resolve_inner_alias_columns_when_the_alias_shadows_an_outer_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs::should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty",
+      "name": "should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty",
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "line": 96,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_exists_subqueries",
+          "name": "alias_shadowing::should_reject_outer_column_hidden_by_inner_alias_when_the_outer_table_is_empty"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_exists_subqueries",
+        "category": "subqueries",
+        "directory": "tests/sql_exists_subqueries/subqueries",
+        "file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs::should_evaluate_correlated_exists_per_outer_row",
       "name": "should_evaluate_correlated_exists_per_outer_row",
       "current_file": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs",
@@ -301479,6 +301696,843 @@
       }
     },
     {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_inner_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_inner_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 27,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_inner_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_left_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_left_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 46,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_left_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_right_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_right_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 58,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_right_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_full_join_on_directly_before_a_parenthesis",
+      "name": "should_parse_full_join_on_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 70,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_full_join_on_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_join_on_between_a_derived_alias_then_a_parenthesis",
+      "name": "should_parse_join_on_between_a_derived_alias_then_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 82,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_join_on_between_a_derived_alias_then_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis",
+      "name": "should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 95,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_where_after_a_join_on_clause_that_closes_with_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_a_second_join_after_a_closing_parenthesis",
+      "name": "should_parse_a_second_join_after_a_closing_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 108,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_a_second_join_after_a_closing_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_parenthesis",
+      "name": "should_parse_conjunction_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 122,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_lowercase_conjunction_directly_before_a_parenthesis",
+      "name": "should_parse_lowercase_conjunction_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 134,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_lowercase_conjunction_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_directly_before_a_parenthesis",
+      "name": "should_parse_or_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 146,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_between_two_parenthesized_predicates",
+      "name": "should_parse_conjunction_between_two_parenthesized_predicates",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 158,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_between_two_parenthesized_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_between_two_parenthesized_predicates",
+      "name": "should_parse_or_between_two_parenthesized_predicates",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 170,
+      "end_line": 179,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_between_two_parenthesized_predicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_a_closing_parenthesis_before_not",
+      "name": "should_parse_conjunction_after_a_closing_parenthesis_before_not",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 182,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_a_closing_parenthesis_before_not"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_an_in_subquery_closing_parenthesis",
+      "name": "should_parse_conjunction_after_an_in_subquery_closing_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 194,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_an_in_subquery_closing_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_in_directly_before_a_parenthesis",
+      "name": "should_parse_in_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 206,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_in_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_not_in_directly_before_a_parenthesis",
+      "name": "should_parse_not_in_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 218,
+      "end_line": 227,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_not_in_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_between_bounds_that_touch_their_keywords",
+      "name": "should_parse_between_bounds_that_touch_their_keywords",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 230,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_between_bounds_that_touch_their_keywords"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_or_after_is_null_before_a_parenthesis",
+      "name": "should_parse_or_after_is_null_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 242,
+      "end_line": 251,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_or_after_is_null_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_after_is_not_null_before_a_parenthesis",
+      "name": "should_parse_conjunction_after_is_not_null_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 254,
+      "end_line": 263,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_after_is_not_null_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_is_distinct_from_directly_before_a_parenthesis",
+      "name": "should_parse_is_distinct_from_directly_before_a_parenthesis",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 266,
+      "end_line": 275,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_is_distinct_from_directly_before_a_parenthesis"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_string_literal",
+      "name": "should_parse_conjunction_directly_before_a_string_literal",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 278,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_string_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_conjunction_directly_before_a_quoted_identifier",
+      "name": "should_parse_conjunction_directly_before_a_quoted_identifier",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 290,
+      "end_line": 299,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_conjunction_directly_before_a_quoted_identifier"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_where_order_by_limit_touching_parentheses",
+      "name": "should_parse_where_order_by_limit_touching_parentheses",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 302,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_where_order_by_limit_touching_parentheses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_parse_case_when_then_touching_parentheses",
+      "name": "should_parse_case_when_then_touching_parentheses",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 314,
+      "end_line": 323,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_parse_case_when_then_touching_parentheses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_identifiers_that_contain_a_keyword",
+      "name": "should_not_split_identifiers_that_contain_a_keyword",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 326,
+      "end_line": 346,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_identifiers_that_contain_a_keyword"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_keywords_inside_string_literals",
+      "name": "should_not_split_keywords_inside_string_literals",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 349,
+      "end_line": 361,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_keywords_inside_string_literals"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/grammar/keyword_boundaries.rs::should_not_split_keywords_inside_quoted_identifiers",
+      "name": "should_not_split_keywords_inside_quoted_identifiers",
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "line": 364,
+      "end_line": 379,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "keyword_boundaries::should_not_split_keywords_inside_quoted_identifiers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "grammar",
+        "directory": "tests/sql_queries/grammar",
+        "file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/joins/aggregate_window_oracle/semantics.rs::should_project_composite_primary_key_dependencies_through_a_join",
       "name": "should_project_composite_primary_key_dependencies_through_a_join",
       "current_file": "tests/sql_queries/joins/aggregate_window_oracle/semantics.rs",
@@ -319301,6 +320355,161 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_right_join_lateral_function_that_reads_the_left_side",
+      "name": "should_reject_right_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 16,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_right_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_full_join_lateral_function_that_reads_the_left_side",
+      "name": "should_reject_full_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 30,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_full_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_reject_right_join_lateral_subquery_that_reads_the_left_side",
+      "name": "should_reject_right_join_lateral_subquery_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 44,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_reject_right_join_lateral_subquery_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_accept_right_join_lateral_function_that_ignores_the_left_side",
+      "name": "should_accept_right_join_lateral_function_that_ignores_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 57,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_accept_right_join_lateral_function_that_ignores_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/lateral_outer_joins.rs::should_accept_left_join_lateral_function_that_reads_the_left_side",
+      "name": "should_accept_left_join_lateral_function_that_reads_the_left_side",
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "line": 76,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "lateral_outer_joins::should_accept_left_join_lateral_function_that_reads_the_left_side"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -345119,6 +346328,99 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 53,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 68,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_hnsw"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/vectors/candidate_max_decline.rs::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat",
+      "name": "should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat",
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "line": 87,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "candidate_max_decline::should_return_brute_force_rows_when_window_exceeds_candidate_max_with_ivfflat"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/exact_vector_cost.rs::results::should_match_brute_force_top_k_including_ties_on_heap_tables",
       "name": "should_match_brute_force_top_k_including_ties_on_heap_tables",
       "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
@@ -368897,6 +370199,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 112,
+      "sha256": "029cb197885ab3d0f9e2a49fb0f861f9f4caa8b04073c6bed70fe88e09987cac",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_exists_subqueries"
+      ],
+      "destinations": [
+        "tests/sql_exists_subqueries/subqueries/alias_shadowing.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_exists_subqueries/subqueries/correlated_exists.rs",
       "role": "test_module",
       "action": "keep",
@@ -368975,8 +370292,8 @@
       "current_file": "tests/sql_exists_subqueries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 22,
-      "sha256": "e3589900c8fe9898c4c278c877a64cf8c67b2911222235f086a3538e01ab6c01",
+      "lines": 25,
+      "sha256": "789c69ebc3e25fcff1e7419dd9c24d3f956c940967d6458832543c2145aa0b25",
       "test_declarations": 0,
       "registered_suites": [
         "sql_exists_subqueries"
@@ -372467,6 +373784,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/grammar/keyword_boundaries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 379,
+      "sha256": "71d0354c85821bf2857eb512efda876d8ff9fa0784a91f53a1f0993c6a6c01ff",
+      "test_declarations": 27,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/grammar/keyword_boundaries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/joins/aggregate_window_oracle/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -373264,6 +374596,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/set_returning/lateral_outer_joins.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 93,
+      "sha256": "382658798ecf6e467815ccb952f13901a8cc81421ae1432915c2e863a1aa03f0",
+      "test_declarations": 5,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/set_returning/lateral_outer_joins.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/set_returning/series.rs",
       "role": "test_module",
       "action": "keep",
@@ -373701,8 +375048,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 332,
-      "sha256": "990d91b84a265884cccf78374ce79fa76600205656b2da08e5c28e539f6444db",
+      "lines": 338,
+      "sha256": "601897147cbf7eeeaaaa498a6d47b1d8748bcbf19b81734e5d52227453cbacb8",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -376797,6 +378144,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/vectors/candidate_max_decline.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 103,
+      "sha256": "f7fa9979db350ce849cc15474fe4cba8bc71b245d1a818d86a13493ebd5c520a",
+      "test_declarations": 3,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/candidate_max_decline.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/vectors/exact_vector_cost.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -377075,8 +378437,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 152,
-      "sha256": "4dc6e53c61f826a04e798ccaa64d3ed8a81e0d022ba7bab696c79f3047810667",
+      "lines": 155,
+      "sha256": "4aa2e97cd1ade621084dcb42b7f2485c55893175742e1f5932209a19f697db7b",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

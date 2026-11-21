@@ -13,10 +13,12 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use super::codec::{encode_hnsw_node, encode_normalized_vector};
+use super::stall_retry::retry_bulk_write_stall;
 use super::{
     check_document_write_failure_point, collect_scan, CassieError, DocumentWriteFailurePoint,
     Midge, NormalizedVectorRecord, Query, VectorIndexState,
 };
+use crate::midge::adapter::check_document_write_storage_failure_injection;
 use crate::midge::adapter::schema_write_control::{
     pause_before_schema_write_commit, SchemaWritePausePoint,
 };
@@ -316,22 +318,32 @@ impl Midge {
         let last = chunks.len().saturating_sub(1);
         for (index, chunk) in chunks.into_iter().enumerate() {
             let bytes = chunk.iter().map(SidecarOp::cost).sum::<usize>();
-            let mut tx = self.begin_data_rw_tx_for(collection)?;
-            for op in chunk {
-                match op {
-                    SidecarOp::Put(key, value) => {
-                        tx.put(key, value, None).map_err(CassieError::from)?;
-                    }
-                    SidecarOp::Delete(key) => tx.delete(key).map_err(CassieError::from)?,
-                }
-            }
             let publishing = publishes && index == last;
             if publishing {
                 check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
                 pause_before_schema_write_commit(SchemaWritePausePoint::VectorIndexRebuildCommit);
             }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
+            // A write stall is refused before apply, so each attempt rebuilds the whole chunk.
+            retry_bulk_write_stall(|| {
+                let mut tx = self.begin_data_rw_tx_for(collection)?;
+                for op in &chunk {
+                    match op {
+                        SidecarOp::Put(key, value) => {
+                            tx.put(key.clone(), value.clone(), None)
+                                .map_err(CassieError::from)?;
+                        }
+                        SidecarOp::Delete(key) => {
+                            tx.delete(key.clone()).map_err(CassieError::from)?;
+                        }
+                    }
+                }
+                if let Err(error) = check_document_write_storage_failure_injection() {
+                    tx.rollback().map_err(CassieError::from)?;
+                    return Err(error);
+                }
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)
+            })?;
             self.vector_index_maintenance_metrics
                 .record_transaction(bytes);
             if publishing {

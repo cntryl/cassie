@@ -5,7 +5,9 @@ use super::{
 };
 #[path = "vector_indexes/bounded_write.rs"]
 mod bounded_write;
+mod stall_retry;
 use bounded_write::SummaryPolicy;
+pub(super) use stall_retry::retry_bulk_write_stall;
 #[path = "vector_indexes/build.rs"]
 mod build;
 #[path = "vector_indexes/codec.rs"]

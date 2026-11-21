@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1867,
-    "rust_files": 1823,
-    "rust_test_declarations": 11087,
+    "files": 1868,
+    "rust_files": 1824,
+    "rust_test_declarations": 11088,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11112,
+    "registered_rust_instances": 11113,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -342733,6 +342733,37 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/vectors/vector_index_write_stall.rs::should_build_an_hnsw_index_through_transient_write_stalls",
+      "name": "should_build_an_hnsw_index_through_transient_write_stalls",
+      "current_file": "tests/vector_embeddings/vectors/vector_index_write_stall.rs",
+      "line": 31,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_write_stall::should_build_an_hnsw_index_through_transient_write_stalls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/vector_index_write_stall.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/vectors/vector_indexes.rs::should_explain_vector_prefilter_for_indexed_equality_filter",
       "name": "should_explain_vector_prefilter_for_indexed_equality_filter",
       "current_file": "tests/vector_embeddings/vectors/vector_indexes.rs",
@@ -372494,6 +372525,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/vector_embeddings/vectors/vector_index_write_stall.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 60,
+      "sha256": "c29ffafcad3e8467d5c4564d89c5a882508003847fe2cba31c6c55e686971ea2",
+      "test_declarations": 1,
+      "registered_suites": [
+        "vector_embeddings"
+      ],
+      "destinations": [
+        "tests/vector_embeddings/vectors/vector_index_write_stall.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/vector_embeddings/vectors/vector_indexes.rs",
       "role": "test_module",
       "action": "keep",
@@ -372617,8 +372663,8 @@
       "current_file": "tests/vector_embeddings.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 149,
-      "sha256": "98e44e904662bc70cfbce37adf02380efcb7ec885e0fef448377d3379edd5fb7",
+      "lines": 152,
+      "sha256": "4dc6e53c61f826a04e798ccaa64d3ed8a81e0d022ba7bab696c79f3047810667",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"

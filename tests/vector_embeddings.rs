@@ -90,6 +90,9 @@ mod vector_source_column_lifecycle;
 #[path = "vector_embeddings/vectors/vector_index_drop.rs"]
 mod vector_index_drop;
 
+#[path = "vector_embeddings/vectors/vector_index_write_stall.rs"]
+mod vector_index_write_stall;
+
 // Vector bind parameters written to columns that are not declared VECTOR(n).
 #[path = "vector_embeddings/vectors/vector_parameter_finiteness.rs"]
 mod vector_parameter_finiteness;

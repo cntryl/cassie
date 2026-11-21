@@ -187,7 +187,7 @@ fn should_apply_force_quote_to_named_csv_columns() {
 }
 
 #[test]
-fn should_use_quote_and_escape_options_in_csv_header() {
+fn should_quote_csv_header_with_custom_quote_character() {
     // Arrange
     let request = request("(FORMAT CSV, HEADER, QUOTE '''')");
     let columns = vec![ColumnMeta::text("it's"), ColumnMeta::text("b")];

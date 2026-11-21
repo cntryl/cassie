@@ -186,7 +186,7 @@ fn should_keep_escaped_backslash_before_dot_as_data() {
 }
 
 #[test]
-fn should_decode_octal_and_hex_escapes() {
+fn should_decode_mixed_octal_hex_escapes() {
     // Arrange
     let payload = b"\\101\\x42\tz\n";
 

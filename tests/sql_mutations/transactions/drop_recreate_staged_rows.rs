@@ -105,7 +105,7 @@ fn should_keep_only_final_incarnation_rows_for_table_recreated_inside_one_transa
 }
 
 #[test]
-fn should_accept_key_reused_after_drop_and_recreate_in_transaction() {
+fn should_accept_key_reused_after_table_recreated_in_transaction() {
     // Arrange
     let fixture = sql_fixture(
         "drop-recreate-key-reuse",
@@ -131,7 +131,7 @@ fn should_accept_key_reused_after_drop_and_recreate_in_transaction() {
 }
 
 #[test]
-fn should_restore_original_table_and_rows_when_drop_recreate_transaction_rolls_back() {
+fn should_restore_original_rows_when_drop_recreate_transaction_rolls_back() {
     // Arrange
     let fixture = sql_fixture(
         "drop-recreate-rollback",

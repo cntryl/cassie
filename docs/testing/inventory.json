@@ -76910,8 +76910,8 @@
       }
     },
     {
-      "id": "tests/graph_types/refs_cost.rs::should_read_one_index_entry_and_one_row_for_a_vertex_reference",
-      "name": "should_read_one_index_entry_and_one_row_for_a_vertex_reference",
+      "id": "tests/graph_types/refs_cost.rs::should_read_two_rows_by_key_for_a_vertex_reference",
+      "name": "should_read_two_rows_by_key_for_a_vertex_reference",
       "current_file": "tests/graph_types/refs_cost.rs",
       "line": 63,
       "end_line": 72,
@@ -76922,7 +76922,7 @@
       "instances": [
         {
           "suite": "graph_types",
-          "name": "refs_cost::should_read_one_index_entry_and_one_row_for_a_vertex_reference"
+          "name": "refs_cost::should_read_two_rows_by_key_for_a_vertex_reference"
         }
       ],
       "attributes": [
@@ -349620,7 +349620,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 98,
-      "sha256": "9d5cded02760873c6c36c1854a8c1b5f1dc7deb92fd5580821dfa0d334efa95a",
+      "sha256": "3d0a34b1139d51ed232432b36283091a3bb17ff727b75f837f3effa0bcc766c5",
       "test_declarations": 4,
       "registered_suites": [
         "graph_types"

@@ -60,7 +60,7 @@ fn should_read_the_same_entries_for_a_vertex_reference_when_the_table_grows() {
 }
 
 #[test]
-fn should_read_one_index_entry_and_one_row_for_a_vertex_reference() {
+fn should_read_two_rows_by_key_for_a_vertex_reference() {
     // Arrange
     let fixture = people(400);
 

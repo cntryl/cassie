@@ -50,8 +50,7 @@ so a decision needs a quiet qualification host.
 | Backlog above the stability bound | Harness accounting. The 2,000-event correction burst and the writer quiesced for the refresh counted as steady backlog. | The burst is accounted separately; stability is an open timing criterion. |
 
 No engine defect was found in the retention, refresh or snapshot paths by this
-pass. Findings that remain engine observations, not defects, are in the #1350
-issue comment: a full rollup refresh does not publish while the source commits
+pass. These engine observations are not defects: a full rollup refresh does not publish while the source commits
 (by design, the harness quiesces the writer), a full relation read costs about
 5.5 KB of query memory per row, time-series pages are not limited early, and
 `event_at::TEXT` skips the time-series path without a fallback counter. One

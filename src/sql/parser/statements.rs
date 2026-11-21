@@ -324,14 +324,14 @@ pub(super) fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, Sq
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[10..].trim();
     let (if_exists, rest) = parse_if_exists(rest);
-    // RESTRICT is the default behavior. CASCADE needs view-dependency tracking
-    // that is not selected, so it is rejected instead of read as part of a name.
-    if super::lexical::strip_keyword_suffix(rest, "cascade").is_some() {
-        return Err(SqlError::unsupported(
-            "DROP VIEW ... CASCADE is not supported".into(),
-        ));
-    }
-    let rest = super::lexical::strip_keyword_suffix(rest, "restrict").unwrap_or(rest);
+    // RESTRICT is the default behavior; the option is never part of a name.
+    let (cascade, rest) = match super::lexical::strip_keyword_suffix(rest, "cascade") {
+        Some(rest) => (true, rest),
+        None => (
+            false,
+            super::lexical::strip_keyword_suffix(rest, "restrict").unwrap_or(rest),
+        ),
+    };
 
     let names = split_csv(rest);
     if names.is_empty() || names.iter().any(|name| name.trim().is_empty()) {
@@ -346,6 +346,7 @@ pub(super) fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, Sq
             name,
             additional_names: names.collect(),
             if_exists,
+            cascade,
         }),
     })
 }

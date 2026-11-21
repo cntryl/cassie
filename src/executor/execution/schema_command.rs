@@ -160,19 +160,54 @@ pub(super) fn drop_view(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("DROP VIEW", controls)?;
-    for name in std::iter::once(&statement.name).chain(&statement.additional_names) {
-        drop_view_target(cassie, name, statement.if_exists)?;
+    let names = std::iter::once(&statement.name)
+        .chain(&statement.additional_names)
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    for name in &names {
+        drop_view_target(cassie, name, statement.if_exists, statement.cascade, &names)?;
     }
     Ok(output)
 }
 
-fn drop_view_target(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), QueryError> {
+fn drop_view_target(
+    cassie: &Cassie,
+    name: &str,
+    if_exists: bool,
+    cascade: bool,
+    dropped_together: &[&str],
+) -> Result<(), QueryError> {
     let Some(view) = cassie.catalog.get_view(name) else {
         if if_exists {
             return Ok(());
         }
         return Err(QueryError::General(format!("view '{name}' does not exist")));
     };
+    let dependents = super::view_dependents::with_transitive_dependents(
+        cassie,
+        super::view_dependents::views_reading(cassie, &view.name),
+    );
+    let blocking = dependents
+        .iter()
+        .filter(|dependent| {
+            !dropped_together.iter().any(|listed| {
+                cassie
+                    .catalog
+                    .get_view(listed)
+                    .is_some_and(|found| found.name == dependent.name)
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if !cascade && !blocking.is_empty() {
+        return Err(dependent_object_error("view", name, &blocking));
+    }
+    for dependent in blocking {
+        // A listed view not yet reached is dropped by its own turn.
+        if cassie.catalog.get_view(&dependent.name).is_some() {
+            drop_stored_view(cassie, &dependent)?;
+        }
+    }
     // Storage and catalog removal use exact keys, so drop the stored view name
     // rather than the name as it was typed.
     cassie
@@ -227,7 +262,10 @@ fn drop_table_target(
         cascade,
         dropped_together,
     )?;
-    let dependent_views = views_depending_on(cassie, table, None);
+    let dependent_views = super::view_dependents::with_transitive_dependents(
+        cassie,
+        super::view_dependents::views_reading(cassie, table),
+    );
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("table", table, &dependent_views));
     }
@@ -281,46 +319,6 @@ fn drop_stored_view(cassie: &Cassie, view: &crate::catalog::ViewMeta) -> Result<
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.unregister_view(&view.name);
     Ok(())
-}
-
-fn views_depending_on(
-    cassie: &Cassie,
-    relation: &str,
-    column: Option<&str>,
-) -> Vec<crate::catalog::ViewMeta> {
-    let relation_name = relation.rsplit('.').next().unwrap_or(relation);
-    let relation_token = relation_name.to_ascii_lowercase();
-    let column_token = column.map(str::to_ascii_lowercase);
-    cassie
-        .catalog
-        .list_views()
-        .into_iter()
-        .filter(|view| {
-            let tokens = view
-                .query
-                .split(|character: char| {
-                    character.is_whitespace() || matches!(character, '(' | ')' | ',')
-                })
-                .filter(|token| !token.is_empty())
-                .map(|token| {
-                    token
-                        .trim_matches(|character| matches!(character, '"' | '`' | ';'))
-                        .to_ascii_lowercase()
-                })
-                .collect::<Vec<_>>();
-            let relation_matches_source = tokens.iter().enumerate().any(|(index, token)| {
-                matches!(token.as_str(), "from" | "join")
-                    && tokens
-                        .get(index + 1)
-                        .and_then(|source| source.rsplit('.').next())
-                        .is_some_and(|source| source == relation_token)
-            });
-            relation_matches_source
-                && column_token
-                    .as_ref()
-                    .is_none_or(|column| tokens.contains(column))
-        })
-        .collect()
 }
 
 fn dependent_object_error(
@@ -752,7 +750,10 @@ fn alter_table_drop_column(
     } else {
         schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     }
-    let dependent_views = views_depending_on(cassie, table, Some(field));
+    let dependent_views = super::view_dependents::with_transitive_dependents(
+        cassie,
+        super::view_dependents::views_using_column(cassie, table, field),
+    );
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("column", field, &dependent_views));
     }

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1875,
-    "rust_files": 1831,
-    "rust_test_declarations": 11152,
+    "files": 1876,
+    "rust_files": 1832,
+    "rust_test_declarations": 11169,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11177,
+    "registered_rust_instances": 11194,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -253525,8 +253525,8 @@
       "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_drop_a_view_list_given_the_default_restrict_option",
       "name": "should_drop_a_view_list_given_the_default_restrict_option",
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
-      "line": 26,
-      "end_line": 37,
+      "line": 25,
+      "end_line": 36,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253553,11 +253553,11 @@
       }
     },
     {
-      "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_reject_drop_view_cascade_without_dropping_any_view",
-      "name": "should_reject_drop_view_cascade_without_dropping_any_view",
+      "id": "tests/sql_mutations/ddl/drop_view_options.rs::should_drop_a_view_list_given_the_cascade_option",
+      "name": "should_drop_a_view_list_given_the_cascade_option",
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
-      "line": 40,
-      "end_line": 51,
+      "line": 39,
+      "end_line": 50,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253565,7 +253565,7 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "drop_view_options::should_reject_drop_view_cascade_without_dropping_any_view"
+          "name": "drop_view_options::should_drop_a_view_list_given_the_cascade_option"
         }
       ],
       "attributes": [
@@ -256771,6 +256771,533 @@
         "category": "ddl",
         "directory": "tests/sql_mutations/ddl",
         "file": "tests/sql_mutations/ddl/using_conversions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_view_another_view_reads",
+      "name": "should_reject_dropping_a_view_another_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 27,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_view_another_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_view_list_that_contains_the_dependent_view",
+      "name": "should_drop_a_view_list_that_contains_the_dependent_view",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 41,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_view_list_that_contains_the_dependent_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_every_view_in_the_chain_with_drop_view_cascade",
+      "name": "should_drop_every_view_in_the_chain_with_drop_view_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 55,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_every_view_in_the_chain_with_drop_view_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_through_a_comma_join",
+      "name": "should_reject_dropping_a_table_a_view_reads_through_a_comma_join",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 92,
+      "end_line": 101,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_through_a_comma_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_in_a_subquery",
+      "name": "should_reject_dropping_a_table_a_view_reads_in_a_subquery",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 104,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_in_a_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_in_a_cte",
+      "name": "should_reject_dropping_a_table_a_view_reads_in_a_cte",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 116,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_in_a_cte"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_table_a_view_reads_through_an_explicit_join",
+      "name": "should_reject_dropping_a_table_a_view_reads_through_an_explicit_join",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 128,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_table_a_view_reads_through_an_explicit_join"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_the_whole_view_chain_with_drop_table_cascade",
+      "name": "should_drop_the_whole_view_chain_with_drop_table_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 140,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_the_whole_view_chain_with_drop_table_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_filters_on",
+      "name": "should_reject_dropping_a_column_a_view_filters_on",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 179,
+      "end_line": 188,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_filters_on"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier",
+      "name": "should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 191,
+      "end_line": 200,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_selects_with_a_table_qualifier"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_selects_through_a_wildcard",
+      "name": "should_reject_dropping_a_column_a_view_selects_through_a_wildcard",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 203,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_selects_through_a_wildcard"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_uses_through_an_alias",
+      "name": "should_reject_dropping_a_column_a_view_uses_through_an_alias",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 215,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_uses_through_an_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery",
+      "name": "should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 227,
+      "end_line": 237,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_reject_dropping_a_column_a_view_uses_in_a_correlated_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_only_names_in_a_string_literal",
+      "name": "should_drop_a_column_a_view_only_names_in_a_string_literal",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 240,
+      "end_line": 255,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_only_names_in_a_string_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_only_names_as_an_output_alias",
+      "name": "should_drop_a_column_a_view_only_names_as_an_output_alias",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 258,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_only_names_as_an_output_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_a_column_a_view_reads_from_another_table",
+      "name": "should_drop_a_column_a_view_reads_from_another_table",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 273,
+      "end_line": 285,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_a_column_a_view_reads_from_another_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_dependencies.rs::should_drop_the_view_chain_with_drop_column_cascade",
+      "name": "should_drop_the_view_chain_with_drop_column_cascade",
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "line": 288,
+      "end_line": 305,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_dependencies::should_drop_the_view_chain_with_drop_column_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_dependencies.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -367223,8 +367750,8 @@
       "current_file": "tests/sql_mutations/ddl/drop_view_options.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 51,
-      "sha256": "6a67d30baeb2646fc9b706a67d23a4a52d52d8d1d5b9b697684616e5804eeffe",
+      "lines": 50,
+      "sha256": "c145eb1371dd73f8b7884c69d4f0a79434b30485ce4647fe4159e596e0ab8ec8",
       "test_declarations": 2,
       "registered_suites": [
         "sql_mutations"
@@ -367441,6 +367968,21 @@
       ],
       "destinations": [
         "tests/sql_mutations/ddl/using_conversions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/ddl/view_dependencies.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 305,
+      "sha256": "28ad6fe964e1a50148abc7e6d4c0653f07be2b73eb9ac25cf18f09b4bbdbf9bf",
+      "test_declarations": 17,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/view_dependencies.rs"
       ],
       "line_limit": 1000
     },
@@ -368241,8 +368783,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 251,
-      "sha256": "c00e7807fffa8dff34abe0b0e244461b9d9b31174bc219d7018dfbb5fba23c86",
+      "lines": 254,
+      "sha256": "1f1bf43f67fc0f365edd2b96689699a65315d72e9a83ad1bbb67859aea72c048",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

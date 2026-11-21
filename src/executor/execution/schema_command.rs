@@ -593,21 +593,24 @@ fn alter_table_add_column(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
-            // Existing rows receive the default, so NOT NULL only rejects the
-            // new column when it has no default to backfill.
-            let mut validated = constraints.to_vec();
-            if default_value.as_ref().is_some_and(|value| !value.is_null()) {
-                for constraint in &mut validated {
-                    constraint.not_null = false;
-                }
-            }
-            cassie.validate_existing_check_and_not_null_rows(table, &validated)?;
-            cassie.validate_existing_foreign_key_rows(table, constraints)?;
             let default_value = cassie.domain_add_column_default(
                 session,
                 table,
                 data_type,
                 default_value.clone(),
+            )?;
+            // Existing rows receive the default, so validate the constraints
+            // against that value before anything is committed.
+            let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
+            let added = crate::app::AddedColumnDefault {
+                field,
+                value: &backfilled,
+            };
+            cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
+            cassie.validate_existing_foreign_key_rows_after_added_column(
+                table,
+                constraints,
+                Some(added),
             )?;
 
             let field_schema = FieldSchema {

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1874,
-    "rust_files": 1830,
-    "rust_test_declarations": 11138,
+    "files": 1875,
+    "rust_files": 1831,
+    "rust_test_declarations": 11152,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11163,
+    "registered_rust_instances": 11177,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -248469,6 +248469,440 @@
       }
     },
     {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_add_column_whose_default_violates_its_check",
+      "name": "should_reject_add_column_whose_default_violates_its_check",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 29,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_add_column_whose_default_violates_its_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_add_column_after_rejected_check_default",
+      "name": "should_allow_add_column_after_rejected_check_default",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 43,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_add_column_after_rejected_check_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_add_column_default_that_satisfies_its_check",
+      "name": "should_backfill_add_column_default_that_satisfies_its_check",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 61,
+      "end_line": 75,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_add_column_default_that_satisfies_its_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_unique_add_column_with_constant_default_on_two_rows",
+      "name": "should_reject_unique_add_column_with_constant_default_on_two_rows",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 78,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_unique_add_column_with_constant_default_on_two_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_add_column_after_rejected_unique_default",
+      "name": "should_allow_add_column_after_rejected_unique_default",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 92,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_add_column_after_rejected_unique_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_unique_add_column_with_constant_default_on_one_row",
+      "name": "should_allow_unique_add_column_with_constant_default_on_one_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 110,
+      "end_line": 127,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_unique_add_column_with_constant_default_on_one_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_unique_add_column_with_constant_default_on_empty_table",
+      "name": "should_allow_unique_add_column_with_constant_default_on_empty_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 130,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_unique_add_column_with_constant_default_on_empty_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_add_column_whose_default_has_no_referenced_row",
+      "name": "should_reject_add_column_whose_default_has_no_referenced_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 145,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_add_column_whose_default_has_no_referenced_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_add_column_default_that_has_a_referenced_row",
+      "name": "should_backfill_add_column_default_that_has_a_referenced_row",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 167,
+      "end_line": 189,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_add_column_default_that_has_a_referenced_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_not_null_add_column_without_default_on_populated_table",
+      "name": "should_reject_not_null_add_column_without_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 192,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_not_null_add_column_without_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_not_null_add_column_with_null_default_on_populated_table",
+      "name": "should_reject_not_null_add_column_with_null_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 206,
+      "end_line": 217,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_not_null_add_column_with_null_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_backfill_not_null_add_column_with_default_on_populated_table",
+      "name": "should_backfill_not_null_add_column_with_default_on_populated_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 220,
+      "end_line": 234,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_backfill_not_null_add_column_with_default_on_populated_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_allow_not_null_add_column_without_default_on_empty_table",
+      "name": "should_allow_not_null_add_column_without_default_on_empty_table",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 237,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_allow_not_null_add_column_without_default_on_empty_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs::should_reject_check_violating_add_column_default_inside_a_transaction",
+      "name": "should_reject_check_violating_add_column_default_inside_a_transaction",
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "line": 252,
+      "end_line": 266,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "alter_add_column_default_violations::should_reject_check_violating_add_column_default_inside_a_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "constraints",
+        "directory": "tests/sql_mutations/constraints",
+        "file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/constraints/drop_constraint.rs::should_preserve_other_field_rules_when_named_primary_key_is_dropped",
       "name": "should_preserve_other_field_rules_when_named_primary_key_is_dropped",
       "current_file": "tests/sql_mutations/constraints/drop_constraint.rs",
@@ -366411,6 +366845,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/alter_add_column_default_violations.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 266,
+      "sha256": "79fd49ede4f13ebf317b6acc5f439f7382d8fb258a1b66e8ed6ad05ef9566af1",
+      "test_declarations": 14,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/constraints/alter_add_column_default_violations.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/drop_constraint.rs",
       "role": "test_module",
       "action": "keep",
@@ -367792,8 +368241,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 248,
-      "sha256": "c78eab9376919bb2d016628939523378d7f3e1ede01926c63d2eb7917874890b",
+      "lines": 251,
+      "sha256": "c00e7807fffa8dff34abe0b0e244461b9d9b31174bc219d7018dfbb5fba23c86",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

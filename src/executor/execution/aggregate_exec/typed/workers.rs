@@ -2,7 +2,7 @@
 use super::{consume, Spec, State};
 use crate::app::Cassie;
 use crate::executor::retained_memory::{add, mul};
-use crate::executor::scan::TypedScanStream;
+use crate::executor::scan::{Partitioning, TypedScanStream};
 use crate::executor::typed_batch::{check_controls, TypedBatch};
 use crate::executor::QueryError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -29,15 +29,28 @@ pub(super) fn consume_stream(
     controls: &QueryExecutionControls,
 ) -> Result<Diagnostics, QueryError> {
     let requested = cassie.runtime.limits().parallel_aggregation_workers.max(1);
+    let mut vector_label = None;
+    match stream.partitioning(requested)? {
+        Some(Partitioning::Parallel(scan)) => {
+            return super::vector_waves::consume_ungrouped(
+                &scan, specs, predicate, params, controls,
+            );
+        }
+        // A column-vector scan that stays serial is not also folded in waves.
+        Some(Partitioning::Serial(label)) => vector_label = Some(label),
+        None => {}
+    }
     let legal = specs.iter().all(|spec| spec.merge_safe);
-    let guard = (legal && requested > 1)
+    let guard = (legal && requested > 1 && vector_label.is_none())
         .then(|| cassie.runtime.try_acquire_operator_workers(requested))
         .flatten();
     let workers = match &guard {
         Some(guard) => guard.workers(),
         None => 1,
     };
-    let fallback = if !legal {
+    let fallback = if let Some(label) = vector_label.filter(|_| requested > 1) {
+        label
+    } else if !legal {
         "typed-row-order-fold"
     } else if requested == 1 {
         "typed-worker-limit-one"

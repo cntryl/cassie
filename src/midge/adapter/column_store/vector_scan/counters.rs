@@ -18,6 +18,11 @@ pub(crate) struct ColumnVectorReadCounters {
     values_decoded: AtomicU64,
     row_documents_built: AtomicU64,
     staged_rows_merged: AtomicU64,
+    partitions: AtomicU64,
+    parallel_scans: AtomicU64,
+    workers: AtomicU64,
+    serial_scans: AtomicU64,
+    last_serial_label: parking_lot::Mutex<&'static str>,
     disabled: AtomicBool,
 }
 
@@ -64,6 +69,23 @@ impl ColumnVectorReadCounters {
         Self::add(&self.staged_rows_merged, 1);
     }
 
+    /// One id-range partition reader was created.
+    pub(crate) fn record_partition(&self) {
+        Self::add(&self.partitions, 1);
+    }
+
+    /// A scan ran its partitions on `workers` threads per wave.
+    pub(crate) fn record_parallel_scan(&self, workers: usize) {
+        Self::add(&self.parallel_scans, 1);
+        Self::add(&self.workers, workers as u64);
+    }
+
+    /// A scan that could have run in parallel ran serially for `label`.
+    pub(crate) fn record_fallback(&self, label: &'static str) {
+        Self::add(&self.serial_scans, 1);
+        *self.last_serial_label.lock() = label;
+    }
+
     pub(crate) fn snapshot(&self) -> ColumnVectorReadSnapshot {
         let load = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
         ColumnVectorReadSnapshot {
@@ -76,6 +98,11 @@ impl ColumnVectorReadCounters {
             values_decoded: load(&self.values_decoded),
             row_documents_built: load(&self.row_documents_built),
             staged_rows_merged: load(&self.staged_rows_merged),
+            partitions: load(&self.partitions),
+            parallel_scans: load(&self.parallel_scans),
+            workers: load(&self.workers),
+            serial_scans: load(&self.serial_scans),
+            last_serial_label: *self.last_serial_label.lock(),
         }
     }
 
@@ -105,6 +132,17 @@ pub struct ColumnVectorReadSnapshot {
     pub row_documents_built: u64,
     /// Staged transaction rows merged into vector batches.
     pub staged_rows_merged: u64,
+    /// Id-range partitions opened for parallel waves.
+    pub partitions: u64,
+    /// Scans that ran their partitions on more than one worker.
+    pub parallel_scans: u64,
+    /// Workers per wave, summed over parallel scans.
+    pub workers: u64,
+    /// Scans that ran serially although workers were requested.
+    pub serial_scans: u64,
+    /// The label of the most recent scan that ran serially although workers
+    /// were requested (`column-vector-*`), or empty when none did.
+    pub last_serial_label: &'static str,
 }
 
 impl ColumnVectorReadSnapshot {
@@ -127,6 +165,15 @@ impl ColumnVectorReadSnapshot {
             staged_rows_merged: self
                 .staged_rows_merged
                 .saturating_sub(earlier.staged_rows_merged),
+            partitions: self.partitions.saturating_sub(earlier.partitions),
+            parallel_scans: self.parallel_scans.saturating_sub(earlier.parallel_scans),
+            workers: self.workers.saturating_sub(earlier.workers),
+            serial_scans: self.serial_scans.saturating_sub(earlier.serial_scans),
+            last_serial_label: if self.serial_scans > earlier.serial_scans {
+                self.last_serial_label
+            } else {
+                ""
+            },
         }
     }
 }

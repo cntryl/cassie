@@ -115,23 +115,23 @@ pub(super) fn try_execute(
     }
     let mut breakdown = ExecutionBreakdownDurations::default();
     let started = Instant::now();
-    let Some(mut stream) = scan::TypedScanStream::open_with_traversal(
-        cassie,
-        session,
-        collection,
-        &fields,
-        if plan.limit_value().is_some() {
-            crate::midge::adapter::RowTraversal::VisitedRows
-        } else {
-            crate::midge::adapter::RowTraversal::CompleteSource
-        },
-        controls,
-    )?
+    let Some(mut stream) = open_stream(cassie, session, collection, &fields, plan, controls)?
     else {
         return Ok(None);
     };
     prune_stream(&mut stream, plan.filter.as_ref());
     breakdown.scan += started.elapsed();
+    if let Some(rows) = try_waves(
+        cassie,
+        &mut stream,
+        plan,
+        (functions, params, session),
+        (collection, fields.len()),
+        controls,
+    )? {
+        breakdown.scan += rows.1;
+        return Ok(Some((rows.0, breakdown)));
+    }
     let mut offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).unwrap_or(usize::MAX);
     let mut remaining = plan.limit_value().map_or(usize::MAX, |limit| {
         usize::try_from(limit.max(0)).unwrap_or(usize::MAX)
@@ -179,6 +179,62 @@ pub(super) fn try_execute(
         .runtime
         .record_read_path_collection_scan(collection, fields.len(), scanned_rows);
     Ok(Some((output, breakdown)))
+}
+
+fn open_stream<'a>(
+    cassie: &'a Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    fields: &[String],
+    plan: &LogicalPlan,
+    controls: &'a QueryExecutionControls,
+) -> Result<Option<scan::TypedScanStream<'a>>, QueryError> {
+    let traversal = if plan.limit_value().is_some() {
+        crate::midge::adapter::RowTraversal::VisitedRows
+    } else {
+        crate::midge::adapter::RowTraversal::CompleteSource
+    };
+    scan::TypedScanStream::open_with_traversal(
+        cassie, session, collection, fields, traversal, controls,
+    )
+}
+
+/// Reads a plain projection in parallel column-vector waves when the scan
+/// qualifies. `LIMIT` and `OFFSET` stop early in row-id order, so they read
+/// serially. Returns the rows and the scan time.
+fn try_waves(
+    cassie: &Cassie,
+    stream: &mut scan::TypedScanStream<'_>,
+    plan: &LogicalPlan,
+    request: (
+        &HashMap<String, FunctionMeta>,
+        &[Value],
+        Option<&CassieSession>,
+    ),
+    scanned: (&str, usize),
+    controls: &QueryExecutionControls,
+) -> Result<Option<(Vec<BatchRow>, std::time::Duration)>, QueryError> {
+    if plan.limit_value().is_some() || plan.offset_value().is_some() {
+        return Ok(None);
+    }
+    let requested = cassie.runtime.limits().parallel_scan_workers.max(1);
+    match stream.partitioning(requested)? {
+        Some(scan::Partitioning::Parallel(partitioned)) => {
+            let started = Instant::now();
+            let collected = waves::collect(cassie, &partitioned, plan, request, controls)?;
+            cassie.runtime.record_read_path_collection_scan(
+                scanned.0,
+                scanned.1,
+                collected.scanned_rows,
+            );
+            Ok(Some((collected.rows, started.elapsed())))
+        }
+        Some(scan::Partitioning::Serial(_)) if requested > 1 => {
+            cassie.runtime.record_parallel_scan_fallback();
+            Ok(None)
+        }
+        _ => Ok(None),
+    }
 }
 
 fn source_batch_bound(
@@ -352,6 +408,9 @@ fn output_rows(
     }
     Ok(rows)
 }
+
+#[path = "typed/waves.rs"]
+mod waves;
 
 #[cfg(test)]
 #[path = "typed/conditional_tests.rs"]

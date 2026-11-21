@@ -317,12 +317,19 @@ pub(crate) fn append_explain_analyze(
     })?;
     plan.try_append(controls, |allocation| {
         allocation.format(format_args!(
-            " column_vector_batches_delta={} column_vector_lanes_delta={} column_vector_values_delta={} column_vector_staged_rows_delta={} column_vector_segments_pruned_delta={} row_documents_delta={}",
+            " column_vector_batches_delta={} column_vector_lanes_delta={} column_vector_values_delta={} column_vector_staged_rows_delta={} column_vector_segments_pruned_delta={} column_vector_partitions_delta={} column_vector_workers_delta={} column_vector_serial_label={} row_documents_delta={}",
             report.vector.batches,
             report.vector.lanes,
             report.vector.values_decoded,
             report.vector.staged_rows_merged,
             report.vector.segments_pruned,
+            report.vector.partitions,
+            report.vector.workers,
+            if report.vector.last_serial_label.is_empty() {
+                "none"
+            } else {
+                report.vector.last_serial_label
+            },
             report.vector.row_documents_built,
         ))
     })?;

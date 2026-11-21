@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1865,
-    "rust_files": 1821,
-    "rust_test_declarations": 11058,
+    "files": 1867,
+    "rust_files": 1823,
+    "rust_test_declarations": 11075,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11083,
+    "registered_rust_instances": 11100,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -26242,6 +26242,440 @@
         "category": "semantics",
         "directory": "tests/columnar_surface/semantics",
         "file": "tests/columnar_surface/semantics/vector_execution.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_equal_the_serial_result_for_ungrouped_integer_aggregates",
+      "name": "should_equal_the_serial_result_for_ungrouped_integer_aggregates",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 108,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_equal_the_serial_result_for_ungrouped_integer_aggregates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_equal_the_serial_result_for_ungrouped_float_aggregates_bit_for_bit",
+      "name": "should_equal_the_serial_result_for_ungrouped_float_aggregates_bit_for_bit",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 124,
+      "end_line": 137,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_equal_the_serial_result_for_ungrouped_float_aggregates_bit_for_bit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/bit_bytea",
+        "directory": "tests/columnar_surface/aggregates/bit_bytea",
+        "file": "tests/columnar_surface/aggregates/bit_bytea/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_equal_the_serial_result_with_group_order_for_grouped_integer_aggregates",
+      "name": "should_equal_the_serial_result_with_group_order_for_grouped_integer_aggregates",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 140,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_equal_the_serial_result_with_group_order_for_grouped_integer_aggregates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_equal_the_serial_result_for_grouped_float_aggregates_bit_for_bit",
+      "name": "should_equal_the_serial_result_for_grouped_float_aggregates_bit_for_bit",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 156,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_equal_the_serial_result_for_grouped_float_aggregates_bit_for_bit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/bit_bytea",
+        "directory": "tests/columnar_surface/aggregates/bit_bytea",
+        "file": "tests/columnar_surface/aggregates/bit_bytea/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_return_projection_rows_in_the_serial_row_id_order",
+      "name": "should_return_projection_rows_in_the_serial_row_id_order",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 172,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_return_projection_rows_in_the_serial_row_id_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_split_a_segmented_table_into_one_partition_per_segment",
+      "name": "should_split_a_segmented_table_into_one_partition_per_segment",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 189,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_split_a_segmented_table_into_one_partition_per_segment"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_read_fewer_partitions_when_pruning_excludes_segments",
+      "name": "should_read_fewer_partitions_when_pruning_excludes_segments",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 209,
+      "end_line": 232,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_read_fewer_partitions_when_pruning_excludes_segments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_run_a_projection_in_waves",
+      "name": "should_run_a_projection_in_waves",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 250,
+      "end_line": 259,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_run_a_projection_in_waves"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_run_an_ungrouped_float_aggregate_in_waves",
+      "name": "should_run_an_ungrouped_float_aggregate_in_waves",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 262,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_run_an_ungrouped_float_aggregate_in_waves"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_run_a_grouped_float_aggregate_in_waves",
+      "name": "should_run_a_grouped_float_aggregate_in_waves",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 274,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_run_a_grouped_float_aggregate_in_waves"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "aggregates/core",
+        "directory": "tests/columnar_surface/aggregates/core",
+        "file": "tests/columnar_surface/aggregates/core/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_report_the_worker_limit_one_label_by_default",
+      "name": "should_report_the_worker_limit_one_label_by_default",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 286,
+      "end_line": 301,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_report_the_worker_limit_one_label_by_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_report_the_single_partition_label_for_a_table_without_segments",
+      "name": "should_report_the_single_partition_label_for_a_table_without_segments",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 304,
+      "end_line": 319,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_report_the_single_partition_label_for_a_table_without_segments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_read_serially_with_the_staged_label_in_a_session_with_staged_rows",
+      "name": "should_read_serially_with_the_staged_label_in_a_session_with_staged_rows",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 322,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_read_serially_with_the_staged_label_in_a_session_with_staged_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/columnar_surface/vector_parallel.rs::should_report_partition_deltas_in_explain_analyze",
+      "name": "should_report_partition_deltas_in_explain_analyze",
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "line": 348,
+      "end_line": 375,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "columnar_surface",
+          "name": "vector_parallel::should_report_partition_deltas_in_explain_analyze"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "columnar_surface",
+        "category": "semantics",
+        "directory": "tests/columnar_surface/semantics",
+        "file": "tests/columnar_surface/semantics/vector_parallel.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -232318,6 +232752,99 @@
       }
     },
     {
+      "id": "tests/query_scan_controls/column_store/vector_waves.rs::should_cancel_an_ungrouped_aggregate_inside_a_wave_without_output",
+      "name": "should_cancel_an_ungrouped_aggregate_inside_a_wave_without_output",
+      "current_file": "tests/query_scan_controls/column_store/vector_waves.rs",
+      "line": 80,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "query_scan_controls",
+          "name": "vector_waves::should_cancel_an_ungrouped_aggregate_inside_a_wave_without_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "query_scan_controls",
+        "category": "aggregates/core/vector_waves",
+        "directory": "tests/query_scan_controls/aggregates/core/vector_waves",
+        "file": "tests/query_scan_controls/aggregates/core/vector_waves/cancellation.rs",
+        "basis": "individual_test_contract",
+        "review": "required",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/query_scan_controls/column_store/vector_waves.rs::should_cancel_a_grouped_aggregate_inside_a_wave_without_output",
+      "name": "should_cancel_a_grouped_aggregate_inside_a_wave_without_output",
+      "current_file": "tests/query_scan_controls/column_store/vector_waves.rs",
+      "line": 85,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "query_scan_controls",
+          "name": "vector_waves::should_cancel_a_grouped_aggregate_inside_a_wave_without_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "query_scan_controls",
+        "category": "aggregates/core/vector_waves",
+        "directory": "tests/query_scan_controls/aggregates/core/vector_waves",
+        "file": "tests/query_scan_controls/aggregates/core/vector_waves/cancellation.rs",
+        "basis": "individual_test_contract",
+        "review": "required",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/query_scan_controls/column_store/vector_waves.rs::should_cancel_a_projection_inside_a_wave_without_output",
+      "name": "should_cancel_a_projection_inside_a_wave_without_output",
+      "current_file": "tests/query_scan_controls/column_store/vector_waves.rs",
+      "line": 90,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "query_scan_controls",
+          "name": "vector_waves::should_cancel_a_projection_inside_a_wave_without_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "query_scan_controls",
+        "category": "cancellation/vector_waves",
+        "directory": "tests/query_scan_controls/cancellation/vector_waves",
+        "file": "tests/query_scan_controls/cancellation/vector_waves/cancellation.rs",
+        "basis": "individual_test_contract",
+        "review": "required",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/query_scan_controls/predicates/fulltext_filtered_controls.rs::should_reject_filtered_fulltext_before_retaining_the_exact_source",
       "name": "should_reject_filtered_fulltext_before_retaining_the_exact_source",
       "current_file": "tests/query_scan_controls/predicates/fulltext_filtered_controls.rs",
@@ -346128,6 +346655,23 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/columnar_surface/vector_parallel.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 375,
+      "sha256": "c132262b86b5044d39a722c1e4827b7e6f98b4069510442f96100f3d627ecac4",
+      "test_declarations": 14,
+      "registered_suites": [
+        "columnar_surface"
+      ],
+      "destinations": [
+        "tests/columnar_surface/aggregates/bit_bytea/vector_parallel.rs",
+        "tests/columnar_surface/aggregates/core/vector_parallel.rs",
+        "tests/columnar_surface/semantics/vector_parallel.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/columnar_surface/vector_pruning.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -346146,8 +346690,8 @@
       "current_file": "tests/columnar_surface.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 26,
-      "sha256": "dd1ac2f8b7e098aadcfbc75821768f7244832283b61dda94bfa24184c125a066",
+      "lines": 29,
+      "sha256": "2e22a1f8bb944de784fbb86e923e2289a7a5220f2663bb569ba4a37479fecda3",
       "test_declarations": 0,
       "registered_suites": [
         "columnar_surface"
@@ -362296,6 +362840,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/query_scan_controls/column_store/vector_waves.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 92,
+      "sha256": "e00aff29cbaf9c2dad53acab6801dba8a65bff985cca44a5b81b796796004107",
+      "test_declarations": 3,
+      "registered_suites": [
+        "query_scan_controls"
+      ],
+      "destinations": [
+        "tests/query_scan_controls/aggregates/core/vector_waves/cancellation.rs",
+        "tests/query_scan_controls/cancellation/vector_waves/cancellation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/query_scan_controls/predicates/fulltext_filtered_controls.rs",
       "role": "test_module",
       "action": "keep",
@@ -362434,8 +362994,8 @@
       "current_file": "tests/query_scan_controls.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 58,
-      "sha256": "4fc2a93b576706e4db77c28dece71afc97f94f483c400e4ece4ad1d2820c2f0b",
+      "lines": 61,
+      "sha256": "83ef374f867eda886735e9828e481e159b6610575b013d08d2a7a0fd1d10c156",
       "test_declarations": 0,
       "registered_suites": [
         "query_scan_controls"

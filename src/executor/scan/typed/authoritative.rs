@@ -23,6 +23,9 @@ use crate::types::lanes::RawLanes;
 use crate::types::row_identity::is_row_identity_column;
 use std::mem::size_of;
 
+mod partitions;
+pub(crate) use partitions::{PartitionBatches, PartitionedScan, Partitioning};
+
 pub(super) struct AuthoritativeSource {
     reader: ColumnVectorReader,
     staged: StagedRowSet,
@@ -155,51 +158,7 @@ impl AuthoritativeSource {
         batch: ColumnVectorBatch,
         controls: &QueryExecutionControls,
     ) -> Result<TypedBatch, QueryError> {
-        let ColumnVectorBatch {
-            ids, lanes, memory, ..
-        } = batch;
-        let rows = ids.len();
-        let outputs = self.reader.outputs();
-        let mut uses = vec![0usize; lanes.len()];
-        for output in outputs {
-            if let ColumnVectorOutput::Lane(index) = output {
-                uses[*index] += 1;
-            }
-        }
-        let mut slots = lanes
-            .into_iter()
-            .map(Some)
-            .collect::<Vec<Option<RawLanes>>>();
-        let mut columns = Vec::with_capacity(schema.len());
-        for ((_, data_type), output) in schema.iter().zip(outputs) {
-            let lanes = match output {
-                ColumnVectorOutput::Identity => identity_lanes(&ids),
-                ColumnVectorOutput::Lane(index) => {
-                    uses[*index] -= 1;
-                    let slot = &mut slots[*index];
-                    if uses[*index] == 0 {
-                        slot.take()
-                    } else {
-                        slot.clone()
-                    }
-                    .ok_or_else(|| QueryError::General("column vector lane reused".to_owned()))?
-                }
-            };
-            columns.push(Column::from_lanes(controls, data_type, lanes)?);
-        }
-        drop(slots);
-        drop(memory);
-        let batch = TypedBatch::from_views(controls, schema, &columns, rows, None)?;
-        cassie.runtime.record_storage_access("data", false, true);
-        profile_batch(
-            "authoritative",
-            &batch,
-            ProfileLanes {
-                values: rows.saturating_mul(schema.len()),
-                ..ProfileLanes::default()
-            },
-        );
-        Ok(batch)
+        lane_batch(cassie, self.reader.outputs(), schema, batch, controls)
     }
 
     /// Merges persisted rows with staged rows in id order into one batch of at
@@ -296,6 +255,61 @@ impl AuthoritativeSource {
         self.skip_persisted();
         Ok(1)
     }
+}
+
+/// Turns one persisted lane batch into a typed batch. It reads only shared
+/// state, so partition workers call it on their own threads.
+pub(super) fn lane_batch(
+    cassie: &Cassie,
+    outputs: &[ColumnVectorOutput],
+    schema: &[(String, DataType)],
+    batch: ColumnVectorBatch,
+    controls: &QueryExecutionControls,
+) -> Result<TypedBatch, QueryError> {
+    let ColumnVectorBatch {
+        ids, lanes, memory, ..
+    } = batch;
+    let rows = ids.len();
+    let mut uses = vec![0usize; lanes.len()];
+    for output in outputs {
+        if let ColumnVectorOutput::Lane(index) = output {
+            uses[*index] += 1;
+        }
+    }
+    let mut slots = lanes
+        .into_iter()
+        .map(Some)
+        .collect::<Vec<Option<RawLanes>>>();
+    let mut columns = Vec::with_capacity(schema.len());
+    for ((_, data_type), output) in schema.iter().zip(outputs) {
+        let lanes = match output {
+            ColumnVectorOutput::Identity => identity_lanes(&ids),
+            ColumnVectorOutput::Lane(index) => {
+                uses[*index] -= 1;
+                let slot = &mut slots[*index];
+                if uses[*index] == 0 {
+                    slot.take()
+                } else {
+                    slot.clone()
+                }
+                .ok_or_else(|| QueryError::General("column vector lane reused".to_owned()))?
+            }
+        };
+        columns.push(Column::from_lanes(controls, data_type, lanes)?);
+    }
+    drop(slots);
+    drop(memory);
+    let batch = TypedBatch::from_views(controls, schema, &columns, rows, None)?;
+    cassie.runtime.record_storage_access("data", false, true);
+    profile_batch(
+        "authoritative",
+        &batch,
+        ProfileLanes {
+            values: rows.saturating_mul(schema.len()),
+            ..ProfileLanes::default()
+        },
+    );
+    Ok(batch)
 }
 
 fn push_staged(

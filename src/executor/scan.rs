@@ -37,7 +37,7 @@ mod typed;
 pub(crate) use stream_open::projected_scan_stream;
 pub(crate) use stream_open::projected_scan_stream_with_traversal;
 
-pub(crate) use typed::TypedScanStream;
+pub(crate) use typed::{PartitionBatches, PartitionedScan, Partitioning, TypedScanStream};
 
 pub(crate) use ordered_projection_accounting::ordered_projection_shape;
 

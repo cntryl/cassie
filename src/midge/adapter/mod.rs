@@ -364,8 +364,8 @@ pub use column_store::ColumnPruningSnapshot;
 pub(crate) use column_store::ColumnStoreScanRequest;
 pub use column_store::ColumnVectorReadSnapshot;
 pub(crate) use column_store::{
-    identity_lanes, ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadCounters,
-    ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
+    identity_lanes, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
+    ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
 };
 pub(crate) use column_store::{ColumnPruning, ColumnPruningState};
 pub(crate) use database_catalog_rewrite::{

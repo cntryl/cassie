@@ -10,6 +10,7 @@ mod specialized;
 #[path = "projected_read/typed.rs"]
 mod typed;
 pub(super) use typed::prune_stream;
+pub(super) use typed::{explain_shape, ProjectedShape};
 
 #[cfg(test)]
 mod handoff_tests;

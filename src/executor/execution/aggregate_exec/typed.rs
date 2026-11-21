@@ -154,6 +154,38 @@ fn consume(
     Ok(())
 }
 
+/// What a typed aggregate reads, as EXPLAIN reports it.
+pub(in crate::executor::execution) enum PlanShape {
+    /// The aggregate runs typed over these scan fields.
+    Fields(Vec<String>),
+    /// The aggregate shape declines to the row path.
+    Aggregate,
+    /// The filter holds an expression the typed path cannot evaluate.
+    Expression,
+}
+
+/// The decision [`try_execute`] makes before it opens a scan, without opening one.
+pub(in crate::executor::execution) fn explain_shape(
+    plan: &LogicalPlan,
+    schema: &crate::catalog::CollectionSchema,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<PlanShape, QueryError> {
+    if !eligible(plan) {
+        return Ok(PlanShape::Aggregate);
+    }
+    if !plan.group_by.is_empty() {
+        return grouped::explain_shape(plan, schema, params, controls);
+    }
+    let Some(mut prepared) = prepare_specs(plan, schema, controls)? else {
+        return Ok(PlanShape::Aggregate);
+    };
+    if !predicate::prepare(plan.filter.as_ref(), schema, params, &mut prepared)? {
+        return Ok(PlanShape::Expression);
+    }
+    Ok(PlanShape::Fields(std::mem::take(&mut prepared.fields)))
+}
+
 pub(in crate::executor::execution) fn try_execute(
     cassie: &Cassie,
     session: Option<&CassieSession>,

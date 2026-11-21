@@ -13,8 +13,11 @@ pub(super) fn plan_line(
     runtime: (Option<&CassieSession>, &[Value]),
     allocation: &mut PlanAllocation<'_>,
 ) -> Result<String, CassieError> {
-    let mut sections = allocation.vector(11)?;
+    let mut sections = allocation.vector(12)?;
     sections.push(read_plan_section(cassie, physical, allocation)?);
+    sections.push(super::column_vector::section(
+        cassie, physical, runtime, allocation,
+    )?);
     sections.push(cte_section(physical, allocation)?);
     sections.push(operator_feedback_section(physical, allocation)?);
     sections.push(adaptive_plan_section(physical, allocation)?);

@@ -13,7 +13,8 @@ mod enum_value;
 use self::compact::{decode_directory_value, expected_type_tag};
 use self::encoding::encode_value;
 pub(crate) use compact::{
-    decode_compact_field_value, encode_compact_sql_null, encode_compact_value,
+    decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
+    encode_compact_value, CompactScalar,
 };
 
 const MAGIC: &[u8; 4] = b"CRB1";

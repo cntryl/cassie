@@ -12,6 +12,7 @@ use crate::types::{DataType, Value};
 
 pub(crate) mod capability;
 mod column;
+pub(crate) mod column_vector_eligibility;
 pub(crate) mod join;
 mod operations;
 pub(crate) mod relational;
@@ -23,6 +24,7 @@ mod tests;
 mod validity;
 
 pub(crate) use column::{Cell, Column};
+pub(crate) use column_vector_eligibility::ColumnVectorEligibility;
 
 type Schema = Vec<(String, DataType)>;
 

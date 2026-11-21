@@ -882,6 +882,7 @@ impl Cassie {
         );
         self.observe_feedback_lookup(&feedback_keys);
         let started_at = Instant::now();
+        let vector_before = self.midge.column_vector_reads_for_diagnostics();
         let result = self.execute_physical_statement_with_parameter_oids_for_operation(
             session,
             physical,
@@ -889,6 +890,10 @@ impl Cassie {
             parameter_type_oids,
             (controls, authority),
         )?;
+        let vector = self
+            .midge
+            .column_vector_reads_for_diagnostics()
+            .since(vector_before);
         let elapsed_ms = started_at.elapsed().as_millis();
         let after = self.runtime.snapshot();
         let deltas = ExplainAnalyzeDeltas::from_snapshots(before, &after);
@@ -898,6 +903,7 @@ impl Cassie {
             result,
             elapsed_ms,
             deltas,
+            vector,
         })
     }
 

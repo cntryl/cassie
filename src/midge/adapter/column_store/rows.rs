@@ -154,15 +154,26 @@ impl Midge {
             ));
         }
 
+        let selection = ColumnFieldSelection::new(request.row_schema, request.projection);
         if request.traversal == super::super::RowTraversal::CompleteSource {
-            self.validate_column_store_field_markers(
+            // D1: validate the fields this scan reads (selection plus the
+            // filter field) and the markers, not every field of the table.
+            let filter_field = request.filter.and_then(|filter| {
+                let reference = crate::sql::ColumnIdentifierPath::parse(&filter.field).ok()?;
+                request
+                    .row_schema
+                    .fields
+                    .iter()
+                    .find(|field| !field.retired && reference.matches_field_name(&field.name))
+            });
+            self.validate_field_markers(
                 tx,
                 request.collection,
                 request.row_schema,
+                selection.fields(request.row_schema).chain(filter_field),
                 || Ok(()),
             )?;
         }
-        let selection = ColumnFieldSelection::new(request.row_schema, request.projection);
         let batch_size = request.batch_size.max(1);
         let mut current = Vec::with_capacity(batch_size);
         let mut emitted = 0usize;
@@ -237,6 +248,7 @@ impl Midge {
             };
             object.insert(field.name.clone(), value);
         }
+        self.column_vector_counters().record_row_document();
         Ok(Some(serde_json::Value::Object(object)))
     }
 

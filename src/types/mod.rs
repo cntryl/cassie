@@ -15,8 +15,6 @@ pub(crate) mod integer;
 pub(crate) mod integer_bytea;
 pub(crate) mod json;
 pub(crate) mod jsonb;
-// Consumed by the column-vector reader; test-only until that producer lands.
-#[cfg(test)]
 pub(crate) mod lanes;
 pub(crate) mod name;
 pub mod numeric;

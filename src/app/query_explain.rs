@@ -1,6 +1,7 @@
 use super::Cassie;
 
 pub(crate) mod allocation;
+mod column_vector;
 mod nodes;
 mod owned;
 mod structured;

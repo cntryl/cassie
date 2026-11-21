@@ -40,9 +40,25 @@ pub fn assert_storage_mode(tokens: &Tokens, expected: &str, query: &str) {
     );
 }
 
-/// Asserts the vectorized-path tokens. These tokens do not exist yet, so this
-/// runs only when `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR=1`; a missing token
-/// then fails loudly instead of being assumed.
+/// Copies the counted run's vector reader deltas into the arm's tokens under
+/// the names the vector assertion reads. `column_vector` and `fallback_reason`
+/// come from EXPLAIN; the two deltas are the counted run's own counters, never
+/// synthesized.
+pub fn add_vector_delta_tokens(tokens: &mut Tokens, counters: &Json) {
+    let delta = &counters["column_vector_reads"];
+    for (token, key) in [
+        ("column_vector_batches_delta", "batches"),
+        ("row_documents_delta", "row_documents_built"),
+    ] {
+        if let Some(value) = delta[key].as_u64() {
+            tokens.insert(token.to_owned(), value.to_string());
+        }
+    }
+}
+
+/// Asserts the vectorized-path tokens. It runs only when
+/// `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR=1`; a missing token then fails
+/// loudly instead of being assumed.
 pub fn assert_vector_path(tokens: &Tokens, query: &str) {
     let token = |name: &str| {
         tokens
@@ -67,6 +83,7 @@ pub fn assert_vector_path(tokens: &Tokens, query: &str) {
 
 struct Snapshot {
     field_reads: cassie::midge::adapter::ColumnFieldReadSnapshot,
+    vector_reads: cassie::midge::adapter::ColumnVectorReadSnapshot,
     validation_reads: u64,
     metrics: Json,
     memtable_bytes: Option<u64>,
@@ -75,6 +92,7 @@ struct Snapshot {
 fn snapshot(db: &Db) -> Snapshot {
     Snapshot {
         field_reads: db.cassie.midge.column_field_reads_for_diagnostics(),
+        vector_reads: db.cassie.midge.column_vector_reads_for_diagnostics(),
         validation_reads: db.cassie.midge.column_validation_reads_for_diagnostics(),
         metrics: db.cassie.metrics(),
         memtable_bytes: db
@@ -109,8 +127,20 @@ pub fn counted_run(db: &Db, sql: &str) -> Result<Json, String> {
     let rows = db.try_exec(sql)?;
     let after = snapshot(db);
     let reads = after.field_reads.since(before.field_reads);
+    let vector = after.vector_reads.since(before.vector_reads);
     Ok(json!({
         "rows": rows.len(),
+        "column_vector_reads": {
+            "scans": vector.scans,
+            "batches": vector.batches,
+            "lanes": vector.lanes,
+            "segments_pruned": vector.segments_pruned,
+            "segments_untrusted": vector.segments_untrusted,
+            "values_fetched": vector.values_fetched,
+            "values_decoded": vector.values_decoded,
+            "row_documents_built": vector.row_documents_built,
+            "staged_rows_merged": vector.staged_rows_merged,
+        },
         "selected_field_reads": {
             "payload_reads": reads.payload_reads,
             "payload_bytes": reads.payload_bytes,

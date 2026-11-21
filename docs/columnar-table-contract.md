@@ -154,11 +154,15 @@ and matching-OID representation rules.
 
 Validation follows the accessed source: point and index reads validate their
 requested/candidate rows; projected reads decode their fetched fields. Full-table
-traversal and authority conversion validate field-to-marker ownership across the
+traversal validates field-to-marker ownership of the fields it reads across the
 source table, including orphan fields that marker enumeration would otherwise
-miss. The caller declares complete-source versus visited-row traversal before opening
-its private cursor. An unrestricted SQL source and authority conversion validate
-complete field ownership before returning their first rows. A bounded source
+miss (owner decision D1, #1358: a complete-source scan validates the fields it
+reads plus the markers; an orphan in an unread field is found when that field is
+read and by `cassie verify`). Authority conversion still validates every field.
+The caller declares complete-source versus visited-row traversal before opening
+its private cursor. An unrestricted SQL source validates the ownership of its
+read fields before returning its first rows, and authority conversion validates
+complete field ownership before returning its first rows. A bounded source
 (such as LIMIT or EXISTS with an early stop) validates visited rows without a
 whole-table ownership preflight. Result-admission caps and scan-buffer bounds do not select source intent; an
 unrestricted logical source stays complete even when its physical result
@@ -206,10 +210,14 @@ row costs no payload read: it resolves from its default metadata. A field with
 like any stored field.
 
 **Ownership and marker validation without decoding.** Validation is separate
-from selection and keeps the scope above. A complete-source traversal runs
-the ownership preflight before the first row: it scans every non-retired
-field's key range and probes the marker of each field key, so an orphan field
-is found even when its field is not selected. It never decodes a payload.
+from selection. Since #1358 (owner decision D1) a complete-source traversal
+validates only the fields it reads plus the markers: the document cursor runs
+its ownership preflight over the selected fields' key ranges, and the vector
+reader finds an orphan in a read field while it merges (see "Vector execution"
+below). An orphan in an unread field is no longer seen by that query; it is
+found when the field is read and by `cassie verify`. Before #1358 the preflight
+scanned every non-retired field and probed the marker of each field key, about
+1.6M extra reads per query at 100k rows. The preflight never decodes a payload.
 A visited-row traversal (LIMIT, EXISTS with an early stop) reads the visited
 marker, validates its marker length, and checks `field_is_required` only for
 the selected fields, so corruption in unselected fields or in rows not
@@ -317,12 +325,13 @@ summary key as an unknown discriminator it never reads. Within the summary
 format, an unknown `CAS1` version is bypassed and rebuilt, so the format can
 change without a layout raise.
 
-*Corrupt authority.* Pruning never replaces validation. A complete-source scan
-still validates field-to-marker ownership for the whole table before its first
-row, so an orphan field in a skipped segment still fails with `XX001`. Rows in
-a skipped segment are not visited, so a missing or undecodable field value there
-is not seen by that query, exactly as for unselected fields and unvisited rows
-under #1356; `cassie verify` and the storage verifier report them.
+*Corrupt authority.* Pruning never replaces validation. The document cursor of
+a complete-source scan validates field-to-marker ownership of the fields it
+reads for the whole table before its first row, so an orphan in a read field of
+a skipped segment still fails with `XX001` there. The vector reader never opens
+a skipped segment, so it does not see an orphan inside one (nor a missing or
+undecodable value, exactly as for unselected fields and unvisited rows under
+#1356); `cassie verify` and the storage verifier report them.
 
 *Counters.* `Midge::column_pruning_for_diagnostics()` returns
 `segments_skipped`, `rows_skipped`, `summaries_loaded`, `summaries_rejected`,
@@ -343,6 +352,95 @@ differential tests.
 | Shuffled values, or `amount >= 0` | 0 segments skipped; every row read |
 | Compressible text (`"event-log-line " x 24` plus a row tag, 1,280 rows) | field bytes 554,240 before, 128,000 after; summaries 752 bytes; selective read fetches 23,552 payload bytes instead of 58,880 |
 | Incompressible text (375 pseudo-random letters, 1,280 rows) | stored bytes equal the uncompressed encoding exactly; no value compressed |
+
+### Vector execution (#1358)
+
+An eligible query over a column-authoritative table reads *vector batches*: the
+typed scan source decodes stored field values straight into typed lanes and
+never builds a row document. The projected typed read, the ungrouped typed
+aggregates and the typed grouped hash aggregate all gain the source through
+`TypedScanStream`; nothing above it changes.
+
+**Reader.** `Midge::open_column_vector_reader` returns batches of at most 1,024
+rows (owner decision D8), in row-id order, that never cross a segment boundary
+(one id range per segment when pruning plans ranges, one whole-table range
+otherwise). Per batch it reads up to 1,024 live markers and opens one bounded
+Midge range iterator per selected field over the same id span, then walks them
+in id order:
+
+| Field entry versus marker | Result |
+| --- | --- |
+| id sorts before the marker | orphan: `XX001` on a complete-source scan, skipped on a visited-row scan (D6) |
+| id equals the marker | the value |
+| id sorts after the marker, or the iterator is exhausted | `XX001` when the field is required at the marker's schema version, otherwise NULL (the field postdates the row) |
+| entries left after the last marker | orphans |
+
+A stored value is expanded (compression) and tag-checked exactly like
+`decode_compact_field_value`: integers (width-checked) into `i64` lanes, floats
+(a non-finite value is rejected as before) into `f64` lanes, Booleans, and text
+into UTF-8 lanes without a JSON value; every other supported type passes
+through the existing decoder and JSON-to-value conversion into a generic value
+lane, one value per cell. Ownership validation is exactly the fields read plus
+the markers (D1). The vector path adds nothing to
+`column_validation_reads_for_diagnostics()`.
+
+**Eligibility** (one function for EXPLAIN and dispatch, `column_vector_eligibility`).
+The scan reads vector batches when the table is column-authoritative, every
+field the typed operator needs is a plain stored field of a supported type, and
+the operator accepts the plan shape. Supported types: `SMALLINT`, `INT`,
+`BIGINT`, `FLOAT`, `BOOLEAN`, `TEXT`, `VARCHAR`, `CHAR` (native lanes) and
+`NAME`, `UUID`, `DATE`, `TIME`, `TIMESTAMP` and the extended scalar types
+(generic lanes). The shapes are the existing typed ones: `COUNT`, `SUM`, `AVG`,
+`MIN`, `MAX` (and the Boolean aggregates) over numeric columns with a native
+filter, ungrouped or grouped by plain columns, plus the typed projected read
+(no `ORDER BY`, `DISTINCT`, window or set operation). Everything else reads row
+documents; `EXPLAIN` says why:
+
+| `column_vector_reason` | Row documents because |
+| --- | --- |
+| `column-vector-unsupported-type:<type>` | a needed field is document-shaped (JSON, array, composite, domain, enum, vector, bytea) or otherwise unsupported |
+| `column-vector-unsupported-expression` | the plan holds a function, sub-select, `ORDER BY`, `DISTINCT` or filter expression the typed read cannot evaluate |
+| `column-vector-unsupported-aggregate-shape` | the aggregate carries `DISTINCT`, `FILTER`, ordering, an unsupported function or argument, or a grouping key of an unsupported type |
+| `column-vector-unsupported-transport-budget` | the query budget cannot hold one typed carrier (1,024 values) |
+| `column-vector-unsupported-join` | the source is a join |
+| `column-vector-covering-column-index` | a covering column index serves the filtered or limited read |
+
+`column_vector=eligible|fallback|not_applicable` and `column_vector_reason=`
+appear on every plan; `EXPLAIN ANALYZE` adds `column_vector_batches_delta`,
+`column_vector_lanes_delta`, `column_vector_values_delta`,
+`column_vector_staged_rows_delta`, `column_vector_segments_pruned_delta` and
+`row_documents_delta`. An eligible statement reports `row_documents_delta=0`.
+
+**Open transactions (D5).** A scan merges the session's staged rows serially in
+id order with the persisted batches: an upsert replaces a persisted lane or
+inserts one, a delete drops it. A persisted batch no staged id falls inside is
+passed through as lanes; a batch with a staged row inside is merged value by
+value. `REPEATABLE READ` uses the statement snapshot exactly like the document
+cursor.
+
+**Pruning.** When the plan has a pruning filter and the table has summaries,
+the reader reads only segments whose summary does not exclude the filter. A
+segment is skipped only when its summary is trusted (schema version and marker
+fingerprint match, the #1357 check); an untrusted summary leaves the segment in
+scope. A segment that holds an id the open transaction staged is never skipped.
+Skipped segments are never opened by a field iterator, so none of their values
+is fetched or decoded.
+
+**Memory and cancellation.** A batch reserves query memory for its markers, the
+iterator keys, the lanes (per lane carrier) and each decoded value's expansion
+before decoding it; cancellation and the deadline are checked per batch, per
+marker and per value, and no partial batch is returned. The reservation is
+released once the typed columns retain the lanes.
+
+**Counters** (`Midge::column_vector_reads_for_diagnostics()`, difference with
+`.since()`): `scans`, `batches`, `lanes` (rows times selected fields),
+`segments_pruned`, `segments_untrusted`, `values_fetched`, `values_decoded`,
+`row_documents_built` (also incremented by the document cursor and the batched
+column scan; point loads by id are not counted) and `staged_rows_merged`. The
+selected-field counters of #1356 (`column_field_reads_for_diagnostics()`) also
+count the vector reader's fetches and decodes.
+`set_column_vector_enabled_for_diagnostics(false)` forces row documents for
+differential tests and benchmarks.
 
 ### Versioning
 

@@ -6,7 +6,11 @@ use crate::runtime::QueryExecutionControls;
 #[path = "document_scans/session_cursor.rs"]
 mod session_cursor;
 
+#[path = "document_scans/staged_rows.rs"]
+mod staged_rows;
+
 pub(crate) use session_cursor::SessionRowCursor;
+pub(crate) use staged_rows::StagedRowSet;
 
 impl Cassie {
     pub(crate) fn open_session_row_cursor(

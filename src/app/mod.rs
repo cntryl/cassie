@@ -126,7 +126,7 @@ mod databases;
 mod defaults;
 mod diagnostics;
 mod document_scans;
-pub(crate) use document_scans::SessionRowCursor;
+pub(crate) use document_scans::{SessionRowCursor, StagedRowSet};
 mod document_uniqueness;
 mod documents;
 mod embeddings;

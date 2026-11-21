@@ -10,7 +10,8 @@ use std::process::ExitCode;
 use serde_json::{json, Value as Json};
 
 use super::evidence::{
-    arm_record, assert_storage_mode, assert_vector_path, counted_run, explain_tokens,
+    add_vector_delta_tokens, arm_record, assert_storage_mode, assert_vector_path, counted_run,
+    explain_tokens,
 };
 use super::profiles::{Profile, Sampling};
 use super::queries::{self, Query, Role};
@@ -57,11 +58,15 @@ fn verify(db: &Db, query: &Query, options: &Sampling) -> Result<((usize, u64, u6
         assert_storage_mode(&heap_tokens, "row-store", &query.name);
         assert_storage_mode(&column_tokens, "column-store", &query.name);
     }
+    let heap_counters = counted_run(db, &query.heap_sql)?;
+    let column_counters = counted_run(db, &query.col_sql)?;
+    let mut heap_tokens = heap_tokens;
+    let mut column_tokens = column_tokens;
+    add_vector_delta_tokens(&mut heap_tokens, &heap_counters);
+    add_vector_delta_tokens(&mut column_tokens, &column_counters);
     if options.gate.require_vector {
         assert_vector_path(&column_tokens, &query.name);
     }
-    let heap_counters = counted_run(db, &query.heap_sql)?;
-    let column_counters = counted_run(db, &query.col_sql)?;
     Ok((
         fingerprint,
         json!({

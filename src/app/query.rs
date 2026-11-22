@@ -597,14 +597,16 @@ impl Cassie {
         {
             return Some("sequence_function");
         }
-        if crate::executor::plan_needs_user_functions(&physical.logical) {
-            let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
-                metadata.volatility != crate::catalog::Volatility::Immutable
-                    && crate::executor::plan_uses_function(&physical.logical, &metadata.name)
-            });
-            if has_non_immutable {
-                return Some("non_immutable_function");
-            }
+        let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
+            metadata.volatility != crate::catalog::Volatility::Immutable
+                && crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    &metadata.name,
+                    &self.catalog,
+                )
+        });
+        if has_non_immutable {
+            return Some("non_immutable_function");
         }
         None
     }

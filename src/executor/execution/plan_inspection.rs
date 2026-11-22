@@ -60,6 +60,125 @@ pub(crate) fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> boo
             .is_some_and(|set| select_uses_function(&set.right, function_name))
 }
 
+/// Reports whether a plan contains a built-in whose planner volatility is
+/// volatile.  Keep this classification in the planner's eligibility module so
+/// cache admission and CTE inlining cannot drift into separate function lists.
+pub(crate) fn plan_uses_volatile_builtin(plan: &LogicalPlan) -> bool {
+    query_source_uses_volatile_builtin(&plan.source)
+        || plan.projection.iter().any(select_item_uses_volatile_builtin)
+        || plan.filter.as_ref().is_some_and(expr_uses_volatile_builtin)
+        || plan.distinct_on.iter().any(expr_uses_volatile_builtin)
+        || plan.group_by.iter().any(expr_uses_volatile_builtin)
+        || plan.having.as_ref().is_some_and(expr_uses_volatile_builtin)
+        || plan
+            .order
+            .iter()
+            .any(|order| expr_uses_volatile_builtin(&order.expr))
+        || plan.ctes.iter().any(cte_uses_volatile_builtin)
+        || plan
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_volatile_builtin(&set.right))
+}
+
+fn cte_uses_volatile_builtin(cte: &CommonTableExpression) -> bool {
+    match &cte.query {
+        CteQuery::Simple(statement) => parsed_statement_uses_volatile_builtin(statement),
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
+            parsed_statement_uses_volatile_builtin(base)
+                || parsed_statement_uses_volatile_builtin(recursive)
+        }
+    }
+}
+
+fn parsed_statement_uses_volatile_builtin(
+    statement: &crate::sql::ast::ParsedStatement,
+) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => select_uses_volatile_builtin(select),
+        _ => false,
+    }
+}
+
+fn select_uses_volatile_builtin(select: &SelectStatement) -> bool {
+    query_source_uses_volatile_builtin(&select.source)
+        || select.projection.iter().any(select_item_uses_volatile_builtin)
+        || select.filter.as_ref().is_some_and(expr_uses_volatile_builtin)
+        || select.distinct_on.iter().any(expr_uses_volatile_builtin)
+        || select.group_by.iter().any(expr_uses_volatile_builtin)
+        || select.having.as_ref().is_some_and(expr_uses_volatile_builtin)
+        || select
+            .order
+            .iter()
+            .any(|order| expr_uses_volatile_builtin(&order.expr))
+        || select.ctes.iter().any(cte_uses_volatile_builtin)
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_volatile_builtin(&set.right))
+}
+
+fn select_item_uses_volatile_builtin(item: &SelectItem) -> bool {
+    match item {
+        SelectItem::Function { function, .. } => function_is_volatile_builtin(function)
+            || function.expressions().any(expr_uses_volatile_builtin),
+        SelectItem::Expr { expr, .. } => expr_uses_volatile_builtin(expr),
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(expr_uses_volatile_builtin),
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
+    }
+}
+
+fn query_source_uses_volatile_builtin(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Values { rows } => rows
+            .iter()
+            .flatten()
+            .any(expr_uses_volatile_builtin),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            query_source_uses_volatile_builtin(source)
+        }
+        QuerySource::Subquery { select, .. } => select_uses_volatile_builtin(select),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            query_source_uses_volatile_builtin(left)
+                || query_source_uses_volatile_builtin(right)
+                || expr_uses_volatile_builtin(on)
+        }
+        QuerySource::TableFunction { function, .. } => {
+            function.expressions().any(expr_uses_volatile_builtin)
+        }
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
+}
+
+fn expr_uses_volatile_builtin(expr: &Expr) -> bool {
+    if let Expr::Function(function) = expr {
+        if function_is_volatile_builtin(function) {
+            return true;
+        }
+    }
+    expr.any_child(expr_uses_volatile_builtin)
+}
+
+fn function_is_volatile_builtin(function: &crate::sql::ast::FunctionCall) -> bool {
+    if crate::planner::cte_inlining::volatile_builtin_name(&function.name) {
+        return true;
+    }
+    if let Some(metadata) = crate::sql::functions::function(&function.name) {
+        return crate::planner::cte_inlining::volatile_builtin(&function.name, metadata.id);
+    }
+    false
+}
+
 pub(crate) fn plan_uses_function_including_views(
     plan: &LogicalPlan,
     function_name: &str,
@@ -901,6 +1020,25 @@ mod tests {
         assert!(uses_filter);
         assert!(needs_routines);
         assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
+
+    #[test]
+    fn should_find_planner_volatile_builtins_in_result_cache_inputs() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT random(), setseed(0.5), clock_timestamp(), gen_random_uuid()",
+        )
+        .expect("volatile builtins");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let contains_volatile_builtin = plan_uses_volatile_builtin(&plan);
+
+        // Assert
+        assert!(contains_volatile_builtin);
     }
 
     #[test]

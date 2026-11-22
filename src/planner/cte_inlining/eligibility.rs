@@ -88,7 +88,7 @@ fn function_pure(
     Ok(pure)
 }
 
-fn volatile_builtin_name(name: &str) -> bool {
+pub(crate) fn volatile_builtin_name(name: &str) -> bool {
     let short_name = name.rsplit('.').next().unwrap_or(name);
     matches!(
         short_name.to_ascii_lowercase().as_str(),
@@ -96,7 +96,7 @@ fn volatile_builtin_name(name: &str) -> bool {
     )
 }
 
-fn volatile_builtin(name: &str, id: FunctionId) -> bool {
+pub(crate) fn volatile_builtin(name: &str, id: FunctionId) -> bool {
     let short_name = name.rsplit('.').next().unwrap_or(name);
     matches!(
         id,

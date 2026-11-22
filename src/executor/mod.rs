@@ -14,6 +14,7 @@ pub(crate) use execution::refresh_materialized_view_concurrently_external;
 pub(crate) use execution::{
     check_bound_plan_constants, check_plan_constants, reached_ctes, reached_plan_ctes,
 };
+pub(crate) use execution::plan_uses_volatile_builtin;
 pub use execution::{OwnedQueryRows, QueryResultBuilder};
 
 pub(crate) fn delete_document_with_referential_actions(

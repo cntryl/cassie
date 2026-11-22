@@ -28,10 +28,24 @@ pub(crate) enum UniqueKeyClaim {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct RowTransactionKey {
+    collection: String,
+    id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RowKeyClaim {
+    Claimed,
+    Wait { collection: String, id: String, owner: Uuid },
+}
+
 #[derive(Debug, Default)]
 struct RegistryState {
     owners: BTreeMap<UniqueTransactionKey, Uuid>,
     keys_by_owner: BTreeMap<Uuid, BTreeSet<UniqueTransactionKey>>,
+    row_owners: BTreeMap<RowTransactionKey, Uuid>,
+    rows_by_owner: BTreeMap<Uuid, BTreeSet<RowTransactionKey>>,
     waits_for: BTreeMap<Uuid, Uuid>,
 }
 
@@ -102,6 +116,71 @@ impl TransactionUniqueWaits {
         }
     }
 
+    pub(crate) fn claim_row_keys(
+        &self,
+        owner: Uuid,
+        collection: &str,
+        ids: &BTreeSet<String>,
+    ) -> Result<RowKeyClaim, CassieError> {
+        let keys = ids
+            .iter()
+            .cloned()
+            .map(|id| RowTransactionKey {
+                collection: collection.to_ascii_lowercase(),
+                id,
+            })
+            .collect::<BTreeSet<_>>();
+        let mut state = self.state.lock();
+        state.waits_for.remove(&owner);
+        if let Some((key, blocker)) = keys.iter().find_map(|key| {
+            state
+                .row_owners
+                .get(key)
+                .filter(|blocker| **blocker != owner)
+                .map(|blocker| (key.clone(), *blocker))
+        }) {
+            if closes_wait_cycle(&state, owner, blocker) {
+                return Err(deadlock_error());
+            }
+            state.waits_for.insert(owner, blocker);
+            return Ok(RowKeyClaim::Wait {
+                collection: key.collection,
+                id: key.id,
+                owner: blocker,
+            });
+        }
+        for key in &keys {
+            state.row_owners.insert(key.clone(), owner);
+        }
+        state.rows_by_owner.entry(owner).or_default().extend(keys);
+        Ok(RowKeyClaim::Claimed)
+    }
+
+    pub(crate) fn wait_for_row(
+        &self,
+        waiter: Uuid,
+        owner: Uuid,
+        collection: &str,
+        id: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let key = RowTransactionKey {
+            collection: collection.to_ascii_lowercase(),
+            id: id.to_owned(),
+        };
+        let mut state = self.state.lock();
+        loop {
+            controls.check_interruption().inspect_err(|_| {
+                clear_wait_edge(&mut state, waiter, owner);
+            })?;
+            if state.row_owners.get(&key) != Some(&owner) {
+                clear_wait_edge(&mut state, waiter, owner);
+                return Ok(());
+            }
+            self.changed.wait_for(&mut state, Duration::from_millis(25));
+        }
+    }
+
     pub(crate) fn snapshot_owner_keys(&self, owner: Uuid) -> BTreeSet<UniqueTransactionKey> {
         self.state
             .lock()
@@ -109,6 +188,45 @@ impl TransactionUniqueWaits {
             .get(&owner)
             .cloned()
             .unwrap_or_default()
+    }
+
+    pub(crate) fn snapshot_owner_rows(&self, owner: Uuid) -> BTreeSet<RowTransactionKey> {
+        self.state
+            .lock()
+            .rows_by_owner
+            .get(&owner)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn restore_owner_rows(
+        &self,
+        owner: Uuid,
+        keys: &BTreeSet<RowTransactionKey>,
+    ) -> Result<(), CassieError> {
+        let mut state = self.state.lock();
+        if keys.iter().any(|key| {
+            state
+                .row_owners
+                .get(key)
+                .is_some_and(|current_owner| *current_owner != owner)
+        }) {
+            return Err(deadlock_error());
+        }
+        let previous = state.rows_by_owner.remove(&owner).unwrap_or_default();
+        for key in previous.difference(keys) {
+            if state.row_owners.get(key) == Some(&owner) {
+                state.row_owners.remove(key);
+            }
+        }
+        for key in keys {
+            state.row_owners.insert(key.clone(), owner);
+        }
+        if !keys.is_empty() {
+            state.rows_by_owner.insert(owner, keys.clone());
+        }
+        self.changed.notify_all();
+        Ok(())
     }
 
     pub(crate) fn restore_owner_keys(
@@ -154,6 +272,13 @@ fn release_owner_state(state: &mut RegistryState, owner: Uuid) {
         for key in keys {
             if state.owners.get(&key) == Some(&owner) {
                 state.owners.remove(&key);
+            }
+        }
+    }
+    if let Some(keys) = state.rows_by_owner.remove(&owner) {
+        for key in keys {
+            if state.row_owners.get(&key) == Some(&owner) {
+                state.row_owners.remove(&key);
             }
         }
     }
@@ -441,5 +566,72 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn should_release_row_owner_for_a_later_transaction() {
+        // Arrange
+        let waits = TransactionUniqueWaits::default();
+        let owner = Uuid::new_v4();
+        let waiter = Uuid::new_v4();
+        let ids = BTreeSet::from(["row-1".to_owned()]);
+        assert_eq!(
+            waits
+                .claim_row_keys(owner, "items", &ids)
+                .expect("row claim"),
+            RowKeyClaim::Claimed
+        );
+
+        // Act
+        waits.release_owner(owner);
+        let claim = waits
+            .claim_row_keys(waiter, "items", &ids)
+            .expect("released row claim");
+
+        // Assert
+        assert_eq!(claim, RowKeyClaim::Claimed);
+    }
+
+    #[test]
+    fn should_cancel_a_row_wait_without_retaining_wait_edge() {
+        // Arrange
+        let waits = TransactionUniqueWaits::default();
+        let owner = Uuid::new_v4();
+        let waiter = Uuid::new_v4();
+        let ids = BTreeSet::from(["row-1".to_owned()]);
+        waits
+            .claim_row_keys(owner, "items", &ids)
+            .expect("row claim");
+        let claim = waits
+            .claim_row_keys(waiter, "items", &ids)
+            .expect("row wait");
+        let RowKeyClaim::Wait {
+            collection,
+            id,
+            owner: blocker,
+        } = claim
+        else {
+            panic!("expected row wait");
+        };
+        let cancellation = QueryCancellationHandle::new();
+        cancellation.cancel();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation,
+        );
+
+        // Act
+        let result = waits.wait_for_row(
+            waiter,
+            blocker,
+            &collection,
+            &id,
+            &controls,
+        );
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
+        assert!(!waits.state.lock().waits_for.contains_key(&waiter));
     }
 }

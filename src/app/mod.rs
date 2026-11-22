@@ -178,7 +178,7 @@ mod transaction_error;
 mod transaction_unique_waits;
 pub(crate) use transaction_unique_waits::{
     collect_unique_keys, collect_upsert_unique_keys, validate_unique_key_candidate,
-    TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
+    RowKeyClaim, RowTransactionKey, TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
 mod storage_recovery;
 mod transaction_semantics;

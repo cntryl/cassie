@@ -180,6 +180,8 @@ pub(crate) use transaction_unique_waits::{
     collect_unique_keys, collect_upsert_unique_keys, validate_unique_key_candidate,
     RowKeyClaim, RowTransactionKey, TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
+#[cfg(test)]
+pub(crate) use transaction_unique_waits::{install_row_wait_observer, RowWaitObserverGuard};
 mod storage_recovery;
 mod transaction_semantics;
 mod transaction_snapshot;

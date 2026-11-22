@@ -6,10 +6,47 @@ use std::time::Duration;
 use parking_lot::{Condvar, Mutex};
 use uuid::Uuid;
 
+#[cfg(test)]
+use std::sync::mpsc::Sender;
+#[cfg(test)]
+use std::sync::OnceLock;
+
 use crate::app::{Cassie, CassieError, CassieSession, TransactionErrorKind, TransactionRowChange};
 use crate::catalog::{Catalog, FieldConstraint};
 use crate::midge::adapter::Midge;
 use crate::runtime::QueryExecutionControls;
+
+#[cfg(test)]
+static ROW_WAIT_OBSERVER: OnceLock<Mutex<Option<Sender<()>>>> = OnceLock::new();
+
+#[cfg(test)]
+pub(crate) struct RowWaitObserverGuard;
+
+#[cfg(test)]
+pub(crate) fn install_row_wait_observer(sender: Sender<()>) -> RowWaitObserverGuard {
+    *ROW_WAIT_OBSERVER
+        .get_or_init(|| Mutex::new(None))
+        .lock() = Some(sender);
+    RowWaitObserverGuard
+}
+
+#[cfg(test)]
+impl Drop for RowWaitObserverGuard {
+    fn drop(&mut self) {
+        if let Some(observer) = ROW_WAIT_OBSERVER.get() {
+            *observer.lock() = None;
+        }
+    }
+}
+
+#[cfg(test)]
+fn observe_row_wait() {
+    if let Some(observer) = ROW_WAIT_OBSERVER.get() {
+        if let Some(sender) = observer.lock().as_ref() {
+            let _ = sender.send(());
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct UniqueTransactionKey {
@@ -181,6 +218,8 @@ impl TransactionUniqueWaits {
                 clear_wait_edge(&mut state, waiter, owner);
                 return Ok(());
             }
+            #[cfg(test)]
+            observe_row_wait();
             self.changed.wait_for(&mut state, Duration::from_millis(25));
         }
     }

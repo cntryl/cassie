@@ -5,6 +5,80 @@ use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
 
 #[test]
+fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE TABLE read_committed_wait (id INT PRIMARY KEY, a INT, b INT)",
+            Vec::new(),
+        )
+        .expect("table");
+    cassie
+        .execute_sql(
+            &setup,
+            "INSERT INTO read_committed_wait VALUES (1, 0, 0)",
+            Vec::new(),
+        )
+        .expect("seed row");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    for session in [&first, &second] {
+        cassie
+            .execute_sql(session, "BEGIN", Vec::new())
+            .expect("begin READ COMMITTED transaction");
+    }
+    cassie
+        .execute_sql(
+            &first,
+            "UPDATE read_committed_wait SET a = 10 WHERE id = 1",
+            Vec::new(),
+        )
+        .expect("first update owns row");
+    let (wait_reached, wait_reached_rx) = std::sync::mpsc::channel();
+    let _wait_observer = crate::app::install_row_wait_observer(wait_reached);
+    let worker_cassie = cassie.clone();
+
+    // Act
+    let worker = std::thread::spawn(move || {
+        worker_cassie
+            .execute_sql(
+                &second,
+                "UPDATE read_committed_wait SET b = 20 WHERE id = 1",
+                Vec::new(),
+            )
+            .expect("second update after owner commit");
+        worker_cassie
+            .execute_sql(&second, "COMMIT", Vec::new())
+            .expect("second commit");
+    });
+    wait_reached_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("second update reached the row wait");
+
+    // Assert
+    assert!(!worker.is_finished(), "waiter completed before owner commit");
+    cassie
+        .execute_sql(&first, "COMMIT", Vec::new())
+        .expect("first commit releases row owner");
+    worker.join().expect("second update worker");
+    let result = cassie
+        .execute_sql(
+            &setup,
+            "SELECT id, a, b FROM read_committed_wait",
+            Vec::new(),
+        )
+        .expect("final row");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Int64(1), Value::Int64(10), Value::Int64(20)]]
+    );
+}
+
+#[test]
 fn should_preserve_concurrent_read_committed_column_updates() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())

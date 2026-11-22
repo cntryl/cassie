@@ -165,3 +165,28 @@ fn should_preserve_shallow_expression_and_acyclic_routine_behavior() {
     assert_eq!(case_result.rows(), &[vec![Value::Int64(2)]]);
     assert_eq!(function_result.rows(), &[vec![Value::Int64(3)]]);
 }
+
+#[test]
+fn should_reject_direct_self_call_and_preserve_the_session() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("direct_self_call", None);
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "CREATE FUNCTION f(a int) RETURNS int AS 'f(a)'",
+            vec![],
+        )
+        .expect_err("direct self-call must remain rejected");
+    let follow_up = cassie
+        .execute_sql(&session, "SELECT 1", vec![])
+        .expect("session survives direct self-call rejection");
+
+    // Assert
+    assert!(error.to_string().contains("function 'f' cannot call itself"));
+    assert_eq!(follow_up.rows(), &[vec![Value::Int64(1)]]);
+}

@@ -79,7 +79,7 @@ pub(super) fn bind_create_function(
 
     crate::sql::definition_guard::legacy_expression(&parsed_body)?;
 
-    if function_body_references(&parsed_body, &name) {
+    if function_body_references(&parsed_body, &name, context) {
         return Err(CassieError::Planner(format!(
             "function '{name}' cannot call itself"
         )));
@@ -236,16 +236,22 @@ pub(super) fn bind_call_procedure(
     Ok(bound)
 }
 
-pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool {
+pub(super) fn function_body_references(
+    expr: &Expr,
+    function_name: &str,
+    context: &BindingContext,
+) -> bool {
     match expr {
         Expr::Function(function) => {
-            function.name.eq_ignore_ascii_case(function_name)
+            normalize_relation_name(&function.name, context)
+                .is_ok_and(|name| name.eq_ignore_ascii_case(function_name))
+                || function.name.eq_ignore_ascii_case(function_name)
                 || function
                     .args
                     .iter()
-                    .any(|arg| function_body_references(arg, function_name))
+                    .any(|arg| function_body_references(arg, function_name, context))
         }
         Expr::Exists(_) => false,
-        _ => expr.any_child(|child| function_body_references(child, function_name)),
+        _ => expr.any_child(|child| function_body_references(child, function_name, context)),
     }
 }

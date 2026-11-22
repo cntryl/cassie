@@ -472,6 +472,7 @@ fn projected_filtered_path(context: &mut AccessPathContext<'_>) -> AccessPathRes
 fn rollup_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
     rollups::try_execute_rollup_query(
         context.env.cassie,
+        context.env.session,
         context.plan,
         context.env.params,
         context.env.user_functions,

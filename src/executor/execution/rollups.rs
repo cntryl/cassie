@@ -2,6 +2,8 @@ use super::command_output::empty as empty_command;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::app::CassieSession;
+
 use crate::catalog::{
     MaintenanceDebtMeta, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupState,
 };
@@ -346,6 +348,7 @@ pub(super) fn refresh_rollups_for_source(
 
 pub(super) fn try_execute_rollup_query(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     plan: &LogicalPlan,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -358,6 +361,12 @@ pub(super) fn try_execute_rollup_query(
         return Ok(None);
     };
 
+    // A rollup holds committed rows only: a session with uncommitted changes to
+    // the source must read the table, whichever write path staged them.
+    if session.is_some_and(|session| session.has_collection_changes(source)) {
+        cassie.runtime.record_rollup_fallback("session-changes");
+        return Ok(None);
+    }
     let Some(rollup) = matching_rollup(cassie, source, plan) else {
         cassie.runtime.record_rollup_fallback("no-match");
         return Ok(None);

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1908,
-    "rust_files": 1864,
-    "rust_test_declarations": 11496,
+    "files": 1909,
+    "rust_files": 1865,
+    "rust_test_declarations": 11500,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11521,
+    "registered_rust_instances": 11525,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -54460,6 +54460,130 @@
         "category": "aggregates/grouping",
         "directory": "tests/domain_models/aggregates/grouping",
         "file": "tests/domain_models/aggregates/grouping/nested_aggregate_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs::should_count_rows_staged_by_copy_in_a_transaction",
+      "name": "should_count_rows_staged_by_copy_in_a_transaction",
+      "current_file": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs",
+      "line": 43,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_staged_writes::should_count_rows_staged_by_copy_in_a_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/rollup_staged_writes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs::should_count_rows_staged_by_insert_in_a_transaction",
+      "name": "should_count_rows_staged_by_insert_in_a_transaction",
+      "current_file": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs",
+      "line": 56,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_staged_writes::should_count_rows_staged_by_insert_in_a_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/rollup_staged_writes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs::should_hide_rows_removed_by_truncate_in_a_transaction",
+      "name": "should_hide_rows_removed_by_truncate_in_a_transaction",
+      "current_file": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs",
+      "line": 71,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_staged_writes::should_hide_rows_removed_by_truncate_in_a_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/rollup_staged_writes.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs::should_serve_the_rollup_again_after_rollback",
+      "name": "should_serve_the_rollup_again_after_rollback",
+      "current_file": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs",
+      "line": 84,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_staged_writes::should_serve_the_rollup_again_after_rollback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/rollup_staged_writes.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -363377,6 +363501,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/rollups/rollup_staged_writes.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 95,
+      "sha256": "47cbe200382b341008a8e54019e8d1e58e30c9a1497f92c9e8228186f5cbfcc2",
+      "test_declarations": 4,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/grouping/rollup_staged_writes.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -363455,8 +363594,8 @@
       "current_file": "tests/domain_models.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 49,
-      "sha256": "7dc65ff56f0ee0beb5f6b41d08456665507067dd33a663280a784f526b0e624f",
+      "lines": 52,
+      "sha256": "6a63600b3d3624763dad086c91cad3ba6f02647fa5df269db5b2ef24e90ed9d3",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"

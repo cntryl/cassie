@@ -8,6 +8,16 @@ use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
+
+fn function_is_volatile_builtin(function: &crate::sql::ast::FunctionCall) -> bool {
+    if crate::planner::cte_inlining::volatile_builtin_name(&function.name) {
+        return true;
+    }
+    crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        crate::planner::cte_inlining::volatile_builtin(&function.name, metadata.id)
+    })
+}
+
 pub(crate) fn plan_uses_volatile_builtin_including_views(
     plan: &LogicalPlan,
     catalog: &crate::catalog::Catalog,

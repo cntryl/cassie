@@ -71,3 +71,90 @@ fn should_keep_an_explicit_alias_on_a_column_cast() {
     // Assert
     assert!(result.is_ok_and(|result| column_names(&result) == ["shown"]));
 }
+
+#[test]
+fn should_name_unaliased_arithmetic_expression_column_question_mark() {
+    // Arrange
+    let fixture = fixture("unaliased-expression-question-mark");
+
+    // Act
+    let result = fixture
+        .execute("SELECT 1 + 1")
+        .expect("arithmetic expression");
+
+    // Assert
+    assert_eq!(column_names(&result), ["?column?"]);
+    assert_eq!(result.columns()[0].type_oid, 23);
+    assert_eq!(result.rows(), &[vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_name_unaliased_casts_case_and_cast_function_expressions() {
+    // Arrange
+    let fixture = fixture("unaliased-expression-derived-names");
+
+    // Act
+    let numeric = fixture.execute("SELECT 1::numeric").expect("numeric cast");
+    let integer = fixture.execute("SELECT CAST(1 AS int)").expect("int cast");
+    let case = fixture
+        .execute("SELECT CASE WHEN true THEN 1 END")
+        .expect("case expression");
+    let function_cast = fixture
+        .execute("SELECT now()::date")
+        .expect("function cast");
+    let boolean = fixture.execute("SELECT true").expect("boolean literal");
+    let negative = fixture.execute("SELECT -1").expect("negative literal");
+
+    // Assert
+    assert_eq!(column_names(&numeric), ["numeric"]);
+    assert_eq!(numeric.columns()[0].type_oid, 1700);
+    assert_eq!(column_names(&integer), ["int4"]);
+    assert_eq!(integer.columns()[0].type_oid, 23);
+    assert_eq!(column_names(&case), ["case"]);
+    assert_eq!(column_names(&function_cast), ["now"]);
+    assert_eq!(function_cast.columns()[0].type_oid, 1082);
+    assert_eq!(column_names(&boolean), ["?column?"]);
+    assert_eq!(column_names(&negative), ["?column?"]);
+}
+
+#[test]
+fn should_keep_function_names_aliases_and_duplicate_labels_positionally() {
+    // Arrange
+    let fixture = fixture("unaliased-expression-name-guards");
+
+    // Act
+    let functions = fixture
+        .execute("SELECT abs(-1), round(1.5)")
+        .expect("function labels");
+    let alias = fixture
+        .execute("SELECT 1 + 1 AS total")
+        .expect("explicit alias");
+    let duplicate = fixture
+        .execute("SELECT 1 + 1, 2 + 2")
+        .expect("duplicate expression labels");
+    let cast_column = fixture
+        .execute("SELECT CAST(e AS text) FROM cast_names")
+        .expect("cast column label");
+
+    // Assert
+    assert_eq!(column_names(&functions), ["abs", "round"]);
+    assert_eq!(column_names(&alias), ["total"]);
+    assert_eq!(column_names(&duplicate), ["?column?", "?column?"]);
+    assert_eq!(duplicate.rows(), &[vec![Value::Int64(2), Value::Int64(4)]]);
+    assert_eq!(column_names(&cast_column), ["e"]);
+}
+
+#[test]
+fn should_expose_duplicate_expression_labels_through_a_derived_table() {
+    // Arrange
+    let fixture = fixture("unaliased-expression-derived-table-labels");
+
+    // Act
+    let result = fixture
+        .execute("SELECT * FROM (SELECT 1 + 1, 2 + 2) s")
+        .expect("derived table expressions");
+
+    // Assert
+    assert_eq!(column_names(&result), ["?column?", "?column?"]);
+    assert_eq!(result.rows(), &[vec![Value::Int64(2), Value::Int64(4)]]);
+}

@@ -167,6 +167,20 @@ fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
             vec![],
         )
         .expect("limit replay");
+    let scalar_limit_first = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows LIMIT (SELECT (random() * 0)::int)",
+            vec![],
+        )
+        .expect("scalar limit query");
+    let scalar_limit_second = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows LIMIT (SELECT (random() * 0)::int)",
+            vec![],
+        )
+        .expect("scalar limit replay");
     let sample_first = cassie
         .execute_sql(
             &session,
@@ -184,6 +198,7 @@ fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
 
     // Assert
     assert_eq!(limit_first.rows(), limit_second.rows());
+    assert_eq!(scalar_limit_first.rows(), scalar_limit_second.rows());
     assert_eq!(sample_first.columns(), sample_second.columns());
     assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
 }

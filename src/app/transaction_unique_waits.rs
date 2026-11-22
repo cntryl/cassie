@@ -37,7 +37,11 @@ pub(crate) struct RowTransactionKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RowKeyClaim {
     Claimed,
-    Wait { collection: String, id: String, owner: Uuid },
+    Wait {
+        pub(crate) collection: String,
+        pub(crate) id: String,
+        pub(crate) owner: Uuid,
+    },
 }
 
 #[derive(Debug, Default)]

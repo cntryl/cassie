@@ -4,6 +4,26 @@ use super::*;
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
 
+fn wait_for_row_or_cleanup<T: Send + 'static>(
+    wait_reached_rx: std::sync::mpsc::Receiver<()>,
+    cassie: &Cassie,
+    owner: &CassieSession,
+    worker: std::thread::JoinHandle<T>,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> std::thread::JoinHandle<T> {
+    match wait_reached_rx.recv_timeout(std::time::Duration::from_secs(1)) {
+        Ok(()) => worker,
+        Err(error) => {
+            if let Some(cancellation) = cancellation {
+                cancellation.cancel();
+            }
+            let _ = cassie.execute_sql(owner, "ROLLBACK", Vec::new());
+            let _ = worker.join();
+            panic!("row wait boundary was not reached: {error}");
+        }
+    }
+}
+
 #[test]
 fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
     // Arrange
@@ -55,9 +75,13 @@ fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    wait_reached_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("second update reached the row wait");
+    let worker = wait_for_row_or_cleanup(
+        wait_reached_rx,
+        &cassie,
+        &first,
+        worker,
+        None,
+    );
 
     // Assert
     assert!(!worker.is_finished(), "waiter completed before owner commit");
@@ -129,9 +153,13 @@ fn should_preserve_concurrent_read_committed_column_updates() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    wait_reached_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("second update reached the row wait");
+    let worker = wait_for_row_or_cleanup(
+        wait_reached_rx,
+        &cassie,
+        &first,
+        worker,
+        None,
+    );
     assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
@@ -203,9 +231,13 @@ fn should_apply_overlapping_read_committed_increments_twice() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    wait_reached_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("second increment reached the row wait");
+    let worker = wait_for_row_or_cleanup(
+        wait_reached_rx,
+        &cassie,
+        &first,
+        worker,
+        None,
+    );
     assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
@@ -335,9 +367,13 @@ fn should_cancel_a_read_committed_row_wait_with_57014() {
             |_, _| Ok(()),
         )
     });
-    wait_reached_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("canceled update reached row wait");
+    let worker = wait_for_row_or_cleanup(
+        wait_reached_rx,
+        &cassie,
+        &first,
+        worker,
+        Some(&cancellation),
+    );
     cancellation.cancel();
     let result = worker.join().expect("canceled worker");
 
@@ -408,9 +444,13 @@ fn should_wait_for_a_row_owner_before_nested_modifying_cte_reapplies() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("nested update commit");
     });
-    wait_reached_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("nested update reached row wait");
+    let worker = wait_for_row_or_cleanup(
+        wait_reached_rx,
+        &cassie,
+        &first,
+        worker,
+        None,
+    );
 
     // Assert
     assert!(!worker.is_finished(), "nested waiter completed before owner commit");

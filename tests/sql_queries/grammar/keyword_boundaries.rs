@@ -131,6 +131,46 @@ fn should_parse_conjunction_directly_before_a_parenthesis() {
 }
 
 #[test]
+fn should_parse_keyword_immediately_before_a_negative_literal() {
+    // Arrange
+    let fixture = fixture("kw-and-negative-literal");
+
+    // Act
+    let rows = fixture.rows("SELECT 1 WHERE true AND-1 < 0");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_keep_identifiers_that_begin_with_a_keyword_whole() {
+    // Arrange
+    let fixture = fixture("kw-identifier-prefix");
+
+    // Act
+    let result = fixture.execute("SELECT 1 AS android");
+
+    // Assert
+    assert!(result.is_ok_and(|result| result.columns()[0].name == "android"));
+    assert_eq!(
+        fixture.rows("SELECT 1 AS android"),
+        vec![vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_keep_the_spaced_negative_literal_after_a_keyword() {
+    // Arrange
+    let fixture = fixture("kw-and-spaced-negative-literal");
+
+    // Act
+    let rows = fixture.rows("SELECT 1 WHERE true AND -1 < 0");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
 fn should_parse_lowercase_conjunction_directly_before_a_parenthesis() {
     // Arrange
     let fixture = fixture("kw-and-lower");

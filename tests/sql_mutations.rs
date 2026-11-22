@@ -222,6 +222,8 @@ mod char_unique_trailing_blanks;
 mod alter_column_declared_case;
 #[path = "sql_mutations/types/arrays/array_bound_limits.rs"]
 mod array_bound_limits;
+#[path = "sql_mutations/ddl/rename_column_follows.rs"]
+mod rename_column_follows;
 #[path = "sql_mutations/types/arrays/array_input_copy.rs"]
 mod type_array_input_copy;
 

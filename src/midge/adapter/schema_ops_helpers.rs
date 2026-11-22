@@ -283,10 +283,7 @@ pub(super) fn rename_constraints_in_tx(
             changed = true;
         }
         if let Some(check) = constraint.check.as_mut() {
-            if crate::sql::ColumnIdentifierPath::matches_stored_field(&check.field, current_name) {
-                check.field = next_name.to_string();
-                changed = true;
-            }
+            changed |= check.rename_field(current_name, next_name);
         }
     }
     if changed {

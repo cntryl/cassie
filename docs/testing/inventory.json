@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1885,
-    "rust_files": 1841,
-    "rust_test_declarations": 11267,
+    "files": 1886,
+    "rust_files": 1842,
+    "rust_test_declarations": 11283,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11292,
+    "registered_rust_instances": 11308,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -256095,6 +256095,502 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_partial_unique_index_enforced_after_predicate_column_rename",
+      "name": "should_keep_partial_unique_index_enforced_after_predicate_column_rename",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 6,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_partial_unique_index_enforced_after_predicate_column_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_expression_unique_index_enforced_after_operand_column_rename",
+      "name": "should_keep_expression_unique_index_enforced_after_operand_column_rename",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 34,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_expression_unique_index_enforced_after_operand_column_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_not_rewrite_string_literal_matching_renamed_column_in_predicate",
+      "name": "should_not_rewrite_string_literal_matching_renamed_column_in_predicate",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 54,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_not_rewrite_string_literal_matching_renamed_column_in_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_follow_rename_in_covering_include_column_of_index",
+      "name": "should_follow_rename_in_covering_include_column_of_index",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 79,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_follow_rename_in_covering_include_column_of_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_accept_writes_after_renaming_column_of_distinct_from_check",
+      "name": "should_accept_writes_after_renaming_column_of_distinct_from_check",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 106,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_accept_writes_after_renaming_column_of_distinct_from_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_accept_writes_after_renaming_column_of_not_distinct_from_check",
+      "name": "should_accept_writes_after_renaming_column_of_not_distinct_from_check",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 126,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_accept_writes_after_renaming_column_of_not_distinct_from_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_restore_index_predicate_when_column_rename_is_rolled_back",
+      "name": "should_restore_index_predicate_when_column_rename_is_rolled_back",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 146,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_restore_index_predicate_when_column_rename_is_rolled_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_partial_unique_index_enforced_after_table_rename",
+      "name": "should_keep_partial_unique_index_enforced_after_table_rename",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 168,
+      "end_line": 185,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_partial_unique_index_enforced_after_table_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_follow_rename_in_time_series_partition_column",
+      "name": "should_follow_rename_in_time_series_partition_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 188,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_follow_rename_in_time_series_partition_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_non_unique_partial_index_complete_after_predicate_column_rename",
+      "name": "should_keep_non_unique_partial_index_complete_after_predicate_column_rename",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 209,
+      "end_line": 227,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_non_unique_partial_index_complete_after_predicate_column_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_foreign_key_enforced_after_renaming_referencing_column",
+      "name": "should_keep_foreign_key_enforced_after_renaming_referencing_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 230,
+      "end_line": 249,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_foreign_key_enforced_after_renaming_referencing_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_foreign_key_enforced_after_renaming_referenced_column",
+      "name": "should_keep_foreign_key_enforced_after_renaming_referenced_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 252,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_foreign_key_enforced_after_renaming_referenced_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_composite_unique_enforced_after_renaming_one_member_column",
+      "name": "should_keep_composite_unique_enforced_after_renaming_one_member_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 274,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_composite_unique_enforced_after_renaming_one_member_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_primary_key_enforced_after_renaming_its_column",
+      "name": "should_keep_primary_key_enforced_after_renaming_its_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 295,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_primary_key_enforced_after_renaming_its_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_identity_default_after_renaming_identity_column",
+      "name": "should_keep_identity_default_after_renaming_identity_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 314,
+      "end_line": 331,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_identity_default_after_renaming_identity_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rename_column_follows.rs::should_keep_unique_constraint_include_payload_after_renaming_included_column",
+      "name": "should_keep_unique_constraint_include_payload_after_renaming_included_column",
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "line": 334,
+      "end_line": 353,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rename_column_follows::should_keep_unique_constraint_include_payload_after_renaming_included_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_preserve_scalar_entries_when_index_is_renamed",
       "name": "should_preserve_scalar_entries_when_index_is_renamed",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
@@ -370965,6 +371461,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/rename_column_follows.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 353,
+      "sha256": "6073fff6738b741c1bdb96e1b74daadc3ad1f485a6bd5308578bf874f2908ab4",
+      "test_declarations": 16,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/rename_column_follows.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
       "role": "test_module",
       "action": "keep",
@@ -371881,8 +372392,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 260,
-      "sha256": "50bb9e03d6298e009a82c94e6d21b1cd9a49812e09756987cac2b5699dc0ac58",
+      "lines": 262,
+      "sha256": "4923dc21a5e32d5aebde5ecfd0ce16484b2e5605af8d640e3ca2137d88ea0fea",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

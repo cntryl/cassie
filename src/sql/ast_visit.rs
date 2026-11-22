@@ -408,6 +408,22 @@ impl Expr {
     pub fn any_descendant_or_self(&self, predicate: &mut impl FnMut(&Expr) -> bool) -> bool {
         predicate(self) || self.any_child(|child| child.any_descendant_or_self(predicate))
     }
+
+    /// Renames every column reference whose lookup key is `current_key` (a
+    /// `ColumnIdentifierPath::stored_field_key`) to `next`. Literals and other
+    /// column names are untouched because the walk is structural.
+    pub fn rename_column_references(&mut self, current_key: &str, next: &str) {
+        if let Self::Column(column) = self {
+            if crate::sql::ColumnIdentifierPath::reference_field_key(column) == current_key {
+                next.clone_into(column);
+            }
+            return;
+        }
+        let _ = self.try_visit_children_mut(|child| {
+            child.rename_column_references(current_key, next);
+            Ok::<(), std::convert::Infallible>(())
+        });
+    }
 }
 
 impl super::ast_query::FunctionCall {

@@ -30,7 +30,15 @@ fn rollup_matches_plan(rollup: &RollupMeta, plan: &LogicalPlan) -> bool {
     if actual_groups != expected_groups {
         return false;
     }
-    if plan.filter.as_ref().map(expr_key) != rollup.filter_expr {
+    // Both sides use the canonical SQL form, so only an identical predicate
+    // matches; any other spelling declines rather than risking wrong rows.
+    let actual_filter = plan.filter.as_ref().map(super::encode_filter);
+    let filter_matches = match (actual_filter, &rollup.filter_expr) {
+        (None, None) => true,
+        (Some(Ok(actual)), Some(stored)) => actual == *stored,
+        _ => false,
+    };
+    if !filter_matches {
         return false;
     }
     let Some(expected_aggregates) = rollup

@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1907,
-    "rust_files": 1863,
-    "rust_test_declarations": 11491,
+    "files": 1908,
+    "rust_files": 1864,
+    "rust_test_declarations": 11496,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11516,
+    "registered_rust_instances": 11521,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -54153,6 +54153,161 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_answer_comparison_filtered_rollup_with_the_matching_rows",
+      "name": "should_answer_comparison_filtered_rollup_with_the_matching_rows",
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "line": 59,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_filtered_roundtrip::should_answer_comparison_filtered_rollup_with_the_matching_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_match_table_for_every_filter_shape_after_refresh",
+      "name": "should_match_table_for_every_filter_shape_after_refresh",
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "line": 74,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_filtered_roundtrip::should_match_table_for_every_filter_shape_after_refresh"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_match_table_for_every_filter_shape_after_dml_and_refresh",
+      "name": "should_match_table_for_every_filter_shape_after_dml_and_refresh",
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "line": 97,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_filtered_roundtrip::should_match_table_for_every_filter_shape_after_dml_and_refresh"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_not_answer_a_differently_spelled_predicate_with_wrong_rows",
+      "name": "should_not_answer_a_differently_spelled_predicate_with_wrong_rows",
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "line": 125,
+      "end_line": 136,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_filtered_roundtrip::should_not_answer_a_differently_spelled_predicate_with_wrong_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_hold_the_documented_repro_row",
+      "name": "should_hold_the_documented_repro_row",
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "line": 139,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "rollup_filtered_roundtrip::should_hold_the_documented_repro_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "aggregates/grouping",
+        "directory": "tests/domain_models/aggregates/grouping",
+        "file": "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -363192,6 +363347,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 150,
+      "sha256": "0e3ba3d902822b7b1183ffcdac8e1fa1ae44c7a60f9c8780532192d946fdcfe5",
+      "test_declarations": 5,
+      "registered_suites": [
+        "domain_models"
+      ],
+      "destinations": [
+        "tests/domain_models/aggregates/grouping/filtered_rollup_roundtrip.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_models/time_series/rollups/nested_aggregate_match.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -363285,8 +363455,8 @@
       "current_file": "tests/domain_models.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 46,
-      "sha256": "a08ca4d004161d4908a81dcedd306ba846b1866017142bd5724c8fbafb975afb",
+      "lines": 49,
+      "sha256": "7dc65ff56f0ee0beb5f6b41d08456665507067dd33a663280a784f526b0e624f",
       "test_declarations": 0,
       "registered_suites": [
         "domain_models"

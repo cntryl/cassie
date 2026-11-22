@@ -348,6 +348,10 @@ pub(crate) fn drop_database(
         )));
     }
 
+    // Storage can retain rows or cleanup records the in-memory catalog no longer
+    // lists; refuse before dropping the public schema so a refusal changes nothing.
+    cassie.midge.ensure_database_droppable(&statement.name)?;
+
     let output = empty_command("DROP DATABASE", controls)?;
     let public_schema =
         crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);

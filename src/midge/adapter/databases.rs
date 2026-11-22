@@ -238,12 +238,14 @@ impl Midge {
         Ok(())
     }
 
+    /// Refuses a drop while the database still holds retained rows or catalog
+    /// entries, without changing anything. Callers run this before any step
+    /// that removes database metadata, such as dropping its `public` schema.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the database is not empty or its lifecycle cannot be
-    /// completed atomically enough for startup recovery to finish it.
-    pub fn drop_database(&self, name: &str) -> Result<(), CassieError> {
-        let schema = self.ensure_families_ready()?.schema.clone();
+    /// Returns an error if the database does not exist or is not empty.
+    pub fn ensure_database_droppable(&self, name: &str) -> Result<(), CassieError> {
         let metadata = self
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
@@ -270,7 +272,19 @@ impl Midge {
                 metadata.name
             )));
         }
-        drop(data_tx);
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if the database is not empty or its lifecycle cannot be
+    /// completed atomically enough for startup recovery to finish it.
+    pub fn drop_database(&self, name: &str) -> Result<(), CassieError> {
+        let schema = self.ensure_families_ready()?.schema.clone();
+        self.ensure_database_droppable(name)?;
+        let metadata = self
+            .database_metadata(name)?
+            .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
 
         let record = DatabaseLifecycleRecord {
             operation_id: Uuid::new_v4().to_string(),

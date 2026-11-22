@@ -1,15 +1,11 @@
 use std::collections::HashSet;
-
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, FunctionCall, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
 #[cfg(test)]
-use super::volatile_plan_inspection::{
-    plan_uses_volatile_builtin, plan_uses_volatile_builtin_including_views,
-};
-
+use super::volatile_plan_inspection::plan_uses_volatile_builtin_including_views;
 pub(super) fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
     let mut fields = HashSet::new();
 
@@ -919,7 +915,10 @@ mod tests {
         let plan = logical_plan_from_select(&query);
 
         // Act
-        let contains_volatile_builtin = plan_uses_volatile_builtin(&plan);
+        let contains_volatile_builtin = plan_uses_volatile_builtin_including_views(
+            &plan,
+            &crate::catalog::Catalog::new(),
+        );
 
         // Assert
         assert!(contains_volatile_builtin);

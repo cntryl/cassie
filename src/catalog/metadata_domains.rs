@@ -50,6 +50,12 @@ impl Catalog {
     }
 
     #[must_use]
+    pub fn has_maintenance_debt(&self, collection: &str, artifact: &str) -> bool {
+        let key = format!("{collection}\0{artifact}");
+        self.maintenance_debts.read().contains_key(&key)
+    }
+
+    #[must_use]
     pub fn list_maintenance_debts(&self) -> Vec<MaintenanceDebtMeta> {
         let mut out = self
             .maintenance_debts

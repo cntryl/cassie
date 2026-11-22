@@ -134,14 +134,17 @@ mod schema_write_conflicts;
 #[path = "catalog_security/catalogs/catalog_missing_object_sqlstates.rs"]
 mod catalog_missing_object_sqlstates;
 
-#[path = "catalog_security/databases/drop_database_pending_cleanup.rs"]
-mod drop_database_pending_cleanup;
+#[path = "catalog_security/ddl/drop_recreate_deferred_cleanup.rs"]
+mod drop_recreate_deferred_cleanup;
 
 #[path = "catalog_security/ddl/deferred_index_cleanup_rename.rs"]
 mod deferred_index_cleanup_rename;
 
-#[path = "catalog_security/ddl/drop_recreate_deferred_cleanup.rs"]
-mod drop_recreate_deferred_cleanup;
+#[path = "catalog_security/databases/drop_database_pending_cleanup.rs"]
+mod drop_database_pending_cleanup;
+
+#[path = "catalog_security/ddl/add_column_backfill_failure.rs"]
+mod add_column_backfill_failure;
 
 #[path = "catalog_security/namespaces/search_path_resolution.rs"]
 mod search_path_resolution;

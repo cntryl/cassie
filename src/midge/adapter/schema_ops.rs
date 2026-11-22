@@ -735,6 +735,37 @@ impl Midge {
         Ok(())
     }
 
+    /// Finishes an `ADD COLUMN` whose schema commit succeeded but whose backfill
+    /// did not, so the statement can be retried instead of reporting a duplicate.
+    ///
+    /// Returns whether a journal for this column existed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the journal is malformed or the backfill fails again.
+    pub fn resume_pending_field_add(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<bool, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::field_add_operation_key(&collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(false);
+        };
+        drop(tx);
+        let pending = serde_json::from_slice::<PendingFieldAdd>(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid field add operation: {error}")))?;
+        self.complete_field_add_data(&pending)?;
+        self.clear_pending_field_add(&collection, field)?;
+        Ok(true)
+    }
+
     fn clear_pending_field_add(&self, collection: &str, field: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::field_add_operation_key(collection, field))

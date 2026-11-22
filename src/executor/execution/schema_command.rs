@@ -591,42 +591,9 @@ fn alter_table_add_column(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
-            let default_value = cassie.domain_add_column_default(
-                session,
-                table,
-                data_type,
-                default_value.clone(),
-            )?;
-            // Existing rows receive the default, so validate the constraints
-            // against that value before anything is committed.
-            let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
-            let added = crate::app::AddedColumnDefault {
-                field,
-                value: &backfilled,
-            };
-            cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
-            cassie.validate_existing_foreign_key_rows_after_added_column(
-                table,
-                constraints,
-                Some(added),
-            )?;
-
-            let field_schema = FieldSchema {
-                name: field.to_string(),
-                data_type: data_type.clone(),
-                nullable: true,
-            };
-            cassie
-                .midge
-                .alter_collection_add_column_with_default(
-                    table,
-                    field_schema.clone(),
-                    default_value,
-                )
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie
-                .catalog
-                .add_collection_field(table, field_schema.name, field_schema.data_type);
+            if !add_column_resumed(cassie, table, field)? {
+                add_column_to_storage(cassie, session, table, column, default_value.clone())?;
+            }
 
             super::sequence_command::persist_created_sequences(cassie, sequences)?;
             if !constraints.is_empty() {
@@ -641,6 +608,101 @@ fn alter_table_add_column(
             refresh_table_cardinality_stats(cassie, table)
         })?;
     Ok(())
+}
+
+/// Adds the column to storage and the catalog, keeping the catalog in step with
+/// storage when the backfill fails after the schema commit.
+fn add_column_to_storage(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    column: &NewColumn<'_>,
+    default_value: Option<serde_json::Value>,
+) -> Result<(), QueryError> {
+    let NewColumn {
+        field,
+        data_type,
+        constraints,
+        ..
+    } = *column;
+    let default_value =
+        cassie.domain_add_column_default(session, table, data_type, default_value)?;
+    // Existing rows receive the default, so validate the constraints
+    // against that value before anything is committed.
+    let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
+    let added = crate::app::AddedColumnDefault {
+        field,
+        value: &backfilled,
+    };
+    cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
+    cassie.validate_existing_foreign_key_rows_after_added_column(
+        table,
+        constraints,
+        Some(added),
+    )?;
+
+    let field_schema = FieldSchema {
+        name: field.to_string(),
+        data_type: data_type.clone(),
+        nullable: true,
+    };
+    let altered = cassie.midge.alter_collection_add_column_with_default(
+        table,
+        field_schema.clone(),
+        default_value,
+    );
+    // The schema commit precedes the backfill, so a backfill failure
+    // leaves the column durable: the catalog must agree with storage.
+    if altered.is_err()
+        && cassie.midge.collection_schema(table).is_some_and(|schema| {
+            schema
+                .fields
+                .iter()
+                .any(|entry| entry.name == field_schema.name)
+        })
+    {
+        cassie.catalog.add_collection_field(
+            table,
+            field_schema.name.clone(),
+            field_schema.data_type.clone(),
+        );
+        cassie
+            .catalog
+            .register_maintenance_debt(catalog::MaintenanceDebtMeta::new(
+                table,
+                catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+                0,
+                0,
+                altered.as_ref().err().map(ToString::to_string),
+            ));
+    }
+    altered.map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .catalog
+        .add_collection_field(table, field_schema.name, field_schema.data_type);
+    Ok(())
+}
+
+/// Resumes the journaled backfill of an `ADD COLUMN` that an earlier statement
+/// committed but could not finish, so retrying it completes instead of failing
+/// with a duplicate column.
+fn add_column_resumed(cassie: &Cassie, table: &str, field: &str) -> Result<bool, QueryError> {
+    let in_catalog = cassie
+        .catalog
+        .get_schema(table)
+        .is_some_and(|schema| schema.fields.iter().any(|entry| entry.name == field));
+    if !in_catalog {
+        return Ok(false);
+    }
+    let resumed = cassie
+        .midge
+        .resume_pending_field_add(table, field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.unregister_maintenance_debt(
+        table,
+        &catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+    );
+    Ok(resumed)
 }
 
 fn alter_table_add_constraint(

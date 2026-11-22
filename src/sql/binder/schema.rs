@@ -646,7 +646,14 @@ pub(super) fn validate_alter_schema(
             }
         }
         AlterTableOperation::AddColumn { field, .. } => {
-            validate_alter_add_column(table, field, existing_fields)?;
+            // A column whose backfill is still journaled is retried, not duplicated.
+            let backfill_pending = catalog.has_maintenance_debt(
+                table,
+                &crate::catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+            );
+            if !backfill_pending {
+                validate_alter_add_column(table, field, existing_fields)?;
+            }
         }
         AlterTableOperation::AddConstraint { constraints } => {
             validate_alter_add_constraints(table, constraints, existing_fields)?;

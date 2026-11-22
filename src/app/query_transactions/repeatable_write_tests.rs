@@ -224,6 +224,82 @@ fn should_apply_overlapping_read_committed_increments_twice() {
 }
 
 #[test]
+fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(&setup, "CREATE TABLE rr_row_guard (id INT PRIMARY KEY, a INT, b INT)", Vec::new())
+        .expect("table");
+    cassie
+        .execute_sql(&setup, "INSERT INTO rr_row_guard VALUES (1, 0, 0)", Vec::new())
+        .expect("seed row");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    cassie
+        .execute_sql(&first, "BEGIN ISOLATION LEVEL REPEATABLE READ", Vec::new())
+        .expect("first begin");
+    cassie
+        .execute_sql(&second, "BEGIN ISOLATION LEVEL REPEATABLE READ", Vec::new())
+        .expect("second begin");
+    cassie
+        .execute_sql(&first, "UPDATE rr_row_guard SET a = 10 WHERE id = 1", Vec::new())
+        .expect("first update");
+    let (updated, updated_rx) = std::sync::mpsc::channel();
+    let worker_cassie = cassie.clone();
+
+    // Act
+    let worker = std::thread::spawn(move || {
+        let update = worker_cassie.execute_sql(
+            &second,
+            "UPDATE rr_row_guard SET b = 20 WHERE id = 1",
+            Vec::new(),
+        );
+        updated.send(update.is_ok()).expect("report update");
+        worker_cassie.execute_sql(&second, "COMMIT", Vec::new())
+    });
+    assert!(updated_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("second update result"));
+    cassie
+        .execute_sql(&first, "COMMIT", Vec::new())
+        .expect("first commit");
+    let second_commit = worker.join().expect("second worker");
+
+    // Assert
+    assert_eq!(second_commit.expect_err("stale RR commit").descriptor().sql_state, "40001");
+}
+
+#[test]
+fn should_preserve_autocommit_update_serialization() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let session = cassie.create_session("autocommit", None);
+    cassie
+        .execute_sql(&session, "CREATE TABLE autocommit_row_guard (id INT PRIMARY KEY, a INT)", Vec::new())
+        .expect("table");
+    cassie
+        .execute_sql(&session, "INSERT INTO autocommit_row_guard VALUES (1, 0)", Vec::new())
+        .expect("seed row");
+
+    // Act
+    cassie
+        .execute_sql(&session, "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1", Vec::new())
+        .expect("first autocommit update");
+    cassie
+        .execute_sql(&session, "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1", Vec::new())
+        .expect("second autocommit update");
+    let result = cassie
+        .execute_sql(&session, "SELECT a FROM autocommit_row_guard", Vec::new())
+        .expect("read row");
+
+    // Assert
+    assert_eq!(result.rows(), &[vec![Value::Int64(2)]]);
+}
+
+#[test]
 fn should_reject_a_late_repeatable_conflict_without_changing_its_target() {
     // Arrange
     for action in [

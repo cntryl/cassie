@@ -509,6 +509,53 @@ fn should_bypass_volatile_user_functions_called_with_different_identifier_case()
 }
 
 #[test]
+fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views() {
+    // Arrange
+    let path = data_dir("clock-builtins-result-cache");
+    let cassie = Cassie::new_in_memory_with_config(cache_config(128, 1_048_576)).expect("cassie");
+    let session = cassie.create_session("alice", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE VIEW cache_clock_view AS SELECT now() AS generated_at",
+            vec![],
+        )
+        .expect("clock view");
+
+    // Act
+    for sql in [
+        "SELECT now()",
+        "SELECT now()",
+        "SELECT statement_timestamp()",
+        "SELECT statement_timestamp()",
+        "SELECT generated_at FROM cache_clock_view",
+        "SELECT generated_at FROM cache_clock_view",
+        "SELECT generated_at FROM (SELECT now() AS generated_at) AS nested_clock",
+        "SELECT generated_at FROM (SELECT now() AS generated_at) AS nested_clock",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("clock-dependent query");
+    }
+    cassie
+        .execute_sql(&session, "SELECT 'now'", vec![])
+        .expect("pure text with a clock-like value");
+    cassie
+        .execute_sql(&session, "SELECT 'now'", vec![])
+        .expect("repeated pure text query");
+    let metrics = cassie.metrics();
+
+    // Assert
+    assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(1));
+    assert_eq!(
+        metrics["execution_result_cache"]["bypass_reasons"]["clock_dependent_builtin"]
+            .as_u64(),
+        Some(8)
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_cache_immutable_user_functions() {
     // Arrange
     let path = data_dir("immutable-udf");

@@ -614,6 +614,23 @@ execution or performance claim is made.
 | hyb-005 — Hybrid corrupt artifacts, unsupported filters, overlays or candidate budgets must select controlled exact fallback; cancellation must publish no diagnostics and leak no resources. | mapped-source-test; mapped_source_and_existing_test_not_rerun | [#765](https://github.com/cntryl/cassie/issues/765) | Source: [src/executor/execution/scored/hybrid.rs:199](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/scored/hybrid.rs#L199); [src/executor/execution/scored/hybrid.rs:86](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/scored/hybrid.rs#L86)<br>Evidence: [tests/vector_embeddings.rs:3017](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/vector_embeddings.rs#L3017); [tests/vector_embeddings.rs:3049](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/vector_embeddings.rs#L3049); [tests/vector_embeddings.rs:3143](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/vector_embeddings.rs#L3143); [tests/query_scan_controls.rs:3531](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/query_scan_controls.rs#L3531) | Corrupt one artifact amongvalid; cancelafterfallbackselection, low-memory exactprefilter, thenconfirm no partialmetrics/rows. |
 | hyb-006 — Hybrid ANN ids, corpus stats and fetched source rows must belong to one permitted visibility generation, with changed-source rejection before publication. | probe-needed; unverified_hybrid_generation_fence | [#765](https://github.com/cntryl/cassie/issues/765) | Source: [src/executor/execution/scored/hybrid.rs:322](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/scored/hybrid.rs#L322); [src/executor/execution/scored/hybrid.rs:259](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/scored/hybrid.rs#L259)<br>Evidence: [tests/vector_embeddings.rs:3166](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/vector_embeddings.rs#L3166) | Insert/update/delete barrier afterANNcheck then duringtextstats/sourcefetch; assert snapshot-consistent result or atomic exactfallback. Existing concurrent-read test does not prove concurrent-write seam. |
 
+#### Accepted IVFFlat candidate selection (hyb-002, #1453)
+
+This contract is accepted for implementation in
+[#1453](https://github.com/cntryl/cassie/issues/1453). For the vector candidate
+stage of a hybrid query, keep up to the candidate limit of nearest usable
+vectors across the lists actually probed. Use the query's supported distance
+metric and stable tie ordering. List traversal and row ID order alone cannot
+decide which candidates survive the limit. Keep candidate selection within the
+existing memory and execution controls and use the existing controlled
+fallback or error when the budget is exceeded.
+
+IVFFlat remains approximate across the full index. The nearest-candidate
+guarantee is scoped to the probed lists, and final hybrid ranking still uses
+the declared text and vector scores. Test candidate selection against exact
+distance within the same lists, including a case where a nearer record appears
+after the candidate limit in traversal order.
+
 ### Graph and time-series overlaps
 
 | Invariant / selected obligation | Baseline evidence | Primary owner | Baseline source and named evidence | Next probe |

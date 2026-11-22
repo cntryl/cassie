@@ -200,6 +200,21 @@ Repository ORM metadata tests cover the complete supported column shape. Named-c
 limited to the read-model discovery performed by sqlx 0.8.3 and Diesel 2.2.6; it does not certify
 migration generation or PostgreSQL catalog introspection beyond these columns.
 
+### Accepted psql constraint descriptions (#1487)
+
+This addition is accepted for implementation in
+[#1487](https://github.com/cntryl/cassie/issues/1487). Support
+`pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, pretty)`, including
+the `pg_catalog`-qualified names, for visible PRIMARY KEY, UNIQUE, CHECK, and
+FOREIGN KEY constraints that Cassie already exposes. Return SQL NULL for a
+NULL input or an OID with no visible constraint.
+
+Qualify this addition with a real `psql \d` invocation on a table with
+constraints, a default, and an index, alongside the related catalog helper
+and join work in [#1486](https://github.com/cntryl/cassie/issues/1486) and
+[#1489](https://github.com/cntryl/cassie/issues/1489). The named-client subset
+above describes currently retained evidence.
+
 ## Retained client evidence
 
 | Client | Source revision | Workflow run | Certified catalog workflow |

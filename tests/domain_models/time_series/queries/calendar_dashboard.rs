@@ -632,7 +632,7 @@ fn assert_reopened_calendar_dashboard(
 #[test]
 fn should_qualify_prepared_calendar_templates() {
     // Arrange
-    assert_eq!(jiff_tzdb::VERSION, Some("2026e"));
+    assert_eq!(jiff_tzdb::VERSION, "2026f");
     let path = cassie_test_support::support_sql::data_dir("prepared-calendar-dashboard");
     let cassie = open_local(&path, 100_000);
     let (ranges, month_range) = create_calendar_fixture(&cassie);

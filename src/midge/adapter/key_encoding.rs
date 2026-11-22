@@ -951,7 +951,8 @@ fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(
                     ));
                 }
                 key.push(0x40);
-                encoder.encode_f64_into(float);
+                // PostgreSQL treats `-0` and `0` as equal.
+                encoder.encode_f64_into(if float == 0.0 { 0.0 } else { float });
                 key.extend_from_slice(encoder.as_slice());
                 key.push(LexKey::SEPARATOR);
             } else {

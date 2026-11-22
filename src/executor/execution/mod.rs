@@ -99,10 +99,10 @@ pub(crate) use subquery_eval::MULTIPLE_ROWS as SUBQUERY_MULTIPLE_ROWS;
 mod result;
 
 pub(crate) use entrypoints::{
-    mark_source_projections_stale_external, refresh_rollups_for_source_external,
-    refresh_rollups_for_source_with_report_external, rollup_rewrite_name_for_plan,
-    run_with_session_controls, run_with_session_parameter_oids_for_operation,
-    sync_derived_maintenance_debt_external,
+    mark_source_projections_stale_external, mark_source_rollups_stale_external,
+    refresh_rollups_for_source_external, refresh_rollups_for_source_with_report_external,
+    rollup_rewrite_name_for_plan, run_with_session_controls,
+    run_with_session_parameter_oids_for_operation, sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::explain_filtered_strategy;
@@ -163,6 +163,7 @@ pub(crate) use projection_repair::repair_projection_column_definitions;
 mod column_storage_command;
 mod column_vector_plan;
 pub(crate) use column_vector_plan::column_vector_eligibility;
+mod composite_view_dependents;
 mod composite_view_rewrite;
 mod domain_check_definition;
 mod domain_command;
@@ -182,9 +183,11 @@ mod role_command;
 mod rollups;
 pub(super) mod schema_command;
 mod schema_creation;
+mod schema_sql_rewrite;
 mod sequence_command;
 mod sequence_default_dependents;
 mod session_command;
+mod sql_text_tokens;
 mod table_like_comments;
 mod type_alter;
 mod type_command;

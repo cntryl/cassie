@@ -79,14 +79,21 @@ Focused evidence already present in the repository includes:
 `INCLUDE` key. Supported `WITH` keys are:
 
 - `boost` (default `1`) and `k1` (default `1.2`): finite numbers greater than
-  or equal to zero.
+  or equal to zero. `boost` scales a score and never decides a match: a row
+  containing a query term matches with `boost = 0` and scores `0`. Scores are
+  always finite: BM25 is evaluated in an overflow-safe form for any finite `k1`,
+  and a product that would exceed the largest finite `f64` saturates there.
 - `b`: finite number in `[0, 1]`; default `0.75`.
 - `analyzer`: `standard` (default) or `simple`. `simple` defaults stop words to
   `none`; `standard` defaults them to `english`.
 - `tokenizer`: `standard` (default) or `whitespace`.
 - `case_folding`: Boolean, default `true`; `accent_folding`: Boolean, default
   `false`. Both accept `true`/`false`, `on`/`off`, or `1`/`0`.
-- `stop_words`: `english` (default) or `none`.
+- `stop_words`: `english` or `none`. Only an explicitly given value is
+  persisted; otherwise the analyzer decides (see above), so
+  `ALTER INDEX ... SET (analyzer = ...)` changes the default in both directions
+  while an explicit `stop_words` (at `CREATE` or `ALTER`) keeps winning.
+  `RESET (stop_words)` returns to the analyzer default.
 - `stemming`: `none` (default) or `english`.
 - `synonyms`: absent (default) or a quoted string of symmetric equivalence
   groups (see below).

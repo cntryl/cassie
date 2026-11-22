@@ -691,11 +691,7 @@ impl Catalog {
                     constraint.field = next_name.to_string();
                 }
                 if let Some(check) = constraint.check.as_mut() {
-                    if crate::sql::ColumnIdentifierPath::stored_field_key(&check.field)
-                        == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
-                    {
-                        check.field = next_name.to_string();
-                    }
+                    check.rename_field(current_name, next_name);
                 }
             }
         }

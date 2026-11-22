@@ -320,8 +320,12 @@ mod bytea_concat;
 #[path = "sql_queries/expressions/operators/bytea_functions.rs"]
 mod bytea_functions;
 
+#[path = "sql_queries/ordering/index_type_equivalence.rs"]
+mod index_type_equivalence;
 #[path = "sql_queries/ordering/jsonb_semantic_keys.rs"]
 mod jsonb_semantic_keys;
+#[path = "sql_queries/ordering/numeric_real_order.rs"]
+mod numeric_real_order;
 
 #[path = "sql_queries/types/numeric/jsonb_numeric_boundaries.rs"]
 mod jsonb_numeric_boundaries;

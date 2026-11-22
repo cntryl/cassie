@@ -57,7 +57,7 @@ pub fn bind_create_table(
         like.source = canonical_relation_path(&source)?;
     }
 
-    let own_constraints = schema_checks::bind_create_checks(&mut statement.fields)?;
+    let own_constraints = schema_checks::bind_create_checks(&mut statement.fields, context)?;
     let own_unique_fields = own_unique_fields(&statement.fields, &own_constraints);
     validate_and_bind_table_fields(
         &mut statement.fields,

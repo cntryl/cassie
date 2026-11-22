@@ -72,6 +72,9 @@ mod drop_view_options;
 #[path = "sql_mutations/ddl/view_dependencies.rs"]
 mod view_dependencies;
 
+#[path = "sql_mutations/ddl/view_rename_dependencies.rs"]
+mod view_rename_dependencies;
+
 #[path = "sql_mutations/ddl/using_conversions.rs"]
 mod using_conversions;
 
@@ -86,6 +89,18 @@ mod postgresql18_conflict_inference_wave_c;
 
 #[path = "sql_mutations/merge/merge_tuple_assignments/semantics.rs"]
 mod postgresql18_merge_tuple_assignments_wave_c;
+
+#[path = "sql_mutations/dml/statement_snapshot_subqueries.rs"]
+mod statement_snapshot_subqueries;
+
+#[path = "sql_mutations/dml/joined_column_ambiguity.rs"]
+mod joined_column_ambiguity;
+
+#[path = "sql_mutations/sequences/drop_column_owned_sequence.rs"]
+mod drop_column_owned_sequence;
+
+#[path = "sql_mutations/sequences/setval_text_arguments.rs"]
+mod setval_text_arguments;
 
 // Formerly tests/copy_transaction_boundaries.rs.
 #[path = "sql_mutations/copy/copy_transaction_boundaries.rs"]
@@ -116,6 +131,12 @@ mod foreign_key_concurrency;
 
 #[path = "sql_mutations/constraints/numeric_check_equality.rs"]
 mod numeric_check_equality;
+
+#[path = "sql_mutations/constraints/check_literal_types.rs"]
+mod check_literal_types;
+
+#[path = "sql_mutations/constraints/check_literal_rejections.rs"]
+mod check_literal_rejections;
 
 // Formerly tests/integration_sql_constraints.rs.
 #[path = "sql_mutations/constraints/semantics/mod.rs"]
@@ -222,6 +243,8 @@ mod char_unique_trailing_blanks;
 mod alter_column_declared_case;
 #[path = "sql_mutations/types/arrays/array_bound_limits.rs"]
 mod array_bound_limits;
+#[path = "sql_mutations/ddl/rename_column_follows.rs"]
+mod rename_column_follows;
 #[path = "sql_mutations/types/arrays/array_input_copy.rs"]
 mod type_array_input_copy;
 
@@ -255,6 +278,9 @@ mod like_identity_sequence_restart;
 
 #[path = "sql_mutations/ddl/like_sequence_default_follow.rs"]
 mod like_sequence_default_follow;
+
+#[path = "sql_mutations/ddl/failed_index_publication.rs"]
+mod failed_index_publication;
 
 #[path = "sql_mutations/ddl/rebuild_swap_restart.rs"]
 mod rebuild_swap_restart;

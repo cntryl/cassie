@@ -470,7 +470,7 @@ fn should_reject_ambiguous_unqualified_join_column() {
     // Assert
     assert!(error
         .to_string()
-        .contains("column reference 'label' is ambiguous"));
+        .contains("column reference \"label\" is ambiguous"));
     let _ = std::fs::remove_dir_all(path);
 }
 

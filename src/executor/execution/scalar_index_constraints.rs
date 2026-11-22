@@ -1,5 +1,6 @@
 use super::{BinaryOp, Cassie, Expr, Value};
 use crate::catalog::IndexMeta;
+use crate::types::extended::ExtendedType;
 use crate::types::semantic::compare_values;
 use crate::types::DataType;
 use std::cmp::Ordering;
@@ -26,9 +27,11 @@ pub(super) fn canonicalize_field_constraints(
 ) {
     for (field, constraint) in constraints {
         let canonicalize: fn(&mut serde_json::Value) =
-            match cassie.catalog.field_type(collection, field) {
+            match super::index_probe_canonicalization::probe_field_type(cassie, collection, field) {
                 Some(DataType::Float) => canonicalize_float_number,
                 Some(DataType::Timestamp) => canonicalize_timestamp_text,
+                Some(DataType::Extended(ExtendedType::Numeric(_))) => canonicalize_numeric_probe,
+                Some(DataType::Extended(ExtendedType::Real)) => canonicalize_real_probe,
                 Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => {
                     canonicalize_integer_constraint(constraint);
                     refresh_constraint_satisfiability(constraint);
@@ -79,6 +82,20 @@ fn canonicalize_timestamp_text(value: &mut serde_json::Value) {
     };
     if let std::borrow::Cow::Owned(widened) = crate::types::temporal::timestamp_order_text(text) {
         *text = widened;
+    }
+}
+
+/// Rewrites a `numeric` probe to the order-preserving key text stored keys use.
+fn canonicalize_numeric_probe(value: &mut serde_json::Value) {
+    if let Some(key) = crate::types::extended::index_key::numeric_index_carrier(value) {
+        *value = key;
+    }
+}
+
+/// Rewrites a `real` probe, which SQL compares as a double, to its key text.
+fn canonicalize_real_probe(value: &mut serde_json::Value) {
+    if let Some(key) = crate::types::extended::index_key::real_probe_index_carrier(value) {
+        *value = key;
     }
 }
 

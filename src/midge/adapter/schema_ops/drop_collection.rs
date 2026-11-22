@@ -31,6 +31,36 @@ impl Midge {
         self.delete_collection_data_parts(&name, None, true)
     }
 
+    /// Frees `name` when a deferred `DROP TABLE` still owns its storage metadata.
+    ///
+    /// A deferred drop leaves the descriptor in place so pinned readers keep
+    /// working. A new table created under the same name must not inherit that
+    /// descriptor (and relation identity), or the pending cleanup would later
+    /// delete the new table. The caller owns the collection's write gate.
+    pub(in crate::midge::adapter) fn release_name_of_pending_dropped_collection(
+        &self,
+        name: &str,
+    ) -> Result<(), CassieError> {
+        let Some(current) = self.current_collection_relation_id_for_cleanup(name)? else {
+            return Ok(());
+        };
+        let drop_pending = self.pending_schema_cleanups()?.iter().any(|cleanup| {
+            matches!(
+                &cleanup.action,
+                super::super::schema_cleanup::PendingSchemaCleanupAction::Table {
+                    table,
+                    relation_id,
+                } if *relation_id == current
+                    && self.canonical_collection_name(table).eq_ignore_ascii_case(name)
+            )
+        });
+        if drop_pending {
+            self.unlink_collection_metadata(name)?;
+            self.delete_collection_data_parts(name, None, true)?;
+        }
+        Ok(())
+    }
+
     fn unlink_collection_metadata(&self, name: &str) -> Result<u64, CassieError> {
         let mut schema_tx = self.begin_data_rw_tx_for(name)?;
         let schema_key = Self::collection_schema_key(name);

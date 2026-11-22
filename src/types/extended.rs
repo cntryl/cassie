@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use super::typed::TypedValue;
 
+#[path = "extended/index_key.rs"]
+pub(crate) mod index_key;
 #[path = "extended/numeric.rs"]
 pub mod numeric;
 #[path = "extended/numeric_types.rs"]

@@ -51,11 +51,11 @@ impl ForeignKeyReferences {
             if super::field_value_is_sql_null(Some(value), schema, &constraint.field) {
                 continue;
             }
-            let value_key = foreign_key_value_key(value);
+            let value_key = column_value_key(schema, &constraint.field, value);
             if crate::catalog::name_matches(table, collection)
                 && object
                     .get(field)
-                    .is_some_and(|own| foreign_key_value_key(own) == value_key)
+                    .is_some_and(|own| column_value_key(schema, field, own) == value_key)
             {
                 continue;
             }
@@ -171,6 +171,7 @@ impl Cassie {
         >::new();
         for (index, reference) in references.references.iter().enumerate() {
             let value = self.canonical_referenced_value(reference);
+            let referenced_schema = self.catalog.get_schema(&reference.referenced_table);
             let pending = match pending_by_table.entry(reference.referenced_table.as_str()) {
                 std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
                 std::collections::btree_map::Entry::Vacant(entry) => entry.insert(KeyedMap::new(
@@ -180,7 +181,11 @@ impl Cassie {
             pending
                 .entry((
                     reference.referenced_column.as_str(),
-                    foreign_key_value_key(&value),
+                    column_value_key(
+                        referenced_schema.as_ref(),
+                        &reference.referenced_column,
+                        &value,
+                    ),
                 ))?
                 .or_default()
                 .push(index);
@@ -192,6 +197,7 @@ impl Cassie {
                 .keys()
                 .map(|(column, _)| *column)
                 .collect::<BTreeSet<_>>();
+            let table_schema = self.catalog.get_schema(table);
             let batches =
                 self.scan_documents_batched_for_session(session, table, REFERENCE_SCAN_BATCH_SIZE)?;
             'documents: for document in batches.into_iter().flatten() {
@@ -199,7 +205,10 @@ impl Cassie {
                     let Some(value) = document.payload.get(*column) else {
                         continue;
                     };
-                    if let Some(hits) = pending.remove(&(*column, foreign_key_value_key(value))) {
+                    if let Some(hits) = pending.remove(&(
+                        *column,
+                        column_value_key(table_schema.as_ref(), column, value),
+                    )) {
                         for index in hits {
                             found[index] = true;
                         }
@@ -233,6 +242,28 @@ impl Cassie {
             referenced_column: missing.referenced_column.clone(),
         })
     }
+}
+
+/// The match key of a value stored in `column`: `numeric` and `real` carriers
+/// compare by value, so a child `1` matches a parent `1.00`.
+pub(super) fn column_value_key(
+    schema: Option<&crate::catalog::CollectionSchema>,
+    column: &str,
+    value: &serde_json::Value,
+) -> crate::types::semantic::SemanticKey {
+    use crate::types::extended::{index_key, ExtendedType};
+    let carrier = schema
+        .and_then(|schema| schema.fields.iter().find(|field| field.name == column))
+        .and_then(|field| match &field.data_type {
+            crate::types::DataType::Extended(ExtendedType::Numeric(_)) => {
+                index_key::numeric_index_carrier(value)
+            }
+            crate::types::DataType::Extended(ExtendedType::Real) => {
+                index_key::real_stored_index_carrier(value)
+            }
+            _ => None,
+        });
+    foreign_key_value_key(carrier.as_ref().unwrap_or(value))
 }
 
 pub(super) fn foreign_key_value_key(

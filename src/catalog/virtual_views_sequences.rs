@@ -37,6 +37,16 @@ pub(super) fn information_schema_sequences(
         .collect()
 }
 
+/// Blanks the `last_value` column of `pg_catalog.pg_sequences` rows.
+pub(super) fn hide_last_value(mut rows: Vec<VirtualRow>) -> Vec<VirtualRow> {
+    for (name, value) in rows.iter_mut().flatten() {
+        if name == "last_value" {
+            *value = Value::Null;
+        }
+    }
+    rows
+}
+
 fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {
     vec![
         string(

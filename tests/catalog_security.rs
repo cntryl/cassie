@@ -79,6 +79,18 @@ mod database_connect_network;
 #[path = "catalog_security/security/object_privilege_grants.rs"]
 mod object_privilege_grants;
 
+#[path = "catalog_security/security/operator_view_privileges.rs"]
+mod operator_view_privileges;
+
+#[path = "catalog_security/security/prepare_privileges.rs"]
+mod prepare_privileges;
+
+#[path = "catalog_security/security/routine_body_privileges.rs"]
+mod routine_body_privileges;
+
+#[path = "catalog_security/security/sequence_state_privileges.rs"]
+mod sequence_state_privileges;
+
 #[path = "catalog_security/security/ungranted_read_paths.rs"]
 mod ungranted_read_paths;
 
@@ -120,6 +132,9 @@ mod udf_database_scope;
 #[path = "catalog_security/namespaces/schema_scope_storage.rs"]
 mod schema_scope_storage;
 
+#[path = "catalog_security/namespaces/schema_view_rewrite.rs"]
+mod schema_view_rewrite;
+
 // Formerly tests/session_settings.rs.
 #[path = "catalog_security/sessions/session_settings.rs"]
 mod session_settings;
@@ -133,6 +148,18 @@ mod schema_write_conflicts;
 
 #[path = "catalog_security/catalogs/catalog_missing_object_sqlstates.rs"]
 mod catalog_missing_object_sqlstates;
+
+#[path = "catalog_security/ddl/drop_recreate_deferred_cleanup.rs"]
+mod drop_recreate_deferred_cleanup;
+
+#[path = "catalog_security/ddl/deferred_index_cleanup_rename.rs"]
+mod deferred_index_cleanup_rename;
+
+#[path = "catalog_security/databases/drop_database_pending_cleanup.rs"]
+mod drop_database_pending_cleanup;
+
+#[path = "catalog_security/ddl/add_column_backfill_failure.rs"]
+mod add_column_backfill_failure;
 
 #[path = "catalog_security/namespaces/search_path_resolution.rs"]
 mod search_path_resolution;

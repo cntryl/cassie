@@ -11,6 +11,15 @@ pub struct MaintenanceDebtMeta {
 }
 
 impl MaintenanceDebtMeta {
+    /// The artifact name of an `ADD COLUMN` whose backfill is still journaled.
+    #[must_use]
+    pub fn add_column_backfill_artifact(field: &str) -> String {
+        format!(
+            "add_column_backfill:{}",
+            crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        )
+    }
+
     #[must_use]
     pub fn new(
         collection: impl Into<String>,

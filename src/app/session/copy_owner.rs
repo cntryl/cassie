@@ -353,6 +353,7 @@ fn copy_binding_context(
             search_path,
             enforce_database_scope: scoped,
             unqualified_database: None,
+            temporal: None,
         },
         memory,
     ))

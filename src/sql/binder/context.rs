@@ -13,6 +13,9 @@ pub struct BindingContext {
     /// The database a stored name without a database part resolves to: the
     /// instance default. `None` when the caller does not know it.
     pub unqualified_database: Option<String>,
+    /// The session's temporal view, which resolves a zone-less `timestamptz`
+    /// literal written in DDL (a CHECK bound). `None` reads UTC.
+    pub temporal: Option<std::sync::Arc<crate::types::extended::temporal::TemporalSession>>,
 }
 
 impl Default for BindingContext {
@@ -34,6 +37,7 @@ impl BindingContext {
             search_path: normalize_search_path(search_path),
             enforce_database_scope: true,
             unqualified_database: None,
+            temporal: None,
         }
     }
 
@@ -44,7 +48,18 @@ impl BindingContext {
             search_path: normalize_search_path(search_path),
             enforce_database_scope: false,
             unqualified_database: None,
+            temporal: None,
         }
+    }
+
+    /// Records the session temporal view that DDL literals resolve under.
+    #[must_use]
+    pub fn with_temporal_session(
+        mut self,
+        session: Option<std::sync::Arc<crate::types::extended::temporal::TemporalSession>>,
+    ) -> Self {
+        self.temporal = session;
+        self
     }
 
     /// Records the instance default database, which bare stored names use.

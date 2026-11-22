@@ -36,12 +36,42 @@ pub(in crate::sql::parser) fn parse_constant_literal(raw: &str) -> Result<Value,
     if let Ok(value) = raw.parse::<i64>() {
         return Ok(value.into());
     }
-    if let Ok(value) = raw.parse::<f64>() {
-        return Ok(value.into());
+    if is_decimal_number(raw) {
+        return match raw.parse::<f64>() {
+            Ok(value) if value.is_finite() => Ok(value.into()),
+            // A finite decimal text can still overflow `f64`. A non-finite
+            // bound would store as JSON null, which no comparison rejects.
+            _ => Err(SqlError::numeric_range(format!(
+                "numeric literal '{raw}' is out of range"
+            ))),
+        };
     }
     Err(SqlError::unsupported(format!(
         "'{raw}' is not a constant: only NULL, TRUE, FALSE, a quoted string or a number is supported here"
     )))
+}
+
+/// Whether `raw` is decimal number text: an optional sign, digits with an
+/// optional fraction and an optional exponent. `f64::from_str` also accepts
+/// `nan`, `inf` and `infinity`, which SQL reads as identifiers, not numbers.
+fn is_decimal_number(raw: &str) -> bool {
+    let digits = raw.strip_prefix(['+', '-']).unwrap_or(raw);
+    let (mantissa, exponent) = digits
+        .split_once(['e', 'E'])
+        .map_or((digits, None), |(mantissa, exponent)| {
+            (mantissa, Some(exponent))
+        });
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let exponent_digits =
+        exponent.map(|exponent| exponent.strip_prefix(['+', '-']).unwrap_or(exponent));
+    !(whole.is_empty() && fraction.is_empty())
+        && whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|byte| byte.is_ascii_digit())
+        && exponent_digits.is_none_or(|digits| {
+            !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+        })
 }
 
 /// Parses a role password. A constant decodes as

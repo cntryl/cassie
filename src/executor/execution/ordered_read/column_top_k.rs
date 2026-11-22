@@ -33,6 +33,28 @@ pub(super) fn execute(
     finish_candidates(cassie, spec, top, controls).map(Some)
 }
 
+/// Whether comparing the stored carrier of a column of this type orders rows
+/// by value. A type that is not listed uses the shared typed top-k instead.
+fn carrier_order_is_value_order(data_type: &crate::types::DataType) -> bool {
+    use crate::types::DataType;
+    matches!(
+        data_type,
+        DataType::SmallInt
+            | DataType::Int
+            | DataType::BigInt
+            | DataType::Float
+            | DataType::Boolean
+            | DataType::Name
+            | DataType::Text
+            | DataType::Char { .. }
+            | DataType::Varchar { .. }
+            | DataType::Uuid
+            | DataType::Date
+            | DataType::Time
+            | DataType::Timestamp
+    )
+}
+
 fn prepare_read(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -71,15 +93,12 @@ fn prepare_read(
         schema.fields.iter().any(|field| {
             crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
                 == crate::sql::ColumnIdentifierPath::reference_field_key(spec.order_column)
-                && matches!(
-                    field.data_type,
-                    crate::types::DataType::Array(_) | crate::types::DataType::Enum(_)
-                )
+                && !carrier_order_is_value_order(&field.data_type)
         })
     }) {
-        // Shared typed top-k preserves elementwise ARRAY ordering and the
-        // descriptor sort order of a named enum, whose stored document is its
-        // member id rather than an order key.
+        // The shared typed top-k preserves elementwise ARRAY ordering, the
+        // descriptor sort order of a named enum, and the numeric order of
+        // `numeric` and `real`, whose stored carriers are text.
         return Ok(None);
     }
     let projection = accounted_ordered_projection(spec.projection, controls)?;

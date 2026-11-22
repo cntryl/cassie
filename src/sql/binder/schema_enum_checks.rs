@@ -37,7 +37,7 @@ fn enum_field<'a>(fields: &'a [FieldSchema], reference: &str) -> Option<&'a Enum
         })
 }
 
-fn operator_symbol(operator: &ConstraintOperator) -> &'static str {
+pub(super) fn operator_symbol(operator: &ConstraintOperator) -> &'static str {
     match operator {
         ConstraintOperator::Eq => "=",
         ConstraintOperator::NotEq => "<>",

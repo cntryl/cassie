@@ -408,23 +408,57 @@ impl IndexMeta {
     }
 
     pub fn rename_field(&mut self, current: &str, next: &str) -> bool {
-        let mut changed = false;
-        let mut fields = self.normalized_fields();
-
-        for field in &mut fields {
-            if crate::sql::ColumnIdentifierPath::stored_field_key(field)
-                == crate::sql::ColumnIdentifierPath::stored_field_key(current)
-            {
-                *field = next.to_string();
-                changed = true;
+        let current_key = crate::sql::ColumnIdentifierPath::stored_field_key(current);
+        let rename_names = |names: &mut Vec<String>| {
+            let mut changed = false;
+            for name in names {
+                if crate::sql::ColumnIdentifierPath::stored_field_key(name) == current_key {
+                    *name = next.to_string();
+                    changed = true;
+                }
             }
-        }
+            changed
+        };
 
+        let mut fields = self.normalized_fields();
+        let mut changed = rename_names(&mut fields);
         if changed {
             self.field = fields.first().cloned().unwrap_or_else(|| next.to_string());
             self.fields = fields;
         }
-
+        changed |= rename_names(&mut self.include_fields);
+        for option in ["partition_by", "source_field"] {
+            if let Some(raw) = self.options.get_mut(option) {
+                let mut names: Vec<String> =
+                    raw.split(',').map(|part| part.trim().to_string()).collect();
+                if rename_names(&mut names) {
+                    *raw = names.join(",");
+                    changed = true;
+                }
+            }
+        }
+        for expression in &mut self.expressions {
+            changed |= Self::rename_expression_json(expression, &current_key, next);
+        }
+        if let Some(predicate) = self.predicate.as_mut() {
+            changed |= Self::rename_expression_json(predicate, &current_key, next);
+        }
         changed
+    }
+
+    /// Rewrites column references inside a serialized expression; text that
+    /// does not parse as an expression is left as stored.
+    fn rename_expression_json(raw: &mut String, current_key: &str, next: &str) -> bool {
+        let Ok(mut expression) = serde_json::from_str::<crate::sql::ast::Expr>(raw) else {
+            return false;
+        };
+        expression.rename_column_references(current_key, next);
+        match serde_json::to_string(&expression) {
+            Ok(renamed) if renamed != *raw => {
+                *raw = renamed;
+                true
+            }
+            _ => false,
+        }
     }
 }

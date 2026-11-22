@@ -846,12 +846,14 @@ fn scalar_index_order_needs_sql_sort(
         .skip(shape.equality_prefix_len)
         .take(shape.order_columns_used)
         .any(|field| {
-            matches!(
-                cassie.catalog.field_type(
-                    collection,
-                    &crate::sql::ColumnIdentifierPath::stored_field_key(field),
-                ),
-                Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. })
+            !super::index_probe_canonicalization::index_key_order_is_sort_order(
+                cassie
+                    .catalog
+                    .field_type(
+                        collection,
+                        &crate::sql::ColumnIdentifierPath::stored_field_key(field),
+                    )
+                    .as_ref(),
             )
         })
     {

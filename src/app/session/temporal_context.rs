@@ -56,6 +56,14 @@ impl CassieSession {
         ))
     }
 
+    /// The temporal view DDL literals resolve under while binding, or `None`
+    /// when the session settings cannot be read (the binder then reads UTC).
+    pub(crate) fn binding_temporal_session(&self) -> Option<Arc<TemporalSession>> {
+        self.temporal_session_and_origin()
+            .ok()
+            .map(|(session, _)| Arc::new(session))
+    }
+
     /// Installs this session's temporal view into a statement's controls.
     pub(crate) fn install_temporal_session(
         &self,

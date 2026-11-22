@@ -163,9 +163,13 @@ pub(super) fn prepare_create_table_sequences(
             };
             if constraint.default_sequence_owned.is_owned() {
                 if stored_sequence_exists(cassie, sequence) {
-                    return Err(QueryError::General(format!(
-                        "sequence '{sequence}' already exists"
-                    )));
+                    return Err(QueryError::Cassie(
+                        crate::app::DiagnosticError::new(
+                            "42P07",
+                            format!("sequence '{sequence}' already exists"),
+                        )
+                        .into(),
+                    ));
                 }
                 let mut metadata = identity_sequence(sequence, &field.data_type, constraint)?;
                 metadata.owned_by = Some(crate::catalog::SequenceOwner {
@@ -195,9 +199,13 @@ pub(super) fn prepare_add_column_sequences(
         };
         if constraint.default_sequence_owned.is_owned() {
             if stored_sequence_exists(cassie, sequence) {
-                return Err(QueryError::General(format!(
-                    "sequence '{sequence}' already exists"
-                )));
+                return Err(QueryError::Cassie(
+                    crate::app::DiagnosticError::new(
+                        "42P07",
+                        format!("sequence '{sequence}' already exists"),
+                    )
+                    .into(),
+                ));
             }
             created.push(crate::catalog::SequenceMeta::new(
                 sequence,

@@ -52,6 +52,13 @@ pub(in crate::executor::execution) fn execute_merge(
         .alias
         .clone()
         .unwrap_or_else(|| crate::catalog::local_name(&statement.table));
+    // Every read of the statement, including the subqueries in its
+    // conditions and actions, sees the data as it was when the statement
+    // began; the working batch's own writes stay invisible to them.
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
+        cassie, session, controls,
+    )?;
+    let controls = &statement_controls;
     let scope = ExecutionScope {
         cassie,
         session,
@@ -149,6 +156,8 @@ impl<'a> MergeRun<'a> {
             let Some(condition) = clause.condition.as_ref() else {
                 return Ok(Some(clause));
             };
+            let (_read, _overlay) =
+                crate::executor::execution::entrypoints::enter_statement_read(self.scope.controls);
             let condition = crate::executor::execution::resolve_statement_exists(
                 self.scope.cassie,
                 self.scope.session,
@@ -330,15 +339,18 @@ impl<'a> MergeRun<'a> {
         } else {
             columns.to_vec()
         };
+        let (_read, _overlay) =
+            crate::executor::execution::entrypoints::enter_statement_read(self.scope.controls);
         let mut kept_columns = Vec::with_capacity(columns.len());
         let mut kept_values = Vec::with_capacity(values.len());
         for (column, value) in columns.into_iter().zip(values) {
             if value.is_default_assignment() {
                 continue;
             }
+            let value = super::dml_subqueries::resolve_statement_subqueries(&self.scope, value)?;
             kept_values.push(filter::evaluate_expr_value(
                 row,
-                value,
+                &value,
                 self.scope.params,
                 None,
                 self.scope.user_functions,

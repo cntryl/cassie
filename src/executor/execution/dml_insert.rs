@@ -79,6 +79,36 @@ pub(in crate::executor::execution) fn execute_insert(
     )
 }
 
+/// Controls pinned to the data as it was before the statement's first write,
+/// when a `DO UPDATE` expression contains a subquery that must read it.
+fn conflict_update_snapshot_controls(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::InsertStatement,
+    controls: &QueryExecutionControls,
+) -> Result<Option<QueryExecutionControls>, QueryError> {
+    let Some(clause) = statement.on_conflict.as_ref() else {
+        return Ok(None);
+    };
+    let crate::sql::ast::InsertConflictAction::DoUpdate {
+        assignments,
+        filter,
+    } = &clause.action
+    else {
+        return Ok(None);
+    };
+    let reads_data = !clause.update_row_subqueries.is_empty()
+        || assignments
+            .iter()
+            .any(|(_, value)| value.contains_subquery())
+        || filter.as_ref().is_some_and(Expr::contains_subquery);
+    if !reads_data {
+        return Ok(None);
+    }
+    crate::executor::execution::entrypoints::statement_read_controls(cassie, session, controls)
+        .map(Some)
+}
+
 struct InsertPayloads<I> {
     schema: CollectionSchema,
     has_exists_returning: bool,
@@ -101,6 +131,9 @@ fn execute_insert_payloads(
         returning_read_controls,
         payloads,
     } = inputs;
+    let snapshot_controls =
+        conflict_update_snapshot_controls(cassie, session, statement, controls)?;
+    let controls = snapshot_controls.as_ref().unwrap_or(controls);
     let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let mut affected_count = 0usize;
     let mut returning_rows = Vec::new();

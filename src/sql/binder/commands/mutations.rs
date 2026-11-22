@@ -94,6 +94,17 @@ fn select_over(source: QuerySource, ctes: Vec<CommonTableExpression>) -> SelectS
 /// The bound joined scope of a mutation.
 pub(super) struct JoinedScope {
     pub(super) types: ResultTypes,
+    /// Bare column names both the target and a source relation declare.
+    pub(super) ambiguous: HashSet<String>,
+}
+
+impl JoinedScope {
+    pub(super) fn with_extra_fields(self, fields: Vec<FieldSchema>) -> Self {
+        Self {
+            types: self.types.with_extra_fields(fields),
+            ambiguous: self.ambiguous,
+        }
+    }
 }
 
 /// Binds `source` into its qualified projection query and returns the scope
@@ -149,9 +160,14 @@ pub(super) fn bind_mutation_source(
         on: Expr::BoolLiteral(true),
     };
     let types = ResultTypes::for_source(&joined, &bound.ctes, catalog, context)?;
+    let ambiguous = catalog
+        .get_schema(table)
+        .map_or_else(HashSet::new, |schema| {
+            super::ambiguity::ambiguous_columns(&schema, &fields)
+        });
     source.query = Some(Box::new(bound));
     source.fields = fields;
-    Ok(JoinedScope { types })
+    Ok(JoinedScope { types, ambiguous })
 }
 
 fn source_leaves(
@@ -419,6 +435,7 @@ pub(super) fn bind_assignments(
                 element_type.as_ref().clone()
             };
         }
+        super::ambiguity::check_expr(expression, &scope.ambiguous)?;
         super::super::boolean_contexts::validate_value(
             expression,
             &scope.types,
@@ -445,6 +462,7 @@ pub(super) fn bind_predicate(
     let Some(predicate) = predicate else {
         return Ok(());
     };
+    super::ambiguity::check_expr(predicate, &scope.ambiguous)?;
     super::super::boolean_contexts::validate_predicate(
         predicate,
         &scope.types,
@@ -460,6 +478,7 @@ pub(super) fn bind_returning(
     source: Option<&MutationSource>,
     scope: &JoinedScope,
 ) -> Result<(), CassieError> {
+    super::ambiguity::check_returning(returning, &scope.ambiguous)?;
     expand_returning_wildcard(returning, target, source);
     for item in returning.iter() {
         scope.types.item(item)?;
@@ -524,13 +543,12 @@ pub(in crate::sql::binder) fn bind_merge(
         catalog,
         context,
     )?;
-    let scope = JoinedScope {
-        types: scope.types.with_extra_fields(row_image_fields(
-            &schema,
-            statement.returning_aliases.as_ref(),
-            true,
-        )),
-    };
+    let scope = scope.with_extra_fields(row_image_fields(
+        &schema,
+        statement.returning_aliases.as_ref(),
+        true,
+    ));
+    super::ambiguity::check_expr(&statement.on, &scope.ambiguous)?;
     super::super::boolean_contexts::validate_predicate(
         &mut statement.on,
         &scope.types,

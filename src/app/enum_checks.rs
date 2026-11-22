@@ -81,7 +81,7 @@ impl Cassie {
             }
         }
         if !value_is_sql_null && !check.value.is_null() {
-            if let Some(result) = super::check_numbers::numeric_column_check(schema, value, check) {
+            if let Some(result) = super::check_numbers::typed_column_check(schema, value, check) {
                 return Ok(result);
             }
         }

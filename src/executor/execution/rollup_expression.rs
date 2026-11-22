@@ -5,6 +5,11 @@ pub(super) fn canonical_aggregate_expression(function: &FunctionCall) -> Result<
     format_function(function)
 }
 
+/// Formats a rollup `WHERE` predicate as parseable SQL for durable metadata.
+pub(super) fn canonical_filter_expression(filter: &Expr) -> Result<String, String> {
+    format_expression(filter)
+}
+
 fn format_expression(expression: &Expr) -> Result<String, String> {
     match expression {
         Expr::Column(name) if name == "*" => Ok("*".to_string()),

@@ -126,3 +126,42 @@ fn should_refuse_to_drop_a_type_a_routine_argument_depends_on() {
     // Assert
     assert_eq!(error.sql_state(), "2BP01");
 }
+
+#[test]
+fn should_rename_only_the_exact_label_when_another_label_contains_it() {
+    // Arrange
+    let fixture = sql_fixture(
+        "enum_view_label_substring",
+        &[
+            "CREATE TYPE tier AS ENUM ('b', 'bb', 'abb')",
+            "CREATE TABLE tiers (id int PRIMARY KEY, t tier, note text)",
+            "INSERT INTO tiers VALUES (1, 'b', 'bb'), (2, 'bb', 'b'), (3, 'bb', 'bb')",
+            "CREATE VIEW tv AS SELECT id FROM tiers WHERE t = 'bb' AND note = 'bb'",
+        ],
+    );
+
+    // Act
+    let renamed = fixture.execute("ALTER TYPE tier RENAME VALUE 'b' TO 'single'");
+    let ids = strings(&fixture, "SELECT id::text FROM tv ORDER BY id");
+
+    // Assert
+    assert!(renamed.is_ok());
+    assert_eq!(ids, vec!["3"]);
+}
+
+#[test]
+fn should_keep_an_escape_string_label_text_while_renaming_the_label() {
+    // Arrange
+    let fixture = fixture(
+        "enum_view_escape_string",
+        &["CREATE VIEW ev AS SELECT id, E'\\'b' AS q FROM steps WHERE e = 'b'"],
+    );
+
+    // Act
+    let renamed = fixture.execute("ALTER TYPE stage RENAME VALUE 'b' TO 'bee'");
+    let rows = strings(&fixture, "SELECT id::text || q FROM ev");
+
+    // Assert
+    assert!(renamed.is_ok());
+    assert_eq!(rows, vec!["1'b"]);
+}

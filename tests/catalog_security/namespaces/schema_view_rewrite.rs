@@ -1,0 +1,96 @@
+//! `ALTER SCHEMA ... RENAME` rewrites a stored view definition only where a
+//! schema qualifier stands, never inside literals or at aliases.
+
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use cassie::types::Value;
+
+fn schema_a(label: &str, view: &str) -> SqlFixture {
+    sql_fixture(
+        label,
+        &[
+            "CREATE SCHEMA a",
+            "CREATE TABLE a.t (id INT)",
+            "INSERT INTO a.t VALUES (1)",
+            view,
+        ],
+    )
+}
+
+fn renamed_rows(label: &str, view: &str) -> Vec<Vec<Value>> {
+    let fixture = schema_a(label, view);
+    fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
+    fixture.rows("SELECT * FROM b.vv")
+}
+
+#[test]
+fn should_keep_a_string_literal_with_an_alias_while_renaming_a_schema() {
+    // Arrange
+    let view = "CREATE VIEW a.vv AS SELECT 'a.txt' AS lit, data.id FROM a.t AS data";
+
+    // Act
+    let rows = renamed_rows("schema_rename_literal_alias", view);
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("a.txt".into()), Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_rename_an_uppercase_unquoted_schema_qualifier() {
+    // Arrange
+    let view = "CREATE VIEW a.vv AS SELECT A.t.id FROM A.t";
+
+    // Act
+    let rows = renamed_rows("schema_rename_uppercase_qualifier", view);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_keep_escape_string_text_with_dollar_quote_text_while_renaming_a_schema() {
+    // Arrange
+    let view = "CREATE VIEW a.vv AS SELECT E'\\'a.x' AS e, $$a.y$$ AS d, t.id FROM a.t";
+
+    // Act
+    let rows = renamed_rows("schema_rename_escape_dollar", view);
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![
+            Value::String("'a.x".into()),
+            Value::String("a.y".into()),
+            Value::Int64(1)
+        ]]
+    );
+}
+
+#[test]
+fn should_keep_an_alias_named_like_the_schema() {
+    // Arrange
+    let view = "CREATE VIEW a.vv AS SELECT a.id FROM a.t AS a";
+
+    // Act
+    let rows = renamed_rows("schema_rename_alias_is_schema", view);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_keep_a_literal_in_a_materialized_view_while_renaming_a_schema() {
+    // Arrange
+    let view = "CREATE MATERIALIZED VIEW a.vv AS SELECT 'a.txt' AS lit, data.id FROM a.t AS data";
+
+    // Act
+    let rows = renamed_rows("schema_rename_materialized", view);
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("a.txt".into()), Value::Int64(1)]]
+    );
+}

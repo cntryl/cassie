@@ -1,19 +1,24 @@
 //! Canonical Boolean literals in the existing simple comparison CHECK shape.
 
-use super::{AlterTableOperation, CassieError, CollectionSchema};
+use super::{AlterTableOperation, BindingContext, CassieError, CollectionSchema};
 use crate::catalog::FieldConstraint;
 use crate::sql::ast::FieldDefinition;
 use crate::types::DataType;
 use std::collections::HashSet;
 
+#[path = "schema_check_literals.rs"]
+mod check_literals;
 #[path = "schema_enum_checks.rs"]
 mod enum_checks;
 
-/// Prepares null-safe checks, then resolves named enum literals to members.
+/// Types every bound to its column, prepares null-safe checks, then resolves
+/// named enum literals to members.
 fn prepare_checks(
     constraints: &mut [FieldConstraint],
     fields: &[crate::types::FieldSchema],
+    context: &BindingContext,
 ) -> Result<(), CassieError> {
+    check_literals::bind(constraints, fields, context)?;
     crate::sql::binder::bound_checks::prepare(constraints, fields)?;
     enum_checks::bind(constraints, fields)
 }
@@ -22,6 +27,7 @@ fn prepare_checks(
 /// snapshot used to resolve CREATE TABLE's uniqueness and foreign keys.
 pub(super) fn bind_create_checks(
     fields: &mut [FieldDefinition],
+    context: &BindingContext,
 ) -> Result<Vec<FieldConstraint>, CassieError> {
     for field in fields.iter() {
         if field.constraints.iter().any(|constraint| {
@@ -50,7 +56,7 @@ pub(super) fn bind_create_checks(
         .collect::<Vec<_>>();
     for field in fields.iter_mut() {
         bind_checks(&mut field.constraints, &booleans)?;
-        prepare_checks(&mut field.constraints, &typed_fields)?;
+        prepare_checks(&mut field.constraints, &typed_fields, context)?;
     }
     Ok(fields
         .iter()
@@ -63,6 +69,7 @@ pub(super) fn bind_create_checks(
 pub(super) fn bind_alter_checks(
     operation: &mut AlterTableOperation,
     schema: &CollectionSchema,
+    context: &BindingContext,
 ) -> Result<(), CassieError> {
     let mut booleans = boolean_fields(
         schema
@@ -108,9 +115,9 @@ pub(super) fn bind_alter_checks(
             data_type: data_type.clone(),
             nullable: true,
         });
-        prepare_checks(constraints, &fields)
+        prepare_checks(constraints, &fields, context)
     } else if let AlterTableOperation::AddConstraint { constraints } = operation {
-        prepare_checks(constraints, &fields)
+        prepare_checks(constraints, &fields, context)
     } else {
         Ok(())
     }
@@ -150,16 +157,25 @@ fn bind_checks(
             serde_json::Value::String(text) => crate::types::boolean::parse_text(text)
                 .map(serde_json::Value::Bool)
                 .ok_or_else(|| {
-                    CassieError::Planner(format!(
-                        "invalid input syntax for type boolean in CHECK on '{}': {text:?}",
-                        check.field,
-                    ))
+                    crate::app::DiagnosticError::new(
+                        "22P02",
+                        format!("invalid input syntax for type boolean: \"{text}\""),
+                    )
                 })?,
             other => {
-                return Err(CassieError::Planner(format!(
-                    "CHECK comparison for Boolean column '{}' requires a Boolean literal, got {other}",
-                    check.field,
-                )));
+                let right = if other.is_number() {
+                    "integer"
+                } else {
+                    "unknown"
+                };
+                return Err(crate::app::DiagnosticError::new(
+                    "42883",
+                    format!(
+                        "operator does not exist: boolean {} {right}",
+                        enum_checks::operator_symbol(&check.operator)
+                    ),
+                )
+                .into());
             }
         };
         check.value = value;

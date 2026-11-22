@@ -137,3 +137,25 @@ fn all_resolved(expr: &Expr) -> bool {
         _ => false,
     })
 }
+
+/// Replaces every uncorrelated subquery of `expr` by its value, read from the
+/// data as it was when the statement began. An expression without a subquery
+/// is returned unchanged.
+pub(super) fn resolve_statement_subqueries(
+    scope: &super::dml_joined::ExecutionScope<'_>,
+    expr: &Expr,
+) -> Result<Expr, QueryError> {
+    if !expr.contains_subquery() {
+        return Ok(expr.clone());
+    }
+    let (_read, _overlay) =
+        crate::executor::execution::entrypoints::enter_statement_read(scope.controls);
+    crate::executor::execution::resolve_statement_exists(
+        scope.cassie,
+        scope.session,
+        expr,
+        scope.user_functions,
+        scope.params,
+        scope.controls,
+    )
+}

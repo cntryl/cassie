@@ -129,10 +129,12 @@ impl Midge {
                 continue;
             }
 
+            let key_value =
+                crate::midge::adapter::index_key_field_value(row_schema, &constraint.field, value);
             let key = key_encoding::unique_constraint_reservation_key(
                 collection,
                 &constraint.field,
-                value,
+                &key_value,
             )?;
             targets.push((
                 key,

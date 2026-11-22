@@ -18,9 +18,11 @@ pub(super) fn bind_create_sequence(
     catalog.reject_composite_relation_name(&name)?;
     catalog.reject_domain_relation_name(&name)?;
     if !statement.if_not_exists && catalog.sequence_exists(&name) {
-        return Err(CassieError::Planner(format!(
-            "sequence '{name}' already exists"
-        )));
+        return Err(crate::app::DiagnosticError::new(
+            "42P07",
+            format!("sequence '{name}' already exists"),
+        )
+        .into());
     }
     statement.name = name;
     if let Some(crate::sql::ast::SequenceOwnedBy::Column { table, .. }) = &mut statement.owned_by {

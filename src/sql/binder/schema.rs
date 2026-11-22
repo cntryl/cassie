@@ -619,7 +619,7 @@ fn bind_existing_alter_table(
     schema_defaults::bind_alter_defaults(&mut statement.operation, schema)?;
     validate_alter_schema(table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, table, schema, catalog, context)?;
-    schema_checks::bind_alter_checks(&mut statement.operation, schema)?;
+    schema_checks::bind_alter_checks(&mut statement.operation, schema, context)?;
     schema_using::bind(
         &mut statement.operation,
         source_table,
@@ -646,7 +646,14 @@ pub(super) fn validate_alter_schema(
             }
         }
         AlterTableOperation::AddColumn { field, .. } => {
-            validate_alter_add_column(table, field, existing_fields)?;
+            // A column whose backfill is still journaled is retried, not duplicated.
+            let backfill_pending = catalog.has_maintenance_debt(
+                table,
+                &crate::catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+            );
+            if !backfill_pending {
+                validate_alter_add_column(table, field, existing_fields)?;
+            }
         }
         AlterTableOperation::AddConstraint { constraints } => {
             validate_alter_add_constraints(table, constraints, existing_fields)?;

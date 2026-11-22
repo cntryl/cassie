@@ -30,9 +30,14 @@ mod schema_index_command;
 pub(super) mod schema_namespace_command;
 #[path = "schema_sequence_rename.rs"]
 pub(super) mod schema_sequence_rename;
+#[path = "schema_table_rename.rs"]
+mod schema_table_rename;
 pub(super) use schema_index_command::{alter_index_storage_parameters, drop_index, reindex};
 pub(super) use schema_namespace_command::{
     alter_schema, create_database, create_schema, drop_database, drop_schema,
+};
+use schema_table_rename::{
+    alter_table_rename_column, alter_table_rename_table, alter_table_set_schema,
 };
 pub(super) fn create_view(
     cassie: &Cassie,
@@ -488,6 +493,7 @@ fn execute_alter_table_operation(
         } => {
             let table = &statement.table;
             super::property_graph_dependents::reject_column_change(cassie, table, field, false)?;
+            super::view_dependents::reject_column_type_under_views(cassie, table, field)?;
             using_context.apply(table, field, data_type, using)
         }
     }
@@ -591,42 +597,9 @@ fn alter_table_add_column(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
-            let default_value = cassie.domain_add_column_default(
-                session,
-                table,
-                data_type,
-                default_value.clone(),
-            )?;
-            // Existing rows receive the default, so validate the constraints
-            // against that value before anything is committed.
-            let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
-            let added = crate::app::AddedColumnDefault {
-                field,
-                value: &backfilled,
-            };
-            cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
-            cassie.validate_existing_foreign_key_rows_after_added_column(
-                table,
-                constraints,
-                Some(added),
-            )?;
-
-            let field_schema = FieldSchema {
-                name: field.to_string(),
-                data_type: data_type.clone(),
-                nullable: true,
-            };
-            cassie
-                .midge
-                .alter_collection_add_column_with_default(
-                    table,
-                    field_schema.clone(),
-                    default_value,
-                )
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie
-                .catalog
-                .add_collection_field(table, field_schema.name, field_schema.data_type);
+            if !add_column_resumed(cassie, table, field)? {
+                add_column_to_storage(cassie, session, table, column, default_value.clone())?;
+            }
 
             super::sequence_command::persist_created_sequences(cassie, sequences)?;
             if !constraints.is_empty() {
@@ -641,6 +614,101 @@ fn alter_table_add_column(
             refresh_table_cardinality_stats(cassie, table)
         })?;
     Ok(())
+}
+
+/// Adds the column to storage and the catalog, keeping the catalog in step with
+/// storage when the backfill fails after the schema commit.
+fn add_column_to_storage(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    column: &NewColumn<'_>,
+    default_value: Option<serde_json::Value>,
+) -> Result<(), QueryError> {
+    let NewColumn {
+        field,
+        data_type,
+        constraints,
+        ..
+    } = *column;
+    let default_value =
+        cassie.domain_add_column_default(session, table, data_type, default_value)?;
+    // Existing rows receive the default, so validate the constraints
+    // against that value before anything is committed.
+    let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
+    let added = crate::app::AddedColumnDefault {
+        field,
+        value: &backfilled,
+    };
+    cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
+    cassie.validate_existing_foreign_key_rows_after_added_column(
+        table,
+        constraints,
+        Some(added),
+    )?;
+
+    let field_schema = FieldSchema {
+        name: field.to_string(),
+        data_type: data_type.clone(),
+        nullable: true,
+    };
+    let altered = cassie.midge.alter_collection_add_column_with_default(
+        table,
+        field_schema.clone(),
+        default_value,
+    );
+    // The schema commit precedes the backfill, so a backfill failure
+    // leaves the column durable: the catalog must agree with storage.
+    if altered.is_err()
+        && cassie.midge.collection_schema(table).is_some_and(|schema| {
+            schema
+                .fields
+                .iter()
+                .any(|entry| entry.name == field_schema.name)
+        })
+    {
+        cassie.catalog.add_collection_field(
+            table,
+            field_schema.name.clone(),
+            field_schema.data_type.clone(),
+        );
+        cassie
+            .catalog
+            .register_maintenance_debt(catalog::MaintenanceDebtMeta::new(
+                table,
+                catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+                0,
+                0,
+                altered.as_ref().err().map(ToString::to_string),
+            ));
+    }
+    altered.map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .catalog
+        .add_collection_field(table, field_schema.name, field_schema.data_type);
+    Ok(())
+}
+
+/// Resumes the journaled backfill of an `ADD COLUMN` that an earlier statement
+/// committed but could not finish, so retrying it completes instead of failing
+/// with a duplicate column.
+fn add_column_resumed(cassie: &Cassie, table: &str, field: &str) -> Result<bool, QueryError> {
+    let in_catalog = cassie
+        .catalog
+        .get_schema(table)
+        .is_some_and(|schema| schema.fields.iter().any(|entry| entry.name == field));
+    if !in_catalog {
+        return Ok(false);
+    }
+    let resumed = cassie
+        .midge
+        .resume_pending_field_add(table, field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.unregister_maintenance_debt(
+        table,
+        &catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
+    );
+    Ok(resumed)
 }
 
 fn alter_table_add_constraint(
@@ -805,6 +873,7 @@ fn alter_table_drop_column(
             .metadata_write_catalog
             .unregister_object_comment(&address);
     }
+    schema_sequence_rename::drop_owned_column_sequences(cassie, table, field)?;
     cassie.catalog.remove_collection_field(table, field);
     // A column added later under the same name starts without the dropped
     // column's storage strategy and compression method.
@@ -837,104 +906,6 @@ fn unregister_vector_indexes_on_column(cassie: &Cassie, table: &str, field: &str
                 .unregister_vector_index(&index.collection, &index.field);
         }
     }
-}
-
-fn alter_table_rename_column(
-    cassie: &Cassie,
-    table: &str,
-    from: &str,
-    to: &str,
-) -> Result<(), QueryError> {
-    cassie
-        .midge
-        .alter_collection_rename_column(table, from, to)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.rename_collection_field(table, from, to);
-    schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
-    super::property_graph_dependents::rename_column(cassie, table, from, to)?;
-    cassie
-        .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
-    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
-    refresh_table_cardinality_stats(cassie, table)
-}
-
-fn alter_table_rename_table(
-    cassie: &Cassie,
-    table: &str,
-    next_table: &str,
-) -> Result<(), QueryError> {
-    cassie.catalog.reject_relation_move_target(next_table)?;
-    if cassie.catalog.exists(next_table) {
-        return Err(QueryError::General(format!(
-            "collection '{next_table}' already exists"
-        )));
-    }
-    cassie
-        .midge
-        .rename_collection(table, next_table)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .rename_collection(table, next_table)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
-    super::property_graph_dependents::rename_table(cassie, table, next_table)?;
-    schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
-}
-
-fn alter_table_set_schema(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    target_schema: &str,
-) -> Result<(), QueryError> {
-    let relation = crate::catalog::RelationId::parse_canonical(table).ok_or_else(|| {
-        QueryError::General(format!(
-            "relation '{table}' has no canonical database identity"
-        ))
-    })?;
-    let schema = crate::catalog::SchemaId::parse_canonical(target_schema).ok_or_else(|| {
-        QueryError::General(format!(
-            "schema '{target_schema}' has no canonical database identity"
-        ))
-    })?;
-    let next_table =
-        crate::catalog::RelationId::new(relation.database.clone(), schema.schema, relation.name)
-            .canonical_name();
-    if table == next_table {
-        return Ok(());
-    }
-    cassie.catalog.reject_relation_move_target(&next_table)?;
-    if cassie.catalog.exists(&next_table) {
-        return Err(QueryError::General(format!(
-            "collection '{next_table}' already exists"
-        )));
-    }
-    let sequence_move =
-        schema_sequence_rename::prepare_owned_table_sequence_move(cassie, table, &next_table)?;
-
-    cassie
-        .midge
-        .rename_collection(table, &next_table)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .rename_collection(table, &next_table)
-        .map_err(QueryError::Cassie)?;
-    if let Some(session) = session {
-        session
-            .rename_transaction_collections(&[(table.to_owned(), next_table.clone())])
-            .map_err(QueryError::Cassie)?;
-    }
-    schema_sequence_rename::move_owned_table_sequences(cassie, sequence_move)?;
-    super::property_graph_dependents::rename_table(cassie, table, &next_table)?;
-    schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
-    cassie
-        .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
-    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
-    Ok(())
 }
 
 pub(super) fn refresh_table_cardinality_stats(

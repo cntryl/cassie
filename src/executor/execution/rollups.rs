@@ -2,6 +2,8 @@ use super::command_output::empty as empty_command;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::app::CassieSession;
+
 use crate::catalog::{
     MaintenanceDebtMeta, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupState,
 };
@@ -346,6 +348,7 @@ pub(super) fn refresh_rollups_for_source(
 
 pub(super) fn try_execute_rollup_query(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     plan: &LogicalPlan,
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
@@ -358,6 +361,12 @@ pub(super) fn try_execute_rollup_query(
         return Ok(None);
     };
 
+    // A rollup holds committed rows only: a session with uncommitted changes to
+    // the source must read the table, whichever write path staged them.
+    if session.is_some_and(|session| session.has_collection_changes(source)) {
+        cassie.runtime.record_rollup_fallback("session-changes");
+        return Ok(None);
+    }
     let Some(rollup) = matching_rollup(cassie, source, plan) else {
         cassie.runtime.record_rollup_fallback("no-match");
         return Ok(None);
@@ -506,7 +515,7 @@ fn metadata_from_statement(
         bucket_expr: expr_key(&Expr::Function(Box::new(statement.bucket.clone()))),
         group_keys: statement.group_by.iter().map(group_expr_name).collect(),
         aggregates,
-        filter_expr: statement.filter.as_ref().map(expr_key),
+        filter_expr: statement.filter.as_ref().map(encode_filter).transpose()?,
     }))
 }
 
@@ -686,11 +695,21 @@ fn rollup_group_by(meta: &RollupMeta) -> Result<Vec<Expr>, QueryError> {
 }
 
 fn rollup_filter(meta: &RollupMeta) -> Result<Option<Expr>, QueryError> {
-    meta.filter_expr
-        .as_ref()
-        .map(|raw| crate::sql::parser::parse_expression(raw))
-        .transpose()
-        .map_err(|error| QueryError::General(error.to_string()))
+    meta.filter_expr.as_deref().map(decode_filter).transpose()
+}
+
+/// The stored form of a rollup filter: canonical, fully parenthesized SQL that
+/// parses back to the same tree. (`expr_key` is only a matching key, not SQL.)
+pub(super) fn encode_filter(filter: &Expr) -> Result<String, QueryError> {
+    rollup_expression::canonical_filter_expression(filter).map_err(QueryError::General)
+}
+
+fn decode_filter(stored: &str) -> Result<Expr, QueryError> {
+    crate::sql::parser::parse_expression(stored).map_err(|error| {
+        QueryError::General(format!(
+            "rollup filter definition '{stored}' is unreadable ({error}); drop and recreate the rollup"
+        ))
+    })
 }
 
 fn read_rollup_source_batches(

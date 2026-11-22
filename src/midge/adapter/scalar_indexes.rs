@@ -366,7 +366,7 @@ impl Midge {
             {
                 return Ok(None);
             }
-            values.push(value.clone());
+            values.push(index_key_field_value(row_schema, &field, value));
         }
 
         let expressions = index.normalized_expressions();
@@ -479,6 +479,30 @@ pub(crate) fn scalar_index_canonical_payload<'a>(
         canonical.insert(field, value);
     }
     Cow::Owned(serde_json::Value::Object(canonical))
+}
+
+/// The key form of a stored field value. `numeric` and `real` carriers become
+/// order-preserving, value-canonical key text (equal values key equally and the
+/// byte order is the numeric order); every other value is used as stored.
+pub(crate) fn index_key_field_value(
+    row_schema: &RowSchema,
+    field: &str,
+    value: &serde_json::Value,
+) -> serde_json::Value {
+    use crate::types::extended::{index_key, ExtendedType};
+    let Some(field_meta) = row_schema
+        .fields
+        .iter()
+        .find(|field_meta| field_meta.name == field)
+    else {
+        return value.clone();
+    };
+    match &field_meta.data_type {
+        DataType::Extended(ExtendedType::Numeric(_)) => index_key::numeric_index_carrier(value),
+        DataType::Extended(ExtendedType::Real) => index_key::real_stored_index_carrier(value),
+        _ => None,
+    }
+    .unwrap_or_else(|| value.clone())
 }
 
 pub(crate) fn canonical_field_value(

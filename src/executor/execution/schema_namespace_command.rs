@@ -1,4 +1,5 @@
 use super::super::command_output::empty as empty_command;
+use super::super::schema_sql_rewrite::rewrite_schema_qualified_sql;
 use super::super::{catalog, Cassie, QueryError, QueryResult};
 use super::{schema_foreign_keys, schema_sequence_rename};
 use crate::app::CassieSession;
@@ -348,6 +349,10 @@ pub(crate) fn drop_database(
         )));
     }
 
+    // Storage can retain rows or cleanup records the in-memory catalog no longer
+    // lists; refuse before dropping the public schema so a refusal changes nothing.
+    cassie.midge.ensure_database_droppable(&statement.name)?;
+
     let output = empty_command("DROP DATABASE", controls)?;
     let public_schema =
         crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
@@ -486,7 +491,12 @@ fn rename_schema_views(
     {
         let current_name = view.name.clone();
         view.name = rewrite_relation_name_for_schema(&view.name, current_schema, next_schema);
-        view.query = rewrite_schema_qualified_sql(&view.query, current_schema, next_schema);
+        view.query = rewrite_schema_qualified_sql(
+            cassie,
+            &view.query,
+            &crate::catalog::local_name(current_schema),
+            &crate::catalog::local_name(next_schema),
+        );
         cassie.midge.delete_view(&current_name)?;
         cassie.midge.put_view(&view)?;
     }
@@ -591,8 +601,12 @@ fn rename_schema_materialized_projections(
         }
         if let Some(materialized) = projection.materialized.as_mut() {
             materialized.name.clone_from(&next_name);
-            materialized.query =
-                rewrite_schema_qualified_sql(&materialized.query, current_schema, next_schema);
+            materialized.query = rewrite_schema_qualified_sql(
+                cassie,
+                &materialized.query,
+                &crate::catalog::local_name(current_schema),
+                &crate::catalog::local_name(next_schema),
+            );
             let next_output = rewrite_relation_name_from_map(
                 &materialized.output_collection,
                 relation_renames,
@@ -798,14 +812,4 @@ pub(crate) fn rewrite_relation_name_from_map(
             name.to_string()
         }
     })
-}
-
-fn rewrite_schema_qualified_sql(raw: &str, current_schema: &str, next_schema: &str) -> String {
-    let current_local = crate::catalog::local_name(current_schema);
-    let next_local = crate::catalog::local_name(next_schema);
-    raw.replace(&format!("{current_local}."), &format!("{next_local}."))
-        .replace(
-            &format!("\"{current_local}\"."),
-            &format!("\"{next_local}\"."),
-        )
 }

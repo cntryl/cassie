@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use super::{rename_field_selections, FieldRename};
 
 #[test]
@@ -6,7 +8,7 @@ fn should_keep_the_output_column_name_when_renaming_a_field_selection() {
     let sql = "SELECT (v).b FROM t";
 
     // Act
-    let renamed = rename_field_selections(sql, "b", "bb");
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
 
     // Assert
     assert_eq!(
@@ -24,7 +26,7 @@ fn should_rename_a_field_selection_outside_the_select_list_without_an_alias() {
     let sql = "SELECT id FROM t WHERE (v).b > 0 ORDER BY (v).b";
 
     // Act
-    let renamed = rename_field_selections(sql, "b", "bb");
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
 
     // Assert
     assert_eq!(
@@ -39,7 +41,7 @@ fn should_keep_an_explicit_alias_of_a_renamed_field_selection() {
     let sql = "SELECT (t.v).b AS label, length((v).b) FROM t";
 
     // Act
-    let renamed = rename_field_selections(sql, "b", "bb");
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
 
     // Assert
     assert_eq!(
@@ -54,7 +56,7 @@ fn should_leave_a_string_literal_naming_the_field_untouched() {
     let sql = "SELECT '(v).b' AS s, (v).a FROM t";
 
     // Act
-    let renamed = rename_field_selections(sql, "b", "bb");
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
 
     // Assert
     assert_eq!(
@@ -72,7 +74,7 @@ fn should_report_a_dotted_reference_that_is_not_a_field_selection() {
     let sql = "SELECT r.b FROM (SELECT (v).* FROM t) r";
 
     // Act
-    let renamed = rename_field_selections(sql, "b", "bb");
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
 
     // Assert
     assert!(renamed.ambiguous);
@@ -84,11 +86,45 @@ fn should_match_a_quoted_attribute_name_exactly() {
     let sql = "SELECT (v).\"B\", (v).b FROM t";
 
     // Act
-    let renamed = rename_field_selections(sql, "B", "C");
+    let renamed = rename_field_selections(sql, "B", "C", &BTreeSet::new());
 
     // Assert
     assert_eq!(
         renamed.query.as_deref(),
         Some("SELECT (v).\"C\" AS \"B\", (v).b FROM t")
+    );
+}
+
+#[test]
+fn should_not_report_a_base_table_column_with_the_attribute_name_as_ambiguous() {
+    // Arrange
+    let sql = "SELECT ledger.b, (v).b FROM ledger";
+    let tables = BTreeSet::from(["ledger".to_owned()]);
+
+    // Act
+    let renamed = rename_field_selections(sql, "b", "bb", &tables);
+
+    // Assert
+    assert_eq!(
+        renamed,
+        FieldRename {
+            query: Some("SELECT ledger.b, (v).bb AS b FROM ledger".to_owned()),
+            ambiguous: false,
+        }
+    );
+}
+
+#[test]
+fn should_ignore_an_escape_string_that_hides_a_quote_before_a_field_selection() {
+    // Arrange
+    let sql = "SELECT E'\\'' AS q, (v).b AS x FROM t";
+
+    // Act
+    let renamed = rename_field_selections(sql, "b", "bb", &BTreeSet::new());
+
+    // Assert
+    assert_eq!(
+        renamed.query.as_deref(),
+        Some("SELECT E'\\'' AS q, (v).bb AS x FROM t")
     );
 }

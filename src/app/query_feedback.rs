@@ -34,7 +34,9 @@ impl Cassie {
         } else {
             binder::BindingContext::unscoped(database.to_string(), search_path)
         };
-        context.with_unqualified_database(self.default_database.clone())
+        context
+            .with_unqualified_database(self.default_database.clone())
+            .with_temporal_session(session.and_then(CassieSession::binding_temporal_session))
     }
 
     pub(crate) fn user_functions_for_session(

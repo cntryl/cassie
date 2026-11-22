@@ -52,21 +52,34 @@ pub(super) fn update_target_row(
     else {
         return Ok(None);
     };
-    let mut payload = updated_payload_from_row(
-        &AssignmentTarget {
-            cassie: scope.cassie,
-            table: target.table,
-            schema: target.schema,
-            subqueries: None,
-            array_targets,
-        },
-        row,
-        assignments,
-        scope.params,
-        scope.user_functions,
-        scope.session,
-        &current.payload,
-    )?;
+    let assignments = assignments
+        .iter()
+        .map(|(column, value)| {
+            super::dml_subqueries::resolve_statement_subqueries(scope, value)
+                .map(|value| (column.clone(), value))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let assignments = assignments.as_slice();
+    let mut payload = {
+        // Assignment subqueries read the data as it was when the statement began.
+        let (_read, _overlay) =
+            crate::executor::execution::entrypoints::enter_statement_read(scope.controls);
+        updated_payload_from_row(
+            &AssignmentTarget {
+                cassie: scope.cassie,
+                table: target.table,
+                schema: target.schema,
+                subqueries: None,
+                array_targets,
+            },
+            row,
+            assignments,
+            scope.params,
+            scope.user_functions,
+            scope.session,
+            &current.payload,
+        )?
+    };
     for assignment in row_subqueries {
         let mut values = super::dml_row_subquery::evaluate_row_subquery(scope, assignment, row)?;
         let object = payload

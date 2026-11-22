@@ -398,6 +398,21 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     }
 }
 
+impl ConstraintCheck {
+    /// Follows a column rename in the checked field and its bound expression.
+    pub fn rename_field(&mut self, current: &str, next: &str) -> bool {
+        let current_key = crate::sql::ColumnIdentifierPath::stored_field_key(current);
+        if crate::sql::ColumnIdentifierPath::stored_field_key(&self.field) != current_key {
+            return false;
+        }
+        self.field = next.to_string();
+        if let Some(expression) = self.bound_expression.as_mut() {
+            expression.rename_column_references(&current_key, next);
+        }
+        true
+    }
+}
+
 impl PartialEq for ConstraintCheck {
     fn eq(&self, other: &Self) -> bool {
         self.field == other.field

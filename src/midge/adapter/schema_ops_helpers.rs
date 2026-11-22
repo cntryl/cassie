@@ -283,10 +283,7 @@ pub(super) fn rename_constraints_in_tx(
             changed = true;
         }
         if let Some(check) = constraint.check.as_mut() {
-            if crate::sql::ColumnIdentifierPath::matches_stored_field(&check.field, current_name) {
-                check.field = next_name.to_string();
-                changed = true;
-            }
+            changed |= check.rename_field(current_name, next_name);
         }
     }
     if changed {
@@ -581,6 +578,41 @@ pub(super) fn rename_collection_indexes(
         let value =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(next_key, value, None).map_err(CassieError::from)?;
+    }
+    Ok(())
+}
+
+/// Moves deferred `DROP INDEX` cleanups along with the renamed table so they
+/// still find the index metadata that rename carried to the new name.
+pub(super) fn rename_collection_pending_index_cleanups(
+    tx: &mut crate::midge::adapter::AdapterTransaction,
+    current_name: &str,
+    next_name: &str,
+) -> Result<(), CassieError> {
+    use crate::midge::adapter::schema_cleanup::{PendingSchemaCleanup, PendingSchemaCleanupAction};
+    let entries = collect_scan(
+        tx.scan(&Query::new().prefix(Midge::schema_cleanup_prefix().into()))
+            .map_err(CassieError::from)?,
+    )?;
+    for (key, raw) in entries {
+        let Ok(mut cleanup) = serde_json::from_slice::<PendingSchemaCleanup>(&raw) else {
+            continue;
+        };
+        let PendingSchemaCleanupAction::Index { table, index } = &mut cleanup.action else {
+            continue;
+        };
+        if table != current_name {
+            continue;
+        }
+        *index = renamed_scoped_relation_name(current_name, next_name, index);
+        *table = next_name.to_string();
+        tx.delete(key).map_err(CassieError::from)?;
+        tx.put(
+            Midge::schema_cleanup_key(next_name, &cleanup.cleanup_id),
+            serde_json::to_vec(&cleanup).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
     }
     Ok(())
 }

@@ -57,6 +57,9 @@ mod ordering;
 #[path = "composite_types/dependencies.rs"]
 mod dependencies;
 
+#[path = "composite_types/view_dependents.rs"]
+mod view_dependents;
+
 #[path = "composite_types/field_typing.rs"]
 mod field_typing;
 

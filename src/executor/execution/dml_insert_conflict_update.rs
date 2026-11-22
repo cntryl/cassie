@@ -165,6 +165,33 @@ fn subquery_outer_row(
     BatchRow::with_aliases(values, aliases)
 }
 
+/// The conflicting row's payload with the `SET` assignments applied. Their
+/// subqueries read the data as it was when the statement began.
+fn resolved_conflict_payload(
+    context: &InsertExecutionContext<'_>,
+    current: &serde_json::Value,
+    assignments: &[(String, Expr)],
+    assignment_context: &ConflictAssignmentContext<'_>,
+) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
+    let scope = super::super::dml_joined::ExecutionScope {
+        cassie: context.cassie,
+        session: context.session,
+        params: context.params,
+        user_functions: context.user_functions,
+        controls: context.controls,
+    };
+    let assignments = assignments
+        .iter()
+        .map(|(column, value)| {
+            super::super::dml_subqueries::resolve_statement_subqueries(&scope, value)
+                .map(|value| (column.clone(), value))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (_read, _overlay) =
+        crate::executor::execution::entrypoints::enter_statement_read(context.controls);
+    merged_conflict_payload(current, &assignments, assignment_context)
+}
+
 pub(super) fn execute_insert_conflict_update(
     context: &InsertExecutionContext<'_>,
     payload: &serde_json::Value,
@@ -204,7 +231,12 @@ pub(super) fn execute_insert_conflict_update(
     };
     let excluded = excluded_local_args(&proposed, context.schema, context.controls)?;
     let excluded_args = &excluded.values;
-    if !conflict_filter_holds(context, conflict_filter, &existing_row, excluded_args)? {
+    let filter_holds = {
+        let (_read, _overlay) =
+            crate::executor::execution::entrypoints::enter_statement_read(context.controls);
+        conflict_filter_holds(context, conflict_filter, &existing_row, excluded_args)?
+    };
+    if !filter_holds {
         return Ok(None);
     }
     let assignment_context = ConflictAssignmentContext {
@@ -218,7 +250,7 @@ pub(super) fn execute_insert_conflict_update(
         table: &context.statement.table,
     };
     let mut merged_payload =
-        merged_conflict_payload(&current.payload, assignments, &assignment_context)?;
+        resolved_conflict_payload(context, &current.payload, assignments, &assignment_context)?;
     let row_subqueries = context
         .statement
         .on_conflict

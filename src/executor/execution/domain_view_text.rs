@@ -3,144 +3,86 @@
 //! A view keeps its definition as SQL text, so renaming or moving a domain a
 //! view casts to must rename those references too. Only the two places a cast
 //! names its target are touched: `expr::type` and `CAST(expr AS type)`.
-//! String literals, quoted identifiers and comments are skipped.
+//! Names are found with the literal-aware token scan, so string literals of
+//! every form, quoted identifiers and comments are skipped.
 
-const fn is_identifier_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$' || byte >= 0x80
-}
+use super::sql_text_tokens::{tokenize, Kind, Token};
 
-/// The offset just past the quoted run opened at `start`; a doubled quote is
-/// an escaped quote.
-fn quoted_run_end(bytes: &[u8], start: usize, quote: u8) -> usize {
-    let mut index = start + 1;
-    while index < bytes.len() {
-        if bytes[index] == quote {
-            if bytes.get(index + 1) == Some(&quote) {
-                index += 2;
-                continue;
-            }
-            return index + 1;
-        }
-        index += 1;
-    }
-    bytes.len()
-}
-
-fn skip_whitespace(bytes: &[u8], mut index: usize) -> usize {
-    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
-        index += 1;
-    }
-    index
-}
-
-/// The offset just past the (optionally qualified and quoted) type name that
-/// starts at `start`; equal to `start` when no name starts there.
-fn type_name_end(bytes: &[u8], start: usize) -> usize {
-    let mut index = start;
-    loop {
-        let part_start = index;
-        if bytes.get(index) == Some(&b'"') {
-            index = quoted_run_end(bytes, index, b'"');
+/// The index just past the (optionally qualified and quoted) type name whose
+/// first token is `first`; equal to `first` when no name starts there.
+fn type_name_end(sql: &str, tokens: &[Token], first: usize) -> usize {
+    let mut end = first;
+    while tokens
+        .get(end)
+        .is_some_and(|token| matches!(token.kind, Kind::Word | Kind::Quoted))
+    {
+        end += 1;
+        if tokens
+            .get(end)
+            .is_some_and(|token| token.is_punct(sql, b'.'))
+        {
+            end += 1;
         } else {
-            while bytes.get(index).copied().is_some_and(is_identifier_byte) {
-                index += 1;
-            }
-        }
-        if index == part_start {
-            return if part_start == start {
-                start
-            } else {
-                part_start - 1
-            };
-        }
-        if bytes.get(index) == Some(&b'.') {
-            index += 1;
-        } else {
-            return index;
+            return end;
         }
     }
+    // A dangling `.` is not part of the name.
+    end.saturating_sub(1).max(first)
 }
 
-/// Whether the parenthesis at `open` belongs to a `CAST(` call.
-fn opens_cast(bytes: &[u8], open: usize) -> bool {
-    let mut end = open;
-    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
-        end -= 1;
+/// The index of the first token of a cast target name that the token at
+/// `index` introduces: `::` or `AS` inside `CAST(`.
+fn target_after(sql: &str, tokens: &[Token], index: usize, in_cast: bool) -> Option<usize> {
+    let token = tokens[index];
+    if token.is_punct(sql, b':')
+        && tokens
+            .get(index + 1)
+            .is_some_and(|next| next.is_punct(sql, b':'))
+        && tokens[index + 1].start == token.end
+    {
+        return Some(index + 2);
     }
-    end >= 4
-        && bytes[end - 4..end].eq_ignore_ascii_case(b"cast")
-        && (end == 4 || !is_identifier_byte(bytes[end - 5]))
-}
-
-/// Whether the keyword `AS` stands alone at `index`.
-fn is_as_keyword(bytes: &[u8], index: usize) -> bool {
-    bytes
-        .get(index..index + 2)
-        .is_some_and(|word| word.eq_ignore_ascii_case(b"as"))
-        && (index == 0 || !is_identifier_byte(bytes[index - 1]))
-        && bytes.get(index + 2).is_some_and(u8::is_ascii_whitespace)
+    (in_cast && token.is_keyword(sql, "as")).then_some(index + 1)
 }
 
 /// Returns `sql` with every cast target type name that `replace` maps to a new
-/// spelling replaced, or `None` when nothing was replaced.
+/// spelling replaced, or `None` when nothing was replaced. Names inside string
+/// literals of every form, quoted identifiers and comments are never touched.
 pub(super) fn rewrite_cast_targets(
     sql: &str,
     replace: &dyn Fn(&str) -> Option<String>,
 ) -> Option<String> {
-    let bytes = sql.as_bytes();
+    let tokens = tokenize(sql);
     let mut rewritten = String::with_capacity(sql.len());
     let mut copied = 0;
     let mut changed = false;
     // One entry per open parenthesis: whether it belongs to `CAST(`.
     let mut cast_parentheses = Vec::new();
     let mut index = 0;
-    while index < bytes.len() {
-        let target_start = match bytes[index] {
-            b'\'' | b'"' => {
-                index = quoted_run_end(bytes, index, bytes[index]);
-                continue;
-            }
-            b'-' if bytes.get(index + 1) == Some(&b'-') => {
-                while index < bytes.len() && bytes[index] != b'\n' {
-                    index += 1;
+    while index < tokens.len() {
+        let token = tokens[index];
+        if token.is_punct(sql, b'(') {
+            let opens_cast = index > 0 && tokens[index - 1].is_keyword(sql, "cast");
+            cast_parentheses.push(opens_cast);
+        } else if token.is_punct(sql, b')') {
+            cast_parentheses.pop();
+        } else if let Some(first) =
+            target_after(sql, &tokens, index, cast_parentheses.last() == Some(&true))
+        {
+            let end = type_name_end(sql, &tokens, first);
+            if end > first {
+                let (start, stop) = (tokens[first].start, tokens[end - 1].end);
+                if let Some(replacement) = replace(&sql[start..stop]) {
+                    rewritten.push_str(&sql[copied..start]);
+                    rewritten.push_str(&replacement);
+                    copied = stop;
+                    changed = true;
                 }
+                index = end;
                 continue;
             }
-            b'/' if bytes.get(index + 1) == Some(&b'*') => {
-                index = sql[index + 2..]
-                    .find("*/")
-                    .map_or(bytes.len(), |end| index + 2 + end + 2);
-                continue;
-            }
-            b'(' => {
-                cast_parentheses.push(opens_cast(bytes, index));
-                index += 1;
-                continue;
-            }
-            b')' => {
-                cast_parentheses.pop();
-                index += 1;
-                continue;
-            }
-            b':' if bytes.get(index + 1) == Some(&b':') => skip_whitespace(bytes, index + 2),
-            b'a' | b'A'
-                if cast_parentheses.last() == Some(&true) && is_as_keyword(bytes, index) =>
-            {
-                skip_whitespace(bytes, index + 2)
-            }
-            _ => {
-                index += 1;
-                continue;
-            }
-        };
-        let target_end = type_name_end(bytes, target_start);
-        if let Some(replacement) = replace(&sql[target_start..target_end]) {
-            rewritten.push_str(&sql[copied..target_start]);
-            rewritten.push_str(&replacement);
-            copied = target_end;
-            changed = true;
         }
-        index = target_end.max(index + 2);
+        index += 1;
     }
     if !changed {
         return None;

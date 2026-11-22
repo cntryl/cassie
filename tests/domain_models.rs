@@ -31,6 +31,12 @@ mod rollup_boolean_predicates;
 
 #[path = "domain_models/time_series/rollups/nested_aggregate_match.rs"]
 mod rollup_nested_aggregate_match;
+
+#[path = "domain_models/time_series/rollups/filtered_rollup_roundtrip.rs"]
+mod rollup_filtered_roundtrip;
+
+#[path = "domain_models/time_series/rollups/rollup_staged_writes.rs"]
+mod rollup_staged_writes;
 use cassie_test_support::support_sql_fixture;
 
 #[path = "domain_models/time_series/queries/column_time_series_read_equivalence.rs"]

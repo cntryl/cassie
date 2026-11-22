@@ -9,6 +9,7 @@ struct RowWaitWorkerGuard<T> {
     owner: CassieSession,
     worker: Option<std::thread::JoinHandle<T>>,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
+    armed: bool,
 }
 
 impl<T> RowWaitWorkerGuard<T> {
@@ -20,12 +21,21 @@ impl<T> RowWaitWorkerGuard<T> {
 
     fn join(mut self) -> std::thread::Result<T> {
         let worker = self.worker.take().expect("row wait worker still armed");
-        worker.join()
+        match worker.join() {
+            Ok(result) => {
+                self.armed = false;
+                Ok(result)
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 
 impl<T> Drop for RowWaitWorkerGuard<T> {
     fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
         if let Some(cancellation) = &self.cancellation {
             cancellation.cancel();
         }
@@ -64,6 +74,7 @@ fn arm_row_wait_worker<T: Send + 'static>(
         owner: owner.clone(),
         worker: Some(worker),
         cancellation: cancellation.cloned(),
+        armed: true,
     }
 }
 

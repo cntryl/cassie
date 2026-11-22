@@ -141,14 +141,13 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    let Some(session) = session.filter(|session| {
-        session.is_transaction_active() && !session.is_repeatable_read_write()
-    }) else {
+    let Some(session) = session
+        .filter(|session| session.is_transaction_active() && !session.is_repeatable_read_write())
+    else {
         return Ok(());
     };
-    session.attach_transaction_unique_waits(std::sync::Arc::clone(
-        &cassie.transaction_unique_waits,
-    ));
+    session
+        .attach_transaction_unique_waits(std::sync::Arc::clone(&cassie.transaction_unique_waits));
     let Some(waits) = session.transaction_unique_waits() else {
         return Ok(());
     };

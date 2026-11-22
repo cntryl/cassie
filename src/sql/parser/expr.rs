@@ -21,6 +21,9 @@ mod numeric_literals;
 mod qualified_operators;
 #[path = "record_syntax.rs"]
 mod record_syntax;
+#[cfg(test)]
+#[path = "expr_recursion_tests.rs"]
+mod recursion_tests;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 #[path = "string_literals.rs"]
@@ -33,9 +36,6 @@ mod temporal_syntax;
 mod truth_predicates;
 #[path = "unary_numeric.rs"]
 mod unary_numeric;
-#[cfg(test)]
-#[path = "expr_recursion_tests.rs"]
-mod recursion_tests;
 
 pub(super) use numeric_literals::is_numeric_mantissa;
 pub(super) use string_literals::unicode_identifier_prefix;
@@ -57,6 +57,7 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
+    let _preflight = depth::enter_expression_preflight(raw)?;
     let raw = super::lexical::trim_separators(raw);
     if let Some((operand, collation)) = split_collation_suffix(raw)? {
         return Ok(Expr::Collate {

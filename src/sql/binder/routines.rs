@@ -75,7 +75,12 @@ pub(super) fn bind_create_function(
         ));
     }
     let parsed_body = crate::sql::parser::parse_expression(&body).map_err(|error| {
-        CassieError::Planner(format!("invalid function body for '{name}': {error}"))
+        let message = format!("invalid function body for '{name}': {error}");
+        if error.kind() == crate::sql::SqlErrorKind::ResourceLimit {
+            CassieError::ResourceLimit(message)
+        } else {
+            CassieError::Planner(message)
+        }
     })?;
 
     crate::sql::definition_guard::legacy_expression(&parsed_body)?;

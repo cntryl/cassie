@@ -157,7 +157,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/security/role_authorization.rs` | test_module | 593 | 5 | catalog_security | keep | `tests/catalog_security/security/role_authorization.rs` |
 | `tests/catalog_security/security/role_database_copy_boundaries.rs` | test_module | 104 | 2 | catalog_security | keep | `tests/catalog_security/security/role_database_copy_boundaries.rs` |
 | `tests/catalog_security/security/role_statement_boundaries.rs` | test_module | 141 | 6 | catalog_security | keep | `tests/catalog_security/security/role_statement_boundaries.rs` |
-| `tests/catalog_security/security/routine_body_privileges.rs` | test_module | 187 | 12 | catalog_security | split_by_contract | `tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs`; `tests/catalog_security/catalogs/routines/routine_body_privileges.rs` |
+| `tests/catalog_security/security/routine_body_privileges.rs` | test_module | 188 | 12 | catalog_security | split_by_contract | `tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs`; `tests/catalog_security/catalogs/routines/routine_body_privileges.rs` |
 | `tests/catalog_security/security/sequence_state_privileges.rs` | test_module | 133 | 6 | catalog_security | move_with_module_alias | `tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs` |
 | `tests/catalog_security/security/ungranted_read_paths.rs` | test_module | 244 | 17 | catalog_security | keep | `tests/catalog_security/security/ungranted_read_paths.rs` |
 | `tests/catalog_security/sessions/session_settings.rs` | test_module | 132 | 5 | catalog_security | keep | `tests/catalog_security/sessions/session_settings.rs` |
@@ -1432,7 +1432,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_mutations/mutations/boolean_checks.rs` | test_module | 161 | 4 | sql_mutations | keep | `tests/sql_mutations/mutations/boolean_checks.rs` |
 | `tests/sql_mutations/mutations/boolean_contexts.rs` | test_module | 539 | 14 | sql_mutations | keep | `tests/sql_mutations/mutations/boolean_contexts.rs` |
 | `tests/sql_mutations/mutations/constant_planning.rs` | test_module | 116 | 3 | sql_mutations | keep | `tests/sql_mutations/mutations/constant_planning.rs` |
-| `tests/sql_mutations/mutations/keyed_dml_lookup.rs` | test_module | 387 | 9 | sql_mutations | keep | `tests/sql_mutations/mutations/keyed_dml_lookup.rs` |
+| `tests/sql_mutations/mutations/keyed_dml_lookup.rs` | test_module | 388 | 9 | sql_mutations | keep | `tests/sql_mutations/mutations/keyed_dml_lookup.rs` |
 | `tests/sql_mutations/mutations/mutation/errors.rs` | test_module | 65 | 1 | sql_mutations | keep | `tests/sql_mutations/mutations/mutation/errors.rs` |
 | `tests/sql_mutations/mutations/statement_atomicity.rs` | module_registration | 120 | 0 | sql_mutations | keep | `tests/sql_mutations/mutations/statement_atomicity.rs` |
 | `tests/sql_mutations/operators/conflict_inference/parameters.rs` | test_module | 62 | 1 | sql_mutations | keep | `tests/sql_mutations/operators/conflict_inference/parameters.rs` |

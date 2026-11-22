@@ -45,11 +45,8 @@ fn enter_user_function_depth() -> Result<UserFunctionDepthGuard, QueryError> {
         let previous = depth.get();
         if previous >= MAX_USER_FUNCTION_DEPTH {
             return Err(crate::app::CassieError::from(
-                crate::app::DiagnosticError::new(
-                    "54001",
-                    "stack depth limit exceeded",
-                )
-                .with_hint("Increase the configuration parameter max_stack_depth"),
+                crate::app::DiagnosticError::new("54001", "stack depth limit exceeded")
+                    .with_hint("Increase the configuration parameter max_stack_depth"),
             )
             .into());
         }
@@ -84,13 +81,14 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         )));
     }
     let baseline = routine_memory_baseline.or_else(|| context.memory.map(EvaluationMemory::bytes));
-    let mut routine_memory = baseline.zip(context.memory).map(|(baseline, memory)| {
-        RoutineMemoryGuard {
-            memory,
-            baseline,
-            completed: false,
-        }
-    });
+    let mut routine_memory =
+        baseline
+            .zip(context.memory)
+            .map(|(baseline, memory)| RoutineMemoryGuard {
+                memory,
+                baseline,
+                completed: false,
+            });
     if let Some(memory) = context.memory {
         memory.grow(crate::executor::retained_memory::add(
             crate::executor::retained_memory::mul(metadata.body.len(), 128)?,
@@ -98,7 +96,12 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         )?)?;
     }
     let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
-        QueryError::General(format!("invalid function body for '{name}': {error}"))
+        let message = format!("invalid function body for '{name}': {error}");
+        if error.kind() == crate::sql::SqlErrorKind::ResourceLimit {
+            QueryError::Cassie(crate::app::CassieError::ResourceLimit(message))
+        } else {
+            QueryError::General(message)
+        }
     })?;
     crate::sql::definition_guard::legacy_expression(&body).map_err(QueryError::Cassie)?;
     let locals = metadata
@@ -208,10 +211,8 @@ mod tests {
     #[test]
     fn should_reject_mutual_function_recursion_with_sqlstate_54001_without_memory() {
         // Arrange
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-        );
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
         let functions = recursive_functions();
         let row = BatchRow::new(Vec::new());
         let expression = parse_expression("rm_f(1)").expect("call parses");
@@ -243,10 +244,8 @@ mod tests {
     #[test]
     fn should_reject_mutual_function_recursion_with_sqlstate_54001_with_memory() {
         // Arrange
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-        );
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
         let memory = EvaluationMemory::new(&controls).expect("memory");
         let functions = recursive_functions();
         let row = BatchRow::new(Vec::new());
@@ -280,10 +279,8 @@ mod tests {
     #[test]
     fn should_retain_successful_routine_memory_for_escaping_value() {
         // Arrange
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-        );
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
         let memory = EvaluationMemory::new(&controls).expect("memory");
         let functions = [(
             "rm_value".to_owned(),
@@ -319,5 +316,51 @@ mod tests {
         // Assert
         assert_eq!(value, Value::String("escaping value".to_owned()));
         assert!(memory.bytes() > 0);
+    }
+
+    #[test]
+    fn should_reject_deep_array_in_stored_routine_body_with_resource_limit() {
+        // Arrange
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        let memory = EvaluationMemory::new(&controls).expect("memory");
+        let body = format!("ARRAY[{}1{}]", "[".repeat(255), "]".repeat(255));
+        let functions = [(
+            "array_depth".to_owned(),
+            FunctionMeta {
+                name: "array_depth".to_owned(),
+                args: Vec::new(),
+                return_type: DataType::Int,
+                volatility: Volatility::Immutable,
+                body,
+                object_id: 4,
+            },
+        )]
+        .into_iter()
+        .collect();
+        let row = BatchRow::new(Vec::new());
+        let expression = parse_expression("array_depth()").expect("call parses");
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: Some(&memory),
+            deletion_memory: None,
+        };
+
+        // Act
+        let error = evaluate_expr_value_with_context(&row, &expression, context)
+            .expect_err("deep stored body must be rejected");
+
+        // Assert
+        assert!(matches!(
+            error,
+            QueryError::Cassie(crate::app::CassieError::ResourceLimit(_))
+        ));
+        assert_eq!(memory.bytes(), 0);
     }
 }

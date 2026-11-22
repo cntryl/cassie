@@ -108,9 +108,10 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return result;
     }
 
-    let result = evaluate_builtin_function(&name, function, row, &args, context).unwrap_or_else(
-        || evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline),
-    )?;
+    let result =
+        evaluate_builtin_function(&name, function, row, &args, context).unwrap_or_else(|| {
+            evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline)
+        })?;
     let retained_bytes = retained_result_bytes(&result, local_name);
     if retained_bytes > 0 {
         if let Some(scope) = argument_memory_scope.as_mut() {
@@ -133,7 +134,9 @@ fn evaluate_early_function<R: RowAccess + ?Sized>(
             )
             .into()));
         };
-        return Some(super::super::evaluate_expr_value_with_context(row, array, context));
+        return Some(super::super::evaluate_expr_value_with_context(
+            row, array, context,
+        ));
     }
     if crate::sql::functions::is_column_size(name) {
         return Some(datum_size::evaluate(function, row, context));

@@ -78,9 +78,7 @@ pub use types::{
 
 mod constant_planning;
 mod volatile_plan_inspection;
-pub(crate) use volatile_plan_inspection::{
-    plan_uses_volatile_builtin_including_views,
-};
+pub(crate) use volatile_plan_inspection::plan_uses_volatile_builtin_including_views;
 mod cte_reachability;
 pub(crate) use constant_planning::check_plan as check_plan_constants;
 pub(crate) use constant_planning::check_plan_with_parameters as check_bound_plan_constants;
@@ -221,9 +219,7 @@ pub(crate) use fulltext_options::load_fulltext_index_options;
 mod statement_data_dependency;
 pub(crate) use statement_data_dependency::plan_needs_statement_data;
 mod plan_inspection;
-pub(crate) use plan_inspection::{
-    plan_needs_user_functions, plan_uses_function_including_views,
-};
+pub(crate) use plan_inspection::{plan_needs_user_functions, plan_uses_function_including_views};
 mod aggregate_accel;
 mod aggregate_exec;
 mod window_exec;

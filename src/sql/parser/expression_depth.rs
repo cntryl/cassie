@@ -12,6 +12,7 @@ const MAX_RECURSIVE_EXPRESSION_DEPTH: usize = 128;
 thread_local! {
     static NOT_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
     static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static EXPRESSION_PREFLIGHT_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
 pub(super) struct ParseDepthGuard {
@@ -23,6 +24,31 @@ pub(super) struct ParseDepthGuard {
 enum ParseDepthKind {
     Not,
     Case,
+}
+
+pub(super) struct ExpressionPreflightGuard;
+
+impl Drop for ExpressionPreflightGuard {
+    fn drop(&mut self) {
+        EXPRESSION_PREFLIGHT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+pub(super) fn enter_expression_preflight(
+    raw: &str,
+) -> Result<ExpressionPreflightGuard, SqlError> {
+    let top_level = EXPRESSION_PREFLIGHT_DEPTH.with(|depth| {
+        let top_level = depth.get() == 0;
+        depth.set(depth.get().saturating_add(1));
+        top_level
+    });
+    if top_level {
+        if let Err(error) = super::super::preflight_sql(raw) {
+            EXPRESSION_PREFLIGHT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+            return Err(error);
+        }
+    }
+    Ok(ExpressionPreflightGuard)
 }
 
 impl Drop for ParseDepthGuard {

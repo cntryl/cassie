@@ -7,7 +7,11 @@ fn fixture() -> (Cassie, CassieSession) {
         .expect("memory fixture");
     let session = cassie.create_session("tester", None);
     cassie
-        .execute_sql(&session, "CREATE TABLE volatile_cache_rows (value INT)", vec![])
+        .execute_sql(
+            &session,
+            "CREATE TABLE volatile_cache_rows (value INT)",
+            vec![],
+        )
         .expect("table");
     cassie
         .execute_sql(
@@ -69,18 +73,10 @@ fn should_replay_pure_select_results_from_execution_cache() {
 
     // Act
     let first = cassie
-        .execute_sql(
-            &session,
-            "SELECT value FROM volatile_cache_rows",
-            vec![],
-        )
+        .execute_sql(&session, "SELECT value FROM volatile_cache_rows", vec![])
         .expect("first pure query");
     let second = cassie
-        .execute_sql(
-            &session,
-            "SELECT value FROM volatile_cache_rows",
-            vec![],
-        )
+        .execute_sql(&session, "SELECT value FROM volatile_cache_rows", vec![])
         .expect("second pure query");
 
     // Assert
@@ -301,10 +297,18 @@ fn should_not_replay_random_results_from_a_view_with_catalog_enum_types() {
 
     // Act
     let first = cassie
-        .execute_sql(&session, "SELECT mood, value FROM volatile_cache_enum_view", vec![])
+        .execute_sql(
+            &session,
+            "SELECT mood, value FROM volatile_cache_enum_view",
+            vec![],
+        )
         .expect("first enum view query");
     let second = cassie
-        .execute_sql(&session, "SELECT mood, value FROM volatile_cache_enum_view", vec![])
+        .execute_sql(
+            &session,
+            "SELECT mood, value FROM volatile_cache_enum_view",
+            vec![],
+        )
         .expect("second enum view query");
 
     // Assert

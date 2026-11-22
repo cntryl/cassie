@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use parking_lot::{Condvar, Mutex};
 #[cfg(test)]
 use parking_lot::MutexGuard;
+use parking_lot::{Condvar, Mutex};
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -31,9 +31,7 @@ struct RowWaitObserverGuard {
 #[cfg(test)]
 pub(crate) fn install_row_wait_observer(sender: Sender<()>) -> impl Drop {
     let test_lock = ROW_WAIT_TEST_LOCK.get_or_init(|| Mutex::new(())).lock();
-    *ROW_WAIT_OBSERVER
-        .get_or_init(|| Mutex::new(None))
-        .lock() = Some(sender);
+    *ROW_WAIT_OBSERVER.get_or_init(|| Mutex::new(None)).lock() = Some(sender);
     RowWaitObserverGuard {
         _test_lock: test_lock,
     }
@@ -687,13 +685,7 @@ mod tests {
         );
 
         // Act
-        let result = waits.wait_for_row(
-            waiter,
-            blocker,
-            &collection,
-            &id,
-            &controls,
-        );
+        let result = waits.wait_for_row(waiter, blocker, &collection, &id, &controls);
 
         // Assert
         assert!(matches!(result, Err(CassieError::QueryCanceled)));

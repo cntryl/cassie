@@ -4,6 +4,14 @@ use crate::config::CassieRuntimeConfig;
 use crate::sql::SqlErrorKind;
 use crate::types::Value;
 
+fn in_memory_session(name: &str) -> (Cassie, crate::app::CassieSession) {
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session(name, None);
+    (cassie, session)
+}
+
 #[test]
 fn should_reject_not_chain_before_parser_recursion_exceeds_bound() {
     // Arrange
@@ -92,42 +100,80 @@ fn should_reject_case_chain_at_one_beyond_depth_boundary() {
 }
 
 #[test]
-fn should_probe_array_nesting_and_retain_the_same_session() {
+fn should_parse_array_at_exact_nesting_boundary() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("in-memory Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("array_probe", None);
-    let sql = format!(
-        "SELECT {}1{}",
-        "ARRAY[".repeat(256),
-        "]".repeat(256)
-    );
+    let sql = format!("SELECT {}1{}", "ARRAY[".repeat(128), "]".repeat(128));
 
     // Act
-    let result = cassie.execute_sql(&session, &sql, vec![]);
+    let result = parse_statement(&sql);
+
+    // Assert
+    assert!(result.is_ok(), "128 ARRAY levels are within the contract");
+}
+
+#[test]
+fn should_keep_session_usable_after_array_nesting_probe() {
+    // Arrange
+    let (cassie, session) = in_memory_session("array_probe");
+    let sql = format!("SELECT {}1{}", "ARRAY[".repeat(256), "]".repeat(256));
+
+    // Act
+    let error = cassie
+        .execute_sql(&session, &sql, vec![])
+        .expect_err("deep ARRAY nesting must be rejected before stack recursion");
     let follow_up = cassie.execute_sql(&session, "SELECT 1", vec![]);
 
     // Assert
-    match result {
-        Ok(_) | Err(_) => {}
-    }
+    assert_eq!(error.sql_state(), "54000");
+    assert!(error.to_string().contains("SQL nesting exceeds 128"));
     let follow_up = follow_up.expect("same session must survive the ARRAY probe");
     assert_eq!(follow_up.rows(), &[vec![Value::Int64(1)]]);
 }
 
 #[test]
-fn should_preserve_shallow_expression_and_acyclic_routine_behavior() {
+fn should_keep_session_usable_after_deep_array_function_body_rejection() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("in-memory Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("shallow_recursion", None);
+    let (cassie, session) = in_memory_session("array_function_probe");
+    let body = format!("ARRAY[{}1{}]", "[".repeat(255), "]".repeat(255));
+    let sql = format!("CREATE FUNCTION array_depth() RETURNS int AS '{body}'");
+
+    // Act
+    let error = cassie
+        .execute_sql(&session, &sql, vec![])
+        .expect_err("deep ARRAY function body must be rejected before recursion");
+    let follow_up = cassie.execute_sql(&session, "SELECT 1", vec![]);
+
+    // Assert
+    assert_eq!(error.sql_state(), "54000");
+    assert!(error.to_string().contains("SQL nesting exceeds 128"));
+    assert_eq!(
+        follow_up
+            .expect("same session must survive function-body rejection")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_evaluate_shallow_not_expression() {
+    // Arrange
+    let (cassie, session) = in_memory_session("shallow_not");
 
     // Act
     let not_result = cassie
         .execute_sql(&session, "SELECT NOT NOT NOT true", vec![])
         .expect("shallow NOT chain");
+
+    // Assert
+    assert_eq!(not_result.rows(), &[vec![Value::Bool(false)]]);
+}
+
+#[test]
+fn should_evaluate_shallow_case_expression() {
+    // Arrange
+    let (cassie, session) = in_memory_session("shallow_case");
+
+    // Act
     let case_result = cassie
         .execute_sql(
             &session,
@@ -135,6 +181,17 @@ fn should_preserve_shallow_expression_and_acyclic_routine_behavior() {
             vec![],
         )
         .expect("shallow CASE chain");
+
+    // Assert
+    assert_eq!(case_result.rows(), &[vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_evaluate_acyclic_routine_chain() {
+    // Arrange
+    let (cassie, session) = in_memory_session("acyclic_routine");
+
+    // Act
     cassie
         .execute_sql(
             &session,
@@ -161,18 +218,13 @@ fn should_preserve_shallow_expression_and_acyclic_routine_behavior() {
         .expect("acyclic routine chain");
 
     // Assert
-    assert_eq!(not_result.rows(), &[vec![Value::Bool(false)]]);
-    assert_eq!(case_result.rows(), &[vec![Value::Int64(2)]]);
     assert_eq!(function_result.rows(), &[vec![Value::Int64(3)]]);
 }
 
 #[test]
-fn should_reject_direct_self_call_and_preserve_the_session() {
+fn should_keep_session_usable_after_direct_self_call_rejection() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("in-memory Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("direct_self_call", None);
+    let (cassie, session) = in_memory_session("direct_self_call");
 
     // Act
     let error = cassie

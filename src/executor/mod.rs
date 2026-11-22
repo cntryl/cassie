@@ -10,11 +10,11 @@ pub(crate) use execution::explain_graph_sources;
 pub(crate) use execution::install_checkpoint_ddl_stage_hook;
 pub(crate) use execution::native_result_text_bound;
 pub(crate) use execution::plan_needs_statement_data;
+pub(crate) use execution::plan_uses_volatile_builtin_including_views;
 pub(crate) use execution::refresh_materialized_view_concurrently_external;
 pub(crate) use execution::{
     check_bound_plan_constants, check_plan_constants, reached_ctes, reached_plan_ctes,
 };
-pub(crate) use execution::plan_uses_volatile_builtin_including_views;
 pub use execution::{OwnedQueryRows, QueryResultBuilder};
 
 pub(crate) fn delete_document_with_referential_actions(
@@ -250,8 +250,8 @@ pub(crate) use execution::{
 };
 pub(crate) use execution::{delete_is_joined, joined_returning_schema, update_is_joined};
 pub(crate) use execution::{
-    plan_needs_user_functions, plan_uses_function_including_views,
-    run_with_session_controls, run_with_session_parameter_oids_for_operation,
+    plan_needs_user_functions, plan_uses_function_including_views, run_with_session_controls,
+    run_with_session_parameter_oids_for_operation,
 };
 pub(crate) use execution::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
 pub use execution::{

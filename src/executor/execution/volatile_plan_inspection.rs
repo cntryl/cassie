@@ -5,8 +5,7 @@ use std::collections::HashSet;
 use crate::planner::logical::LogicalPlan;
 
 use crate::sql::ast::{
-    CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem,
-    SelectStatement,
+    CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 
 fn function_is_volatile_builtin(function: &crate::sql::ast::FunctionCall) -> bool {
@@ -52,9 +51,10 @@ fn plan_uses_volatile_with_views(
             .having
             .as_ref()
             .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
-        || plan.order.iter().any(|order| {
-            expr_uses_volatile_with_views(&order.expr, catalog, visited_views)
-        })
+        || plan
+            .order
+            .iter()
+            .any(|order| expr_uses_volatile_with_views(&order.expr, catalog, visited_views))
         || plan
             .limit
             .as_ref()
@@ -67,9 +67,10 @@ fn plan_uses_volatile_with_views(
             .ctes
             .iter()
             .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
-        || plan.set.as_ref().is_some_and(|set| {
-            select_uses_volatile_with_views(&set.right, catalog, visited_views)
-        })
+        || plan
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_volatile_with_views(&set.right, catalog, visited_views))
 }
 
 fn cte_uses_volatile_with_views(
@@ -129,9 +130,10 @@ fn select_uses_volatile_with_views(
             .having
             .as_ref()
             .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
-        || select.order.iter().any(|order| {
-            expr_uses_volatile_with_views(&order.expr, catalog, visited_views)
-        })
+        || select
+            .order
+            .iter()
+            .any(|order| expr_uses_volatile_with_views(&order.expr, catalog, visited_views))
         || select
             .limit
             .as_ref()
@@ -144,9 +146,10 @@ fn select_uses_volatile_with_views(
             .ctes
             .iter()
             .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
-        || select.set.as_ref().is_some_and(|set| {
-            select_uses_volatile_with_views(&set.right, catalog, visited_views)
-        })
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_volatile_with_views(&set.right, catalog, visited_views))
 }
 
 fn item_uses_volatile_with_views(
@@ -157,9 +160,9 @@ fn item_uses_volatile_with_views(
     match item {
         SelectItem::Function { function, .. } => {
             function_is_volatile_builtin(function)
-                || function.expressions().any(|expr| {
-                    expr_uses_volatile_with_views(expr, catalog, visited_views)
-                })
+                || function
+                    .expressions()
+                    .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
         }
         SelectItem::Expr { expr, .. } => {
             expr_uses_volatile_with_views(expr, catalog, visited_views)
@@ -181,9 +184,10 @@ fn source_uses_volatile_with_views(
     visited_views: &mut HashSet<String>,
 ) -> bool {
     match source {
-        QuerySource::Values { rows } => rows.iter().flatten().any(|expr| {
-            expr_uses_volatile_with_views(expr, catalog, visited_views)
-        }),
+        QuerySource::Values { rows } => rows
+            .iter()
+            .flatten()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
         QuerySource::TableSample {
             source,
             rate,
@@ -192,9 +196,9 @@ fn source_uses_volatile_with_views(
         } => {
             source_uses_volatile_with_views(source, catalog, visited_views)
                 || expr_uses_volatile_with_views(rate, catalog, visited_views)
-                || repeatable.as_ref().is_some_and(|expr| {
-                    expr_uses_volatile_with_views(expr, catalog, visited_views)
-                })
+                || repeatable
+                    .as_ref()
+                    .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
         }
         QuerySource::Aliased { source, .. } => {
             source_uses_volatile_with_views(source, catalog, visited_views)
@@ -209,9 +213,9 @@ fn source_uses_volatile_with_views(
                 || source_uses_volatile_with_views(right, catalog, visited_views)
                 || expr_uses_volatile_with_views(on, catalog, visited_views)
         }
-        QuerySource::TableFunction { function, .. } => function.expressions().any(|expr| {
-            expr_uses_volatile_with_views(expr, catalog, visited_views)
-        }),
+        QuerySource::TableFunction { function, .. } => function
+            .expressions()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
         QuerySource::Collection(name) => {
             let Some(view) = catalog.get_view(name) else {
                 return false;
@@ -287,19 +291,14 @@ mod tests {
             "SELECT volatile_cache_random_value() AS value",
             Schema::from_iter([(String::from("value"), DataType::Float)]),
         ));
-        let parsed = crate::sql::parse_statement(
-            "SELECT value FROM volatile_cache_udf_view",
-        )
-        .expect("outer view query");
+        let parsed = crate::sql::parse_statement("SELECT value FROM volatile_cache_udf_view")
+            .expect("outer view query");
         let bound = crate::sql::bind(parsed, &catalog).expect("bound view query");
         let plan = crate::planner::logical::plan(&bound).expect("logical view plan");
 
         // Act
-        let contains_volatile_udf = plan_uses_function_including_views(
-            &plan,
-            "volatile_cache_random_value",
-            &catalog,
-        );
+        let contains_volatile_udf =
+            plan_uses_function_including_views(&plan, "volatile_cache_random_value", &catalog);
 
         // Assert
         assert_eq!(

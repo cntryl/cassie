@@ -337,7 +337,8 @@ fn should_scan_for_a_table_changed_by_the_open_transaction() {
 
     // Assert
     assert_eq!(updated.0, "UPDATE 1");
-    assert_eq!(after, (before.0, before.1 + 1));
+    // The transaction overlay needs a pre-gate row-claim scan and a post-gate reread.
+    assert_eq!(after, (before.0, before.1 + 2));
 }
 
 #[test]

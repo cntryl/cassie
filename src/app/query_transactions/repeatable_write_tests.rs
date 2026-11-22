@@ -81,8 +81,8 @@ fn arm_row_wait_worker<T: Send + 'static>(
 #[test]
 fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
         .execute_sql(
@@ -129,16 +129,13 @@ fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    let worker = wait_for_row_or_cleanup(
-        &wait_reached_rx,
-        &cassie,
-        &first,
-        worker,
-        None,
-    );
+    let worker = wait_for_row_or_cleanup(&wait_reached_rx, &cassie, &first, worker, None);
 
     // Assert
-    assert!(!worker.is_finished(), "waiter completed before owner commit");
+    assert!(
+        !worker.is_finished(),
+        "waiter completed before owner commit"
+    );
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit releases row owner");
@@ -159,8 +156,8 @@ fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
 #[test]
 fn should_preserve_concurrent_read_committed_column_updates() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
         .execute_sql(
@@ -207,14 +204,11 @@ fn should_preserve_concurrent_read_committed_column_updates() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    let worker = wait_for_row_or_cleanup(
-        &wait_reached_rx,
-        &cassie,
-        &first,
-        worker,
-        None,
+    let worker = wait_for_row_or_cleanup(&wait_reached_rx, &cassie, &first, worker, None);
+    assert!(
+        !worker.is_finished(),
+        "waiter completed before owner commit"
     );
-    assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");
@@ -237,8 +231,8 @@ fn should_preserve_concurrent_read_committed_column_updates() {
 #[test]
 fn should_apply_overlapping_read_committed_increments_twice() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
         .execute_sql(
@@ -285,24 +279,17 @@ fn should_apply_overlapping_read_committed_increments_twice() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("second commit");
     });
-    let worker = wait_for_row_or_cleanup(
-        &wait_reached_rx,
-        &cassie,
-        &first,
-        worker,
-        None,
+    let worker = wait_for_row_or_cleanup(&wait_reached_rx, &cassie, &first, worker, None);
+    assert!(
+        !worker.is_finished(),
+        "waiter completed before owner commit"
     );
-    assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");
     worker.join().expect("second increment worker");
     let result = cassie
-        .execute_sql(
-            &setup,
-            "SELECT a FROM read_committed_increment",
-            Vec::new(),
-        )
+        .execute_sql(&setup, "SELECT a FROM read_committed_increment", Vec::new())
         .expect("read increment");
 
     // Assert
@@ -312,14 +299,22 @@ fn should_apply_overlapping_read_committed_increments_twice() {
 #[test]
 fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
-        .execute_sql(&setup, "CREATE TABLE rr_row_guard (id INT PRIMARY KEY, a INT, b INT)", Vec::new())
+        .execute_sql(
+            &setup,
+            "CREATE TABLE rr_row_guard (id INT PRIMARY KEY, a INT, b INT)",
+            Vec::new(),
+        )
         .expect("table");
     cassie
-        .execute_sql(&setup, "INSERT INTO rr_row_guard VALUES (1, 0, 0)", Vec::new())
+        .execute_sql(
+            &setup,
+            "INSERT INTO rr_row_guard VALUES (1, 0, 0)",
+            Vec::new(),
+        )
         .expect("seed row");
     let first = cassie.create_session("first", None);
     let second = cassie.create_session("second", None);
@@ -330,7 +325,11 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
         .execute_sql(&second, "BEGIN ISOLATION LEVEL REPEATABLE READ", Vec::new())
         .expect("second begin");
     cassie
-        .execute_sql(&first, "UPDATE rr_row_guard SET a = 10 WHERE id = 1", Vec::new())
+        .execute_sql(
+            &first,
+            "UPDATE rr_row_guard SET a = 10 WHERE id = 1",
+            Vec::new(),
+        )
         .expect("first update");
     let (updated, updated_rx) = std::sync::mpsc::channel();
     let (allow_commit, allow_commit_rx) = std::sync::mpsc::channel();
@@ -376,28 +375,50 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
     let second_commit = worker.join().expect("second worker");
 
     // Assert
-    assert_eq!(second_commit.expect_err("stale RR commit").descriptor().sql_state, "40001");
+    assert_eq!(
+        second_commit
+            .expect_err("stale RR commit")
+            .descriptor()
+            .sql_state,
+        "40001"
+    );
 }
 
 #[test]
 fn should_preserve_autocommit_update_serialization() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let session = cassie.create_session("autocommit", None);
     cassie
-        .execute_sql(&session, "CREATE TABLE autocommit_row_guard (id INT PRIMARY KEY, a INT)", Vec::new())
+        .execute_sql(
+            &session,
+            "CREATE TABLE autocommit_row_guard (id INT PRIMARY KEY, a INT)",
+            Vec::new(),
+        )
         .expect("table");
     cassie
-        .execute_sql(&session, "INSERT INTO autocommit_row_guard VALUES (1, 0)", Vec::new())
+        .execute_sql(
+            &session,
+            "INSERT INTO autocommit_row_guard VALUES (1, 0)",
+            Vec::new(),
+        )
         .expect("seed row");
 
     // Act
     cassie
-        .execute_sql(&session, "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1", Vec::new())
+        .execute_sql(
+            &session,
+            "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1",
+            Vec::new(),
+        )
         .expect("first autocommit update");
     cassie
-        .execute_sql(&session, "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1", Vec::new())
+        .execute_sql(
+            &session,
+            "UPDATE autocommit_row_guard SET a = a + 1 WHERE id = 1",
+            Vec::new(),
+        )
         .expect("second autocommit update");
     let result = cassie
         .execute_sql(&session, "SELECT a FROM autocommit_row_guard", Vec::new())
@@ -410,22 +431,36 @@ fn should_preserve_autocommit_update_serialization() {
 #[test]
 fn should_cancel_a_read_committed_row_wait_with_57014() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
-        .execute_sql(&setup, "CREATE TABLE canceled_row_wait (id INT PRIMARY KEY, a INT, b INT)", Vec::new())
+        .execute_sql(
+            &setup,
+            "CREATE TABLE canceled_row_wait (id INT PRIMARY KEY, a INT, b INT)",
+            Vec::new(),
+        )
         .expect("table");
     cassie
-        .execute_sql(&setup, "INSERT INTO canceled_row_wait VALUES (1, 0, 0)", Vec::new())
+        .execute_sql(
+            &setup,
+            "INSERT INTO canceled_row_wait VALUES (1, 0, 0)",
+            Vec::new(),
+        )
         .expect("seed row");
     let first = cassie.create_session("first", None);
     let second = cassie.create_session("second", None);
     for session in [&first, &second] {
-        cassie.execute_sql(session, "BEGIN", Vec::new()).expect("begin");
+        cassie
+            .execute_sql(session, "BEGIN", Vec::new())
+            .expect("begin");
     }
     cassie
-        .execute_sql(&first, "UPDATE canceled_row_wait SET a = 10 WHERE id = 1", Vec::new())
+        .execute_sql(
+            &first,
+            "UPDATE canceled_row_wait SET a = 10 WHERE id = 1",
+            Vec::new(),
+        )
         .expect("first update");
     let (wait_reached, wait_reached_rx) = std::sync::mpsc::channel();
     let _wait_observer = crate::app::install_row_wait_observer(wait_reached);
@@ -473,8 +508,8 @@ fn should_cancel_a_read_committed_row_wait_with_57014() {
 #[test]
 fn should_wait_for_a_row_owner_before_nested_modifying_cte_reapplies() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("memory fixture");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
     let setup = cassie.create_session("setup", None);
     cassie
         .execute_sql(
@@ -521,26 +556,19 @@ fn should_wait_for_a_row_owner_before_nested_modifying_cte_reapplies() {
             .execute_sql(&second, "COMMIT", Vec::new())
             .expect("nested update commit");
     });
-    let worker = wait_for_row_or_cleanup(
-        &wait_reached_rx,
-        &cassie,
-        &first,
-        worker,
-        None,
-    );
+    let worker = wait_for_row_or_cleanup(&wait_reached_rx, &cassie, &first, worker, None);
 
     // Assert
-    assert!(!worker.is_finished(), "nested waiter completed before owner commit");
+    assert!(
+        !worker.is_finished(),
+        "nested waiter completed before owner commit"
+    );
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit releases row owner");
     worker.join().expect("nested update worker");
     let result = cassie
-        .execute_sql(
-            &setup,
-            "SELECT id, a, b FROM nested_row_wait",
-            Vec::new(),
-        )
+        .execute_sql(&setup, "SELECT id, a, b FROM nested_row_wait", Vec::new())
         .expect("final row");
     assert_eq!(
         result.rows(),

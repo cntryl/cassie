@@ -81,6 +81,7 @@ fn segment<'a>(raw: &'a str, start: usize, end: usize, context: &str) -> Result<
 }
 
 pub(super) fn parse_case(raw: &str) -> Result<Expr, SqlError> {
+    let _depth = super::enter_case_parse_depth()?;
     let raw = raw.trim();
     let tokens = case_keywords(raw)?;
     let Some((first_when, Keyword::When)) = tokens.first().copied() else {

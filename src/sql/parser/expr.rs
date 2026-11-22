@@ -5,6 +5,66 @@ use super::{
     parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
     SortDirection, SqlError,
 };
+use std::cell::Cell;
+
+pub(super) const MAX_RECURSIVE_EXPRESSION_DEPTH: usize = 128;
+
+thread_local! {
+    static NOT_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+pub(super) struct ParseDepthGuard {
+    kind: ParseDepthKind,
+    previous: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ParseDepthKind {
+    Not,
+    Case,
+}
+
+impl Drop for ParseDepthGuard {
+    fn drop(&mut self) {
+        match self.kind {
+            ParseDepthKind::Not => NOT_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+            ParseDepthKind::Case => CASE_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+        }
+    }
+}
+
+pub(super) fn enter_not_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    NOT_PARSE_DEPTH.with(|depth| {
+        let previous = depth.get();
+        if previous >= MAX_RECURSIVE_EXPRESSION_DEPTH {
+            return Err(SqlError::resource_limit(format!(
+                "NOT nesting exceeds {MAX_RECURSIVE_EXPRESSION_DEPTH}"
+            )));
+        }
+        depth.set(previous + 1);
+        Ok(ParseDepthGuard {
+            kind: ParseDepthKind::Not,
+            previous,
+        })
+    })
+}
+
+pub(super) fn enter_case_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    CASE_PARSE_DEPTH.with(|depth| {
+        let previous = depth.get();
+        if previous >= MAX_RECURSIVE_EXPRESSION_DEPTH {
+            return Err(SqlError::resource_limit(format!(
+                "CASE nesting exceeds {MAX_RECURSIVE_EXPRESSION_DEPTH}"
+            )));
+        }
+        depth.set(previous + 1);
+        Ok(ParseDepthGuard {
+            kind: ParseDepthKind::Case,
+            previous,
+        })
+    })
+}
 
 #[path = "array_subscript.rs"]
 mod array_subscript;
@@ -34,6 +94,9 @@ mod temporal_syntax;
 mod truth_predicates;
 #[path = "unary_numeric.rs"]
 mod unary_numeric;
+#[cfg(test)]
+#[path = "expr_recursion_tests.rs"]
+mod recursion_tests;
 
 pub(super) use numeric_literals::is_numeric_mantissa;
 pub(super) use string_literals::unicode_identifier_prefix;
@@ -90,6 +153,7 @@ pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
+    let _depth = enter_not_parse_depth()?;
     let raw = super::lexical::trim_separators(raw);
     if starts_with_keyword(raw, "not") {
         let rest = raw["not".len()..].trim();

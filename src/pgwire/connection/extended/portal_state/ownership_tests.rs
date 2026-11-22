@@ -300,9 +300,8 @@ impl AsyncWrite for CancelAtFlushWrite {
 
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         if !self.canceled {
-            self.canceled = self
-                .runtime
-                .cancel_pgwire_backend(self.process_id, self.secret_key);
+            let runtime = std::sync::Arc::clone(&self.runtime);
+            self.canceled = runtime.cancel_pgwire_backend(self.process_id, self.secret_key);
         }
         Poll::Ready(Ok(()))
     }
@@ -352,6 +351,7 @@ fn should_ignore_cancellation_from_a_prior_portal_execution_when_resuming() {
     let cassie = std::sync::Arc::new(
         crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
     );
+    state.backend_registration = Some(cassie.runtime.register_pgwire_backend());
     let session = cassie.create_session("tester", None);
 
     // Act
@@ -439,7 +439,10 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
 
     // Assert
     assert!(writer.canceled, "resumed Execute is registered while writing");
-    assert_eq!(error.expect_err("active page cancellation").pg_error.code, "57014");
+    assert_eq!(
+        error.expect_err("active page cancellation").pg_error.code,
+        "57014"
+    );
     assert_eq!(writer.frame_tags, vec![b'D']);
     assert!(state.portals["retained"].suspended.is_none());
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);

@@ -32,13 +32,6 @@ pub(super) async fn resume_suspended_portal(
     write_half: &mut (impl AsyncWrite + Unpin),
     request: SuspendedPortalRequest<'_>,
 ) -> Result<(), ExtendedQueryError> {
-    if let Some(cancellation) = request.suspended.cancellation.as_ref() {
-        if cancellation.is_canceled() {
-            request.state.clear_query_cancellation(cancellation);
-            request.state.clear_portal_execution(request.portal_name);
-            return Err(ExtendedQueryError::cassie(&CassieError::QueryCanceled));
-        }
-    }
     if request.suspended.streaming {
         let prepared = match super::prepared_for_portal(request.state, request.portal) {
             Ok(prepared) => prepared,
@@ -75,19 +68,36 @@ pub(super) async fn resume_suspended_portal(
         request.state.clear_portal_execution(request.portal_name);
         return Err(ExtendedQueryError::cassie(&error));
     }
+    let cancellation = {
+        let registration = request
+            .state
+            .backend_registration
+            .as_ref()
+            .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
+        let previous = request.suspended.cancellation.clone().unwrap_or_default();
+        registration.resume_query(previous)
+    };
+    let active_cancellation = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
-    write_suspended_result(
+    let state = &mut *request.state;
+    let portal_name = request.portal_name;
+    let result = write_suspended_result(
         write_half,
         SuspendedPortalWriteRequest {
-            state: &mut *request.state,
-            portal_name: request.portal_name,
+            state,
+            portal_name,
             portal: request.portal,
             suspended: request.suspended,
+            active_cancellation: Some(active_cancellation),
             max_rows: request.max_rows,
             result_cap,
         },
     )
-    .await
+    .await;
+    if result.is_err() {
+        state.clear_portal_execution(portal_name);
+    }
+    result
 }
 
 pub(super) struct StreamingPortalPageRequest<'a> {

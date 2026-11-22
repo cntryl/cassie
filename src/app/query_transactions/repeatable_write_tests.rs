@@ -300,6 +300,64 @@ fn should_preserve_autocommit_update_serialization() {
 }
 
 #[test]
+fn should_cancel_a_read_committed_row_wait_with_57014() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(&setup, "CREATE TABLE canceled_row_wait (id INT PRIMARY KEY, a INT, b INT)", Vec::new())
+        .expect("table");
+    cassie
+        .execute_sql(&setup, "INSERT INTO canceled_row_wait VALUES (1, 0, 0)", Vec::new())
+        .expect("seed row");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    for session in [&first, &second] {
+        cassie.execute_sql(session, "BEGIN", Vec::new()).expect("begin");
+    }
+    cassie
+        .execute_sql(&first, "UPDATE canceled_row_wait SET a = 10 WHERE id = 1", Vec::new())
+        .expect("first update");
+    let (wait_reached, wait_reached_rx) = std::sync::mpsc::channel();
+    let _wait_observer = crate::app::install_row_wait_observer(wait_reached);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let worker_cassie = cassie.clone();
+    let worker_cancellation = cancellation.clone();
+
+    // Act
+    let worker = std::thread::spawn(move || {
+        worker_cassie.execute_sql_with_cancellation_converted(
+            &second,
+            "UPDATE canceled_row_wait SET b = 20 WHERE id = 1",
+            Vec::new(),
+            &worker_cancellation,
+            |_, _| Ok(()),
+        )
+    });
+    wait_reached_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("canceled update reached row wait");
+    cancellation.cancel();
+    let result = worker.join().expect("canceled worker");
+
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("canceled row wait")
+            .descriptor()
+            .sql_state,
+        "57014"
+    );
+    cassie
+        .execute_sql(&first, "ROLLBACK", Vec::new())
+        .expect("release first owner");
+    cassie
+        .execute_sql(&second, "ROLLBACK", Vec::new())
+        .expect("release canceled transaction");
+}
+
+#[test]
 fn should_reject_a_late_repeatable_conflict_without_changing_its_target() {
     // Arrange
     for action in [

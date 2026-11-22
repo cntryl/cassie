@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1893,
-    "rust_files": 1849,
-    "rust_test_declarations": 11374,
+    "files": 1894,
+    "rust_files": 1850,
+    "rust_test_declarations": 11393,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11399,
+    "registered_rust_instances": 11418,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -261303,6 +261303,595 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_view_reads",
+      "name": "should_refuse_renaming_a_table_a_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 35,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_join_view_reads",
+      "name": "should_refuse_renaming_a_table_a_join_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 51,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_join_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_view_reads_through_an_alias",
+      "name": "should_refuse_renaming_a_table_a_view_reads_through_an_alias",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 67,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_view_reads_through_an_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_view_reads_in_a_subquery",
+      "name": "should_refuse_renaming_a_table_a_view_reads_in_a_subquery",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 83,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_view_reads_in_a_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_view_over_a_view_reads",
+      "name": "should_refuse_renaming_a_table_a_view_over_a_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 99,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_view_over_a_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_schema_qualified_view_reads",
+      "name": "should_refuse_renaming_a_table_a_schema_qualified_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 122,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_schema_qualified_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_column_in_the_select_list",
+      "name": "should_refuse_renaming_a_column_in_the_select_list",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 147,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_column_in_the_select_list"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_column_used_only_in_where",
+      "name": "should_refuse_renaming_a_column_used_only_in_where",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 164,
+      "end_line": 178,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_column_used_only_in_where"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_column_qualified_by_table_name",
+      "name": "should_refuse_renaming_a_column_qualified_by_table_name",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 181,
+      "end_line": 195,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_column_qualified_by_table_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_column_qualified_by_alias",
+      "name": "should_refuse_renaming_a_column_qualified_by_alias",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 198,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_column_qualified_by_alias"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_column_a_star_view_exposes",
+      "name": "should_refuse_renaming_a_column_a_star_view_exposes",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 215,
+      "end_line": 226,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_column_a_star_view_exposes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_allow_renaming_a_column_another_table_in_the_view_owns",
+      "name": "should_allow_renaming_a_column_another_table_in_the_view_owns",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 229,
+      "end_line": 243,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_allow_renaming_a_column_another_table_in_the_view_owns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_allow_renaming_a_table_no_view_reads",
+      "name": "should_allow_renaming_a_table_no_view_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 246,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_allow_renaming_a_table_no_view_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_keep_the_view_working_after_a_refused_rename_is_rolled_back",
+      "name": "should_keep_the_view_working_after_a_refused_rename_is_rolled_back",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 263,
+      "end_line": 279,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_keep_the_view_working_after_a_refused_rename_is_rolled_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_changing_the_type_of_a_column_a_view_uses",
+      "name": "should_refuse_changing_the_type_of_a_column_a_view_uses",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 282,
+      "end_line": 296,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_changing_the_type_of_a_column_a_view_uses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_allow_changing_the_type_of_a_column_no_view_uses",
+      "name": "should_allow_changing_the_type_of_a_column_no_view_uses",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 299,
+      "end_line": 308,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_allow_changing_the_type_of_a_column_no_view_uses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_union_branch_reads",
+      "name": "should_refuse_renaming_a_table_a_union_branch_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 311,
+      "end_line": 328,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_union_branch_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_scalar_subquery_reads",
+      "name": "should_refuse_renaming_a_table_a_scalar_subquery_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 331,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_scalar_subquery_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_refuse_renaming_a_table_a_cte_reads",
+      "name": "should_refuse_renaming_a_table_a_cte_reads",
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "line": 347,
+      "end_line": 360,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "view_rename_dependencies::should_refuse_renaming_a_table_a_cte_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/delete/semantics.rs::should_execute_delete_where_returning_rows",
       "name": "should_execute_delete_where_returning_rows",
       "current_file": "tests/sql_mutations/delete/semantics.rs",
@@ -374507,6 +375096,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 360,
+      "sha256": "14e02e4175eb4108c887c14a1317f7597e70e40bf5a3465bd4bfda9c53276a5e",
+      "test_declarations": 19,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/view_rename_dependencies.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/delete/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -375318,8 +375922,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 271,
-      "sha256": "4bfe0da79748dfdf2cbe5452f1f754119712a249453cc395a0b86586e1651d1f",
+      "lines": 274,
+      "sha256": "54c8b0c37a18f366468216e780c894f25120999b10dd4fc5dcf4b13af5075959",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

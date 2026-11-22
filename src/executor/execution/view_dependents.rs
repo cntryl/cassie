@@ -10,7 +10,7 @@
 use std::collections::BTreeSet;
 
 use super::domain_view_dependents::parse_view;
-use super::Cassie;
+use super::{Cassie, QueryError};
 use crate::catalog::ViewMeta;
 use crate::sql::ast::{
     CteQuery, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
@@ -407,4 +407,55 @@ impl Walker<'_> {
             }
         }
     }
+}
+
+/// Views store their definition as SQL text and Cassie has no renderer that
+/// could rewrite it, so a rename that a view depends on is refused rather than
+/// leaving the view unresolvable (PostgreSQL rewrites the view instead).
+pub(super) fn reject_view_dependents(
+    cassie: &Cassie,
+    action: &str,
+    kind: &str,
+    name: &str,
+    views: Vec<ViewMeta>,
+) -> Result<(), QueryError> {
+    let views = with_transitive_dependents(cassie, views);
+    if views.is_empty() {
+        return Ok(());
+    }
+    let display_name = name.rsplit('.').next().unwrap_or(name);
+    let dependent = views
+        .iter()
+        .map(|view| format!("view {}", view.name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(QueryError::Cassie(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            format!("cannot {action} {kind} {display_name} because other objects depend on it"),
+        )
+        .with_detail(format!("dependent objects: {dependent}"))
+        .into(),
+    ))
+}
+
+/// A view records the output types of its columns, so a type change under a
+/// view is refused as PostgreSQL does.
+pub(super) fn reject_column_type_under_views(
+    cassie: &Cassie,
+    table: &str,
+    field: &str,
+) -> Result<(), QueryError> {
+    let views = views_using_column(cassie, table, field);
+    if views.is_empty() {
+        return Ok(());
+    }
+    Err(QueryError::Cassie(
+        crate::app::DiagnosticError::new(
+            "0A000",
+            "cannot alter type of a column used by a view or rule",
+        )
+        .with_detail(format!("view {} depends on column {field}", views[0].name))
+        .into(),
+    ))
 }

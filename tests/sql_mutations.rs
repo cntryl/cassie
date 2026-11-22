@@ -72,6 +72,9 @@ mod drop_view_options;
 #[path = "sql_mutations/ddl/view_dependencies.rs"]
 mod view_dependencies;
 
+#[path = "sql_mutations/ddl/view_rename_dependencies.rs"]
+mod view_rename_dependencies;
+
 #[path = "sql_mutations/ddl/using_conversions.rs"]
 mod using_conversions;
 

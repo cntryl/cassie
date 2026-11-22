@@ -488,6 +488,7 @@ fn execute_alter_table_operation(
         } => {
             let table = &statement.table;
             super::property_graph_dependents::reject_column_change(cassie, table, field, false)?;
+            super::view_dependents::reject_column_type_under_views(cassie, table, field)?;
             using_context.apply(table, field, data_type, using)
         }
     }
@@ -907,6 +908,13 @@ fn alter_table_rename_column(
     from: &str,
     to: &str,
 ) -> Result<(), QueryError> {
+    super::view_dependents::reject_view_dependents(
+        cassie,
+        "rename column",
+        "column",
+        from,
+        super::view_dependents::views_using_column(cassie, table, from),
+    )?;
     cassie
         .midge
         .alter_collection_rename_column(table, from, to)
@@ -926,6 +934,13 @@ fn alter_table_rename_table(
     table: &str,
     next_table: &str,
 ) -> Result<(), QueryError> {
+    super::view_dependents::reject_view_dependents(
+        cassie,
+        "rename table",
+        "table",
+        table,
+        super::view_dependents::views_reading(cassie, table),
+    )?;
     cassie.catalog.reject_relation_move_target(next_table)?;
     if cassie.catalog.exists(next_table) {
         return Err(QueryError::General(format!(

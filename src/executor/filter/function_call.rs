@@ -13,10 +13,10 @@ mod json_object_keys_argument_tests;
 
 use super::{
     array_functions, datum_size, evaluate_builtin_function, evaluate_coalesce,
-    evaluate_user_defined_function, json_builders, text_selection, EvalContext, EvaluationMemory,
-    FunctionCall,
+    evaluate_user_defined_function, json_builders, text_selection, EvalContext, FunctionCall,
     QueryError, RowAccess, Value,
 };
+use crate::executor::filter::EvaluationMemory;
 
 #[cfg(test)]
 thread_local! {

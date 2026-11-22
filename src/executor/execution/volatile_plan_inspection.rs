@@ -362,5 +362,3 @@ fn expr_uses_volatile_with_views(
     }
     expr.any_child(|child| expr_uses_volatile_with_views(child, catalog, visited_views))
 }
-
-

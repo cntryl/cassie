@@ -86,7 +86,11 @@ Focused evidence already present in the repository includes:
 - `tokenizer`: `standard` (default) or `whitespace`.
 - `case_folding`: Boolean, default `true`; `accent_folding`: Boolean, default
   `false`. Both accept `true`/`false`, `on`/`off`, or `1`/`0`.
-- `stop_words`: `english` (default) or `none`.
+- `stop_words`: `english` or `none`. Only an explicitly given value is
+  persisted; otherwise the analyzer decides (see above), so
+  `ALTER INDEX ... SET (analyzer = ...)` changes the default in both directions
+  while an explicit `stop_words` (at `CREATE` or `ALTER`) keeps winning.
+  `RESET (stop_words)` returns to the analyzer default.
 - `stemming`: `none` (default) or `english`.
 - `synonyms`: absent (default) or a quoted string of symmetric equivalence
   groups (see below).

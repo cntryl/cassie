@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1910,
-    "rust_files": 1866,
-    "rust_test_declarations": 11505,
+    "files": 1911,
+    "rust_files": 1867,
+    "rust_test_declarations": 11510,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11530,
+    "registered_rust_instances": 11535,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -246051,6 +246051,161 @@
       }
     },
     {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_match_stop_word_after_altering_analyzer_to_simple",
+      "name": "should_match_stop_word_after_altering_analyzer_to_simple",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 40,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_match_stop_word_after_altering_analyzer_to_simple"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_drop_stop_word_after_altering_analyzer_to_standard",
+      "name": "should_drop_stop_word_after_altering_analyzer_to_standard",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 58,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_drop_stop_word_after_altering_analyzer_to_standard"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_keep_explicit_stop_words_given_at_create_when_analyzer_changes",
+      "name": "should_keep_explicit_stop_words_given_at_create_when_analyzer_changes",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 76,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_keep_explicit_stop_words_given_at_create_when_analyzer_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_apply_explicit_stop_words_given_at_alter",
+      "name": "should_apply_explicit_stop_words_given_at_alter",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 92,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_apply_explicit_stop_words_given_at_alter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_restore_analyzer_default_stop_words_after_reset",
+      "name": "should_restore_analyzer_default_stop_words_after_reset",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_restore_analyzer_default_stop_words_after_reset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/fulltext_synonyms.rs::should_match_synonym_groups_through_prepared_queries",
       "name": "should_match_synonym_groups_through_prepared_queries",
       "current_file": "tests/search/retrieval/fulltext_synonyms.rs",
@@ -377491,6 +377646,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 122,
+      "sha256": "00a1a7bea310927a28cfcdaaf66a935123cf37102d528879d2dcc2eb991cc04d",
+      "test_declarations": 5,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_stop_word_defaults.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/fulltext_synonyms.rs",
       "role": "test_module",
       "action": "keep",
@@ -377629,8 +377799,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 116,
-      "sha256": "fcc0e118364fb8d34806903836e0832cfd7899faf1e7fbdd280af0132357a903",
+      "lines": 118,
+      "sha256": "e9ef2fc103c55664b7a4a3ee8cf40a8c20cbd5f5647389a6a5aa3a1cf42c681b",
       "test_declarations": 0,
       "registered_suites": [
         "search"

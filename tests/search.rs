@@ -43,6 +43,8 @@ mod fulltext_query_support;
 mod fulltext_query_syntax;
 #[path = "search/retrieval/fulltext_stemming.rs"]
 mod fulltext_stemming;
+#[path = "search/retrieval/fulltext_stop_word_defaults.rs"]
+mod fulltext_stop_word_defaults;
 #[path = "search/retrieval/fulltext_synonyms.rs"]
 mod fulltext_synonyms;
 

@@ -73,9 +73,12 @@ pub(super) fn bind_fulltext_index_options(
         "case_folding".to_string(),
         analyzer.case_folding.to_string(),
     );
-    statement
-        .options
-        .insert("stop_words".to_string(), analyzer.stop_words);
+    // `stop_words` defaults from the analyzer, so it is persisted only when the
+    // statement gave it; otherwise a later `ALTER INDEX SET (analyzer = ...)`
+    // could not change the default.
+    if let Some(stop_words) = statement.options.get_mut("stop_words") {
+        *stop_words = analyzer.stop_words;
+    }
     statement
         .options
         .insert("stemming".to_string(), analyzer.stemming);

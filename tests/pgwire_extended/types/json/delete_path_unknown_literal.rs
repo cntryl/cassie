@@ -134,3 +134,30 @@ fn should_keep_existing_json_path_deletion_extension() {
     fixture::assert_single_column_descriptors(&frames[0], (114, -1, -1), 0, true);
     assert_eq!(wire::data_rows(&frames[0]), vec![vec![Some("{}".into())]]);
 }
+
+#[test]
+fn should_reject_a_jsonb_delete_path_dimension_larger_than_its_contents() {
+    // Arrange
+    let invalid = fixture::execute_cycle(r#"SELECT '{"a":1}'::JSONB #- '[1:9]={}'"#, None, 0, true);
+    let valid_dimension = fixture::execute_cycle(
+        r#"SELECT '{"a":{"b":1,"keep":2}}'::JSONB #- '[1:2]={a,b}'"#,
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-1455-jsonb-delete-path-dimension-cardinality",
+        &[],
+        vec![invalid, valid_dimension],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+    fixture::assert_success(&batches[1]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some(r#"{"a": {"keep": 2}}"#.to_owned())]]
+    );
+}

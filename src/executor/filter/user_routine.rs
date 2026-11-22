@@ -16,11 +16,20 @@ struct UserFunctionDepthGuard(usize);
 struct RoutineMemoryGuard<'a> {
     memory: &'a EvaluationMemory,
     baseline: usize,
+    completed: bool,
 }
 
 impl Drop for RoutineMemoryGuard<'_> {
     fn drop(&mut self) {
-        self.memory.shrink_to(self.baseline);
+        if !self.completed {
+            self.memory.shrink_to(self.baseline);
+        }
+    }
+}
+
+impl RoutineMemoryGuard<'_> {
+    fn complete(&mut self) {
+        self.completed = true;
     }
 }
 
@@ -73,17 +82,19 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         )));
     }
     let baseline = context.memory.map(EvaluationMemory::bytes);
-    let _routine_memory = baseline.zip(context.memory).map(|(baseline, memory)| {
-        RoutineMemoryGuard { memory, baseline }
+    let mut routine_memory = baseline.zip(context.memory).map(|(baseline, memory)| {
+        RoutineMemoryGuard {
+            memory,
+            baseline,
+            completed: false,
+        }
     });
-    let _function_memory_scope = if let Some(memory) = context.memory {
-        Some(memory.scope(crate::executor::retained_memory::add(
+    if let Some(memory) = context.memory {
+        memory.grow(crate::executor::retained_memory::add(
             crate::executor::retained_memory::mul(metadata.body.len(), 128)?,
             1024,
-        )?)?)
-    } else {
-        None
-    };
+        )?)?;
+    }
     let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
         QueryError::General(format!("invalid function body for '{name}': {error}"))
     })?;
@@ -103,7 +114,7 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
     let merged_args = merge_local_args(context.local_args, locals);
     if context.memory.is_some() {
-        return super::super::evaluate_expr_value_with_context(
+        let result = super::super::evaluate_expr_value_with_context(
             row,
             &body,
             EvalContext {
@@ -119,8 +130,14 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
             )
         })
         .map(|value| value.to_value());
+        if result.is_ok() {
+            if let Some(guard) = routine_memory.as_mut() {
+                guard.complete();
+            }
+        }
+        return result;
     }
-    eval_scalar(
+    let result = eval_scalar(
         row,
         &body,
         context.params,
@@ -130,7 +147,13 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         context.session,
     )
     .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
-    .map(|value| value.to_value())
+    .map(|value| value.to_value());
+    if result.is_ok() {
+        if let Some(guard) = routine_memory.as_mut() {
+            guard.complete();
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -250,5 +273,49 @@ mod tests {
                     && diagnostic.message == "stack depth limit exceeded"
         ));
         assert_eq!(memory.bytes(), 0);
+    }
+
+    #[test]
+    fn should_retain_successful_routine_memory_for_escaping_value() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+        );
+        let memory = EvaluationMemory::new(&controls).expect("memory");
+        let functions = [(
+            "rm_value".to_owned(),
+            FunctionMeta {
+                name: "rm_value".to_owned(),
+                args: Vec::new(),
+                return_type: DataType::Text,
+                volatility: Volatility::Immutable,
+                body: "'escaping value'".to_owned(),
+                object_id: 3,
+            },
+        )]
+        .into_iter()
+        .collect();
+        let row = BatchRow::new(Vec::new());
+        let expression = parse_expression("rm_value()").expect("call parses");
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: Some(&memory),
+            deletion_memory: None,
+        };
+
+        // Act
+        let value = evaluate_expr_value_with_context(&row, &expression, context)
+            .expect("successful routine");
+
+        // Assert
+        assert_eq!(value, Value::String("escaping value".to_owned()));
+        assert!(memory.bytes() > 0);
     }
 }

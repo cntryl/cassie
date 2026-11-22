@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1911,
-    "rust_files": 1867,
-    "rust_test_declarations": 11510,
+    "files": 1912,
+    "rust_files": 1868,
+    "rust_test_declarations": 11512,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11535,
+    "registered_rust_instances": 11537,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -245865,6 +245865,68 @@
       }
     },
     {
+      "id": "tests/search/retrieval/fulltext_score_bounds.rs::should_return_finite_score_for_the_largest_k1",
+      "name": "should_return_finite_score_for_the_largest_k1",
+      "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
+      "line": 31,
+      "end_line": 44,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_score_bounds::should_return_finite_score_for_the_largest_k1"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_score_bounds.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_score_bounds.rs::should_return_finite_score_for_the_largest_boost",
+      "name": "should_return_finite_score_for_the_largest_boost",
+      "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
+      "line": 47,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_score_bounds::should_return_finite_score_for_the_largest_boost"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_score_bounds.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/fulltext_stemming.rs::should_match_inflected_terms_with_english_stemming",
       "name": "should_match_inflected_terms_with_english_stemming",
       "current_file": "tests/search/retrieval/fulltext_stemming.rs",
@@ -377631,6 +377693,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 60,
+      "sha256": "011f0bbb9bfb592ddd181a5650d22d3a307f9077014c962fef86e65f0c8a8f1a",
+      "test_declarations": 2,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_score_bounds.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/fulltext_stemming.rs",
       "role": "test_module",
       "action": "keep",
@@ -377799,8 +377876,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 118,
-      "sha256": "e9ef2fc103c55664b7a4a3ee8cf40a8c20cbd5f5647389a6a5aa3a1cf42c681b",
+      "lines": 120,
+      "sha256": "133ff581da1dc0d637dd9c7b19098d2b3b3c57e73da92be69f26bedcc7e4cf0f",
       "test_declarations": 0,
       "registered_suites": [
         "search"

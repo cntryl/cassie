@@ -508,7 +508,8 @@ impl SearchContext {
             score += crate::search::bm25_score(tf, df, docs, k1, b, dl, avg_dl);
         }
 
-        score * boost
+        // A huge boost must not overflow the score to infinity.
+        (score * boost).min(f64::MAX)
     }
 }
 

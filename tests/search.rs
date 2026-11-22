@@ -41,6 +41,8 @@ mod fulltext_query_paths;
 mod fulltext_query_support;
 #[path = "search/retrieval/fulltext_query_syntax.rs"]
 mod fulltext_query_syntax;
+#[path = "search/retrieval/fulltext_score_bounds.rs"]
+mod fulltext_score_bounds;
 #[path = "search/retrieval/fulltext_stemming.rs"]
 mod fulltext_stemming;
 #[path = "search/retrieval/fulltext_stop_word_defaults.rs"]

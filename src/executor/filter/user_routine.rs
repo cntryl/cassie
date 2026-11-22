@@ -1,8 +1,9 @@
 //! SQL routine argument and body evaluation under the invoking expression context.
 use super::{
     cast_scalar, eval_scalar, execution_controls, merge_local_args, scalar_from_value, EvalContext,
-    EvaluationMemory, HashMap, QueryError, RowAccess, Value,
+    HashMap, QueryError, RowAccess, Value,
 };
+use crate::executor::filter::EvaluationMemory;
 use std::cell::Cell;
 
 const MAX_USER_FUNCTION_DEPTH: usize = 64;

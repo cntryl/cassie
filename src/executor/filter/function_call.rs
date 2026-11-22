@@ -65,36 +65,8 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     } else {
         None
     };
-    if name == crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION {
-        let [array] = function.args.as_slice() else {
-            return Err(crate::app::CassieError::Execution(
-                "invalid internal VARIADIC array argument".into(),
-            )
-            .into());
-        };
-        return super::super::evaluate_expr_value_with_context(row, array, context);
-    }
-    if crate::sql::functions::is_column_size(&name) {
-        return datum_size::evaluate(function, row, context);
-    }
-    if name == "coalesce" {
-        return evaluate_coalesce(function, row, context);
-    }
-
-    if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
+    if let Some(result) = evaluate_early_function(&name, function, row, context) {
         return result;
-    }
-    if let Some(result) = super::enum_functions::evaluate_expression(function, row, context) {
-        return result;
-    }
-    if let Some(result) = super::graph_functions::evaluate_expression(function, row, context) {
-        return result;
-    }
-    if let Some(result) = borrowed_object_keys_argument(&name, function, row, context) {
-        return result;
-    }
-    if matches!(name.as_str(), "cardinality" | "pg_catalog.cardinality") {
-        return cardinality::evaluate(function, row, context);
     }
 
     let args = evaluate_argument_values(function, row, argument_context, &name)?;
@@ -146,6 +118,43 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         }
     }
     Ok(result)
+}
+
+fn evaluate_early_function<R: RowAccess + ?Sized>(
+    name: &str,
+    function: &FunctionCall,
+    row: &R,
+    context: EvalContext<'_>,
+) -> Option<Result<Value, QueryError>> {
+    if name == crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION {
+        let [array] = function.args.as_slice() else {
+            return Some(Err(crate::app::CassieError::Execution(
+                "invalid internal VARIADIC array argument".into(),
+            )
+            .into()));
+        };
+        return Some(super::super::evaluate_expr_value_with_context(row, array, context));
+    }
+    if crate::sql::functions::is_column_size(name) {
+        return Some(datum_size::evaluate(function, row, context));
+    }
+    if name == "coalesce" {
+        return Some(evaluate_coalesce(function, row, context));
+    }
+    if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = super::enum_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = super::graph_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = borrowed_object_keys_argument(name, function, row, context) {
+        return Some(result);
+    }
+    matches!(name, "cardinality" | "pg_catalog.cardinality")
+        .then(|| cardinality::evaluate(function, row, context))
 }
 
 fn retained_result_bytes(result: &Value, local_name: &str) -> usize {

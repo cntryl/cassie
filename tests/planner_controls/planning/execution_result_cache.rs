@@ -521,6 +521,16 @@ fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views
             vec![],
         )
         .expect("clock view");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE cache_clock_guard (marker INT)",
+            vec![],
+        )
+        .expect("pure query guard table");
+    cassie
+        .execute_sql(&session, "INSERT INTO cache_clock_guard VALUES (1)", vec![])
+        .expect("pure query guard row");
 
     // Act
     for sql in [
@@ -540,11 +550,11 @@ fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views
             .expect("clock-dependent query");
     }
     cassie
-        .execute_sql(&session, "SELECT 'now'", vec![])
-        .expect("pure text with a clock-like value");
+        .execute_sql(&session, "SELECT marker FROM cache_clock_guard", vec![])
+        .expect("pure table read");
     cassie
-        .execute_sql(&session, "SELECT 'now'", vec![])
-        .expect("repeated pure text query");
+        .execute_sql(&session, "SELECT marker FROM cache_clock_guard", vec![])
+        .expect("repeated pure table read");
     let metrics = cassie.metrics();
 
     // Assert

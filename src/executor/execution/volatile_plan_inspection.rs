@@ -263,3 +263,41 @@ fn expr_uses_volatile_with_views(
     }
     expr.any_child(|child| expr_uses_volatile_with_views(child, catalog, visited_views))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::plan_uses_volatile_builtin_including_views;
+    use crate::catalog::{Catalog, FunctionArgMeta, FunctionMeta, ViewMeta, Volatility};
+    use crate::types::{DataType, Schema};
+
+    #[test]
+    fn should_find_non_immutable_udf_in_a_stored_view_body() {
+        // Arrange
+        let catalog = Catalog::new();
+        catalog.register_function(FunctionMeta {
+            name: "volatile_cache_random_value".to_owned(),
+            args: Vec::<FunctionArgMeta>::new(),
+            return_type: DataType::Float,
+            volatility: Volatility::Volatile,
+            body: "random()".to_owned(),
+            object_id: 0,
+        });
+        catalog.register_view(ViewMeta::new(
+            "volatile_cache_udf_view",
+            "SELECT volatile_cache_random_value() AS value",
+            Schema::from_iter([(String::from("value"), DataType::Float)]),
+        ));
+        let parsed = crate::sql::parse_statement(
+            "SELECT value FROM volatile_cache_udf_view",
+        )
+        .expect("outer view query");
+        let bound = crate::sql::bind(parsed, &catalog).expect("bound view query");
+        let plan = crate::planner::logical::plan(&bound).expect("logical view plan");
+
+        // Act
+        let contains_volatile_udf = plan_uses_volatile_builtin_including_views(&plan, &catalog);
+
+        // Assert
+        assert!(contains_volatile_udf);
+    }
+}

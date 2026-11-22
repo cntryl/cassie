@@ -47,7 +47,7 @@ impl<T> Drop for RowWaitWorkerGuard<T> {
 }
 
 fn wait_for_row_or_cleanup<T: Send + 'static>(
-    wait_reached_rx: std::sync::mpsc::Receiver<()>,
+    wait_reached_rx: &std::sync::mpsc::Receiver<()>,
     cassie: &Cassie,
     owner: &CassieSession,
     worker: std::thread::JoinHandle<T>,
@@ -130,7 +130,7 @@ fn should_wait_for_a_committing_read_committed_row_owner_before_reapplying() {
             .expect("second commit");
     });
     let worker = wait_for_row_or_cleanup(
-        wait_reached_rx,
+        &wait_reached_rx,
         &cassie,
         &first,
         worker,
@@ -208,7 +208,7 @@ fn should_preserve_concurrent_read_committed_column_updates() {
             .expect("second commit");
     });
     let worker = wait_for_row_or_cleanup(
-        wait_reached_rx,
+        &wait_reached_rx,
         &cassie,
         &first,
         worker,
@@ -286,7 +286,7 @@ fn should_apply_overlapping_read_committed_increments_twice() {
             .expect("second commit");
     });
     let worker = wait_for_row_or_cleanup(
-        wait_reached_rx,
+        &wait_reached_rx,
         &cassie,
         &first,
         worker,
@@ -445,7 +445,7 @@ fn should_cancel_a_read_committed_row_wait_with_57014() {
         )
     });
     let worker = wait_for_row_or_cleanup(
-        wait_reached_rx,
+        &wait_reached_rx,
         &cassie,
         &first,
         worker,
@@ -522,7 +522,7 @@ fn should_wait_for_a_row_owner_before_nested_modifying_cte_reapplies() {
             .expect("nested update commit");
     });
     let worker = wait_for_row_or_cleanup(
-        wait_reached_rx,
+        &wait_reached_rx,
         &cassie,
         &first,
         worker,

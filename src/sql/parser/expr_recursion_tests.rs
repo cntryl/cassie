@@ -1,6 +1,7 @@
-use super::{parse_expression, parse_statement, SqlErrorKind};
+use super::parse_statement;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
+use crate::sql::SqlErrorKind;
 use crate::types::Value;
 
 #[test]

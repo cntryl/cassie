@@ -5,7 +5,8 @@ use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, FunctionCall, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
-pub(crate) use super::volatile_plan_inspection::{
+#[cfg(test)]
+use super::volatile_plan_inspection::{
     plan_uses_volatile_builtin, plan_uses_volatile_builtin_including_views,
 };
 

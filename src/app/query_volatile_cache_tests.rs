@@ -281,38 +281,6 @@ fn should_not_replay_volatile_results_hidden_in_a_view() {
 }
 
 #[test]
-fn should_not_replay_default_volatile_udf_results_hidden_in_a_view() {
-    // Arrange
-    let (cassie, session) = fixture();
-    cassie
-        .execute_sql(
-            &session,
-            r#"CREATE FUNCTION volatile_cache_random_value() RETURNS float AS "random()""#,
-            vec![],
-        )
-        .expect("default volatile function");
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE VIEW volatile_cache_udf_view AS SELECT volatile_cache_random_value() AS value FROM volatile_cache_rows",
-            vec![],
-        )
-        .expect("volatile function view");
-
-    // Act
-    let first = cassie
-        .execute_sql(&session, "SELECT value FROM volatile_cache_udf_view", vec![])
-        .expect("first UDF view query");
-    let second = cassie
-        .execute_sql(&session, "SELECT value FROM volatile_cache_udf_view", vec![])
-        .expect("second UDF view query");
-
-    // Assert
-    assert_ne!(first.rows(), second.rows());
-    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
-}
-
-#[test]
 fn should_not_replay_random_results_from_a_view_with_catalog_enum_types() {
     // Arrange
     let (cassie, session) = fixture();

@@ -364,7 +364,7 @@ impl Midge {
         Ok(())
     }
 
-    fn current_collection_relation_id_for_cleanup(
+    pub(super) fn current_collection_relation_id_for_cleanup(
         &self,
         collection: &str,
     ) -> Result<Option<u64>, CassieError> {

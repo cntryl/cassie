@@ -231,6 +231,7 @@ impl Midge {
         if let Some(database) = crate::catalog::relation_database_name(&name) {
             let _ = self.database_family(&database)?;
         }
+        self.release_name_of_pending_dropped_collection(&name)?;
         let Some(needs_storage_id) = self.collection_storage_id_needed(&name, require_absent)?
         else {
             return Ok((false, 0, Vec::new()));

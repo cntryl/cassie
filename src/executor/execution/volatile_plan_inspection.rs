@@ -1,5 +1,15 @@
-//! Volatile built-in detection for execution-result-cache admission.\n\nuse std::collections::HashSet;\n\nuse crate::planner::logical::LogicalPlan;\nuse crate::sql::ast::{\n    CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem,\n    SelectStatement,\n};\n/// Reports whether a plan contains a built-in whose planner volatility is
-/// volatile.  Keep this classification in the planner's eligibility module so
+//! Volatile built-in detection for execution-result-cache admission.
+
+use std::collections::HashSet;
+
+use crate::planner::logical::LogicalPlan;
+
+use crate::sql::ast::{
+    CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem,
+    SelectStatement,
+};
+/// Reports whether a plan contains a built-in whose planner volatility is
+/// volatile. Keep this classification in the planner's eligibility module so
 /// cache admission and CTE inlining cannot drift into separate function lists.
 pub(crate) fn plan_uses_volatile_builtin(plan: &LogicalPlan) -> bool {
     query_source_uses_volatile_builtin(&plan.source)

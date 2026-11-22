@@ -175,6 +175,18 @@ the vector method and option cases are in
 [`vector_indexes.rs`](../tests/vector_embeddings/vectors/vector_indexes.rs) and
 [`ivfflat_indexes.rs`](../tests/vector_embeddings/indexes/ivfflat/ivfflat_indexes.rs).
 
+### Accepted dotted I case folding (#1454)
+
+This correction is accepted for implementation in
+[#1454](https://github.com/cntryl/cassie/issues/1454). With the `simple`
+analyzer and case folding enabled, uppercase dotted `İ` in `İstanbul`
+must match `istanbul` as observed on PostgreSQL 18.6 with `en_US.UTF-8`.
+Apply the same mapping when indexing and searching. Preserve behavior with
+case folding disabled and the existing `accent_folding` behavior. This
+correction leaves composed and decomposed accents distinct when accent folding
+is off. Before publishing the change, establish how existing `simple` indexes
+are rebuilt or versioned so queries never mix analyzer rules across generations.
+
 ## Drop and rebuild
 
 `DROP INDEX [IF EXISTS] [schema.]name` drops an index without an `ON table`

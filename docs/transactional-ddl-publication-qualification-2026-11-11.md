@@ -303,3 +303,23 @@ Row-conversion pairs for #839 are the finite list in the transaction contract
 (`Qualified ALTER COLUMN ... TYPE ... USING conversions`). The #819 profile is
 qualified in the contract's v0.2.0 REPEATABLE READ record; the broader owner
 waits and PostgreSQL stale-base ALTER parity are outside v0.2.0.
+
+## Accepted ADD COLUMN backfill contract (#1462)
+
+This follow-up is accepted for implementation in
+[#1462](https://github.com/cntryl/cassie/issues/1462). The qualification record
+above describes previously tested behavior.
+
+A supported `ADD COLUMN` with a backfill must publish the column and its
+backfill atomically. A known failure must leave the pre-statement schema and
+rows intact, with no published column or pending backfill from that attempt.
+Reject any form that cannot meet this guarantee through the published Midge
+API before changing the schema. This decision does not extend the supported
+default expressions.
+
+Recovery must preserve previously committed schema, including legacy operations
+with a pending backfill. When such an operation is identified, report that the
+column is durable and its backfill is pending. A retry may resume the recorded
+definition. A different type or default must produce a clear conflict without
+changing the recorded definition. An unknown commit outcome still requires
+recovery before its state can be reported.

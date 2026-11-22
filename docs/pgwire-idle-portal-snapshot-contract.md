@@ -27,3 +27,16 @@ The nine portal controls passed in the locked suite at `a5ca12c9`. An externally
 owned watchdog bounds blocked asynchronous execution. A baseline RED requires
 separate instrumentation between the old reads and an actual execution; it was
 not observed.
+
+## Accepted idle cancellation contract (#1452)
+
+This contract is accepted for implementation in
+[#1452](https://github.com/cntryl/cassie/issues/1452).
+
+A PostgreSQL cancel request targets the execution active when it is accepted.
+If no statement is executing, discard the request, including when a portal is
+suspended between fetches. The next Execute can resume that portal normally.
+An active execution that observes cancellation returns `57014` and cleans up
+its resources under the existing transaction and portal rules. Rejected
+cancellation keys and cancellation from an earlier execution have no effect
+on subsequent work.

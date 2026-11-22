@@ -14,7 +14,7 @@ thread_local! {
     static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
-struct ParseDepthGuard {
+pub(super) struct ParseDepthGuard {
     kind: ParseDepthKind,
     previous: usize,
 }

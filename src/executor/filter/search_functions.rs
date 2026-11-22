@@ -67,16 +67,16 @@ fn evaluate_search_score(
     let query = to_text(&args[1]);
     let field = source_field(function);
     let (matched, score) = match syntax {
-        SearchSyntax::Terms => {
-            let score = match search_context {
-                Some(context) if field.is_none() && context.total_documents() > 0 => {
-                    context.score_text(None, &source, &query)
-                }
-                Some(context) => context.score_text(field, &source, &query),
-                None => simple_search_score(&source, &query),
-            };
-            (score > 0.0, score)
-        }
+        SearchSyntax::Terms => match search_context {
+            Some(context) if field.is_none() && context.total_documents() > 0 => {
+                context.match_and_score_text(None, &source, &query)
+            }
+            Some(context) => context.match_and_score_text(field, &source, &query),
+            None => {
+                let score = simple_search_score(&source, &query);
+                (score > 0.0, score)
+            }
+        },
         SearchSyntax::Query => {
             let score = query_syntax_score(search_context, field, &source, &query, controls)?;
             (score.is_some(), score.unwrap_or(0.0))

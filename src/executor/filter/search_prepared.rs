@@ -84,10 +84,9 @@ impl PreparedSearch {
         stats: &SearchTermStats,
     ) -> Option<f64> {
         match self {
-            Self::Terms(terms) => {
-                let score = context.score_term_stats(field, stats, terms);
-                (score > 0.0).then_some(score)
-            }
+            Self::Terms(terms) => stats
+                .contains_any_term(terms)
+                .then(|| context.score_term_stats(field, stats, terms)),
             Self::Query(query) => {
                 let terms = query.matched_terms(stats)?;
                 Some(context.score_term_stats(field, stats, &terms))

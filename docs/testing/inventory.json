@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1909,
-    "rust_files": 1865,
-    "rust_test_declarations": 11500,
+    "files": 1910,
+    "rust_files": 1866,
+    "rust_test_declarations": 11505,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11525,
+    "registered_rust_instances": 11530,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -244346,6 +244346,161 @@
       }
     },
     {
+      "id": "tests/search/retrieval/fulltext_boost_match.rs::should_match_row_when_boost_is_zero_on_filtered_read",
+      "name": "should_match_row_when_boost_is_zero_on_filtered_read",
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "line": 40,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_boost_match::should_match_row_when_boost_is_zero_on_filtered_read"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_boost_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_boost_match.rs::should_match_row_when_boost_is_zero_on_row_evaluation",
+      "name": "should_match_row_when_boost_is_zero_on_row_evaluation",
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "line": 52,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_boost_match::should_match_row_when_boost_is_zero_on_row_evaluation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_boost_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_boost_match.rs::should_match_row_when_boost_is_zero_in_top_k",
+      "name": "should_match_row_when_boost_is_zero_in_top_k",
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "line": 69,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_boost_match::should_match_row_when_boost_is_zero_in_top_k"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_boost_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_boost_match.rs::should_match_row_when_boost_is_zero_in_filtered_top_k",
+      "name": "should_match_row_when_boost_is_zero_in_filtered_top_k",
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "line": 86,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_boost_match::should_match_row_when_boost_is_zero_in_filtered_top_k"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_boost_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_boost_match.rs::should_score_zero_for_matching_row_when_boost_is_zero",
+      "name": "should_score_zero_for_matching_row_when_boost_is_zero",
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "line": 103,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_boost_match::should_score_zero_for_matching_row_when_boost_is_zero"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_boost_match.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/fulltext_index_completeness.rs::should_fallback_when_one_posting_block_is_missing_among_valid_blocks",
       "name": "should_fallback_when_one_posting_block_is_missing_among_valid_blocks",
       "current_file": "tests/search/retrieval/fulltext_index_completeness.rs",
@@ -377216,6 +377371,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/search/retrieval/fulltext_boost_match.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 116,
+      "sha256": "8b7b131cf6c57c93950efda5dd788f008ef39cb272091f0530c1d8ec0ffb15a7",
+      "test_declarations": 5,
+      "registered_suites": [
+        "search"
+      ],
+      "destinations": [
+        "tests/search/retrieval/fulltext_boost_match.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/search/retrieval/fulltext_index_completeness.rs",
       "role": "test_module",
       "action": "keep",
@@ -377459,8 +377629,8 @@
       "current_file": "tests/search.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 114,
-      "sha256": "b072e20bd55f90519ee80f66cfc67214e2b4e50ba018dc720f1e1174f9572e77",
+      "lines": 116,
+      "sha256": "fcc0e118364fb8d34806903836e0832cfd7899faf1e7fbdd280af0132357a903",
       "test_declarations": 0,
       "registered_suites": [
         "search"

@@ -33,6 +33,8 @@ mod integration_sql_fulltext_query;
 
 #[path = "search/retrieval/fulltext_analyzer_publication.rs"]
 mod fulltext_analyzer_publication;
+#[path = "search/retrieval/fulltext_boost_match.rs"]
+mod fulltext_boost_match;
 #[path = "search/retrieval/fulltext_query_paths.rs"]
 mod fulltext_query_paths;
 #[path = "search/retrieval/fulltext_query_support.rs"]

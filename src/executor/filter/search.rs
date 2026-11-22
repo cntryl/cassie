@@ -49,6 +49,15 @@ pub(crate) struct SingleFieldSearchContext {
 }
 
 impl SearchTermStats {
+    /// Whether the document holds at least one of the analyzed `terms`.
+    pub(crate) fn contains_any_term(&self, terms: &[String]) -> bool {
+        self.has_text
+            && self.doc_length > 0
+            && terms
+                .iter()
+                .any(|term| self.term_counts.get(term).is_some_and(|count| *count > 0))
+    }
+
     #[cfg(test)]
     pub(crate) fn from_text(source: Option<&str>) -> Self {
         Self::from_text_with_analyzer(source, &AnalyzerConfig::default())
@@ -426,10 +435,25 @@ impl SearchContext {
     }
 
     pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
+        self.match_and_score_text(field, source, query).1
+    }
+
+    /// Whether `source` contains a query term, and its score. A document that
+    /// matches can score zero (a zero boost scales every score to zero), so the
+    /// match is decided from term presence and never from the score.
+    pub(crate) fn match_and_score_text(
+        &self,
+        field: Option<&str>,
+        source: &str,
+        query: &str,
+    ) -> (bool, f64) {
         let analyzer = field.map_or_default(|field| self.analyzer_for_field(field));
         let query_terms = prepare_query_terms_with_analyzer(query, &analyzer);
         let source_stats = SearchTermStats::from_text_with_analyzer(Some(source), &analyzer);
-        self.score_term_stats(field, &source_stats, &query_terms)
+        (
+            source_stats.contains_any_term(&query_terms),
+            self.score_term_stats(field, &source_stats, &query_terms),
+        )
     }
 
     pub(crate) fn analyzer_for_field(&self, field: &str) -> AnalyzerConfig {

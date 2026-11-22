@@ -52,9 +52,9 @@ impl PgwireBackendRegistration {
     /// Panics if the pgwire backend registry is poisoned.
     pub(crate) fn resume_query(
         &self,
-        cancellation: QueryCancellationHandle,
+        _suspended: QueryCancellationHandle,
     ) -> PgwireQueryCancellationGuard {
-        self.begin_query_with_handle(cancellation, false)
+        self.begin_query_with_handle(QueryCancellationHandle::new(), false)
     }
 
     pub(crate) fn clear_query(&self, cancellation: &QueryCancellationHandle) {
@@ -102,7 +102,6 @@ impl PgwireBackendRegistration {
             runtime: Arc::clone(&self.runtime),
             process_id: self.process_id,
             cancellation,
-            clear_on_drop: true,
         }
     }
 }
@@ -111,7 +110,6 @@ pub(crate) struct PgwireQueryCancellationGuard {
     runtime: Arc<RuntimeState>,
     process_id: i32,
     cancellation: QueryCancellationHandle,
-    clear_on_drop: bool,
 }
 
 impl PgwireQueryCancellationGuard {
@@ -120,17 +118,13 @@ impl PgwireQueryCancellationGuard {
         self.cancellation.clone()
     }
 
-    pub(crate) fn suspend(mut self) -> QueryCancellationHandle {
-        self.clear_on_drop = false;
+    pub(crate) fn suspend(self) -> QueryCancellationHandle {
         self.cancellation.clone()
     }
 }
 
 impl Drop for PgwireQueryCancellationGuard {
     fn drop(&mut self) {
-        if !self.clear_on_drop {
-            return;
-        }
         if let Some(backend) = self
             .runtime
             .pgwire_backends

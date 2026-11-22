@@ -5,6 +5,131 @@ use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
 
 #[test]
+fn should_preserve_concurrent_read_committed_column_updates() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE TABLE read_committed_lost_update (id INT PRIMARY KEY, a INT, b INT)",
+            Vec::new(),
+        )
+        .expect("table");
+    cassie
+        .execute_sql(
+            &setup,
+            "INSERT INTO read_committed_lost_update VALUES (1, 0, 0)",
+            Vec::new(),
+        )
+        .expect("seed row");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    for session in [&first, &second] {
+        cassie
+            .execute_sql(session, "BEGIN", Vec::new())
+            .expect("begin READ COMMITTED transaction");
+    }
+    cassie
+        .execute_sql(
+            &first,
+            "UPDATE read_committed_lost_update SET a = 10 WHERE id = 1",
+            Vec::new(),
+        )
+        .expect("stage first update");
+    cassie
+        .execute_sql(
+            &second,
+            "UPDATE read_committed_lost_update SET b = 20 WHERE id = 1",
+            Vec::new(),
+        )
+        .expect("stage second update");
+
+    // Act
+    cassie
+        .execute_sql(&first, "COMMIT", Vec::new())
+        .expect("first commit");
+    cassie
+        .execute_sql(&second, "COMMIT", Vec::new())
+        .expect("second commit");
+    let result = cassie
+        .execute_sql(
+            &setup,
+            "SELECT id, a, b FROM read_committed_lost_update",
+            Vec::new(),
+        )
+        .expect("read committed row");
+
+    // Assert
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Int64(1), Value::Int64(10), Value::Int64(20)]]
+    );
+}
+
+#[test]
+fn should_apply_overlapping_read_committed_increments_twice() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("memory fixture");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE TABLE read_committed_increment (id INT PRIMARY KEY, a INT)",
+            Vec::new(),
+        )
+        .expect("table");
+    cassie
+        .execute_sql(
+            &setup,
+            "INSERT INTO read_committed_increment VALUES (1, 0)",
+            Vec::new(),
+        )
+        .expect("seed row");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    for session in [&first, &second] {
+        cassie
+            .execute_sql(session, "BEGIN", Vec::new())
+            .expect("begin READ COMMITTED transaction");
+    }
+    cassie
+        .execute_sql(
+            &first,
+            "UPDATE read_committed_increment SET a = a + 1 WHERE id = 1",
+            Vec::new(),
+        )
+        .expect("stage first increment");
+    cassie
+        .execute_sql(
+            &second,
+            "UPDATE read_committed_increment SET a = a + 1 WHERE id = 1",
+            Vec::new(),
+        )
+        .expect("stage second increment");
+
+    // Act
+    cassie
+        .execute_sql(&first, "COMMIT", Vec::new())
+        .expect("first commit");
+    cassie
+        .execute_sql(&second, "COMMIT", Vec::new())
+        .expect("second commit");
+    let result = cassie
+        .execute_sql(
+            &setup,
+            "SELECT a FROM read_committed_increment",
+            Vec::new(),
+        )
+        .expect("read increment");
+
+    // Assert
+    assert_eq!(result.rows(), &[vec![Value::Int64(2)]]);
+}
+
+#[test]
 fn should_reject_a_late_repeatable_conflict_without_changing_its_target() {
     // Arrange
     for action in [

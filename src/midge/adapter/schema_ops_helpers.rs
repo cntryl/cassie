@@ -582,6 +582,41 @@ pub(super) fn rename_collection_indexes(
     Ok(())
 }
 
+/// Moves deferred `DROP INDEX` cleanups along with the renamed table so they
+/// still find the index metadata that rename carried to the new name.
+pub(super) fn rename_collection_pending_index_cleanups(
+    tx: &mut crate::midge::adapter::AdapterTransaction,
+    current_name: &str,
+    next_name: &str,
+) -> Result<(), CassieError> {
+    use crate::midge::adapter::schema_cleanup::{PendingSchemaCleanup, PendingSchemaCleanupAction};
+    let entries = collect_scan(
+        tx.scan(&Query::new().prefix(Midge::schema_cleanup_prefix().into()))
+            .map_err(CassieError::from)?,
+    )?;
+    for (key, raw) in entries {
+        let Ok(mut cleanup) = serde_json::from_slice::<PendingSchemaCleanup>(&raw) else {
+            continue;
+        };
+        let PendingSchemaCleanupAction::Index { table, index } = &mut cleanup.action else {
+            continue;
+        };
+        if table != current_name {
+            continue;
+        }
+        *index = renamed_scoped_relation_name(current_name, next_name, index);
+        *table = next_name.to_string();
+        tx.delete(key).map_err(CassieError::from)?;
+        tx.put(
+            Midge::schema_cleanup_key(next_name, &cleanup.cleanup_id),
+            serde_json::to_vec(&cleanup).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+    }
+    Ok(())
+}
+
 pub(super) fn rename_collection_retention_policies(
     tx: &mut crate::midge::adapter::AdapterTransaction,
     current_name: &str,

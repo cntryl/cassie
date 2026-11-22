@@ -134,6 +134,9 @@ mod schema_write_conflicts;
 #[path = "catalog_security/catalogs/catalog_missing_object_sqlstates.rs"]
 mod catalog_missing_object_sqlstates;
 
+#[path = "catalog_security/ddl/deferred_index_cleanup_rename.rs"]
+mod deferred_index_cleanup_rename;
+
 #[path = "catalog_security/ddl/drop_recreate_deferred_cleanup.rs"]
 mod drop_recreate_deferred_cleanup;
 

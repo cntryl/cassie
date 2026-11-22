@@ -479,6 +479,11 @@ impl Midge {
             next_name,
         )?;
         schema_ops_helpers::rename_collection_indexes(&mut schema_tx, current_name, next_name)?;
+        schema_ops_helpers::rename_collection_pending_index_cleanups(
+            &mut schema_tx,
+            current_name,
+            next_name,
+        )?;
         schema_ops_helpers::rename_collection_retention_policies(
             &mut schema_tx,
             current_name,

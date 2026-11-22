@@ -266,7 +266,7 @@ fn expr_uses_volatile_with_views(
 
 #[cfg(test)]
 mod tests {
-    use super::plan_uses_volatile_builtin_including_views;
+    use super::super::plan_inspection::plan_uses_function_including_views;
     use crate::catalog::{Catalog, FunctionArgMeta, FunctionMeta, ViewMeta, Volatility};
     use crate::types::{DataType, Schema};
 
@@ -295,9 +295,20 @@ mod tests {
         let plan = crate::planner::logical::plan(&bound).expect("logical view plan");
 
         // Act
-        let contains_volatile_udf = plan_uses_volatile_builtin_including_views(&plan, &catalog);
+        let contains_volatile_udf = plan_uses_function_including_views(
+            &plan,
+            "volatile_cache_random_value",
+            &catalog,
+        );
 
         // Assert
+        assert_eq!(
+            catalog
+                .get_function("volatile_cache_random_value")
+                .expect("function metadata")
+                .volatility,
+            Volatility::Volatile
+        );
         assert!(contains_volatile_udf);
     }
 }

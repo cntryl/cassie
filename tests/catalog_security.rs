@@ -79,6 +79,18 @@ mod database_connect_network;
 #[path = "catalog_security/security/object_privilege_grants.rs"]
 mod object_privilege_grants;
 
+#[path = "catalog_security/security/operator_view_privileges.rs"]
+mod operator_view_privileges;
+
+#[path = "catalog_security/security/prepare_privileges.rs"]
+mod prepare_privileges;
+
+#[path = "catalog_security/security/routine_body_privileges.rs"]
+mod routine_body_privileges;
+
+#[path = "catalog_security/security/sequence_state_privileges.rs"]
+mod sequence_state_privileges;
+
 #[path = "catalog_security/security/ungranted_read_paths.rs"]
 mod ungranted_read_paths;
 

@@ -71,7 +71,7 @@ use crate::vector::{
 };
 
 mod access;
-pub(crate) use access::require_table_read;
+pub(crate) use access::{require_table_read, session_is_unprivileged};
 mod cache;
 mod copy_csv;
 pub(crate) mod copy_decode;

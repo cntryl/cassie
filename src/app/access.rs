@@ -1,8 +1,16 @@
 use super::{CassieError, CassieSession, QueryStatement};
-use crate::catalog::{RoleGrantTarget, RoleObjectPrivilege};
+use crate::catalog::RoleObjectPrivilege;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, IdentifierPath, MutationSource, QuerySource,
     ReturningAliases, SelectItem, SelectStatement, TableFunctionForm,
+};
+
+#[path = "access_routine_body.rs"]
+mod routine_body;
+#[path = "access_table_privilege.rs"]
+mod table_privilege_checks;
+pub(crate) use table_privilege_checks::{
+    require_table_read, session_is_unprivileged, table_privilege,
 };
 
 #[path = "access_graph_table.rs"]
@@ -522,13 +530,13 @@ impl super::Cassie {
     ) -> Result<(), CassieError> {
         match item {
             SelectItem::Function { function, .. } => {
-                reject_sequence_function(&function.name)?;
+                self.authorize_function_call(session, context, &function.name)?;
                 for expression in function.expressions() {
                     self.authorize_expression(session, context, expression)?;
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                reject_sequence_function(&function.name)?;
+                self.authorize_function_call(session, context, &function.name)?;
                 for expression in function
                     .args
                     .iter()
@@ -607,7 +615,7 @@ impl super::Cassie {
             }
             QuerySource::Subquery { select, .. } => self.authorize_select(session, context, select),
             QuerySource::TableFunction { function, form, .. } => {
-                reject_sequence_function(&function.name)?;
+                self.authorize_function_call(session, context, &function.name)?;
                 if let Some(TableFunctionForm::GraphTable(table)) = form.as_deref() {
                     return self.authorize_graph_table(session, context, table);
                 }
@@ -642,7 +650,7 @@ impl super::Cassie {
         expression: &Expr,
     ) -> Result<(), CassieError> {
         if let Expr::Function(function) = expression {
-            reject_sequence_function(&function.name)?;
+            self.authorize_function_call(session, context, &function.name)?;
         }
         if let Some(statement) = expression.subquery_statement() {
             self.authorize_non_admin_statement(session, context, &statement.statement)?;
@@ -712,109 +720,6 @@ impl super::Cassie {
             privilege,
         )
     }
-}
-
-/// Whether `session` holds `privilege` on `relation`: schema `USAGE` plus the
-/// table grant. Shared by statement authorization and by functions that read a
-/// table on the caller's behalf.
-pub(crate) fn table_privilege(
-    catalog: &crate::catalog::Catalog,
-    default_database: &str,
-    session: &CassieSession,
-    context: &crate::sql::binder::BindingContext,
-    relation: &str,
-    privilege: RoleObjectPrivilege,
-) -> Result<(), CassieError> {
-    let resolved = crate::sql::binder::resolve_relation_name(relation, catalog, context)?;
-    resolved_table_privilege(catalog, default_database, session, &resolved, privilege)
-}
-
-/// [`table_privilege`] for a relation already resolved to its canonical name.
-fn resolved_table_privilege(
-    catalog: &crate::catalog::Catalog,
-    default_database: &str,
-    session: &CassieSession,
-    resolved: &str,
-    privilege: RoleObjectPrivilege,
-) -> Result<(), CassieError> {
-    let resolved = resolved.to_owned();
-    let schema_name = crate::catalog::relation_schema_name(&resolved);
-    // System relations are stored as `schema.name`, not database-qualified.
-    let system_qualified = matches!(
-        crate::catalog::parse_name(&resolved),
-        Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. })
-            if crate::catalog::is_system_schema(&schema)
-    );
-    if system_qualified || crate::catalog::is_system_schema(&schema_name) {
-        return Ok(());
-    }
-    let Some(collection) = catalog.get_collection(&resolved) else {
-        return Err(CassieError::InsufficientPrivilege);
-    };
-    let database = crate::catalog::relation_database_name(&resolved)
-        .or_else(|| session.current_database().map(str::to_owned))
-        .unwrap_or_else(|| default_database.to_owned());
-    let Some(database_meta) = catalog.get_database(&database) else {
-        return Err(CassieError::InsufficientPrivilege);
-    };
-    let Some(schema) = catalog.get_namespace(&crate::catalog::canonical_schema_name(
-        &database,
-        &schema_name,
-    )) else {
-        return Err(CassieError::InsufficientPrivilege);
-    };
-    let Some(role) = catalog.get_role(&session.user) else {
-        return Err(CassieError::InsufficientPrivilege);
-    };
-    let schema_usage = catalog.get_role_object_grant(
-        &database_meta.physical_family,
-        role.object_id,
-        &RoleGrantTarget::Schema(schema.object_id),
-    );
-    if !schema_usage.is_some_and(|grant| grant.grants(RoleObjectPrivilege::Usage)) {
-        return Err(CassieError::InsufficientPrivilege);
-    }
-    let table_grant = catalog.get_role_object_grant(
-        &database_meta.physical_family,
-        role.object_id,
-        &RoleGrantTarget::Table(collection.storage_id),
-    );
-    if table_grant.is_some_and(|grant| grant.grants(privilege)) {
-        Ok(())
-    } else {
-        Err(CassieError::InsufficientPrivilege)
-    }
-}
-
-/// Read authority of `session` on `table` for a function that looks a row up
-/// on the caller's behalf: embedded and administrative sessions may read, any
-/// other role needs schema `USAGE` and table `SELECT`.
-///
-/// # Errors
-/// Returns `InsufficientPrivilege` (`42501`) when the session may not read.
-pub(crate) fn require_table_read(
-    catalog: &crate::catalog::Catalog,
-    session: &CassieSession,
-    context: &crate::sql::binder::BindingContext,
-    table: &str,
-) -> Result<(), CassieError> {
-    if !session.is_network_authenticated() {
-        return Ok(());
-    }
-    let administrator = catalog.get_role(&session.user).map_or_else(
-        || session.user.eq_ignore_ascii_case("root"),
-        |role| role.is_admin,
-    );
-    if administrator {
-        return Ok(());
-    }
-    resolved_table_privilege(
-        catalog,
-        &context.database,
-        session,
-        table,
-        RoleObjectPrivilege::Select,
-    )
 }
 
 struct TargetRowReadContext {
@@ -1003,24 +908,6 @@ impl TargetRowReadContext {
                 .iter()
                 .any(|qualifier| relation.eq_ignore_ascii_case(qualifier))
         })
-    }
-}
-
-fn reject_sequence_function(name: &str) -> Result<(), CassieError> {
-    let function_id = crate::sql::functions::function(name).map(|function| function.id);
-    if matches!(
-        function_id,
-        Some(
-            crate::sql::functions::FunctionId::Nextval
-                | crate::sql::functions::FunctionId::Currval
-                | crate::sql::functions::FunctionId::Setval
-                | crate::sql::functions::FunctionId::Lastval
-                | crate::sql::functions::FunctionId::PgGetSerialSequence
-        )
-    ) {
-        Err(CassieError::InsufficientPrivilege)
-    } else {
-        Ok(())
     }
 }
 

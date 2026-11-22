@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1894,
-    "rust_files": 1850,
-    "rust_test_declarations": 11393,
+    "files": 1898,
+    "rust_files": 1854,
+    "rust_test_declarations": 11416,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11418,
+    "registered_rust_instances": 11441,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -23489,6 +23489,161 @@
       }
     },
     {
+      "id": "tests/catalog_security/security/operator_view_privileges.rs::should_show_projection_hashes_to_an_administrator",
+      "name": "should_show_projection_hashes_to_an_administrator",
+      "current_file": "tests/catalog_security/security/operator_view_privileges.rs",
+      "line": 10,
+      "end_line": 19,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "operator_view_privileges::should_show_projection_hashes_to_an_administrator"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/operators",
+        "directory": "tests/catalog_security/catalogs/operators",
+        "file": "tests/catalog_security/catalogs/operators/operator_view_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/operator_view_privileges.rs::should_hide_projection_hashes_from_a_role_without_access",
+      "name": "should_hide_projection_hashes_from_a_role_without_access",
+      "current_file": "tests/catalog_security/security/operator_view_privileges.rs",
+      "line": 22,
+      "end_line": 31,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "operator_view_privileges::should_hide_projection_hashes_from_a_role_without_access"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/operators",
+        "directory": "tests/catalog_security/catalogs/operators",
+        "file": "tests/catalog_security/catalogs/operators/operator_view_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/prepare_privileges.rs::should_deny_executing_a_prepared_read_of_a_forbidden_table",
+      "name": "should_deny_executing_a_prepared_read_of_a_forbidden_table",
+      "current_file": "tests/catalog_security/security/prepare_privileges.rs",
+      "line": 8,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "prepare_privileges::should_deny_executing_a_prepared_read_of_a_forbidden_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "security",
+        "directory": "tests/catalog_security/security",
+        "file": "tests/catalog_security/security/prepare_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/prepare_privileges.rs::should_report_a_missing_table_when_preparing_as_the_direct_path_does",
+      "name": "should_report_a_missing_table_when_preparing_as_the_direct_path_does",
+      "current_file": "tests/catalog_security/security/prepare_privileges.rs",
+      "line": 23,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "prepare_privileges::should_report_a_missing_table_when_preparing_as_the_direct_path_does"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "security",
+        "directory": "tests/catalog_security/security",
+        "file": "tests/catalog_security/security/prepare_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/prepare_privileges.rs::should_allow_preparing_a_read_of_a_granted_table",
+      "name": "should_allow_preparing_a_read_of_a_granted_table",
+      "current_file": "tests/catalog_security/security/prepare_privileges.rs",
+      "line": 39,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "prepare_privileges::should_allow_preparing_a_read_of_a_granted_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "security",
+        "directory": "tests/catalog_security/security",
+        "file": "tests/catalog_security/security/prepare_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/catalog_security/security/role_authorization.rs::should_enforce_read_only_access_for_authenticated_non_admin_roles",
       "name": "should_enforce_read_only_access_for_authenticated_non_admin_roles",
       "current_file": "tests/catalog_security/security/role_authorization.rs",
@@ -23889,6 +24044,564 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_function_whose_body_reads_a_forbidden_table",
+      "name": "should_deny_a_function_whose_body_reads_a_forbidden_table",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 11,
+      "end_line": 20,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_function_whose_body_reads_a_forbidden_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_inside_a_window_aggregate_with_a_subquery",
+      "name": "should_deny_a_forbidden_function_body_inside_a_window_aggregate_with_a_subquery",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 23,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_inside_a_window_aggregate_with_a_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/aggregates/windows",
+        "directory": "tests/catalog_security/catalogs/aggregates/windows",
+        "file": "tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_under_rollup_grouping",
+      "name": "should_deny_a_forbidden_function_body_under_rollup_grouping",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 39,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_under_rollup_grouping"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/aggregates/grouping",
+        "directory": "tests/catalog_security/catalogs/aggregates/grouping",
+        "file": "tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_in_having",
+      "name": "should_deny_a_forbidden_function_body_in_having",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 55,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_in_having"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_in_order_by",
+      "name": "should_deny_a_forbidden_function_body_in_order_by",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 71,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_in_order_by"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_in_an_aggregate_filter",
+      "name": "should_deny_a_forbidden_function_body_in_an_aggregate_filter",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 83,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_in_an_aggregate_filter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/aggregates/modifiers",
+        "directory": "tests/catalog_security/catalogs/aggregates/modifiers",
+        "file": "tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_inside_case",
+      "name": "should_deny_a_forbidden_function_body_inside_case",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 99,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_inside_case"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_inside_a_lateral_subquery",
+      "name": "should_deny_a_forbidden_function_body_inside_a_lateral_subquery",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 115,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_inside_a_lateral_subquery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_forbidden_function_body_reached_through_a_nested_call",
+      "name": "should_deny_a_forbidden_function_body_reached_through_a_nested_call",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 131,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_forbidden_function_body_reached_through_a_nested_call"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_deny_a_function_body_joining_a_forbidden_table_to_a_readable_one",
+      "name": "should_deny_a_function_body_joining_a_forbidden_table_to_a_readable_one",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 146,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_deny_a_function_body_joining_a_forbidden_table_to_a_readable_one"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_allow_a_function_body_that_reads_only_a_readable_table",
+      "name": "should_allow_a_function_body_that_reads_only_a_readable_table",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 160,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_allow_a_function_body_that_reads_only_a_readable_table"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/routine_body_privileges.rs::should_terminate_authorizing_a_self_referencing_function_body",
+      "name": "should_terminate_authorizing_a_self_referencing_function_body",
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "line": 177,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "routine_body_privileges::should_terminate_authorizing_a_self_referencing_function_body"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/routines",
+        "directory": "tests/catalog_security/catalogs/routines",
+        "file": "tests/catalog_security/catalogs/routines/routine_body_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_hide_sequence_last_value_from_a_role_without_access",
+      "name": "should_hide_sequence_last_value_from_a_role_without_access",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 56,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_hide_sequence_last_value_from_a_role_without_access"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_show_sequence_last_value_to_an_administrator",
+      "name": "should_show_sequence_last_value_to_an_administrator",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 68,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_show_sequence_last_value_to_an_administrator"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_deny_direct_nextval_for_a_role_without_access",
+      "name": "should_deny_direct_nextval_for_a_role_without_access",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 80,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_deny_direct_nextval_for_a_role_without_access"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_not_expose_sequence_state_through_pg_sequence_last_value",
+      "name": "should_not_expose_sequence_state_through_pg_sequence_last_value",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 92,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_not_expose_sequence_state_through_pg_sequence_last_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_deny_currval_for_a_role_without_access",
+      "name": "should_deny_currval_for_a_role_without_access",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 109,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_deny_currval_for_a_role_without_access"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/security/sequence_state_privileges.rs::should_deny_a_function_body_that_calls_nextval",
+      "name": "should_deny_a_function_body_that_calls_nextval",
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "line": 121,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "sequence_state_privileges::should_deny_a_function_body_that_calls_nextval"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/sequences",
+        "directory": "tests/catalog_security/catalogs/sequences",
+        "file": "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -356371,6 +357084,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/security/operator_view_privileges.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 31,
+      "sha256": "6ad6609fa5bbbf5a9c0ab9864036a4f49d470b796c95ae83310f3cd9e3126713",
+      "test_declarations": 2,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/operators/operator_view_privileges.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/security/prepare_privileges.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 50,
+      "sha256": "751f13ed2381fa29ec065eb34ff34f05a471cabf50662d111c407f3ca053b29b",
+      "test_declarations": 3,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/security/prepare_privileges.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/security/role_authorization.rs",
       "role": "test_module",
       "action": "keep",
@@ -356412,6 +357155,39 @@
       ],
       "destinations": [
         "tests/catalog_security/security/role_statement_boundaries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/security/routine_body_privileges.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 187,
+      "sha256": "db9c168b1701330129f76b3f56bdcafee7f993b9a5b7db3c6333de6ad4ff5f34",
+      "test_declarations": 12,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs",
+        "tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs",
+        "tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs",
+        "tests/catalog_security/catalogs/routines/routine_body_privileges.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/security/sequence_state_privileges.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 133,
+      "sha256": "b980398a5fd6ef582e7ed348dded07d5556c18f76eb45ca06b2ecc102a6c20a1",
+      "test_declarations": 6,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs"
       ],
       "line_limit": 1000
     },
@@ -356464,8 +357240,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 188,
-      "sha256": "16c8844aa89dfbf76a1828f23bfd383bce721c55c7b7eaf4f397d14daed53981",
+      "lines": 200,
+      "sha256": "c5c71dd1cccf50b08e2b3461d610922872cdc89aaa8473b14f45f773c7d7c5ab",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"

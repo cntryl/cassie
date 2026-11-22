@@ -141,9 +141,22 @@ fn rows_for_database(
     {
         return Some(Ok(rows));
     }
-    information_schema_rows_for(catalog, name.as_str(), current_database)
+    let rows = information_schema_rows_for(catalog, name.as_str(), current_database)
         .map(Ok)
-        .or_else(|| pg_catalog_rows_for(catalog, midge, name.as_str(), current_database))
+        .or_else(|| pg_catalog_rows_for(catalog, midge, name.as_str(), current_database));
+    let restricted =
+        session.is_some_and(|session| crate::app::session_is_unprivileged(catalog, session));
+    if restricted && virtual_views_projections::is_operator_view(&name) {
+        // Row counts, content digests and mismatch samples describe table
+        // contents; they are for administrators, not for roles without access.
+        return rows.map(|rows| rows.map(|_| Vec::new()));
+    }
+    if restricted && name == "pg_catalog.pg_sequences" {
+        // Sequences have no grants of their own: only an administrator may use
+        // one, so a restricted role sees no current value (PostgreSQL: NULL).
+        return rows.map(|rows| rows.map(virtual_views_sequences::hide_last_value));
+    }
+    rows
 }
 
 fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {

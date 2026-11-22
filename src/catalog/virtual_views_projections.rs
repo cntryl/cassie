@@ -139,6 +139,20 @@ fn projection_report_schema_factory(
     }
 }
 
+/// Operator diagnostics that carry table-derived content (row counts, digests,
+/// mismatch samples, last errors) and so are not shown to restricted roles.
+pub(super) fn is_operator_view(name: &str) -> bool {
+    name.starts_with("pg_catalog.pg_projection_")
+        || matches!(
+            name,
+            "pg_catalog.pg_materialized_projections"
+                | "pg_catalog.pg_rollups"
+                | "pg_catalog.pg_maintenance_debt"
+                | "pg_catalog.pg_operational_assignments"
+                | "pg_catalog.pg_retention_policies"
+        )
+}
+
 pub(super) fn rows(catalog: &Catalog, name: &str) -> Option<Vec<VirtualRow>> {
     match name {
         "pg_catalog.pg_projection_checkpoints" => Some(pg_projection_checkpoints_rows(catalog)),

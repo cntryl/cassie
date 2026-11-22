@@ -151,13 +151,17 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/security/object_privilege_grants/identifier_visibility.rs` | test_module | 384 | 12 | catalog_security | move_with_module_alias | `tests/catalog_security/catalogs/grammar/identifier_visibility.rs` |
 | `tests/catalog_security/security/object_privilege_grants/lifecycle.rs` | test_module | 671 | 9 | catalog_security | move_with_module_alias | `tests/catalog_security/security/lifecycle.rs` |
 | `tests/catalog_security/security/object_privilege_grants.rs` | test_module | 827 | 14 | catalog_security | keep | `tests/catalog_security/security/object_privilege_grants.rs` |
+| `tests/catalog_security/security/operator_view_privileges.rs` | test_module | 31 | 2 | catalog_security | move_with_module_alias | `tests/catalog_security/catalogs/operators/operator_view_privileges.rs` |
+| `tests/catalog_security/security/prepare_privileges.rs` | test_module | 50 | 3 | catalog_security | keep | `tests/catalog_security/security/prepare_privileges.rs` |
 | `tests/catalog_security/security/role_authorization.rs` | test_module | 593 | 5 | catalog_security | keep | `tests/catalog_security/security/role_authorization.rs` |
 | `tests/catalog_security/security/role_database_copy_boundaries.rs` | test_module | 104 | 2 | catalog_security | keep | `tests/catalog_security/security/role_database_copy_boundaries.rs` |
 | `tests/catalog_security/security/role_statement_boundaries.rs` | test_module | 141 | 6 | catalog_security | keep | `tests/catalog_security/security/role_statement_boundaries.rs` |
+| `tests/catalog_security/security/routine_body_privileges.rs` | test_module | 187 | 12 | catalog_security | split_by_contract | `tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs`; `tests/catalog_security/catalogs/routines/routine_body_privileges.rs` |
+| `tests/catalog_security/security/sequence_state_privileges.rs` | test_module | 133 | 6 | catalog_security | move_with_module_alias | `tests/catalog_security/catalogs/sequences/sequence_state_privileges.rs` |
 | `tests/catalog_security/security/ungranted_read_paths.rs` | test_module | 244 | 17 | catalog_security | keep | `tests/catalog_security/security/ungranted_read_paths.rs` |
 | `tests/catalog_security/sessions/session_settings.rs` | test_module | 132 | 5 | catalog_security | keep | `tests/catalog_security/sessions/session_settings.rs` |
 | `tests/catalog_security/views/semantics.rs` | test_module | 293 | 5 | catalog_security | keep | `tests/catalog_security/views/semantics.rs` |
-| `tests/catalog_security.rs` | cargo_target | 188 | 0 | catalog_security | keep | `tests/catalog_security.rs` |
+| `tests/catalog_security.rs` | cargo_target | 200 | 0 | catalog_security | keep | `tests/catalog_security.rs` |
 | `tests/columnar_surface/constraint_equivalence.rs` | test_module | 463 | 11 | columnar_surface | move_with_module_alias | `tests/columnar_surface/constraints/constraint_equivalence.rs` |
 | `tests/columnar_surface/grouped_aggregate.rs` | test_module | 265 | 8 | columnar_surface | split_by_contract | `tests/columnar_surface/aggregates/boolean/grouped_aggregate.rs`; `tests/columnar_surface/aggregates/core/grouped_aggregate.rs` |
 | `tests/columnar_surface/index_equivalence.rs` | test_module | 349 | 8 | columnar_surface | move_with_module_alias | `tests/columnar_surface/indexes/index_equivalence.rs` |

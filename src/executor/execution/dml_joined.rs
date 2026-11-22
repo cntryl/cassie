@@ -165,8 +165,12 @@ pub(super) fn combined_row(
             .and_then(|row| row.get(&field.name))
             .cloned()
             .unwrap_or(Value::Null);
-        aliases.push((key.clone(), entries.len()));
-        aliases.push((field.name.clone(), entries.len()));
+        // An unmatched source row has no target row, so its bare column names
+        // can only mean source columns (PostgreSQL's MERGE INSERT scope).
+        if target_row.is_some() {
+            aliases.push((key.clone(), entries.len()));
+            aliases.push((field.name.clone(), entries.len()));
+        }
         entries.push((format!("{}.{key}", target.qualifier), value));
     }
     for (index, field) in source.fields.iter().enumerate() {

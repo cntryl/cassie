@@ -1,7 +1,7 @@
 //! `UPDATE ... FROM`, `DELETE ... USING`, tuple-subquery assignments and
 //! `RETURNING` row images bind against the target joined to its source.
 
-use super::super::{coalesce_results::ResultTypes, BindingContext, CassieError, Catalog};
+use super::super::{coalesce_results::ResultTypes, BindingContext, CassieError, Catalog, HashSet};
 use super::mutations::{
     bind_assignments, bind_mutation_source, bind_predicate, bind_returning, resolve_target,
     row_image_fields, target_qualifier, JoinedScope,
@@ -35,6 +35,7 @@ fn target_only_scope(
     };
     Ok(JoinedScope {
         types: ResultTypes::for_source(&source, &[], catalog, context)?,
+        ambiguous: HashSet::new(),
     })
 }
 
@@ -50,13 +51,11 @@ pub(super) fn bind_joined_update(
         Some(source) => bind_mutation_source(source, ctes, &table, &qualifier, catalog, context)?,
         None => target_only_scope(&table, &qualifier, catalog, context)?,
     };
-    let scope = JoinedScope {
-        types: scope.types.with_extra_fields(row_image_fields(
-            &schema,
-            statement.returning_aliases.as_ref(),
-            false,
-        )),
-    };
+    let scope = scope.with_extra_fields(row_image_fields(
+        &schema,
+        statement.returning_aliases.as_ref(),
+        false,
+    ));
     let mut columns = statement
         .row_subqueries
         .iter()
@@ -104,13 +103,11 @@ pub(super) fn bind_joined_delete(
         Some(source) => bind_mutation_source(source, ctes, &table, &qualifier, catalog, context)?,
         None => target_only_scope(&table, &qualifier, catalog, context)?,
     };
-    let scope = JoinedScope {
-        types: scope.types.with_extra_fields(row_image_fields(
-            &schema,
-            statement.returning_aliases.as_ref(),
-            false,
-        )),
-    };
+    let scope = scope.with_extra_fields(row_image_fields(
+        &schema,
+        statement.returning_aliases.as_ref(),
+        false,
+    ));
     bind_predicate(
         statement.filter.as_mut(),
         &scope,

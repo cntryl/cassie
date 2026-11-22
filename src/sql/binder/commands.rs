@@ -6,6 +6,8 @@ use super::{
 };
 use crate::sql::ast::IdentifierPath;
 
+#[path = "commands/ambiguity.rs"]
+mod ambiguity;
 #[path = "commands/conflict.rs"]
 mod conflict;
 #[path = "commands/insert_boolean.rs"]

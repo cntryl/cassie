@@ -93,6 +93,9 @@ mod postgresql18_merge_tuple_assignments_wave_c;
 #[path = "sql_mutations/dml/statement_snapshot_subqueries.rs"]
 mod statement_snapshot_subqueries;
 
+#[path = "sql_mutations/dml/joined_column_ambiguity.rs"]
+mod joined_column_ambiguity;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 #[path = "sql_mutations/copy/copy_transaction_boundaries.rs"]
 mod copy_transaction_boundaries;

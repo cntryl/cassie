@@ -868,6 +868,7 @@ fn alter_table_drop_column(
             .metadata_write_catalog
             .unregister_object_comment(&address);
     }
+    schema_sequence_rename::drop_owned_column_sequences(cassie, table, field)?;
     cassie.catalog.remove_collection_field(table, field);
     // A column added later under the same name starts without the dropped
     // column's storage strategy and compression method.

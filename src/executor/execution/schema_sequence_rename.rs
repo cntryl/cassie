@@ -154,6 +154,48 @@ pub(super) fn drop_owned_table_sequences(cassie: &Cassie, table: &str) -> Result
     Ok(())
 }
 
+/// Drops the sequences a dropped column owns: its `SERIAL` or identity
+/// sequence and any sequence marked `OWNED BY` the column. A sequence the
+/// column merely defaults from is not owned and stays.
+pub(super) fn drop_owned_column_sequences(
+    cassie: &Cassie,
+    table: &str,
+    column: &str,
+) -> Result<(), QueryError> {
+    let column_key = crate::sql::ColumnIdentifierPath::stored_field_key(column);
+    for constraint in cassie
+        .catalog
+        .get_constraints(table)
+        .into_iter()
+        .filter(|constraint| {
+            constraint.default_sequence_owned.is_owned()
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                    == column_key
+        })
+    {
+        if let Some(sequence) = constraint.default_sequence.as_deref() {
+            cassie.midge.delete_sequence(sequence)?;
+            cassie.catalog.unregister_sequence(sequence);
+        }
+    }
+    for sequence in cassie
+        .catalog
+        .list_sequences()
+        .into_iter()
+        .filter(|sequence| {
+            sequence.owned_by.as_ref().is_some_and(|owner| {
+                crate::catalog::name_matches(&owner.table, table)
+                    && crate::sql::ColumnIdentifierPath::stored_field_key(&owner.column)
+                        == column_key
+            })
+        })
+    {
+        cassie.midge.delete_sequence(&sequence.name)?;
+        cassie.catalog.unregister_sequence(&sequence.name);
+    }
+    Ok(())
+}
+
 /// Keeps SERIAL-owned sequence names aligned with their table after a rename.
 pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Result<(), QueryError> {
     let mut constraints = cassie.catalog.get_constraints(table);
@@ -176,9 +218,13 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
             .iter()
             .any(|sequence| sequence.name.eq_ignore_ascii_case(&next_name))
         {
-            return Err(QueryError::General(format!(
-                "sequence '{next_name}' already exists"
-            )));
+            return Err(QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "42P07",
+                    format!("sequence '{next_name}' already exists"),
+                )
+                .into(),
+            ));
         }
         let sequence = cassie.midge.get_sequence(current_name)?.ok_or_else(|| {
             QueryError::General(format!("sequence '{current_name}' does not exist"))
@@ -270,9 +316,13 @@ fn reserve_sequence_move_target(
     reserved_names: &mut HashSet<String>,
 ) -> Result<(), QueryError> {
     if !reserved_names.insert(next_name.to_ascii_lowercase()) {
-        return Err(QueryError::General(format!(
-            "sequence '{next_name}' already exists"
-        )));
+        return Err(QueryError::Cassie(
+            crate::app::DiagnosticError::new(
+                "42P07",
+                format!("sequence '{next_name}' already exists"),
+            )
+            .into(),
+        ));
     }
     if !current_name.eq_ignore_ascii_case(next_name)
         && (sequences
@@ -286,9 +336,13 @@ fn reserve_sequence_move_target(
                     .eq_ignore_ascii_case(next_name)
             }))
     {
-        return Err(QueryError::General(format!(
-            "sequence '{next_name}' already exists"
-        )));
+        return Err(QueryError::Cassie(
+            crate::app::DiagnosticError::new(
+                "42P07",
+                format!("sequence '{next_name}' already exists"),
+            )
+            .into(),
+        ));
     }
     Ok(())
 }

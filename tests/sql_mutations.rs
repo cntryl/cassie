@@ -96,6 +96,9 @@ mod statement_snapshot_subqueries;
 #[path = "sql_mutations/dml/joined_column_ambiguity.rs"]
 mod joined_column_ambiguity;
 
+#[path = "sql_mutations/sequences/drop_column_owned_sequence.rs"]
+mod drop_column_owned_sequence;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 #[path = "sql_mutations/copy/copy_transaction_boundaries.rs"]
 mod copy_transaction_boundaries;

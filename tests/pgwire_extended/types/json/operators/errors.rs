@@ -1,4 +1,3 @@
-
 #[test]
 fn should_distinguish_lax_singleton_wrap_from_strict_jsonpath_error() {
     // Arrange
@@ -123,86 +122,116 @@ fn should_suppress_jsonpath_structural_errors_only_for_silent_forms() {
 }
 
 #[test]
-fn should_reject_json_comparison_signatures() {
+fn should_reject_json_equality_and_report_invalid_jsonb_comparands() {
     // Arrange
-    let json_equality = fixture::execute_cycle(
-        "SELECT '{}'::JSON = '{}'::JSON",
-        None,
-        0,
-        true,
-    );
-    let json_literal = fixture::execute_cycle("SELECT '{}'::JSON = '{}'", None, 0, true);
-    let json_text = fixture::execute_cycle("SELECT '{}'::JSON = '{}'::TEXT", None, 0, true);
-    let json_distinct = fixture::execute_cycle(
-        "SELECT '{}'::JSON IS DISTINCT FROM '{}'::JSON",
-        None,
-        0,
-        true,
-    );
-    let mixed = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSON", None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles(
-        "issue-1469-json-comparison-signatures",
-        &[],
-        vec![json_equality, json_literal, json_text, json_distinct, mixed],
-    );
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
-    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
-    let message = batches[1]
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../corpus/postgresql18/type-oracles.json"
+    ))
+    .expect("PostgreSQL type oracle corpus");
+    let corpus_case = corpus["cases"]
+        .as_array()
+        .expect("type oracle cases")
         .iter()
-        .find(|(tag, _)| *tag == b'E')
-        .and_then(|(_, payload)| {
-            wire::parse_error_fields(payload)
-                .into_iter()
-                .find_map(|(key, value)| (key == 'M').then_some(value))
-        })
-        .expect("json = unknown error message");
-    assert_eq!(message, "operator does not exist: json = unknown");
-    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
-    let message = batches[2]
+        .find(|case| case["id"] == "json_equality_error")
+        .expect("json_equality_error corpus entry");
+    let corpus_sql = corpus_case["sql"]
+        .as_str()
+        .expect("corpus SQL text");
+    let corpus_sqlstate = corpus_case["paths"]["simple_text"][0]["sqlstate"]
+        .as_str()
+        .expect("corpus SQLSTATE");
+    let corpus_cycle = fixture::execute_cycle(corpus_sql, None, 0, true);
+    let setup = [
+        (
+            "CREATE TABLE issue_1469_json_comparison (document JSON)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_1469_json_comparison VALUES ('{}')",
+            Vec::new(),
+        ),
+        (
+            "CREATE TABLE issue_1471_jsonb_comparison (document JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO issue_1471_jsonb_comparison VALUES ('{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cases = [
+        (
+            "SELECT '{}'::JSON = '{}'::JSON",
+            "42883",
+            "operator does not exist: json = json",
+        ),
+        (
+            "SELECT '{\"a\":1}'::JSON = 'abc'",
+            "42883",
+            "operator does not exist: json = unknown",
+        ),
+        (
+            "SELECT * FROM issue_1469_json_comparison WHERE document = '{}'::JSON",
+            "42883",
+            "operator does not exist: json = json",
+        ),
+        (
+            "SELECT * FROM issue_1471_jsonb_comparison WHERE document = 'abc'",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+        (
+            "SELECT '{\"a\":1}'::JSONB <> 'abc'",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+        (
+            "SELECT 'abc' = '{\"a\":1}'::JSONB",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+    ];
+    let cycles = cases
         .iter()
-        .find(|(tag, _)| *tag == b'E')
-        .and_then(|(_, payload)| {
-            wire::parse_error_fields(payload)
-                .into_iter()
-                .find_map(|(key, value)| (key == 'M').then_some(value))
-        })
-        .expect("json = text error message");
-    assert_eq!(message, "operator does not exist: json = text");
-    assert_eq!(wire::error_code(&batches[3]).as_deref(), Some("42883"));
-    assert_eq!(wire::error_code(&batches[4]).as_deref(), Some("42883"));
-}
-
-#[test]
-fn should_keep_jsonb_equality_available() {
-    // Arrange
-    let cycle = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSONB", None, 0, true);
+        .map(|(sql, _, _)| fixture::execute_cycle(sql, None, 0, true))
+        .collect();
+    let controls = [
+        "SELECT '{\"a\":1,\"a\":2}'::JSONB = '{\"a\":2}'::JSONB",
+        "SELECT '[1]'::JSONB = '[1.0]'::JSONB",
+        "SELECT '{\"a\":1}'::JSONB = '{\"a\":1}'",
+    ]
+    .map(|sql| fixture::execute_cycle(sql, None, 0, true));
 
     // Act
-    let batches = fixture::run_cycles("issue-1469-valid-jsonb-equality", &[], vec![cycle]);
+    let failures = fixture::run_cycles("issues-1469-1471-json-comparison-errors", &setup, cycles);
+    let corpus_result = fixture::run_cycles("issue-1469-json-equality-type-oracle", &[], vec![corpus_cycle]);
+    let successes =
+        fixture::run_cycles("issue-1471-jsonb-comparison-control", &[], controls.into());
 
     // Assert
-    fixture::assert_success(&batches[0]);
-    assert_eq!(wire::data_rows(&batches[0]), vec![vec![Some("t".to_owned())]]);
-}
-
-#[test]
-fn should_report_invalid_jsonb_comparison_literals_with_json_input_sqlstate() {
-    // Arrange
-    let invalid_left = fixture::execute_cycle("SELECT 'bad' = '{}'::JSONB", None, 0, true);
-    let invalid_right = fixture::execute_cycle("SELECT '{}'::JSONB = 'bad'", None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles(
-        "issue-1471-invalid-jsonb-comparison-literals",
-        &[],
-        vec![invalid_left, invalid_right],
+    assert_eq!(failures.len(), cases.len());
+    assert_eq!(
+        wire::error_code(&corpus_result[0]).as_deref(),
+        Some(corpus_sqlstate),
+        "{corpus_sql}"
     );
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
-    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22P02"));
+    for (frames, (sql, state, fragment)) in failures.iter().zip(cases) {
+        assert_eq!(wire::error_code(frames).as_deref(), Some(state), "{sql}");
+        let message = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .and_then(|(_, payload)| {
+                wire::parse_error_fields(payload)
+                    .into_iter()
+                    .find(|(kind, _)| *kind == 'M')
+                    .map(|(_, message)| message)
+            })
+            .unwrap_or_default();
+        assert!(message.contains(fragment), "{sql}: {message}");
+        assert!(wire::data_rows(frames).is_empty(), "{sql}");
+    }
+    for frames in &successes {
+        fixture::assert_success(frames);
+        assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
+    }
 }

@@ -277,6 +277,39 @@ impl AsyncWrite for FailingWrite {
     }
 }
 
+struct CancelAtFlushWrite {
+    runtime: std::sync::Arc<crate::runtime::RuntimeState>,
+    process_id: i32,
+    secret_key: i32,
+    canceled: bool,
+    frame_tags: Vec<u8>,
+}
+
+impl AsyncWrite for CancelAtFlushWrite {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        bytes: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        self.frame_tags
+            .push(*bytes.first().expect("portal frame has a tag"));
+        Poll::Ready(Ok(bytes.len()))
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        if !self.canceled {
+            self.canceled = self
+                .runtime
+                .cancel_pgwire_backend(self.process_id, self.secret_key);
+        }
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
 #[test]
 fn should_release_output_admission_after_a_wire_write_fails() {
     // Arrange
@@ -337,6 +370,76 @@ fn should_release_retained_materialized_frames_when_a_suspended_portal_is_cancel
     assert_eq!(error.expect_err("canceled resume").pg_error.code, "57014");
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
     assert_eq!(producer.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let (mut state, portal) = state(&limits);
+    runtime().block_on(suspend(
+        &mut tokio::io::sink(),
+        &mut state,
+        &portal,
+        result(&producer),
+    ));
+    let cassie = {
+        let mut config = crate::config::CassieRuntimeConfig::from_env().expect("configuration");
+        config.password = "active-materialized-cancel".to_owned();
+        let cassie = std::sync::Arc::new(
+            crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
+        );
+        let registration = cassie.runtime.register_pgwire_backend();
+        let previous = registration.begin_query().suspend();
+        state.backend_registration = Some(registration);
+        state
+            .portals
+            .get_mut("retained")
+            .expect("portal")
+            .suspended
+            .as_mut()
+            .expect("suspended portal")
+            .cancellation = Some(previous);
+        cassie
+    };
+    let backend = state
+        .backend_registration
+        .as_ref()
+        .expect("backend registration");
+    let process_id = backend.process_id();
+    let secret_key = backend.secret_key();
+    let session = cassie.create_session("tester", None);
+    let mut writer = CancelAtFlushWrite {
+        runtime: std::sync::Arc::clone(&cassie.runtime),
+        process_id,
+        secret_key,
+        canceled: false,
+        frame_tags: Vec::new(),
+    };
+    let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
+
+    // Act
+    let error = runtime().block_on(super::super::portal_streaming::resume_suspended_portal(
+        std::sync::Arc::clone(&cassie),
+        &mut writer,
+        super::super::portal_streaming::SuspendedPortalRequest {
+            state: &mut state,
+            session: &session,
+            portal_name: "retained",
+            portal: &portal,
+            suspended: suspended.expect("materialized result"),
+            max_rows: 2,
+        },
+    ));
+
+    // Assert
+    assert!(writer.canceled, "resumed Execute is registered while writing");
+    assert_eq!(error.expect_err("active page cancellation").pg_error.code, "57014");
+    assert_eq!(writer.frame_tags, vec![b'D']);
+    assert!(state.portals["retained"].suspended.is_none());
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
 }
 
 #[test]

@@ -146,7 +146,7 @@ fn should_ignore_cancel_for_suspended_portal_before_resume() {
         support::write_frames(
             &mut write_half,
             vec![
-                support::parse_frame("cancel_stmt", "SELECT payload FROM portal_suspended_cancel"),
+                support::parse_frame("cancel_stmt", "SELECT id FROM portal_suspended_cancel"),
                 support::bind_frame("cancel_portal", "cancel_stmt", &[]),
                 support::execute_limited_frame("cancel_portal", 2),
                 support::sync_frame(),

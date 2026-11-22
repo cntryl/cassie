@@ -10,6 +10,9 @@ mod canonical_values;
 mod controlled;
 mod payload_keys;
 
+#[cfg(test)]
+mod validation_tests;
+
 impl Cassie {
     pub(crate) fn write_document_for_session(
         &self,

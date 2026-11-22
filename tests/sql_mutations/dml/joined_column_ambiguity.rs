@@ -21,7 +21,11 @@ fn fixture(label: &str) -> SqlFixture {
 fn assert_ambiguous(fixture: &SqlFixture, sql: &str) {
     let error = fixture.error(sql);
     assert_eq!(error.sql_state(), "42702", "{sql}");
-    assert!(error.to_string().ends_with("'v' is ambiguous"), "{sql}");
+    assert_eq!(
+        error.to_string(),
+        "column reference \"v\" is ambiguous",
+        "{sql}"
+    );
 }
 
 #[test]

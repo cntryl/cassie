@@ -79,7 +79,7 @@ pub enum CassieError {
     #[error("unresolvable column reference '{0}'; known fields or aliases required")]
     UndefinedColumn(String),
 
-    #[error("column reference '{0}' is ambiguous")]
+    #[error("column reference \"{0}\" is ambiguous")]
     AmbiguousColumn(String),
 
     #[error(transparent)]

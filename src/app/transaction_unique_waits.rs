@@ -24,12 +24,12 @@ static ROW_WAIT_OBSERVER: OnceLock<Mutex<Option<Sender<()>>>> = OnceLock::new();
 static ROW_WAIT_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[cfg(test)]
-pub(crate) struct RowWaitObserverGuard {
+struct RowWaitObserverGuard {
     _test_lock: MutexGuard<'static, ()>,
 }
 
 #[cfg(test)]
-pub(crate) fn install_row_wait_observer(sender: Sender<()>) -> RowWaitObserverGuard {
+pub(crate) fn install_row_wait_observer(sender: Sender<()>) -> impl Drop {
     let test_lock = ROW_WAIT_TEST_LOCK.get_or_init(|| Mutex::new(())).lock();
     *ROW_WAIT_OBSERVER
         .get_or_init(|| Mutex::new(None))

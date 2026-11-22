@@ -422,11 +422,12 @@ fn should_cancel_a_read_committed_row_wait_with_57014() {
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let worker_cassie = cassie.clone();
     let worker_cancellation = cancellation.clone();
+    let worker_second = second.clone();
 
     // Act
     let worker = std::thread::spawn(move || {
         worker_cassie.execute_sql_with_cancellation_converted(
-            &second,
+            &worker_second,
             "UPDATE canceled_row_wait SET b = 20 WHERE id = 1",
             Vec::new(),
             &worker_cancellation,

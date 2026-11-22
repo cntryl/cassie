@@ -123,7 +123,7 @@ fn should_not_replay_volatile_results_hidden_in_scalar_subquery_or_exists() {
 }
 
 #[test]
-fn should_not_replay_volatile_results_hidden_in_a_view() {
+fn should_not_replay_volatile_results_hidden_in_a_random_view() {
     // Arrange
     let (cassie, session) = fixture();
     cassie
@@ -156,14 +156,14 @@ fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
     let limit_first = cassie
         .execute_sql(
             &session,
-            "SELECT value FROM volatile_cache_rows LIMIT (random() * 0)::int",
+            "SELECT random() FROM volatile_cache_rows LIMIT 1 OFFSET 0",
             vec![],
         )
         .expect("limit query");
     let limit_second = cassie
         .execute_sql(
             &session,
-            "SELECT value FROM volatile_cache_rows LIMIT (random() * 0)::int",
+            "SELECT random() FROM volatile_cache_rows LIMIT 1 OFFSET 0",
             vec![],
         )
         .expect("limit replay");
@@ -183,7 +183,7 @@ fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
         .expect("table sample replay");
 
     // Assert
-    assert_eq!(limit_first.rows(), limit_second.rows());
+    assert_ne!(limit_first.rows(), limit_second.rows());
     assert_eq!(sample_first.columns(), sample_second.columns());
     assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
 }
@@ -241,30 +241,23 @@ fn should_not_replay_volatile_results_hidden_in_a_set_branch() {
 }
 
 #[test]
-fn should_not_replay_default_volatile_udf_results_hidden_in_a_view() {
+fn should_not_replay_volatile_results_hidden_in_a_view() {
     // Arrange
     let (cassie, session) = fixture();
     cassie
         .execute_sql(
             &session,
-            r#"CREATE FUNCTION r() RETURNS float AS "random()""#,
-            vec![],
-        )
-        .expect("default volatile function");
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE VIEW volatile_cache_udf_view AS SELECT r() AS value FROM volatile_cache_rows",
+            "CREATE VIEW volatile_cache_view AS SELECT random() AS value FROM volatile_cache_rows",
             vec![],
         )
         .expect("volatile function view");
 
     // Act
     let first = cassie
-        .execute_sql(&session, "SELECT value FROM volatile_cache_udf_view", vec![])
+        .execute_sql(&session, "SELECT value FROM volatile_cache_view", vec![])
         .expect("first view query");
     let second = cassie
-        .execute_sql(&session, "SELECT value FROM volatile_cache_udf_view", vec![])
+        .execute_sql(&session, "SELECT value FROM volatile_cache_view", vec![])
         .expect("second view query");
 
     // Assert

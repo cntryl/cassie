@@ -539,6 +539,32 @@ mod tests {
     }
 
     #[test]
+    fn should_ignore_idle_cancel_and_replace_canceled_portal_generation() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
+        let registration = runtime.register_pgwire_backend();
+        let suspended = registration.begin_query().suspend();
+
+        // Act
+        let idle_canceled =
+            runtime.cancel_pgwire_backend(registration.process_id(), registration.secret_key());
+        let resumed = registration.resume_query(suspended.clone());
+        let resumed_handle = resumed.handle();
+        let active_canceled =
+            runtime.cancel_pgwire_backend(registration.process_id(), registration.secret_key());
+        let next = registration.resume_query(resumed.suspend());
+
+        // Assert
+        assert!(!idle_canceled, "suspended execution is no longer active");
+        assert!(active_canceled, "the current execution remains cancelable");
+        assert!(resumed_handle.is_canceled());
+        assert!(
+            !next.handle().is_canceled(),
+            "a prior execution cancellation must not carry into the next generation"
+        );
+    }
+
+    #[test]
     fn should_ignore_wrong_pgwire_cancel_secret() {
         // Arrange
         let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));

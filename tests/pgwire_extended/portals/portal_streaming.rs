@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
-use tokio::io::{AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 
 use super::support_pgwire as support;
 
@@ -92,7 +92,7 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
 }
 
 #[test]
-fn should_cancel_suspended_portal_before_resume() {
+fn should_ignore_cancel_for_suspended_portal_before_resume() {
     // Arrange
     let path = support::data_dir("portal-suspended-cancel");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -168,7 +168,14 @@ fn should_cancel_suspended_portal_before_resume() {
             .shutdown()
             .await
             .expect("close cancel request");
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        let mut cancel_response = Vec::new();
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            cancel_socket.read_to_end(&mut cancel_response),
+        )
+        .await
+        .expect("server handles cancel request")
+        .expect("read cancel connection close");
         support::write_frames(
             &mut write_half,
             vec![
@@ -180,14 +187,24 @@ fn should_cancel_suspended_portal_before_resume() {
         let resumed = support::read_frames_until_ready(&mut reader).await;
 
         // Assert
-        let error = resumed
-            .iter()
-            .find(|(tag, _)| *tag == b'E')
-            .expect("suspended portal cancellation error");
-        let fields = support::parse_error_fields(&error.1);
-        assert!(fields
-            .iter()
-            .any(|(tag, value)| *tag == 'C' && value == "57014"));
+        assert!(resumed.iter().all(|(tag, _)| *tag != b'E'));
+        assert_eq!(
+            data_values(&resumed),
+            vec!["doc-02".to_owned(), "doc-03".to_owned()]
+        );
+        assert!(resumed.iter().any(|(tag, _)| *tag == b's'));
+
+        support::write_frames(
+            &mut write_half,
+            vec![
+                support::execute_limited_frame("cancel_portal", 2),
+                support::sync_frame(),
+            ],
+        )
+        .await;
+        let final_page = support::read_frames_until_ready(&mut reader).await;
+        assert!(final_page.iter().all(|(tag, _)| *tag != b'E'));
+        assert_eq!(data_values(&final_page), vec!["doc-04".to_owned()]);
 
         drop(socket);
         server.abort();

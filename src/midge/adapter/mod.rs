@@ -419,7 +419,7 @@ pub use query_scan_control::{
 };
 mod repair;
 mod scalar_indexes;
-pub(crate) use scalar_indexes::canonical_field_value;
+pub(crate) use scalar_indexes::{canonical_field_value, index_key_field_value};
 mod storage_config;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
 mod namespaces;

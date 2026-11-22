@@ -1,7 +1,7 @@
 use crate::types::semantic_index::KeyedSet;
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::foreign_key_checks::{foreign_key_value_key, ForeignKeyReferences};
+use super::foreign_key_checks::{column_value_key, ForeignKeyReferences};
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
 
 const REFERENCE_SCAN_BATCH_SIZE: usize = 1024;
@@ -225,7 +225,8 @@ impl Cassie {
                     TransactionRowChange::Delete => true,
                     TransactionRowChange::Upsert(payload) => {
                         payload.get(referenced_column).is_none_or(|value| {
-                            foreign_key_value_key(value) != foreign_key_value_key(old_value)
+                            column_value_key(schema.as_ref(), referenced_column, value)
+                                != column_value_key(schema.as_ref(), referenced_column, old_value)
                         })
                     }
                 };
@@ -244,7 +245,11 @@ impl Cassie {
                                 .1
                         }
                     };
-                    values.insert(foreign_key_value_key(old_value))?;
+                    values.insert(column_value_key(
+                        schema.as_ref(),
+                        referenced_column,
+                        old_value,
+                    ))?;
                 }
             }
         }
@@ -264,6 +269,7 @@ impl Cassie {
             .filter_map(|(constraint, _)| constraint.references_field.clone())
             .collect::<BTreeSet<_>>();
         let mut remaining = KeyedSet::new(session.statement_execution_controls())?;
+        let schema = self.catalog.get_schema(collection);
         let batches = self.scan_documents_batched_for_session(
             Some(session),
             collection,
@@ -272,7 +278,10 @@ impl Cassie {
         for document in batches.into_iter().flatten() {
             for column in &columns {
                 if let Some(value) = document.payload.get(column) {
-                    remaining.insert((column.clone(), foreign_key_value_key(value)))?;
+                    remaining.insert((
+                        column.clone(),
+                        column_value_key(schema.as_ref(), column, value),
+                    ))?;
                 }
             }
         }
@@ -291,11 +300,11 @@ impl Cassie {
             child_table,
             REFERENCE_SCAN_BATCH_SIZE,
         )?;
+        let schema = self.catalog.get_schema(child_table);
         Ok(batches.into_iter().flatten().any(|document| {
-            document
-                .payload
-                .get(child_field)
-                .is_some_and(|value| values.contains(&foreign_key_value_key(value)))
+            document.payload.get(child_field).is_some_and(|value| {
+                values.contains(&column_value_key(schema.as_ref(), child_field, value))
+            })
         }))
     }
 }

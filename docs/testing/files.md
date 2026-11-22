@@ -1612,7 +1612,9 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/names/reserved_id_row_identity_column.rs` | test_module | 220 | 4 | sql_queries | keep | `tests/sql_queries/names/reserved_id_row_identity_column.rs` |
 | `tests/sql_queries/names/reserved_id_source_resolution.rs` | test_module | 301 | 5 | sql_queries | keep | `tests/sql_queries/names/reserved_id_source_resolution.rs` |
 | `tests/sql_queries/offset_result_cap.rs` | test_module | 134 | 7 | sql_queries | move_with_module_alias | `tests/sql_queries/expressions/offset_result_cap.rs` |
+| `tests/sql_queries/ordering/index_type_equivalence.rs` | test_support | 304 | 0 | sql_queries | keep | `tests/sql_queries/ordering/index_type_equivalence.rs` |
 | `tests/sql_queries/ordering/jsonb_semantic_keys.rs` | test_module | 241 | 15 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs`; `tests/sql_queries/types/json/jsonb_semantic_keys.rs` |
+| `tests/sql_queries/ordering/numeric_real_order.rs` | test_module | 426 | 25 | sql_queries | move_with_module_alias | `tests/sql_queries/types/numeric/numeric_real_order.rs` |
 | `tests/sql_queries/ordering/order_by_ordinals.rs` | test_module | 206 | 8 | sql_queries | keep | `tests/sql_queries/ordering/order_by_ordinals.rs` |
 | `tests/sql_queries/ordering/semantics.rs` | test_module | 835 | 12 | sql_queries | keep | `tests/sql_queries/ordering/semantics.rs` |
 | `tests/sql_queries/parameters/parameter_signatures.rs` | test_module | 92 | 4 | sql_queries | keep | `tests/sql_queries/parameters/parameter_signatures.rs` |
@@ -1684,7 +1686,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/windows/window_frame_empty_ranges.rs` | test_module | 286 | 16 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/windows/window_frame_empty_ranges.rs`; `tests/sql_queries/types/ranges/window_frame_empty_ranges.rs` |
 | `tests/sql_queries/windows/window_frame_validation.rs` | test_module | 216 | 16 | sql_queries | move_with_module_alias | `tests/sql_queries/aggregates/windows/window_frame_validation.rs` |
 | `tests/sql_queries/windows/window_frames.rs` | test_module | 483 | 17 | sql_queries | keep | `tests/sql_queries/windows/window_frames.rs` |
-| `tests/sql_queries.rs` | cargo_target | 338 | 0 | sql_queries | keep | `tests/sql_queries.rs` |
+| `tests/sql_queries.rs` | cargo_target | 342 | 0 | sql_queries | keep | `tests/sql_queries.rs` |
 | `tests/sql_relation_identifiers/contracts/restart.rs` | test_module | 80 | 1 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers/contracts/restart.rs` |
 | `tests/sql_relation_identifiers/contracts/semantics.rs` | test_module | 169 | 7 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers/contracts/semantics.rs` |
 | `tests/sql_relation_identifiers.rs` | cargo_target | 76 | 0 | sql_relation_identifiers | keep | `tests/sql_relation_identifiers.rs` |

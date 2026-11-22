@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1905,
-    "rust_files": 1861,
-    "rust_test_declarations": 11466,
+    "files": 1907,
+    "rust_files": 1863,
+    "rust_test_declarations": 11491,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11491,
+    "registered_rust_instances": 11516,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -310996,6 +310996,781 @@
       }
     },
     {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_numeric_by_value_with_limit_without_index",
+      "name": "should_order_numeric_by_value_with_limit_without_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 47,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_numeric_by_value_with_limit_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_numeric_by_value_descending_with_limit_without_index",
+      "name": "should_order_numeric_by_value_descending_with_limit_without_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 59,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_numeric_by_value_descending_with_limit_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_numeric_by_value_without_limit",
+      "name": "should_order_numeric_by_value_without_limit",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 71,
+      "end_line": 80,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_numeric_by_value_without_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_real_by_value_with_limit_without_index",
+      "name": "should_order_real_by_value_with_limit_without_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 83,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_real_by_value_with_limit_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_real_by_value_descending_with_limit_without_index",
+      "name": "should_order_real_by_value_descending_with_limit_without_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 95,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_real_by_value_descending_with_limit_without_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_double_precision_by_value_with_limit",
+      "name": "should_order_double_precision_by_value_with_limit",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 107,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_double_precision_by_value_with_limit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_filter_numeric_range_through_scalar_index",
+      "name": "should_filter_numeric_range_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 125,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_filter_numeric_range_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_filter_numeric_between_through_scalar_index",
+      "name": "should_filter_numeric_between_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 137,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_filter_numeric_between_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_match_numeric_equality_across_scales_through_scalar_index",
+      "name": "should_match_numeric_equality_across_scales_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 149,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_match_numeric_equality_across_scales_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_match_numeric_in_list_through_scalar_index",
+      "name": "should_match_numeric_in_list_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 161,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_match_numeric_in_list_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_numeric_by_value_through_scalar_index",
+      "name": "should_order_numeric_by_value_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 173,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_numeric_by_value_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_distinguish_numeric_values_beyond_double_precision_through_index",
+      "name": "should_distinguish_numeric_values_beyond_double_precision_through_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 187,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_distinguish_numeric_values_beyond_double_precision_through_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_filter_real_range_through_scalar_index",
+      "name": "should_filter_real_range_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 201,
+      "end_line": 210,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_filter_real_range_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_order_real_by_value_through_scalar_index",
+      "name": "should_order_real_by_value_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 213,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_order_real_by_value_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_match_integral_real_equality_through_scalar_index",
+      "name": "should_match_integral_real_equality_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 227,
+      "end_line": 236,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_match_integral_real_equality_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_group_numeric_values_by_numeric_equality",
+      "name": "should_group_numeric_values_by_numeric_equality",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 239,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_group_numeric_values_by_numeric_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_join_numeric_keys_by_numeric_equality",
+      "name": "should_join_numeric_keys_by_numeric_equality",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 253,
+      "end_line": 273,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_join_numeric_keys_by_numeric_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_pick_numeric_extremes_by_value",
+      "name": "should_pick_numeric_extremes_by_value",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 276,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_pick_numeric_extremes_by_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_reject_numerically_equal_unique_numeric_values",
+      "name": "should_reject_numerically_equal_unique_numeric_values",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 290,
+      "end_line": 307,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_reject_numerically_equal_unique_numeric_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_reject_equal_unique_double_precision_values",
+      "name": "should_reject_equal_unique_double_precision_values",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 310,
+      "end_line": 330,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_reject_equal_unique_double_precision_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_reject_equal_unique_real_values",
+      "name": "should_reject_equal_unique_real_values",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 333,
+      "end_line": 348,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_reject_equal_unique_real_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_match_numeric_foreign_key_across_scales",
+      "name": "should_match_numeric_foreign_key_across_scales",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 351,
+      "end_line": 373,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_match_numeric_foreign_key_across_scales"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_plan_numeric_range_through_scalar_index",
+      "name": "should_plan_numeric_range_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 376,
+      "end_line": 390,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_plan_numeric_range_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_filter_dotted_numeric_column_range_through_scalar_index",
+      "name": "should_filter_dotted_numeric_column_range_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 393,
+      "end_line": 409,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_filter_dotted_numeric_column_range_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/numeric_real_order.rs::should_plan_real_range_through_scalar_index",
+      "name": "should_plan_real_range_through_scalar_index",
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "line": 412,
+      "end_line": 426,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "numeric_real_order::should_plan_real_range_through_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric_real_order.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/ordering/order_by_ordinals.rs::should_sort_by_select_list_ordinal_in_either_direction",
       "name": "should_sort_by_select_list_ordinal_in_either_direction",
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
@@ -380467,6 +381242,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/ordering/index_type_equivalence.rs",
+      "role": "test_support",
+      "action": "keep",
+      "lines": 304,
+      "sha256": "43ab2a96f881ffa12b96aa333cd4ad0a803e7f617cacc8a2a33dfd21d6e6369e",
+      "test_declarations": 0,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/ordering/index_type_equivalence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
       "role": "test_module",
       "action": "split_by_contract",
@@ -380479,6 +381269,21 @@
       "destinations": [
         "tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs",
         "tests/sql_queries/types/json/jsonb_semantic_keys.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/ordering/numeric_real_order.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 426,
+      "sha256": "7a5d3b931b76f1b53c9ca4fdf2d503b25c6c05016d307c3e9cbce6e7e7fac138",
+      "test_declarations": 25,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/types/numeric/numeric_real_order.rs"
       ],
       "line_limit": 1000
     },
@@ -381551,8 +382356,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 338,
-      "sha256": "601897147cbf7eeeaaaa498a6d47b1d8748bcbf19b81734e5d52227453cbacb8",
+      "lines": 342,
+      "sha256": "455b3b668e3f7dd6f9cdfbef1bf6bf7e6f1c6ab5e3e2ef99036a856cef846191",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"

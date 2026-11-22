@@ -12,6 +12,11 @@ This document is the canonical contract for PostgreSQL wire protocol and client 
 
 Cassie provides a PostgreSQL-like query interface for read-model workloads. It aims to work with common drivers and administration tools for documented workflows, without claiming PostgreSQL server, extension, catalog, transaction-isolation, or DDL parity.
 
+For supported SQL and pgwire operations, use PostgreSQL semantics by default.
+Document deviations when correctness, durable state, or resource limits
+require them. Define an explicit Cassie contract for behavior that has no
+comparable PostgreSQL interface.
+
 ## Connection and Authentication
 
 - Pgwire is the primary query interface and defaults to `127.0.0.1:5432`.
@@ -88,6 +93,19 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - A `CHECK` constraint compares one column with a constant (`NULL`, `TRUE`, `FALSE`, a single-quoted string or a number). Cassie's current profile supports at most one CHECK per field; another inline or table-level CHECK on that field rejects with SQLSTATE `0A000`. `CREATE TABLE` and `ALTER TABLE ... ADD CONSTRAINT` reject a check that compares with another column (bare or double-quoted) or any other expression. Before this, such a check was accepted and its right-hand side was stored as text. String constants in `CHECK` and `DEFAULT` decode `''` to one quote, as they do everywhere else.
 - Trailing blanks are insignificant in a `CHAR(n)` value. Cassie stores and returns the value without them, so `'x'` and `'x  '` are the same value for equality with a stored value, `UNIQUE` constraints and unique indexes, and a value whose extra length is only trailing blanks fits the column (`'x  '` fits `CHAR(1)`). PostgreSQL behaves differently in two ways. It pads the value to `n` on output, while Cassie returns it without padding. It also compares a literal that has trailing blanks (`WHERE c = 'x  '`) as `CHAR`, while Cassie compares it as text.
 - REST document endpoints report the same internal identity as `"id"` in their JSON body (for example `{"id": "<identity>"}` from a document write). That value is the SQL `_id` of the row, and on a table that declares no `id` column it is also what a SQL bare `id` returns. On a table that declares its own `id`, the REST `"id"` field is still the internal identity, not the declared column; read the declared column through SQL or a document field.
+
+### Accepted dependent view renames (#1448)
+
+This contract is accepted for implementation in
+[#1448](https://github.com/cntryl/cassie/issues/1448). Cassie currently refuses
+the affected renames.
+
+A supported table or column rename must update its dependent stored view
+definitions in the same catalog publication. Views must keep their results and
+public column names and types, including views that use aliases, joins, or other
+views. Rewrite resolved references and preserve literal values. If any
+dependent definition cannot be safely resolved and rewritten, return `2BP01`
+and leave the table and all dependent definitions unchanged.
 
 ## Expression Semantics
 

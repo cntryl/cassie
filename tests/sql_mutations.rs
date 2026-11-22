@@ -90,6 +90,9 @@ mod postgresql18_conflict_inference_wave_c;
 #[path = "sql_mutations/merge/merge_tuple_assignments/semantics.rs"]
 mod postgresql18_merge_tuple_assignments_wave_c;
 
+#[path = "sql_mutations/dml/statement_snapshot_subqueries.rs"]
+mod statement_snapshot_subqueries;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 #[path = "sql_mutations/copy/copy_transaction_boundaries.rs"]
 mod copy_transaction_boundaries;

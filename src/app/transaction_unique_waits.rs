@@ -12,6 +12,8 @@ use uuid::Uuid;
 use std::sync::mpsc::Sender;
 #[cfg(test)]
 use std::sync::OnceLock;
+#[cfg(test)]
+use std::cell::RefCell;
 
 use crate::app::{Cassie, CassieError, CassieSession, TransactionErrorKind, TransactionRowChange};
 use crate::catalog::{Catalog, FieldConstraint};
@@ -22,6 +24,43 @@ use crate::runtime::QueryExecutionControls;
 static ROW_WAIT_OBSERVER: OnceLock<Mutex<Option<Sender<()>>>> = OnceLock::new();
 #[cfg(test)]
 static ROW_WAIT_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+#[cfg(test)]
+thread_local! {
+    static UNIQUE_WAIT_TEST_OBSERVER: RefCell<Option<Box<dyn FnOnce() + Send>>> = const { RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct UniqueWaitTestObserverGuard;
+
+#[cfg(test)]
+fn observe_next_unique_transaction_wait_for_test(
+    observer: impl FnOnce() + Send + 'static,
+) -> UniqueWaitTestObserverGuard {
+    UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+        assert!(slot.borrow().is_none(), "unique wait observer already installed");
+        *slot.borrow_mut() = Some(Box::new(observer));
+    });
+    UniqueWaitTestObserverGuard
+}
+
+#[cfg(test)]
+impl Drop for UniqueWaitTestObserverGuard {
+    fn drop(&mut self) {
+        UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+            let _ = slot.borrow_mut().take();
+        });
+    }
+}
+
+#[cfg(test)]
+fn signal_unique_wait_test_observer() {
+    UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+        if let Some(observer) = slot.borrow_mut().take() {
+            observer();
+        }
+    });
+}
 
 #[cfg(test)]
 struct RowWaitObserverGuard {
@@ -173,6 +212,8 @@ impl TransactionUniqueWaits {
                 clear_wait_edge(&mut state, waiter, owner);
                 return Ok(());
             }
+            #[cfg(test)]
+            signal_unique_wait_test_observer();
             self.changed.wait_for(&mut state, Duration::from_millis(25));
         }
     }
@@ -329,6 +370,10 @@ impl TransactionUniqueWaits {
         self.changed.notify_all();
     }
 }
+
+#[cfg(test)]
+#[path = "transaction_unique_waits_issue_tests.rs"]
+mod issue_tests;
 
 fn release_owner_state(state: &mut RegistryState, owner: Uuid) {
     if let Some(keys) = state.keys_by_owner.remove(&owner) {

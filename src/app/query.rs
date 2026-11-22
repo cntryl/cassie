@@ -952,3 +952,7 @@ mod query_test_fixture;
 #[cfg(test)]
 #[path = "query_datum_tests.rs"]
 mod datum_tests;
+
+#[cfg(test)]
+#[path = "query_volatile_cache_tests.rs"]
+mod volatile_cache_tests;

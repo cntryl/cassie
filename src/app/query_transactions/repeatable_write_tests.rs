@@ -4,23 +4,66 @@ use super::*;
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
 
+struct RowWaitWorkerGuard<T> {
+    cassie: Cassie,
+    owner: CassieSession,
+    worker: Option<std::thread::JoinHandle<T>>,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+}
+
+impl<T> RowWaitWorkerGuard<T> {
+    fn is_finished(&self) -> bool {
+        self.worker
+            .as_ref()
+            .is_some_and(std::thread::JoinHandle::is_finished)
+    }
+
+    fn join(mut self) -> std::thread::Result<T> {
+        let worker = self.worker.take().expect("row wait worker still armed");
+        worker.join()
+    }
+}
+
+impl<T> Drop for RowWaitWorkerGuard<T> {
+    fn drop(&mut self) {
+        if let Some(cancellation) = &self.cancellation {
+            cancellation.cancel();
+        }
+        let _ = self.cassie.execute_sql(&self.owner, "ROLLBACK", Vec::new());
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
 fn wait_for_row_or_cleanup<T: Send + 'static>(
     wait_reached_rx: std::sync::mpsc::Receiver<()>,
     cassie: &Cassie,
     owner: &CassieSession,
     worker: std::thread::JoinHandle<T>,
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-) -> std::thread::JoinHandle<T> {
+) -> RowWaitWorkerGuard<T> {
+    let guard = arm_row_wait_worker(cassie, owner, worker, cancellation);
     match wait_reached_rx.recv_timeout(std::time::Duration::from_secs(1)) {
-        Ok(()) => worker,
+        Ok(()) => guard,
         Err(error) => {
-            if let Some(cancellation) = cancellation {
-                cancellation.cancel();
-            }
-            let _ = cassie.execute_sql(owner, "ROLLBACK", Vec::new());
-            let _ = worker.join();
+            drop(guard);
             panic!("row wait boundary was not reached: {error}");
         }
+    }
+}
+
+fn arm_row_wait_worker<T: Send + 'static>(
+    cassie: &Cassie,
+    owner: &CassieSession,
+    worker: std::thread::JoinHandle<T>,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> RowWaitWorkerGuard<T> {
+    RowWaitWorkerGuard {
+        cassie: cassie.clone(),
+        owner: owner.clone(),
+        worker: Some(worker),
+        cancellation: cancellation.cloned(),
     }
 }
 
@@ -291,9 +334,21 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
         updated.send(update.is_ok()).expect("report update");
         worker_cassie.execute_sql(&second, "COMMIT", Vec::new())
     });
-    assert!(updated_rx
-        .recv_timeout(std::time::Duration::from_secs(1))
-        .expect("second update result"));
+    let worker = match updated_rx.recv_timeout(std::time::Duration::from_secs(1)) {
+        Ok(updated) => {
+            let guard = arm_row_wait_worker(&cassie, &first, worker, None);
+            if !updated {
+                drop(guard);
+                panic!("second update should stage before first commit");
+            }
+            guard
+        }
+        Err(error) => {
+            let guard = arm_row_wait_worker(&cassie, &first, worker, None);
+            drop(guard);
+            panic!("second update did not report: {error}");
+        }
+    };
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");

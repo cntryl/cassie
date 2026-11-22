@@ -9,6 +9,12 @@ fn document_error(column_type: &str, invalid_value: serde_json::Value) -> Cassie
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
         .expect("in-memory document fixture");
     cassie.startup().expect("startup");
+    if column_type.starts_with("VECTOR(") {
+        let root = cassie.create_session("root", None);
+        cassie
+            .execute_sql(&root, "CREATE EXTENSION vector", Vec::new())
+            .expect("install the vector type for the guard fixture");
+    }
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

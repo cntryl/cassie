@@ -48,6 +48,7 @@ pub(crate) use dml_joined_update::{delete_is_joined, update_is_joined};
 pub(super) use dml_merge::execute_merge;
 pub(super) use dml_truncate::execute_truncate;
 pub(super) use dml_update::execute_update;
+pub(super) use dml_update::admit_read_committed_update_rows;
 
 const NON_FINITE_WRITE_VALUE_ERROR: &str = "stored float values must be finite";
 

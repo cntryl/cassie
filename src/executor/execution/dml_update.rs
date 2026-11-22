@@ -58,6 +58,9 @@ pub(in crate::executor::execution) fn execute_update(
         None
     };
     let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
+    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
+        QueryError::General(format!("collection '{}' not found", statement.table))
+    })?;
     let subqueries = super::dml_subqueries::RowSubqueries {
         cassie,
         session,
@@ -146,9 +149,6 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
     let Some(waits) = session.transaction_unique_waits() else {
         return Ok(());
     };
-    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
-        QueryError::General(format!("collection '{}' not found", statement.table))
-    })?;
     let subqueries = super::dml_subqueries::RowSubqueries {
         cassie,
         session: Some(session),
@@ -181,13 +181,12 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
             .map_err(QueryError::from)?
         {
             crate::app::RowKeyClaim::Claimed => return Ok(()),
-            crate::app::RowKeyClaim::Wait {
-                collection,
-                id,
-                owner: blocker,
-            } => waits
-                .wait_for_row(owner, blocker, &collection, &id, controls)
-                .map_err(QueryError::from)?,
+            claim @ crate::app::RowKeyClaim::Wait { .. } => {
+                let (collection, id, blocker) = claim.into_wait().expect("row wait claim");
+                waits
+                    .wait_for_row(owner, blocker, &collection, &id, controls)
+                    .map_err(QueryError::from)?;
+            }
         }
     }
 }

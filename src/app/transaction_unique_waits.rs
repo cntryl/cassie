@@ -84,10 +84,23 @@ pub(crate) struct RowTransactionKey {
 pub(crate) enum RowKeyClaim {
     Claimed,
     Wait {
-        pub(crate) collection: String,
-        pub(crate) id: String,
-        pub(crate) owner: Uuid,
+        collection: String,
+        id: String,
+        owner: Uuid,
     },
+}
+
+impl RowKeyClaim {
+    pub(crate) fn into_wait(self) -> Option<(String, String, Uuid)> {
+        match self {
+            Self::Claimed => None,
+            Self::Wait {
+                collection,
+                id,
+                owner,
+            } => Some((collection, id, owner)),
+        }
+    }
 }
 
 #[derive(Debug, Default)]

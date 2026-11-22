@@ -718,7 +718,7 @@ fn execute_update_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        super::dml_update::admit_read_committed_update_rows(
+        super::dml::admit_read_committed_update_rows(
             cassie,
             session,
             statement,

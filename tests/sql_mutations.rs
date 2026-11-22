@@ -99,6 +99,9 @@ mod joined_column_ambiguity;
 #[path = "sql_mutations/sequences/drop_column_owned_sequence.rs"]
 mod drop_column_owned_sequence;
 
+#[path = "sql_mutations/sequences/setval_text_arguments.rs"]
+mod setval_text_arguments;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 #[path = "sql_mutations/copy/copy_transaction_boundaries.rs"]
 mod copy_transaction_boundaries;

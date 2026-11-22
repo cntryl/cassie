@@ -104,8 +104,8 @@ fn currval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
 fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError> {
     let (argument, value, is_called) = match args {
         [argument, value] => (argument, value, true),
-        [argument, value, Value::Bool(is_called)] => (argument, value, *is_called),
         [_, _, Value::Null] => return Ok(Value::Null),
+        [argument, value, flag] => (argument, value, boolean_argument(flag)?),
         _ => {
             return Err(CassieError::Planner(
                 "setval expects two or three arguments".into(),
@@ -115,9 +115,7 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
     if argument.is_null() || value.is_null() {
         return Ok(Value::Null);
     }
-    let value = value
-        .as_i64()
-        .ok_or_else(|| CassieError::Execution("setval value must be an integer".into()))?;
+    let value = bigint_argument(value)?;
     let (sequence, _, identity) = sequence_name(argument, session)?;
     let (_, _, midge) = session
         .sequence_context()
@@ -139,6 +137,34 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
         Ok(value)
     })?;
     Ok(Value::Int64(value))
+}
+
+/// A `bigint` argument; an unknown-typed string literal is coerced as
+/// PostgreSQL does, with 22P02 for text that is not an integer.
+fn bigint_argument(value: &Value) -> Result<i64, CassieError> {
+    if let Value::String(text) = value {
+        let parsed =
+            super::integers::controlled_input(text, crate::types::IntegerWidth::I64, None)?;
+        if let super::ScalarValue::Int(value) = parsed {
+            return Ok(value);
+        }
+    }
+    value
+        .as_i64()
+        .ok_or_else(|| CassieError::Execution("setval value must be an integer".into()))
+}
+
+/// A `boolean` argument; an unknown-typed string literal is coerced as
+/// PostgreSQL does, with 22P02 for text that is not a boolean.
+fn boolean_argument(value: &Value) -> Result<bool, CassieError> {
+    match value {
+        Value::Bool(flag) => Ok(*flag),
+        Value::String(text) => crate::types::boolean::parse_text(text)
+            .ok_or_else(|| crate::types::BooleanInputError.into()),
+        _ => Err(CassieError::Execution(
+            "setval is_called must be a boolean".into(),
+        )),
+    }
 }
 
 fn lastval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError> {

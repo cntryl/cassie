@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1901,
-    "rust_files": 1857,
-    "rust_test_declarations": 11432,
+    "files": 1905,
+    "rust_files": 1861,
+    "rust_test_declarations": 11466,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11457,
+    "registered_rust_instances": 11491,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -263225,6 +263225,564 @@
       }
     },
     {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_an_update_from_set_value",
+      "name": "should_reject_an_ambiguous_column_in_an_update_from_set_value",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 28,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_an_update_from_set_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_an_update_from_filter",
+      "name": "should_reject_an_ambiguous_column_in_an_update_from_filter",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 40,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_an_update_from_filter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_an_update_from_returning",
+      "name": "should_reject_an_ambiguous_column_in_an_update_from_returning",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 52,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_an_update_from_returning"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_a_delete_using_filter",
+      "name": "should_reject_an_ambiguous_column_in_a_delete_using_filter",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 64,
+      "end_line": 73,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_a_delete_using_filter"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_a_merge_when_condition",
+      "name": "should_reject_an_ambiguous_column_in_a_merge_when_condition",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 76,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_a_merge_when_condition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_a_merge_set_value",
+      "name": "should_reject_an_ambiguous_column_in_a_merge_set_value",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 89,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_a_merge_set_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_reject_an_ambiguous_column_in_a_merge_on_condition",
+      "name": "should_reject_an_ambiguous_column_in_a_merge_on_condition",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 102,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_reject_an_ambiguous_column_in_a_merge_on_condition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_allow_the_set_target_column_to_share_a_source_column_name",
+      "name": "should_allow_the_set_target_column_to_share_a_source_column_name",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 115,
+      "end_line": 129,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_allow_the_set_target_column_to_share_a_source_column_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_allow_qualified_references_to_shared_columns",
+      "name": "should_allow_qualified_references_to_shared_columns",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 132,
+      "end_line": 146,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_allow_qualified_references_to_shared_columns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_allow_an_unqualified_column_only_the_source_declares",
+      "name": "should_allow_an_unqualified_column_only_the_source_declares",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 149,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_allow_an_unqualified_column_only_the_source_declares"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/joined_column_ambiguity.rs::should_allow_a_merge_insert_value_the_target_also_declares",
+      "name": "should_allow_a_merge_insert_value_the_target_also_declares",
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "line": 166,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "joined_column_ambiguity::should_allow_a_merge_insert_value_the_target_also_declares"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "joins",
+        "directory": "tests/sql_mutations/joins",
+        "file": "tests/sql_mutations/joins/joined_column_ambiguity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_a_merge_when_condition_subquery_against_the_statement_start",
+      "name": "should_evaluate_a_merge_when_condition_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 15,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_a_merge_when_condition_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_a_merge_set_subquery_against_the_statement_start",
+      "name": "should_evaluate_a_merge_set_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 41,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_a_merge_set_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_a_merge_insert_values_subquery_against_the_statement_start",
+      "name": "should_evaluate_a_merge_insert_values_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 66,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_a_merge_insert_values_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_an_update_set_subquery_against_the_statement_start",
+      "name": "should_evaluate_an_update_set_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 94,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_an_update_set_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_a_delete_where_subquery_against_the_statement_start",
+      "name": "should_evaluate_a_delete_where_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 114,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_a_delete_where_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_insert_from_a_select_of_the_same_table_without_reading_new_rows",
+      "name": "should_insert_from_a_select_of_the_same_table_without_reading_new_rows",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 134,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_insert_from_a_select_of_the_same_table_without_reading_new_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs::should_evaluate_an_on_conflict_set_subquery_against_the_statement_start",
+      "name": "should_evaluate_an_on_conflict_set_subquery_against_the_statement_start",
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "line": 154,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "statement_snapshot_subqueries::should_evaluate_an_on_conflict_set_subquery_against_the_statement_start"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "subqueries",
+        "directory": "tests/sql_mutations/subqueries",
+        "file": "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/insert/default_cells.rs::should_apply_default_cells_given_reordered_columns_when_inserting_mixed_rows",
       "name": "should_apply_default_cells_given_reordered_columns_when_inserting_mixed_rows",
       "current_file": "tests/sql_mutations/insert/default_cells.rs",
@@ -266012,6 +266570,502 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_allow_adding_a_serial_column_after_dropping_the_same_one",
+      "name": "should_allow_adding_a_serial_column_after_dropping_the_same_one",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 22,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_allow_adding_a_serial_column_after_dropping_the_same_one"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_the_sequence_of_a_dropped_serial_column",
+      "name": "should_remove_the_sequence_of_a_dropped_serial_column",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 40,
+      "end_line": 55,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_the_sequence_of_a_dropped_serial_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_the_sequences_of_dropped_wide_serial_columns",
+      "name": "should_remove_the_sequences_of_dropped_wide_serial_columns",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 58,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_the_sequences_of_dropped_wide_serial_columns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_the_sequence_of_a_dropped_identity_column",
+      "name": "should_remove_the_sequence_of_a_dropped_identity_column",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 79,
+      "end_line": 93,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_the_sequence_of_a_dropped_identity_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_keep_a_separately_created_sequence_a_dropped_column_defaulted_from",
+      "name": "should_keep_a_separately_created_sequence_a_dropped_column_defaulted_from",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 96,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_keep_a_separately_created_sequence_a_dropped_column_defaulted_from"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_a_sequence_owned_by_the_dropped_column_through_alter_sequence",
+      "name": "should_remove_a_sequence_owned_by_the_dropped_column_through_alter_sequence",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 116,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_a_sequence_owned_by_the_dropped_column_through_alter_sequence"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_restore_the_sequence_with_its_value_when_a_dropped_column_rolls_back",
+      "name": "should_restore_the_sequence_with_its_value_when_a_dropped_column_rolls_back",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 137,
+      "end_line": 162,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_restore_the_sequence_with_its_value_when_a_dropped_column_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_the_sequence_when_the_serial_column_was_renamed_first",
+      "name": "should_remove_the_sequence_when_the_serial_column_was_renamed_first",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 165,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_the_sequence_when_the_serial_column_was_renamed_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_remove_the_sequence_when_the_table_was_renamed_first",
+      "name": "should_remove_the_sequence_when_the_table_was_renamed_first",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 185,
+      "end_line": 203,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_remove_the_sequence_when_the_table_was_renamed_first"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs::should_report_an_existing_sequence_name_as_a_duplicate_relation",
+      "name": "should_report_an_existing_sequence_name_as_a_duplicate_relation",
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "line": 206,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "drop_column_owned_sequence::should_report_an_existing_sequence_name_as_a_duplicate_relation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_set_a_sequence_to_a_quoted_integer",
+      "name": "should_set_a_sequence_to_a_quoted_integer",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 12,
+      "end_line": 25,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_set_a_sequence_to_a_quoted_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_set_a_sequence_to_a_quoted_integer_with_surrounding_spaces",
+      "name": "should_set_a_sequence_to_a_quoted_integer_with_surrounding_spaces",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 28,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_set_a_sequence_to_a_quoted_integer_with_surrounding_spaces"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_reject_a_quoted_value_that_is_not_an_integer",
+      "name": "should_reject_a_quoted_value_that_is_not_an_integer",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 40,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_reject_a_quoted_value_that_is_not_an_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_reject_a_quoted_fraction",
+      "name": "should_reject_a_quoted_fraction",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 52,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_reject_a_quoted_fraction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_accept_a_quoted_boolean_for_is_called",
+      "name": "should_accept_a_quoted_boolean_for_is_called",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 64,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_accept_a_quoted_boolean_for_is_called"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/sequences/setval_text_arguments.rs::should_reject_a_quoted_is_called_that_is_not_a_boolean",
+      "name": "should_reject_a_quoted_is_called_that_is_not_a_boolean",
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "line": 80,
+      "end_line": 89,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "setval_text_arguments::should_reject_a_quoted_is_called_that_is_not_a_boolean"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -376443,6 +377497,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/dml/joined_column_ambiguity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 184,
+      "sha256": "2f3816b346ab7b7067375dd9467068e8563c6d233b08c66c70fbbcaf2b8f9c4f",
+      "test_declarations": 11,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/joins/joined_column_ambiguity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/dml/statement_snapshot_subqueries.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 174,
+      "sha256": "428cf76bcf594cb10407eada4f50fd361b133ca39a29190fb3033a091b5145fa",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/subqueries/statement_snapshot_subqueries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/insert/default_cells.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -376679,6 +377763,36 @@
       ],
       "destinations": [
         "tests/sql_mutations/returning/update_returning_descriptor/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/sequences/drop_column_owned_sequence.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 215,
+      "sha256": "cfc8aa041720d71931ad28220040a1b07936335ecdd71600b4f48aa561d94c06",
+      "test_declarations": 10,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/sequences/drop_column_owned_sequence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/sequences/setval_text_arguments.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 89,
+      "sha256": "b0bb35ec0f11572b603e642efe9aef5ef65e18a72104d17d0edd4fe1c389437f",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/sequences/setval_text_arguments.rs"
       ],
       "line_limit": 1000
     },
@@ -377239,8 +378353,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 274,
-      "sha256": "54c8b0c37a18f366468216e780c894f25120999b10dd4fc5dcf4b13af5075959",
+      "lines": 286,
+      "sha256": "7b52627807c6ff82058fbdd474ef3b1772af3cf104d87c6657278b65249378e5",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

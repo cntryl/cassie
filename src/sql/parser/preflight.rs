@@ -135,7 +135,7 @@ fn scan_normal_byte(
             *state = ScanState::BlockComment(1);
             *index += 1;
         }
-        (b'(', _) => {
+        (b'(' | b'[', _) => {
             finish_word(in_word, tokens)?;
             count_token(tokens)?;
             *nesting = nesting.saturating_add(1);
@@ -145,22 +145,7 @@ fn scan_normal_byte(
                 )));
             }
         }
-        (b'[', _) => {
-            finish_word(in_word, tokens)?;
-            count_token(tokens)?;
-            *nesting = nesting.saturating_add(1);
-            if *nesting > MAX_SQL_NESTING {
-                return Err(SqlError::resource_limit(format!(
-                    "SQL nesting exceeds {MAX_SQL_NESTING}"
-                )));
-            }
-        }
-        (b']', _) => {
-            finish_word(in_word, tokens)?;
-            count_token(tokens)?;
-            *nesting = nesting.saturating_sub(1);
-        }
-        (b')', _) => {
+        (b']' | b')', _) => {
             finish_word(in_word, tokens)?;
             count_token(tokens)?;
             *nesting = nesting.saturating_sub(1);

@@ -819,7 +819,9 @@ fn statement_binding_context(
     } else {
         crate::sql::binder::BindingContext::unscoped(database, search_path)
     };
-    context.with_unqualified_database(cassie.default_database.clone())
+    context
+        .with_unqualified_database(cassie.default_database.clone())
+        .with_temporal_session(session.and_then(CassieSession::binding_temporal_session))
 }
 
 fn exists_binding_context(

@@ -117,6 +117,12 @@ mod foreign_key_concurrency;
 #[path = "sql_mutations/constraints/numeric_check_equality.rs"]
 mod numeric_check_equality;
 
+#[path = "sql_mutations/constraints/check_literal_types.rs"]
+mod check_literal_types;
+
+#[path = "sql_mutations/constraints/check_literal_rejections.rs"]
+mod check_literal_rejections;
+
 // Formerly tests/integration_sql_constraints.rs.
 #[path = "sql_mutations/constraints/semantics/mod.rs"]
 mod integration_sql_constraints;

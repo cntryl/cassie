@@ -102,9 +102,11 @@ fn should_reject_invalid_boolean_comparison_inputs_before_create_check_publicati
 
     // Assert
     for ((table, input), result) in cases.into_iter().zip(results) {
-        assert!(
-            matches!(result, Err(CassieError::Planner(_))),
-            "CHECK input {input}: {result:?}"
+        let expected = if input == "1" { "42883" } else { "22P02" };
+        assert_eq!(
+            result.err().map(|error| error.sql_state()),
+            Some(expected),
+            "CHECK input {input}"
         );
         assert!(
             !fixture.cassie.catalog.exists(table),
@@ -139,9 +141,11 @@ fn should_reject_invalid_boolean_comparison_inputs_before_empty_alter_check_publ
 
     // Assert
     for ((table, input), result) in cases.into_iter().zip(results) {
-        assert!(
-            matches!(result, Err(CassieError::Planner(_))),
-            "CHECK input {input}: {result:?}"
+        let expected = if input == "1" { "42883" } else { "22P02" };
+        assert_eq!(
+            result.err().map(|error| error.sql_state()),
+            Some(expected),
+            "CHECK input {input}"
         );
         assert!(fixture
             .cassie

@@ -619,7 +619,7 @@ fn bind_existing_alter_table(
     schema_defaults::bind_alter_defaults(&mut statement.operation, schema)?;
     validate_alter_schema(table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, table, schema, catalog, context)?;
-    schema_checks::bind_alter_checks(&mut statement.operation, schema)?;
+    schema_checks::bind_alter_checks(&mut statement.operation, schema, context)?;
     schema_using::bind(
         &mut statement.operation,
         source_table,

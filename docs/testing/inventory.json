@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1886,
-    "rust_files": 1842,
-    "rust_test_declarations": 11283,
+    "files": 1888,
+    "rust_files": 1844,
+    "rust_test_declarations": 11360,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11308,
+    "registered_rust_instances": 11385,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -249306,6 +249306,2393 @@
       }
     },
     {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_nan_in_check",
+      "name": "should_reject_unquoted_nan_in_check",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 17,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_nan_in_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_infinity_in_check",
+      "name": "should_reject_unquoted_infinity_in_check",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 30,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_infinity_in_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_inf_in_check",
+      "name": "should_reject_unquoted_inf_in_check",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 43,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_inf_in_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_negative_infinity_in_check",
+      "name": "should_reject_unquoted_negative_infinity_in_check",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 56,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_negative_infinity_in_check"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_nan_in_added_constraint",
+      "name": "should_reject_unquoted_nan_in_added_constraint",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 69,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_nan_in_added_constraint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_finite_float_below_quoted_nan_bound",
+      "name": "should_accept_finite_float_below_quoted_nan_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 82,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_finite_float_below_quoted_nan_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_finite_float_for_greater_than_quoted_nan_bound",
+      "name": "should_reject_finite_float_for_greater_than_quoted_nan_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 95,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_finite_float_for_greater_than_quoted_nan_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_finite_float_for_not_equal_to_quoted_nan_bound",
+      "name": "should_accept_finite_float_for_not_equal_to_quoted_nan_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 108,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_finite_float_for_not_equal_to_quoted_nan_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_finite_float_equal_to_quoted_nan_bound",
+      "name": "should_reject_finite_float_equal_to_quoted_nan_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 121,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_finite_float_equal_to_quoted_nan_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_finite_float_below_quoted_infinity_bound",
+      "name": "should_accept_finite_float_below_quoted_infinity_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 134,
+      "end_line": 144,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_finite_float_below_quoted_infinity_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_finite_float_for_greater_than_quoted_infinity_bound",
+      "name": "should_reject_finite_float_for_greater_than_quoted_infinity_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 147,
+      "end_line": 157,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_finite_float_for_greater_than_quoted_infinity_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_float_equal_to_text_bound",
+      "name": "should_accept_float_equal_to_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 160,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_float_equal_to_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_text_column_compared_with_integer",
+      "name": "should_reject_text_column_compared_with_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 173,
+      "end_line": 183,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_text_column_compared_with_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_text_column_compared_with_numeric",
+      "name": "should_reject_text_column_compared_with_numeric",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 186,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_text_column_compared_with_numeric"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_integer_column_matched_with_like",
+      "name": "should_reject_integer_column_matched_with_like",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 199,
+      "end_line": 209,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_integer_column_matched_with_like"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_date_column_compared_with_integer",
+      "name": "should_reject_date_column_compared_with_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 212,
+      "end_line": 222,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_date_column_compared_with_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_integer_column_compared_with_boolean",
+      "name": "should_reject_integer_column_compared_with_boolean",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 225,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_integer_column_compared_with_boolean"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_text_column_compared_with_boolean",
+      "name": "should_reject_text_column_compared_with_boolean",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 238,
+      "end_line": 248,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_text_column_compared_with_boolean"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_added_constraint_comparing_text_with_integer",
+      "name": "should_reject_added_constraint_comparing_text_with_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 251,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_added_constraint_comparing_text_with_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_added_column_check_comparing_text_with_integer",
+      "name": "should_reject_added_column_check_comparing_text_with_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 264,
+      "end_line": 274,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_added_column_check_comparing_text_with_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_text_column_like_pattern",
+      "name": "should_accept_text_column_like_pattern",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 277,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_text_column_like_pattern"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_text_column_equal_to_text_bound",
+      "name": "should_accept_text_column_equal_to_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 290,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_text_column_equal_to_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_accept_finite_float_above_quoted_negative_infinity_bound",
+      "name": "should_accept_finite_float_above_quoted_negative_infinity_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 303,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_accept_finite_float_above_quoted_negative_infinity_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_unquoted_nan_in_column_default",
+      "name": "should_reject_unquoted_nan_in_column_default",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 316,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_unquoted_nan_in_column_default"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_decimal_default_that_overflows_a_float",
+      "name": "should_reject_decimal_default_that_overflows_a_float",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 329,
+      "end_line": 339,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_decimal_default_that_overflows_a_float"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_rejections.rs::should_reject_decimal_check_bound_that_overflows_a_float",
+      "name": "should_reject_decimal_check_bound_that_overflows_a_float",
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "line": 342,
+      "end_line": 352,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_rejections::should_reject_decimal_check_bound_that_overflows_a_float"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_rejections.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamp_below_bound_written_with_a_time",
+      "name": "should_accept_timestamp_below_bound_written_with_a_time",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 17,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamp_below_bound_written_with_a_time"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamp_at_midnight_for_greater_than_date_bound",
+      "name": "should_reject_timestamp_at_midnight_for_greater_than_date_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 30,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamp_at_midnight_for_greater_than_date_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamp_equal_to_bound_written_with_a_time",
+      "name": "should_accept_timestamp_equal_to_bound_written_with_a_time",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 43,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamp_equal_to_bound_written_with_a_time"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamp_at_less_or_equal_bound",
+      "name": "should_accept_timestamp_at_less_or_equal_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 56,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamp_at_less_or_equal_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamp_at_greater_or_equal_bound",
+      "name": "should_accept_timestamp_at_greater_or_equal_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 69,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamp_at_greater_or_equal_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamp_equal_to_not_equal_bound",
+      "name": "should_reject_timestamp_equal_to_not_equal_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 82,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamp_equal_to_not_equal_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamp_with_fraction_below_bound",
+      "name": "should_accept_timestamp_with_fraction_below_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 95,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamp_with_fraction_below_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamp_above_bound_with_shorter_text",
+      "name": "should_reject_timestamp_above_bound_with_shorter_text",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 108,
+      "end_line": 118,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamp_above_bound_with_shorter_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamp_bound_that_is_not_a_date",
+      "name": "should_reject_timestamp_bound_that_is_not_a_date",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 121,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamp_bound_that_is_not_a_date"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_existing_timestamp_row_for_added_constraint",
+      "name": "should_reject_existing_timestamp_row_for_added_constraint",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 134,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_existing_timestamp_row_for_added_constraint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_existing_timestamp_row_for_added_constraint",
+      "name": "should_accept_existing_timestamp_row_for_added_constraint",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 150,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_existing_timestamp_row_for_added_constraint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_added_timestamp_constraint_with_invalid_bound",
+      "name": "should_reject_added_timestamp_constraint_with_invalid_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 166,
+      "end_line": 176,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_added_timestamp_constraint_with_invalid_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamptz_below_offsetless_bound_in_session_zone",
+      "name": "should_accept_timestamptz_below_offsetless_bound_in_session_zone",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 179,
+      "end_line": 192,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamptz_below_offsetless_bound_in_session_zone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamptz_above_offsetless_bound_in_session_zone",
+      "name": "should_reject_timestamptz_above_offsetless_bound_in_session_zone",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 195,
+      "end_line": 208,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamptz_above_offsetless_bound_in_session_zone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamptz_below_bound_with_offset",
+      "name": "should_accept_timestamptz_below_bound_with_offset",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 211,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamptz_below_bound_with_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamptz_above_bound_with_offset",
+      "name": "should_reject_timestamptz_above_bound_with_offset",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 227,
+      "end_line": 240,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamptz_above_bound_with_offset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_resolve_offsetless_timestamptz_bound_at_constraint_creation",
+      "name": "should_resolve_offsetless_timestamptz_bound_at_constraint_creation",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 243,
+      "end_line": 257,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_resolve_offsetless_timestamptz_bound_at_constraint_creation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_timestamptz_equal_to_bound_in_other_zone",
+      "name": "should_accept_timestamptz_equal_to_bound_in_other_zone",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 260,
+      "end_line": 270,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_timestamptz_equal_to_bound_in_other_zone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_timestamptz_bound_that_is_not_a_date",
+      "name": "should_reject_timestamptz_bound_that_is_not_a_date",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 273,
+      "end_line": 283,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_timestamptz_bound_that_is_not_a_date"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_existing_timestamptz_row_for_added_constraint",
+      "name": "should_reject_existing_timestamptz_row_for_added_constraint",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 286,
+      "end_line": 300,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_existing_timestamptz_row_for_added_constraint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_date_after_bound_written_without_padding",
+      "name": "should_accept_date_after_bound_written_without_padding",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 303,
+      "end_line": 313,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_date_after_bound_written_without_padding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_date_equal_to_greater_than_bound",
+      "name": "should_reject_date_equal_to_greater_than_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 316,
+      "end_line": 326,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_date_equal_to_greater_than_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_date_equal_to_bound_in_other_notation",
+      "name": "should_accept_date_equal_to_bound_in_other_notation",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 329,
+      "end_line": 339,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_date_equal_to_bound_in_other_notation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_date_bound_out_of_range",
+      "name": "should_reject_date_bound_out_of_range",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 342,
+      "end_line": 352,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_date_bound_out_of_range"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_existing_date_row_for_added_constraint",
+      "name": "should_reject_existing_date_row_for_added_constraint",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 355,
+      "end_line": 368,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_existing_date_row_for_added_constraint"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_time_below_bound_written_without_seconds",
+      "name": "should_accept_time_below_bound_written_without_seconds",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 371,
+      "end_line": 381,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_time_below_bound_written_without_seconds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_time_equal_to_less_than_bound",
+      "name": "should_reject_time_equal_to_less_than_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 384,
+      "end_line": 394,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_time_equal_to_less_than_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_time_equal_to_bound",
+      "name": "should_accept_time_equal_to_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 397,
+      "end_line": 407,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_time_equal_to_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_time_bound_that_is_not_a_time",
+      "name": "should_reject_time_bound_that_is_not_a_time",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 410,
+      "end_line": 420,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_time_bound_that_is_not_a_time"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_interval_below_bound",
+      "name": "should_accept_interval_below_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 423,
+      "end_line": 433,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_interval_below_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_interval_above_bound",
+      "name": "should_reject_interval_above_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 436,
+      "end_line": 446,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_interval_above_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_interval_equal_to_bound_in_other_units",
+      "name": "should_accept_interval_equal_to_bound_in_other_units",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 449,
+      "end_line": 459,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_interval_equal_to_bound_in_other_units"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_interval_bound_that_is_not_an_interval",
+      "name": "should_reject_interval_bound_that_is_not_an_interval",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 462,
+      "end_line": 472,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_interval_bound_that_is_not_an_interval"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_uuid_equal_to_upper_case_bound",
+      "name": "should_accept_uuid_equal_to_upper_case_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 475,
+      "end_line": 485,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_uuid_equal_to_upper_case_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_uuid_equal_to_not_equal_bound_in_other_case",
+      "name": "should_reject_uuid_equal_to_not_equal_bound_in_other_case",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 488,
+      "end_line": 498,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_uuid_equal_to_not_equal_bound_in_other_case"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_uuid_different_from_bound",
+      "name": "should_reject_uuid_different_from_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 501,
+      "end_line": 511,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_uuid_different_from_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_uuid_bound_that_is_not_a_uuid",
+      "name": "should_reject_uuid_bound_that_is_not_a_uuid",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 514,
+      "end_line": 524,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_uuid_bound_that_is_not_a_uuid"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_boolean_equal_to_yes_bound",
+      "name": "should_accept_boolean_equal_to_yes_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 527,
+      "end_line": 537,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_boolean_equal_to_yes_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_boolean_different_from_yes_bound",
+      "name": "should_reject_boolean_different_from_yes_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 540,
+      "end_line": 550,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_boolean_different_from_yes_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_boolean_equal_to_t_bound",
+      "name": "should_accept_boolean_equal_to_t_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 553,
+      "end_line": 563,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_boolean_equal_to_t_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_boolean_bound_that_is_not_a_boolean",
+      "name": "should_reject_boolean_bound_that_is_not_a_boolean",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 566,
+      "end_line": 576,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_boolean_bound_that_is_not_a_boolean"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_boolean_compared_with_integer",
+      "name": "should_reject_boolean_compared_with_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 579,
+      "end_line": 589,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_boolean_compared_with_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_numeric_equal_to_text_bound_with_scale",
+      "name": "should_accept_numeric_equal_to_text_bound_with_scale",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 592,
+      "end_line": 602,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_numeric_equal_to_text_bound_with_scale"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_numeric_different_from_text_bound",
+      "name": "should_reject_numeric_different_from_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 605,
+      "end_line": 615,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_numeric_different_from_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_numeric_below_text_bound",
+      "name": "should_accept_numeric_below_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 618,
+      "end_line": 628,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_numeric_below_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_numeric_bound_that_is_not_a_number",
+      "name": "should_reject_numeric_bound_that_is_not_a_number",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 631,
+      "end_line": 641,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_numeric_bound_that_is_not_a_number"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_integer_equal_to_text_bound",
+      "name": "should_accept_integer_equal_to_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 644,
+      "end_line": 654,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_integer_equal_to_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_integer_different_from_text_bound",
+      "name": "should_reject_integer_different_from_text_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 657,
+      "end_line": 667,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_integer_different_from_text_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_integer_bound_text_that_is_not_an_integer",
+      "name": "should_reject_integer_bound_text_that_is_not_an_integer",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 670,
+      "end_line": 680,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_integer_bound_text_that_is_not_an_integer"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_accept_integer_below_numeric_bound",
+      "name": "should_accept_integer_below_numeric_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 683,
+      "end_line": 693,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_accept_integer_below_numeric_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/constraints/check_literal_types.rs::should_reject_integer_above_numeric_bound",
+      "name": "should_reject_integer_above_numeric_bound",
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "line": 696,
+      "end_line": 706,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "check_literal_types::should_reject_integer_above_numeric_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "grammar",
+        "directory": "tests/sql_mutations/grammar",
+        "file": "tests/sql_mutations/grammar/check_literal_types.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/constraints/drop_constraint.rs::should_preserve_other_field_rules_when_named_primary_key_is_dropped",
       "name": "should_preserve_other_field_rules_when_named_primary_key_is_dropped",
       "current_file": "tests/sql_mutations/constraints/drop_constraint.rs",
@@ -260439,7 +262826,7 @@
       "name": "should_reject_invalid_boolean_comparison_inputs_before_create_check_publication",
       "current_file": "tests/sql_mutations/mutations/boolean_checks.rs",
       "line": 87,
-      "end_line": 114,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -260469,8 +262856,8 @@
       "id": "tests/sql_mutations/mutations/boolean_checks.rs::should_reject_invalid_boolean_comparison_inputs_before_empty_alter_check_publication",
       "name": "should_reject_invalid_boolean_comparison_inputs_before_empty_alter_check_publication",
       "current_file": "tests/sql_mutations/mutations/boolean_checks.rs",
-      "line": 117,
-      "end_line": 157,
+      "line": 119,
+      "end_line": 161,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -370951,6 +373338,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/constraints/check_literal_rejections.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 352,
+      "sha256": "34ba1bd76aefdba04054a929a06d53f1e0def80613d0a7eb1d5bb6268fd9733d",
+      "test_declarations": 26,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/grammar/check_literal_rejections.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/constraints/check_literal_types.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 706,
+      "sha256": "38ec669bb13f8aecb9dde13ac392fe15ffcfde1d161f6c7c1d82d3f5d2f4875c",
+      "test_declarations": 51,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/grammar/check_literal_types.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/constraints/drop_constraint.rs",
       "role": "test_module",
       "action": "keep",
@@ -371719,8 +374136,8 @@
       "current_file": "tests/sql_mutations/mutations/boolean_checks.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 157,
-      "sha256": "fd79d3e4aad44419e6b544bf2eb4f6fc09aeed52beaaad842bef4341f123ace3",
+      "lines": 161,
+      "sha256": "c7dd2b0efaf9d32c27810d6d7a8ecec8fabb1d1d0e8170876c819d3f0871e73c",
       "test_declarations": 4,
       "registered_suites": [
         "sql_mutations"
@@ -372392,8 +374809,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 262,
-      "sha256": "4923dc21a5e32d5aebde5ecfd0ce16484b2e5605af8d640e3ca2137d88ea0fea",
+      "lines": 268,
+      "sha256": "3325212bb35f23d8eadbee57b206c770e07d906e79f8bb2d570034b3b130e599",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

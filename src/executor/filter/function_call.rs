@@ -13,7 +13,8 @@ mod json_object_keys_argument_tests;
 
 use super::{
     array_functions, datum_size, evaluate_builtin_function, evaluate_coalesce,
-    evaluate_user_defined_function, json_builders, text_selection, EvalContext, FunctionCall,
+    evaluate_user_defined_function, json_builders, text_selection, EvalContext, EvaluationMemory,
+    FunctionCall,
     QueryError, RowAccess, Value,
 };
 
@@ -38,6 +39,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
+    let routine_memory_baseline = context.memory.map(EvaluationMemory::bytes);
     let name = function.name.to_ascii_lowercase();
     let local_name = name.rsplit('.').next().unwrap_or(&name);
     let argument_context = if context.memory.is_none()
@@ -103,7 +105,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
             .get(&name)
             .is_some_and(|metadata| metadata.args.len() == function.args.len())
     {
-        return evaluate_user_defined_function(&name, row, context, args);
+        return evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline);
     }
 
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
@@ -134,8 +136,9 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return result;
     }
 
-    let result = evaluate_builtin_function(&name, function, row, &args, context)
-        .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))?;
+    let result = evaluate_builtin_function(&name, function, row, &args, context).unwrap_or_else(
+        || evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline),
+    )?;
     let retained_bytes = retained_result_bytes(&result, local_name);
     if retained_bytes > 0 {
         if let Some(scope) = argument_memory_scope.as_mut() {

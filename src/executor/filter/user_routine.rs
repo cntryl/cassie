@@ -63,6 +63,7 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
     row: &R,
     context: EvalContext<'_>,
     args: Vec<Value>,
+    routine_memory_baseline: Option<usize>,
 ) -> Result<Value, QueryError> {
     let _depth = enter_user_function_depth()?;
     let lookup = name.to_ascii_lowercase();
@@ -82,7 +83,7 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
             args.len()
         )));
     }
-    let baseline = context.memory.map(EvaluationMemory::bytes);
+    let baseline = routine_memory_baseline.or_else(|| context.memory.map(EvaluationMemory::bytes));
     let mut routine_memory = baseline.zip(context.memory).map(|(baseline, memory)| {
         RoutineMemoryGuard {
             memory,

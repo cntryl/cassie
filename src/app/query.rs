@@ -551,7 +551,10 @@ impl Cassie {
         if super::query_virtual_catalog::logical_plan_uses_virtual_catalog(&physical.logical) {
             return Some("virtual_catalog");
         }
-        if crate::executor::plan_uses_volatile_builtin(&physical.logical) {
+        if crate::executor::plan_uses_volatile_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
             return Some("volatile_builtin");
         }
         if ["set_config", "pg_catalog.set_config"].iter().any(|name| {

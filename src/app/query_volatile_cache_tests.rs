@@ -88,3 +88,102 @@ fn should_replay_pure_select_results_from_execution_cache() {
     assert_eq!(first.rows(), second.rows());
     assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 1);
 }
+
+#[test]
+fn should_not_replay_volatile_results_hidden_in_scalar_subquery_or_exists() {
+    // Arrange
+    let (cassie, session) = fixture();
+
+    // Act
+    let scalar_first = cassie
+        .execute_sql(&session, "SELECT (SELECT random())", vec![])
+        .expect("scalar subquery");
+    let scalar_second = cassie
+        .execute_sql(&session, "SELECT (SELECT random())", vec![])
+        .expect("scalar subquery replay");
+    let exists_first = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows WHERE EXISTS (SELECT random())",
+            vec![],
+        )
+        .expect("exists subquery");
+    let exists_second = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows WHERE EXISTS (SELECT random())",
+            vec![],
+        )
+        .expect("exists subquery replay");
+
+    // Assert
+    assert_ne!(scalar_first.rows(), scalar_second.rows());
+    assert_eq!(exists_first.rows(), exists_second.rows());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}
+
+#[test]
+fn should_not_replay_volatile_results_hidden_in_a_view() {
+    // Arrange
+    let (cassie, session) = fixture();
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE VIEW volatile_cache_view AS SELECT random() AS value FROM volatile_cache_rows",
+            vec![],
+        )
+        .expect("view");
+
+    // Act
+    let first = cassie
+        .execute_sql(&session, "SELECT value FROM volatile_cache_view", vec![])
+        .expect("view query");
+    let second = cassie
+        .execute_sql(&session, "SELECT value FROM volatile_cache_view", vec![])
+        .expect("view replay");
+
+    // Assert
+    assert_ne!(first.rows(), second.rows());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}
+
+#[test]
+fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
+    // Arrange
+    let (cassie, session) = fixture();
+
+    // Act
+    let limit_first = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows LIMIT (random() * 0)::int",
+            vec![],
+        )
+        .expect("limit query");
+    let limit_second = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows LIMIT (random() * 0)::int",
+            vec![],
+        )
+        .expect("limit replay");
+    let sample_first = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows TABLESAMPLE bernoulli (random() * 100)",
+            vec![],
+        )
+        .expect("table sample query");
+    let sample_second = cassie
+        .execute_sql(
+            &session,
+            "SELECT value FROM volatile_cache_rows TABLESAMPLE bernoulli (random() * 100)",
+            vec![],
+        )
+        .expect("table sample replay");
+
+    // Assert
+    assert_eq!(limit_first.rows(), limit_second.rows());
+    assert_eq!(sample_first.columns(), sample_second.columns());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}

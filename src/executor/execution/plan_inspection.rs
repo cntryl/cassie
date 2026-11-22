@@ -179,6 +179,242 @@ fn function_is_volatile_builtin(function: &crate::sql::ast::FunctionCall) -> boo
     false
 }
 
+pub(crate) fn plan_uses_volatile_builtin_including_views(
+    plan: &LogicalPlan,
+    catalog: &crate::catalog::Catalog,
+) -> bool {
+    let mut visited_views = HashSet::new();
+    plan_uses_volatile_with_views(plan, catalog, &mut visited_views)
+}
+
+fn plan_uses_volatile_with_views(
+    plan: &LogicalPlan,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    source_uses_volatile_with_views(&plan.source, catalog, visited_views)
+        || plan
+            .projection
+            .iter()
+            .any(|item| item_uses_volatile_with_views(item, catalog, visited_views))
+        || plan
+            .filter
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan
+            .having
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan.order.iter().any(|order| {
+            expr_uses_volatile_with_views(&order.expr, catalog, visited_views)
+        })
+        || plan
+            .limit
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan
+            .offset
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || plan
+            .ctes
+            .iter()
+            .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
+        || plan.set.as_ref().is_some_and(|set| {
+            select_uses_volatile_with_views(&set.right, catalog, visited_views)
+        })
+}
+
+fn cte_uses_volatile_with_views(
+    cte: &CommonTableExpression,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match &cte.query {
+        CteQuery::Simple(statement) => {
+            parsed_statement_uses_volatile_with_views(statement, catalog, visited_views)
+        }
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
+            parsed_statement_uses_volatile_with_views(base, catalog, visited_views)
+                || parsed_statement_uses_volatile_with_views(recursive, catalog, visited_views)
+        }
+    }
+}
+
+fn parsed_statement_uses_volatile_with_views(
+    statement: &crate::sql::ast::ParsedStatement,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => {
+            select_uses_volatile_with_views(select, catalog, visited_views)
+        }
+        _ => false,
+    }
+}
+
+fn select_uses_volatile_with_views(
+    select: &SelectStatement,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    source_uses_volatile_with_views(&select.source, catalog, visited_views)
+        || select
+            .projection
+            .iter()
+            .any(|item| item_uses_volatile_with_views(item, catalog, visited_views))
+        || select
+            .filter
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select
+            .having
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select.order.iter().any(|order| {
+            expr_uses_volatile_with_views(&order.expr, catalog, visited_views)
+        })
+        || select
+            .limit
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select
+            .offset
+            .as_ref()
+            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+        || select
+            .ctes
+            .iter()
+            .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
+        || select.set.as_ref().is_some_and(|set| {
+            select_uses_volatile_with_views(&set.right, catalog, visited_views)
+        })
+}
+
+fn item_uses_volatile_with_views(
+    item: &SelectItem,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match item {
+        SelectItem::Function { function, .. } => {
+            function_is_volatile_builtin(function)
+                || function.expressions().any(|expr| {
+                    expr_uses_volatile_with_views(expr, catalog, visited_views)
+                })
+        }
+        SelectItem::Expr { expr, .. } => {
+            expr_uses_volatile_with_views(expr, catalog, visited_views)
+        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
+    }
+}
+
+fn source_uses_volatile_with_views(
+    source: &QuerySource,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match source {
+        QuerySource::Values { rows } => rows.iter().flatten().any(|expr| {
+            expr_uses_volatile_with_views(expr, catalog, visited_views)
+        }),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            source_uses_volatile_with_views(source, catalog, visited_views)
+                || expr_uses_volatile_with_views(rate, catalog, visited_views)
+                || repeatable.as_ref().is_some_and(|expr| {
+                    expr_uses_volatile_with_views(expr, catalog, visited_views)
+                })
+        }
+        QuerySource::Aliased { source, .. } => {
+            source_uses_volatile_with_views(source, catalog, visited_views)
+        }
+        QuerySource::Subquery { select, .. } => {
+            select_uses_volatile_with_views(select, catalog, visited_views)
+        }
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            source_uses_volatile_with_views(left, catalog, visited_views)
+                || source_uses_volatile_with_views(right, catalog, visited_views)
+                || expr_uses_volatile_with_views(on, catalog, visited_views)
+        }
+        QuerySource::TableFunction { function, .. } => function.expressions().any(|expr| {
+            expr_uses_volatile_with_views(expr, catalog, visited_views)
+        }),
+        QuerySource::Collection(name) => {
+            let Some(view) = catalog.get_view(name) else {
+                return false;
+            };
+            let key = view.name.to_ascii_lowercase();
+            if !visited_views.insert(key.clone()) {
+                return false;
+            }
+            let found = crate::sql::parse_statement(&view.query)
+                .ok()
+                .and_then(|parsed| match parsed.statement {
+                    QueryStatement::Select(select) => Some(select),
+                    _ => None,
+                })
+                .is_some_and(|select| {
+                    select_uses_volatile_with_views(&select, catalog, visited_views)
+                });
+            visited_views.remove(&key);
+            found
+        }
+        QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
+}
+
+fn expr_uses_volatile_with_views(
+    expr: &Expr,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    if let Expr::Function(function) = expr {
+        if function_is_volatile_builtin(function) {
+            return true;
+        }
+    }
+    if let Some(statement) = expr.subquery_statement() {
+        if parsed_statement_uses_volatile_with_views(statement, catalog, visited_views) {
+            return true;
+        }
+    }
+    expr.any_child(|child| expr_uses_volatile_with_views(child, catalog, visited_views))
+}
+
 pub(crate) fn plan_uses_function_including_views(
     plan: &LogicalPlan,
     function_name: &str,

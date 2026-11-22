@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1888,
-    "rust_files": 1844,
-    "rust_test_declarations": 11360,
+    "files": 1893,
+    "rust_files": 1849,
+    "rust_test_declarations": 11374,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11385,
+    "registered_rust_instances": 11399,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -19924,6 +19924,68 @@
       }
     },
     {
+      "id": "tests/catalog_security/databases/drop_database_pending_cleanup.rs::should_keep_public_schema_in_storage_when_drop_database_is_refused",
+      "name": "should_keep_public_schema_in_storage_when_drop_database_is_refused",
+      "current_file": "tests/catalog_security/databases/drop_database_pending_cleanup.rs",
+      "line": 29,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "drop_database_pending_cleanup::should_keep_public_schema_in_storage_when_drop_database_is_refused"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/drop_database_pending_cleanup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/databases/drop_database_pending_cleanup.rs::should_drop_database_after_deferred_cleanup_drains",
+      "name": "should_drop_database_after_deferred_cleanup_drains",
+      "current_file": "tests/catalog_security/databases/drop_database_pending_cleanup.rs",
+      "line": 49,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "drop_database_pending_cleanup::should_drop_database_after_deferred_cleanup_drains"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/drop_database_pending_cleanup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/catalog_security/databases/images/database_images.rs::should_round_trip_one_database_as_bounded_chunks",
       "name": "should_round_trip_one_database_as_bounded_chunks",
       "current_file": "tests/catalog_security/databases/images/database_images.rs",
@@ -20045,6 +20107,254 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/add_column_backfill_failure.rs::should_register_durable_column_in_catalog_when_backfill_fails",
+      "name": "should_register_durable_column_in_catalog_when_backfill_fails",
+      "current_file": "tests/catalog_security/ddl/add_column_backfill_failure.rs",
+      "line": 27,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "add_column_backfill_failure::should_register_durable_column_in_catalog_when_backfill_fails"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column_backfill_failure.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/add_column_backfill_failure.rs::should_complete_backfill_when_failed_add_column_is_retried",
+      "name": "should_complete_backfill_when_failed_add_column_is_retried",
+      "current_file": "tests/catalog_security/ddl/add_column_backfill_failure.rs",
+      "line": 39,
+      "end_line": 56,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "add_column_backfill_failure::should_complete_backfill_when_failed_add_column_is_retried"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column_backfill_failure.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs::should_remove_dropped_index_metadata_after_table_rename",
+      "name": "should_remove_dropped_index_metadata_after_table_rename",
+      "current_file": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs",
+      "line": 7,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "deferred_index_cleanup_rename::should_remove_dropped_index_metadata_after_table_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/deferred_index_cleanup_rename.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs::should_allow_duplicate_rows_after_dropped_index_table_rename",
+      "name": "should_allow_duplicate_rows_after_dropped_index_table_rename",
+      "current_file": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs",
+      "line": 35,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "deferred_index_cleanup_rename::should_allow_duplicate_rows_after_dropped_index_table_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/deferred_index_cleanup_rename.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs::should_remove_dropped_index_metadata_after_schema_rename",
+      "name": "should_remove_dropped_index_metadata_after_schema_rename",
+      "current_file": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs",
+      "line": 65,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "deferred_index_cleanup_rename::should_remove_dropped_index_metadata_after_schema_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/deferred_index_cleanup_rename.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs::should_keep_recreated_table_rows_after_deferred_drop_cleanup_runs",
+      "name": "should_keep_recreated_table_rows_after_deferred_drop_cleanup_runs",
+      "current_file": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs",
+      "line": 8,
+      "end_line": 32,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "drop_recreate_deferred_cleanup::should_keep_recreated_table_rows_after_deferred_drop_cleanup_runs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/drop_recreate_deferred_cleanup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs::should_use_new_schema_for_table_recreated_during_deferred_drop",
+      "name": "should_use_new_schema_for_table_recreated_during_deferred_drop",
+      "current_file": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs",
+      "line": 35,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "drop_recreate_deferred_cleanup::should_use_new_schema_for_table_recreated_during_deferred_drop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/drop_recreate_deferred_cleanup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs::should_keep_recreated_table_after_restart_with_deferred_drop",
+      "name": "should_keep_recreated_table_after_restart_with_deferred_drop",
+      "current_file": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs",
+      "line": 63,
+      "end_line": 99,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "drop_recreate_deferred_cleanup::should_keep_recreated_table_after_restart_with_deferred_drop"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/drop_recreate_deferred_cleanup.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -256653,6 +256963,130 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/failed_index_publication.rs::should_create_other_index_after_unique_index_fails_on_duplicates",
+      "name": "should_create_other_index_after_unique_index_fails_on_duplicates",
+      "current_file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+      "line": 18,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "failed_index_publication::should_create_other_index_after_unique_index_fails_on_duplicates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/failed_index_publication.rs::should_create_unique_index_after_duplicates_are_removed",
+      "name": "should_create_unique_index_after_duplicates_are_removed",
+      "current_file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+      "line": 32,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "failed_index_publication::should_create_unique_index_after_duplicates_are_removed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/failed_index_publication.rs::should_start_after_prepared_unique_index_fails_validation",
+      "name": "should_start_after_prepared_unique_index_fails_validation",
+      "current_file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+      "line": 91,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "failed_index_publication::should_start_after_prepared_unique_index_fails_validation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/failed_index_publication.rs::should_start_after_prepared_index_table_was_dropped",
+      "name": "should_start_after_prepared_index_table_was_dropped",
+      "current_file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+      "line": 108,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "failed_index_publication::should_start_after_prepared_index_table_was_dropped"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/idempotent_ddl.rs::should_preserve_table_given_mismatched_if_not_exists_definition",
       "name": "should_preserve_table_given_mismatched_if_not_exists_definition",
       "current_file": "tests/sql_mutations/ddl/idempotent_ddl.rs",
@@ -355048,6 +355482,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/databases/drop_database_pending_cleanup.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 65,
+      "sha256": "05c65c8a7cdf2d961b9d38e4b9ff50e175268bd06128a92244c57e0d111a4e35",
+      "test_declarations": 2,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/drop_database_pending_cleanup.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/databases/images/database_images.rs",
       "role": "test_module",
       "action": "keep",
@@ -355059,6 +355508,51 @@
       ],
       "destinations": [
         "tests/catalog_security/databases/images/database_images.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/ddl/add_column_backfill_failure.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 56,
+      "sha256": "0f7285004fcb1f1cdfa602af01742eb901d3bdb50f378144829b30142e1743a5",
+      "test_declarations": 2,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/add_column_backfill_failure.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/ddl/deferred_index_cleanup_rename.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 97,
+      "sha256": "ed5be94bb351ef3eb7182dd363382b3606e84b6cdd8c0e02491712b221b559fa",
+      "test_declarations": 3,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/deferred_index_cleanup_rename.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/catalog_security/ddl/drop_recreate_deferred_cleanup.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 99,
+      "sha256": "8b4e96dd1384219195de364ad7f2499c3a87bf6669c84137ee9a0546da3f511f",
+      "test_declarations": 3,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/drop_recreate_deferred_cleanup.rs"
       ],
       "line_limit": 1000
     },
@@ -355381,8 +355875,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 176,
-      "sha256": "ec1cb15f9bdd747ecd95374124fcbe27ba788c29f510614591ae1f924ddf5bfb",
+      "lines": 188,
+      "sha256": "16c8844aa89dfbf76a1828f23bfd383bce721c55c7b7eaf4f397d14daed53981",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"
@@ -373758,6 +374252,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/failed_index_publication.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 122,
+      "sha256": "d558254d05bbc202130d26b5e2d6e8509e718697ed431e73b26f4df8560191f5",
+      "test_declarations": 4,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/failed_index_publication.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/ddl/idempotent_ddl.rs",
       "role": "test_module",
       "action": "keep",
@@ -374809,8 +375318,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 268,
-      "sha256": "3325212bb35f23d8eadbee57b206c770e07d906e79f8bb2d570034b3b130e599",
+      "lines": 271,
+      "sha256": "4bfe0da79748dfdf2cbe5452f1f754119712a249453cc395a0b86586e1651d1f",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

@@ -95,6 +95,36 @@ under #819 and its named downstream owners. Focused executable evidence is in
 [`transaction_errors.rs`](../tests/sql_mutations/transactions/transaction_errors.rs)
 and the completing PR; the implementation does not complete #819.
 
+## Selected READ COMMITTED row-update wait contract (#1464)
+
+The selected fix for [#1464](https://github.com/cntryl/cassie/issues/1464)
+extends Cassie’s private in-memory transaction ownership registry to rows
+matched by an explicit READ COMMITTED `UPDATE`. Row admission occurs before
+the statement acquires the catalog or sorted collection publication gates. A
+competing update waits for the owning transaction to commit, roll back,
+disconnect, or release the row through savepoint rollback. The wait is
+cancellable and deadline-bounded; cancellation returns SQLSTATE `57014`.
+
+After ownership is acquired, the waiting statement takes a fresh READ COMMITTED
+row view and re-evaluates its update expressions against that row. Consequently,
+the PostgreSQL 18 interleaving
+`A: UPDATE l SET a = 10`, `B: UPDATE l SET b = 20`, `A: COMMIT`, `B: COMMIT`
+produces `(1, 10, 20)`, and two overlapping
+`UPDATE l SET a = a + 1` statements produce `a = 2`. A row that no concurrent
+transaction changed retains the existing staged-payload result.
+
+This contract applies only to explicit READ COMMITTED row updates. Autocommit
+updates retain their existing statement-time collection-gate serialization.
+REPEATABLE READ does not wait-and-reapply: its retained row fence remains the
+first-committer-wins check and returns SQLSTATE `40001` with
+`could not serialize access due to concurrent update`. The row ownership wait
+must never be acquired while holding a catalog or collection gate; the required
+order remains catalog, then sorted collection gates, followed by publication.
+The registry remains Cassie-side and in-memory; no Midge engine or published
+Midge API change is selected. Runtime implementation and qualification remain
+pending the focused regressions `should_preserve_concurrent_read_committed_column_updates`
+and `should_apply_overlapping_read_committed_increments_twice`.
+
 ## Projector concurrency boundary for v0.1.0
 
 The MVP retains the wait behavior described above. No selected v0.1.0 workflow

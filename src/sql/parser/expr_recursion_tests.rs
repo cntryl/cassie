@@ -17,6 +17,31 @@ fn should_reject_not_chain_before_parser_recursion_exceeds_bound() {
 }
 
 #[test]
+fn should_accept_exact_not_depth_boundary() {
+    // Arrange
+    let sql = format!("SELECT {}true", "NOT ".repeat(128));
+
+    // Act
+    let result = parse_statement(&sql);
+
+    // Assert
+    assert!(result.is_ok(), "128 NOT tokens are within the contract");
+}
+
+#[test]
+fn should_reject_not_chain_at_one_beyond_depth_boundary() {
+    // Arrange
+    let sql = format!("SELECT {}true", "NOT ".repeat(129));
+
+    // Act
+    let error = parse_statement(&sql).expect_err("129 NOT tokens exceed the contract");
+
+    // Assert
+    assert_eq!(error.kind(), SqlErrorKind::ResourceLimit);
+    assert!(error.to_string().contains("NOT nesting exceeds 128"));
+}
+
+#[test]
 fn should_reject_case_chain_before_parser_recursion_exceeds_bound() {
     // Arrange
     let sql = format!(
@@ -27,6 +52,39 @@ fn should_reject_case_chain_before_parser_recursion_exceeds_bound() {
 
     // Act
     let error = parse_statement(&sql).expect_err("deep CASE chain must be rejected");
+
+    // Assert
+    assert_eq!(error.kind(), SqlErrorKind::ResourceLimit);
+    assert!(error.to_string().contains("CASE nesting exceeds 128"));
+}
+
+#[test]
+fn should_accept_exact_case_depth_boundary() {
+    // Arrange
+    let sql = format!(
+        "SELECT {}1{}",
+        "CASE WHEN true THEN ".repeat(128),
+        " END".repeat(128)
+    );
+
+    // Act
+    let result = parse_statement(&sql);
+
+    // Assert
+    assert!(result.is_ok(), "128 CASE levels are within the contract");
+}
+
+#[test]
+fn should_reject_case_chain_at_one_beyond_depth_boundary() {
+    // Arrange
+    let sql = format!(
+        "SELECT {}1{}",
+        "CASE WHEN true THEN ".repeat(129),
+        " END".repeat(129)
+    );
+
+    // Act
+    let error = parse_statement(&sql).expect_err("129 CASE levels exceed the contract");
 
     // Assert
     assert_eq!(error.kind(), SqlErrorKind::ResourceLimit);

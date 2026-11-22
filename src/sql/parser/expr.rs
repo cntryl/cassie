@@ -92,9 +92,9 @@ pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
-    let _depth = depth::enter_not_parse_depth()?;
     let raw = super::lexical::trim_separators(raw);
     if starts_with_keyword(raw, "not") {
+        let _depth = depth::enter_not_parse_depth()?;
         let rest = raw["not".len()..].trim();
         if rest.is_empty() {
             return Err(SqlError::new("NOT requires an expression".into()));

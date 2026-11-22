@@ -182,9 +182,9 @@
     ],
     "files": 1912,
     "rust_files": 1868,
-    "rust_test_declarations": 11512,
+    "rust_test_declarations": 11513,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11537,
+    "registered_rust_instances": 11538,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -262,6 +262,11 @@
         "file": "tests/pgwire_extended/types/temporal/binary.rs",
         "test_body_lines": 897,
         "test_declarations": 13
+      },
+      {
+        "file": "tests/planner_controls/planning/execution_result_cache.rs",
+        "test_body_lines": 813,
+        "test_declarations": 19
       },
       {
         "file": "tests/sql_mutations/insert/insert_values.rs",
@@ -231605,11 +231610,42 @@
       }
     },
     {
+      "id": "tests/planner_controls/planning/execution_result_cache.rs::should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views",
+      "name": "should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views",
+      "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
+      "line": 512,
+      "end_line": 567,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "planner_controls",
+          "name": "execution_result_cache::should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "planner_controls",
+        "category": "planning",
+        "directory": "tests/planner_controls/planning",
+        "file": "tests/planner_controls/planning/execution_result_cache.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_cache_immutable_user_functions",
       "name": "should_cache_immutable_user_functions",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 512,
-      "end_line": 539,
+      "line": 570,
+      "end_line": 597,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231639,8 +231675,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_observe_savepoint_rollback_without_cache",
       "name": "should_observe_savepoint_rollback_without_cache",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 542,
-      "end_line": 602,
+      "line": 600,
+      "end_line": 660,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231670,8 +231706,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_bypass_virtual_catalog_results",
       "name": "should_bypass_virtual_catalog_results",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 605,
-      "end_line": 628,
+      "line": 663,
+      "end_line": 686,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231701,8 +231737,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_reject_oversized_cache_entries",
       "name": "should_reject_oversized_cache_entries",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 631,
-      "end_line": 655,
+      "line": 689,
+      "end_line": 713,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231732,8 +231768,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_evict_least_recently_used_result",
       "name": "should_evict_least_recently_used_result",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 658,
-      "end_line": 704,
+      "line": 716,
+      "end_line": 762,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231763,8 +231799,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_evict_results_over_byte_budget",
       "name": "should_evict_results_over_byte_budget",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 707,
-      "end_line": 736,
+      "line": 765,
+      "end_line": 794,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231794,8 +231830,8 @@
       "id": "tests/planner_controls/planning/execution_result_cache.rs::should_remain_fresh_during_concurrent_invalidation",
       "name": "should_remain_fresh_during_concurrent_invalidation",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
-      "line": 739,
-      "end_line": 805,
+      "line": 797,
+      "end_line": 863,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -357867,7 +357903,7 @@
       "role": "fixture_data",
       "action": "keep",
       "lines": 235,
-      "sha256": "9559b10e2afb0153bb9733659bb6239e1f821694df9db0c7b736d7b6ff6ace41",
+      "sha256": "5b628352d0c5c80b62df4404851a88870417c3234ccddf55c39fb7f5603317b9",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -363757,7 +363793,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 762,
-      "sha256": "e979af58924bcb7876920aced9180d1fb14402a4faee54f99b1405d378f736c3",
+      "sha256": "077ec7fb1ecd0181aecd03ac6c0a5167da9f6d097702260a2d91cc17018cc128",
       "test_declarations": 2,
       "registered_suites": [
         "domain_models"
@@ -376330,9 +376366,9 @@
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 805,
-      "sha256": "fa06603d64e29314464804b08fa8ea8e70a8b8242fc59a4a64c8a2f5dceb3e08",
-      "test_declarations": 18,
+      "lines": 863,
+      "sha256": "3354c0bf7b66d7b314ed1c4780a10edd384db87286245fa986e64c4d9b7d8f55",
+      "test_declarations": 19,
       "registered_suites": [
         "planner_controls"
       ],

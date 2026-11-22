@@ -112,21 +112,31 @@ fn should_preserve_concurrent_read_committed_column_updates() {
             Vec::new(),
         )
         .expect("stage first update");
-    cassie
-        .execute_sql(
-            &second,
-            "UPDATE read_committed_lost_update SET b = 20 WHERE id = 1",
-            Vec::new(),
-        )
-        .expect("stage second update");
+    let (wait_reached, wait_reached_rx) = std::sync::mpsc::channel();
+    let _wait_observer = crate::app::install_row_wait_observer(wait_reached);
+    let worker_cassie = cassie.clone();
 
     // Act
+    let worker = std::thread::spawn(move || {
+        worker_cassie
+            .execute_sql(
+                &second,
+                "UPDATE read_committed_lost_update SET b = 20 WHERE id = 1",
+                Vec::new(),
+            )
+            .expect("second update after owner commit");
+        worker_cassie
+            .execute_sql(&second, "COMMIT", Vec::new())
+            .expect("second commit");
+    });
+    wait_reached_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("second update reached the row wait");
+    assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");
-    cassie
-        .execute_sql(&second, "COMMIT", Vec::new())
-        .expect("second commit");
+    worker.join().expect("second update worker");
     let result = cassie
         .execute_sql(
             &setup,
@@ -176,21 +186,31 @@ fn should_apply_overlapping_read_committed_increments_twice() {
             Vec::new(),
         )
         .expect("stage first increment");
-    cassie
-        .execute_sql(
-            &second,
-            "UPDATE read_committed_increment SET a = a + 1 WHERE id = 1",
-            Vec::new(),
-        )
-        .expect("stage second increment");
+    let (wait_reached, wait_reached_rx) = std::sync::mpsc::channel();
+    let _wait_observer = crate::app::install_row_wait_observer(wait_reached);
+    let worker_cassie = cassie.clone();
 
     // Act
+    let worker = std::thread::spawn(move || {
+        worker_cassie
+            .execute_sql(
+                &second,
+                "UPDATE read_committed_increment SET a = a + 1 WHERE id = 1",
+                Vec::new(),
+            )
+            .expect("second increment after owner commit");
+        worker_cassie
+            .execute_sql(&second, "COMMIT", Vec::new())
+            .expect("second commit");
+    });
+    wait_reached_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("second increment reached the row wait");
+    assert!(!worker.is_finished(), "waiter completed before owner commit");
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");
-    cassie
-        .execute_sql(&second, "COMMIT", Vec::new())
-        .expect("second commit");
+    worker.join().expect("second increment worker");
     let result = cassie
         .execute_sql(
             &setup,

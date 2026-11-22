@@ -77,7 +77,7 @@ fn should_hide_rows_removed_by_truncate_in_a_transaction() {
     let rows = fixture.rows(TOTALS);
 
     // Assert
-    assert!(rows.is_empty());
+    assert_eq!(rows, Vec::<Vec<Value>>::new());
 }
 
 #[test]

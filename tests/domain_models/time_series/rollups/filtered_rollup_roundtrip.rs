@@ -60,7 +60,7 @@ fn should_answer_comparison_filtered_rollup_with_the_matching_rows() {
     // Arrange
     let fixture = fixture("rollup-filter-comparison");
     let expected = fixture.rows(&query("n > 1"));
-    assert!(!expected.is_empty());
+    assert_eq!(expected.len(), 4);
 
     // Act
     create_rollup(&fixture, "n > 1");
@@ -94,7 +94,7 @@ fn should_match_table_for_every_filter_shape_after_refresh() {
 }
 
 #[test]
-fn should_match_table_for_every_filter_shape_after_dml_and_refresh() {
+fn should_match_table_for_every_filter_shape_after_refreshing_dml_changes() {
     // Arrange
     let mut mismatches = Vec::new();
 

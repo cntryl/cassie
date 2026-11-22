@@ -30,8 +30,13 @@ pub fn bm25_score(tf: f64, df: f64, n: f64, k1: f64, b: f64, dl: f64, avgdl: f64
         (tf * (k1 + 1.0)) / denominator
     };
 
-    // `max` turns NaN into 0 and `min` keeps an overflowing product finite.
-    (idf * saturation).max(0.0).min(f64::MAX)
+    // NaN scores 0 and an overflowing product saturates at the largest finite value.
+    let score = idf * saturation;
+    if score.is_nan() {
+        0.0
+    } else {
+        score.clamp(0.0, f64::MAX)
+    }
 }
 
 /// Wraps every occurrence of an analyzed query term in `<mark>` tags, matching

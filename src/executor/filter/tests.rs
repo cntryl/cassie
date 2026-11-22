@@ -93,7 +93,9 @@ fn should_score_term_stats_same_as_text_scoring() {
     let query_terms = prepare_query_terms("alpha beta");
 
     // Act
-    let direct_score = search_context.score_text(Some("body"), "alpha beta alpha", "alpha beta");
+    let direct_score = search_context
+        .match_and_score_text(Some("body"), "alpha beta alpha", "alpha beta")
+        .1;
     let stats_score = search_context.score_term_stats(Some("body"), &term_stats, &query_terms);
 
     // Assert

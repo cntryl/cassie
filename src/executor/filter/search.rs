@@ -434,10 +434,6 @@ impl SearchContext {
             .unwrap_or(crate::search::bm25::DEFAULT_BM25_B)
     }
 
-    pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
-        self.match_and_score_text(field, source, query).1
-    }
-
     /// Whether `source` contains a query term, and its score. A document that
     /// matches can score zero (a zero boost scales every score to zero), so the
     /// match is decided from term presence and never from the score.

@@ -54218,8 +54218,8 @@
       }
     },
     {
-      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_match_table_for_every_filter_shape_after_dml_and_refresh",
-      "name": "should_match_table_for_every_filter_shape_after_dml_and_refresh",
+      "id": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs::should_match_table_for_every_filter_shape_after_refreshing_dml_changes",
+      "name": "should_match_table_for_every_filter_shape_after_refreshing_dml_changes",
       "current_file": "tests/domain_models/time_series/rollups/filtered_rollup_roundtrip.rs",
       "line": 97,
       "end_line": 122,
@@ -54230,7 +54230,7 @@
       "instances": [
         {
           "suite": "domain_models",
-          "name": "rollup_filtered_roundtrip::should_match_table_for_every_filter_shape_after_dml_and_refresh"
+          "name": "rollup_filtered_roundtrip::should_match_table_for_every_filter_shape_after_refreshing_dml_changes"
         }
       ],
       "attributes": [
@@ -363847,7 +363847,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 150,
-      "sha256": "0e3ba3d902822b7b1183ffcdac8e1fa1ae44c7a60f9c8780532192d946fdcfe5",
+      "sha256": "b9dc1b35fbc428f5b8a9bd8b80674fdb9b31707cc9503711617d5737d4169a97",
       "test_declarations": 5,
       "registered_suites": [
         "domain_models"
@@ -363877,7 +363877,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 95,
-      "sha256": "47cbe200382b341008a8e54019e8d1e58e30c9a1497f92c9e8228186f5cbfcc2",
+      "sha256": "aa582243013048b9be3c435c783e16b4e3b7a9fb810b34aaec83ca0a73b05ebd",
       "test_declarations": 4,
       "registered_suites": [
         "domain_models"

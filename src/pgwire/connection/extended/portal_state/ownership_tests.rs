@@ -148,6 +148,7 @@ fn should_keep_complete_payload_admitted_while_portal_offsets_advance() {
                 portal_name: "retained",
                 portal: &portal,
                 suspended: suspended.expect("retained owner"),
+                active_cancellation: None,
                 max_rows: 1,
                 result_cap: 100,
             },
@@ -195,6 +196,7 @@ fn should_release_complete_payload_when_materialized_portal_finishes() {
                 portal_name: "retained",
                 portal: &portal,
                 suspended: suspended.expect("retained owner"),
+                active_cancellation: None,
                 max_rows: 0,
                 result_cap: 100,
             },
@@ -333,7 +335,7 @@ fn should_release_output_admission_after_a_wire_write_fails() {
 }
 
 #[test]
-fn should_release_retained_materialized_frames_when_a_suspended_portal_is_canceled() {
+fn should_ignore_cancellation_from_a_prior_portal_execution_when_resuming() {
     // Arrange
     let limits = CassieRuntimeLimits::default();
     let producer = QueryExecutionControls::from_limits(&limits, Instant::now());
@@ -342,9 +344,9 @@ fn should_release_retained_materialized_frames_when_a_suspended_portal_is_cancel
     runtime().block_on(suspend(&mut writer, &mut state, &portal, result(&producer)));
     let (portal, suspended) = take_portal_execution(&mut state, "retained").expect("resume");
     let mut suspended = suspended.expect("suspended result and frames");
-    let cancellation = crate::runtime::QueryCancellationHandle::new();
-    cancellation.cancel();
-    suspended.cancellation = Some(cancellation);
+    let stale_cancellation = crate::runtime::QueryCancellationHandle::new();
+    stale_cancellation.cancel();
+    suspended.cancellation = Some(stale_cancellation);
     let mut config = crate::config::CassieRuntimeConfig::from_env().expect("configuration");
     config.password = "portal-cancellation-control".to_owned();
     let cassie = std::sync::Arc::new(
@@ -353,7 +355,7 @@ fn should_release_retained_materialized_frames_when_a_suspended_portal_is_cancel
     let session = cassie.create_session("tester", None);
 
     // Act
-    let error = runtime().block_on(super::super::portal_streaming::resume_suspended_portal(
+    let resumed = runtime().block_on(super::super::portal_streaming::resume_suspended_portal(
         std::sync::Arc::clone(&cassie),
         &mut writer,
         super::super::portal_streaming::SuspendedPortalRequest {
@@ -367,7 +369,9 @@ fn should_release_retained_materialized_frames_when_a_suspended_portal_is_cancel
     ));
 
     // Assert
-    assert_eq!(error.expect_err("canceled resume").pg_error.code, "57014");
+    assert!(resumed.is_ok(), "a prior generation must not cancel this Execute");
+    assert!(state.portals["retained"].suspended.is_some());
+    drop(state.remove_portal("retained"));
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
     assert_eq!(producer.current_query_memory_bytes(), 0);
 }
@@ -465,6 +469,7 @@ fn should_release_retained_materialized_frames_when_a_resumed_wire_write_fails()
             portal_name: "retained",
             portal: &portal,
             suspended: suspended.expect("suspended result and frames"),
+            active_cancellation: None,
             max_rows: 1,
             result_cap: 100,
         },
@@ -499,6 +504,7 @@ fn should_release_retained_materialized_frames_when_a_pending_resume_disconnects
             portal_name: "retained",
             portal: &portal,
             suspended: suspended.expect("suspended result and frames"),
+            active_cancellation: None,
             max_rows: 1,
             result_cap: 100,
         },
@@ -603,6 +609,7 @@ fn should_reuse_the_actual_preflight_frame_buffer_after_portal_suspension() {
                 portal_name: "retained",
                 portal: &portal,
                 suspended: suspended.expect("retained owner"),
+                active_cancellation: None,
                 max_rows: 1,
                 result_cap: 100,
             },
@@ -645,6 +652,7 @@ fn should_resume_with_retained_encoding_scratch_when_a_competing_owner_fills_the
             portal_name: "retained",
             portal: &portal,
             suspended: suspended.expect("retained owner"),
+            active_cancellation: None,
             max_rows: 1,
             result_cap: 100,
         },

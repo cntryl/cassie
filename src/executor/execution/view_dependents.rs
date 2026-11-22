@@ -17,7 +17,7 @@ use crate::sql::ast::{
 };
 use crate::sql::ColumnIdentifierPath;
 
-fn parsed_select(cassie: &Cassie, view: &ViewMeta) -> Option<SelectStatement> {
+pub(super) fn parsed_select(cassie: &Cassie, view: &ViewMeta) -> Option<SelectStatement> {
     match parse_view(cassie, &view.query, None)?.statement {
         QueryStatement::Select(select) => Some(*select),
         _ => None,

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1898 |
-| Rust files | 1854 |
-| Rust test declarations | 11416 |
+| Files under `tests/` | 1901 |
+| Rust files | 1857 |
+| Rust test declarations | 11432 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11441 |
+| Static Rust registration instances | 11457 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -30,15 +30,15 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 192 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 571 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 576 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 89 | 0 |
 | [compatibility](inventory/compatibility.md) | 521 | 0 |
-| [composite_types](inventory/composite_types.md) | 229 | 0 |
+| [composite_types](inventory/composite_types.md) | 234 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 84 | 0 |
-| [domain_types](inventory/domain_types.md) | 191 | 0 |
-| [enum_types](inventory/enum_types.md) | 187 | 0 |
+| [domain_types](inventory/domain_types.md) | 195 | 0 |
+| [enum_types](inventory/enum_types.md) | 189 | 0 |
 | [executor](inventory/executor.md) | 108 | 0 |
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [graph_guide](inventory/graph_guide.md) | 13 | 0 |

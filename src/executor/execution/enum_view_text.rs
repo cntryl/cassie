@@ -36,9 +36,13 @@ const fn identifier_part(byte: u8) -> bool {
 
 /// The index just past a quoted run that starts at `open` and doubles `quote`
 /// to escape it. An unterminated run ends at the end of the text.
-fn quoted_end(bytes: &[u8], open: usize, quote: u8) -> usize {
+fn quoted_end(bytes: &[u8], open: usize, quote: u8, backslash: bool) -> usize {
     let mut index = open + 1;
     while index < bytes.len() {
+        if backslash && bytes[index] == b'\\' {
+            index += 2;
+            continue;
+        }
         if bytes[index] == quote {
             if bytes.get(index + 1) == Some(&quote) {
                 index += 2;
@@ -88,11 +92,23 @@ pub(super) fn tokens(sql: &str) -> Vec<Token> {
             continue;
         }
         let byte = bytes[index];
+        if byte == b'$' {
+            if let Some(end) = super::sql_text_tokens::dollar_quote_end(bytes, index) {
+                index = end;
+                continue;
+            }
+        }
         let (kind, end, text) = if byte == b'\'' {
-            let end = quoted_end(bytes, index, b'\'');
+            // `E'..'` strings let a backslash escape the next byte.
+            let escapes = found.last().is_some_and(|previous| {
+                previous.end == index
+                    && previous.kind == TokenKind::Identifier
+                    && previous.text == "e"
+            });
+            let end = quoted_end(bytes, index, b'\'', escapes);
             (TokenKind::Literal, end, unquote(&sql[index..end], '\''))
         } else if byte == b'"' {
-            let end = quoted_end(bytes, index, b'"');
+            let end = quoted_end(bytes, index, b'"', false);
             (TokenKind::Identifier, end, unquote(&sql[index..end], '"'))
         } else if identifier_start(byte) {
             let end = bytes[index..]

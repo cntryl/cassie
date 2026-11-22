@@ -7,6 +7,7 @@
 //! values rewritten is rejected before any mutation.
 
 use super::command_output::empty as empty_command;
+use super::composite_view_dependents::{plain_qualifiers, views_selecting_attribute};
 use super::composite_view_rewrite::{rename_field_selections, renamed_type_views};
 use super::type_command::{
     diagnostic, relation_name_occupied, rename_collision, set_schema_collision, ROOT_OID,
@@ -195,14 +196,12 @@ fn renamed_attribute_views(
     from: &str,
     to: &str,
 ) -> Result<Vec<ViewMeta>, QueryError> {
-    let dependents = cassie.catalog.views_naming_composite(current, Some(from));
+    let dependents = views_selecting_attribute(cassie, current, from);
     let mut views = Vec::with_capacity(dependents.len());
-    for mut view in cassie.catalog.list_views() {
+    for mut view in dependents {
         let view_name = local_name(&view.name);
-        if !dependents.contains(&view_name) {
-            continue;
-        }
-        let renamed = rename_field_selections(&view.query, from, to);
+        let qualifiers = plain_qualifiers(cassie, &view);
+        let renamed = rename_field_selections(&view.query, from, to, &qualifiers);
         let Some(query) = renamed.query.filter(|_| !renamed.ambiguous) else {
             return Err(diagnostic(
                 "0A000",
@@ -224,9 +223,10 @@ fn reject_drop_under_views(
     current: &CompositeTypeMeta,
     attribute: &str,
 ) -> Result<(), QueryError> {
-    let views = cassie
-        .catalog
-        .views_naming_composite(current, Some(attribute));
+    let views = views_selecting_attribute(cassie, current, attribute)
+        .into_iter()
+        .map(|view| local_name(&view.name))
+        .collect::<Vec<_>>();
     if views.is_empty() {
         return Ok(());
     }

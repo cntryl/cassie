@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1898,
-    "rust_files": 1854,
-    "rust_test_declarations": 11416,
+    "files": 1901,
+    "rust_files": 1857,
+    "rust_test_declarations": 11432,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11441,
+    "registered_rust_instances": 11457,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -21409,6 +21409,161 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_view_rewrite.rs::should_keep_a_string_literal_with_an_alias_while_renaming_a_schema",
+      "name": "should_keep_a_string_literal_with_an_alias_while_renaming_a_schema",
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "line": 26,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_view_rewrite::should_keep_a_string_literal_with_an_alias_while_renaming_a_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_view_rewrite.rs::should_rename_an_uppercase_unquoted_schema_qualifier",
+      "name": "should_rename_an_uppercase_unquoted_schema_qualifier",
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "line": 41,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_view_rewrite::should_rename_an_uppercase_unquoted_schema_qualifier"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_view_rewrite.rs::should_keep_escape_string_text_with_dollar_quote_text_while_renaming_a_schema",
+      "name": "should_keep_escape_string_text_with_dollar_quote_text_while_renaming_a_schema",
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "line": 53,
+      "end_line": 69,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_view_rewrite::should_keep_escape_string_text_with_dollar_quote_text_while_renaming_a_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_view_rewrite.rs::should_keep_an_alias_named_like_the_schema",
+      "name": "should_keep_an_alias_named_like_the_schema",
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "line": 72,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_view_rewrite::should_keep_an_alias_named_like_the_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_view_rewrite.rs::should_keep_a_literal_in_a_materialized_view_while_renaming_a_schema",
+      "name": "should_keep_a_literal_in_a_materialized_view_while_renaming_a_schema",
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "line": 84,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_view_rewrite::should_keep_a_literal_in_a_materialized_view_while_renaming_a_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -51056,6 +51211,161 @@
       }
     },
     {
+      "id": "tests/composite_types/view_dependents.rs::should_refuse_dropping_an_attribute_read_through_another_view",
+      "name": "should_refuse_dropping_an_attribute_read_through_another_view",
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "line": 32,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "view_dependents::should_refuse_dropping_an_attribute_read_through_another_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/view_dependents.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/view_dependents.rs::should_rename_an_attribute_read_through_another_view",
+      "name": "should_rename_an_attribute_read_through_another_view",
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "line": 44,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "view_dependents::should_rename_an_attribute_read_through_another_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/view_dependents.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/view_dependents.rs::should_rename_an_attribute_when_a_plain_column_has_its_name",
+      "name": "should_rename_an_attribute_when_a_plain_column_has_its_name",
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "line": 62,
+      "end_line": 77,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "view_dependents::should_rename_an_attribute_when_a_plain_column_has_its_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/view_dependents.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/view_dependents.rs::should_drop_an_attribute_when_a_plain_column_has_its_name",
+      "name": "should_drop_an_attribute_when_a_plain_column_has_its_name",
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "line": 80,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "view_dependents::should_drop_an_attribute_when_a_plain_column_has_its_name"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/view_dependents.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/composite_types/view_dependents.rs::should_still_refuse_dropping_an_attribute_a_view_selects_from_the_value",
+      "name": "should_still_refuse_dropping_an_attribute_a_view_selects_from_the_value",
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "line": 98,
+      "end_line": 110,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "composite_types",
+          "name": "view_dependents::should_still_refuse_dropping_an_attribute_a_view_selects_from_the_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "composite_types",
+        "category": "semantics",
+        "directory": "tests/composite_types/semantics",
+        "file": "tests/composite_types/semantics/view_dependents.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/composite_types/whole_row_names.rs::should_order_by_an_output_alias_named_like_the_table",
       "name": "should_order_by_an_output_alias_named_like_the_table",
       "current_file": "tests/composite_types/whole_row_names.rs",
@@ -60356,6 +60666,130 @@
       }
     },
     {
+      "id": "tests/domain_types/view_cast_rewrite.rs::should_rename_a_cast_after_an_escape_string_with_an_escaped_quote",
+      "name": "should_rename_a_cast_after_an_escape_string_with_an_escaped_quote",
+      "current_file": "tests/domain_types/view_cast_rewrite.rs",
+      "line": 22,
+      "end_line": 38,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "view_cast_rewrite::should_rename_a_cast_after_an_escape_string_with_an_escaped_quote"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "grammar",
+        "directory": "tests/domain_types/grammar",
+        "file": "tests/domain_types/grammar/view_cast_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/view_cast_rewrite.rs::should_keep_a_dollar_quoted_cast_text_while_renaming_a_domain",
+      "name": "should_keep_a_dollar_quoted_cast_text_while_renaming_a_domain",
+      "current_file": "tests/domain_types/view_cast_rewrite.rs",
+      "line": 41,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "view_cast_rewrite::should_keep_a_dollar_quoted_cast_text_while_renaming_a_domain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "grammar",
+        "directory": "tests/domain_types/grammar",
+        "file": "tests/domain_types/grammar/view_cast_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/view_cast_rewrite.rs::should_rename_a_cast_function_target_after_an_escape_string",
+      "name": "should_rename_a_cast_function_target_after_an_escape_string",
+      "current_file": "tests/domain_types/view_cast_rewrite.rs",
+      "line": 61,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "view_cast_rewrite::should_rename_a_cast_function_target_after_an_escape_string"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "grammar",
+        "directory": "tests/domain_types/grammar",
+        "file": "tests/domain_types/grammar/view_cast_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/domain_types/view_cast_rewrite.rs::should_rename_a_schema_qualified_cast_target_after_an_escape_string",
+      "name": "should_rename_a_schema_qualified_cast_target_after_an_escape_string",
+      "current_file": "tests/domain_types/view_cast_rewrite.rs",
+      "line": 73,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_types",
+          "name": "view_cast_rewrite::should_rename_a_schema_qualified_cast_target_after_an_escape_string"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_types",
+        "category": "grammar",
+        "directory": "tests/domain_types/grammar",
+        "file": "tests/domain_types/grammar/view_cast_rewrite.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/domain_types/wire.rs::should_describe_a_domain_column_with_the_base_oid",
       "name": "should_describe_a_domain_column_with_the_base_oid",
       "current_file": "tests/domain_types/wire.rs",
@@ -65949,6 +66383,68 @@
         {
           "suite": "enum_types",
           "name": "views::should_refuse_to_drop_a_type_a_routine_argument_depends_on"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "enum_types",
+        "category": "semantics",
+        "directory": "tests/enum_types/semantics",
+        "file": "tests/enum_types/semantics/views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/enum_types/views.rs::should_rename_only_the_exact_label_when_another_label_contains_it",
+      "name": "should_rename_only_the_exact_label_when_another_label_contains_it",
+      "current_file": "tests/enum_types/views.rs",
+      "line": 131,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "enum_types",
+          "name": "views::should_rename_only_the_exact_label_when_another_label_contains_it"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "enum_types",
+        "category": "semantics",
+        "directory": "tests/enum_types/semantics",
+        "file": "tests/enum_types/semantics/views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/enum_types/views.rs::should_keep_an_escape_string_label_text_while_renaming_the_label",
+      "name": "should_keep_an_escape_string_label_text_while_renaming_the_label",
+      "current_file": "tests/enum_types/views.rs",
+      "line": 153,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "enum_types",
+          "name": "views::should_keep_an_escape_string_label_text_while_renaming_the_label"
         }
       ],
       "attributes": [
@@ -356934,6 +357430,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/namespaces/schema_view_rewrite.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 96,
+      "sha256": "459bc454d15ff76aa159e74291a5c4ade2a506691ff12bb5a55fbe7a710184af",
+      "test_declarations": 5,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/schema_view_rewrite.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/namespaces/search_path_resolution.rs",
       "role": "test_module",
       "action": "keep",
@@ -357240,8 +357751,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 200,
-      "sha256": "c5c71dd1cccf50b08e2b3461d610922872cdc89aaa8473b14f45f773c7d7c5ab",
+      "lines": 203,
+      "sha256": "f8a4c2daf7e8c9427bc061602e1ddc6efc870f51c3d0918ac121680e14bd996f",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"
@@ -360163,6 +360674,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/composite_types/view_dependents.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 110,
+      "sha256": "6dddeafd5143089cc3a52c4294e1c1dbd2c214d11bef2018a3c4311af6ccb0a6",
+      "test_declarations": 5,
+      "registered_suites": [
+        "composite_types"
+      ],
+      "destinations": [
+        "tests/composite_types/semantics/view_dependents.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/composite_types/whole_row_names.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -360196,8 +360722,8 @@
       "current_file": "tests/composite_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 67,
-      "sha256": "8c9adfacd13000698b0f5d7654a2bdf5e61b469f2d6fd5db879e123e3c3aca33",
+      "lines": 70,
+      "sha256": "e0c73afb87306f3651098e73f6daf51a1e55329c035e67368d4fe9b5c9495d47",
       "test_declarations": 0,
       "registered_suites": [
         "composite_types"
@@ -361065,6 +361591,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/domain_types/view_cast_rewrite.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 82,
+      "sha256": "bf5e4e3593f2d3b4d51d005cbf2c3d9bf7f00860197c59af9b8feb7383ddc0d2",
+      "test_declarations": 4,
+      "registered_suites": [
+        "domain_types"
+      ],
+      "destinations": [
+        "tests/domain_types/grammar/view_cast_rewrite.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/domain_types/wire.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -361083,8 +361624,8 @@
       "current_file": "tests/domain_types.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 35,
-      "sha256": "cf1fe40745a6e98450545f73407b68662895fd5ffd48dc6f4cc1e7935ff269ea",
+      "lines": 38,
+      "sha256": "4dd769e04a4b10432de8c8827f213944ac84dc215cae9d243354f6894d04fb7c",
       "test_declarations": 0,
       "registered_suites": [
         "domain_types"
@@ -361310,9 +361851,9 @@
       "current_file": "tests/enum_types/views.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 128,
-      "sha256": "b1a51e55c52cf32ff7203f71dcc1640ddd1f50edc3ef06f06f25a0c2ab4d1b81",
-      "test_declarations": 6,
+      "lines": 167,
+      "sha256": "f846e127e32c08e2fdb537f9799a6cf05a19a0cb1302b788b05f1efa1f85557f",
+      "test_declarations": 8,
       "registered_suites": [
         "enum_types"
       ],

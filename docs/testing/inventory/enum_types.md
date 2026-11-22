@@ -177,6 +177,8 @@ Generated from `inventory.json`. Selected destinations record the reviewed physi
 | `should_refuse_to_drop_a_type_a_view_output_depends_on` | [tests/enum_types/views.rs:75](../../../tests/enum_types/views.rs#L75) | `tests/enum_types/semantics/views.rs` | registered | no | 1 | recommended |
 | `should_refuse_to_drop_a_type_a_view_only_casts_to` | [tests/enum_types/views.rs:95](../../../tests/enum_types/views.rs#L95) | `tests/enum_types/semantics/views.rs` | registered | no | 1 | recommended |
 | `should_refuse_to_drop_a_type_a_routine_argument_depends_on` | [tests/enum_types/views.rs:113](../../../tests/enum_types/views.rs#L113) | `tests/enum_types/semantics/views.rs` | registered | no | 1 | recommended |
+| `should_rename_only_the_exact_label_when_another_label_contains_it` | [tests/enum_types/views.rs:131](../../../tests/enum_types/views.rs#L131) | `tests/enum_types/semantics/views.rs` | registered | no | 1 | recommended |
+| `should_keep_an_escape_string_label_text_while_renaming_the_label` | [tests/enum_types/views.rs:153](../../../tests/enum_types/views.rs#L153) | `tests/enum_types/semantics/views.rs` | registered | no | 1 | recommended |
 | `should_describe_an_enum_column_with_the_enum_oid` | [tests/enum_types/wire.rs:40](../../../tests/enum_types/wire.rs#L40) | `tests/enum_types/semantics/wire.rs` | registered | no | 1 | recommended |
 | `should_describe_an_enum_array_column_with_the_array_oid` | [tests/enum_types/wire.rs:59](../../../tests/enum_types/wire.rs#L59) | `tests/enum_types/semantics/wire.rs` | registered | no | 1 | recommended |
 | `should_describe_a_cast_to_an_enum_with_the_enum_oid` | [tests/enum_types/wire.rs:83](../../../tests/enum_types/wire.rs#L83) | `tests/enum_types/semantics/wire.rs` | registered | no | 1 | recommended |

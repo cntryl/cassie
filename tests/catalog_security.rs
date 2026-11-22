@@ -132,6 +132,9 @@ mod udf_database_scope;
 #[path = "catalog_security/namespaces/schema_scope_storage.rs"]
 mod schema_scope_storage;
 
+#[path = "catalog_security/namespaces/schema_view_rewrite.rs"]
+mod schema_view_rewrite;
+
 // Formerly tests/session_settings.rs.
 #[path = "catalog_security/sessions/session_settings.rs"]
 mod session_settings;

@@ -6,7 +6,10 @@
 //! published in the same transaction as the type, so a view never sees a type
 //! name or attribute that no longer exists.
 
+use std::collections::BTreeSet;
+
 use super::domain_view_text::rewrite_cast_targets;
+use super::sql_text_tokens::{chains, tokenize, Token};
 use crate::catalog::object_identity::quote_identifier;
 use crate::catalog::{parse_name, relation_database_name, CompositeTypeMeta, ParsedName, ViewMeta};
 
@@ -56,59 +59,6 @@ pub(super) fn renamed_type_views(
         .collect()
 }
 
-fn is_identifier_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$') || byte >= 0x80
-}
-
-fn skip_whitespace(bytes: &[u8], mut index: usize) -> usize {
-    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
-        index += 1;
-    }
-    index
-}
-
-fn quoted_end(bytes: &[u8], open: usize, quote: u8) -> usize {
-    let mut index = open + 1;
-    while index < bytes.len() {
-        if bytes[index] == quote {
-            if bytes.get(index + 1) == Some(&quote) {
-                index += 2;
-                continue;
-            }
-            return index + 1;
-        }
-        index += 1;
-    }
-    bytes.len()
-}
-
-/// The identifier starting at `start`: its end and its folded name (bare names
-/// fold to lower case, quoted names keep their exact spelling).
-fn identifier_at(sql: &str, start: usize) -> Option<(usize, String)> {
-    let bytes = sql.as_bytes();
-    if bytes.get(start) == Some(&b'"') {
-        let end = quoted_end(bytes, start, b'"');
-        let inner = sql.get(start + 1..end.checked_sub(1)?)?;
-        return Some((end, inner.replace("\"\"", "\"")));
-    }
-    let mut end = start;
-    while end < bytes.len() && is_identifier_byte(bytes[end]) {
-        end += 1;
-    }
-    (end > start && !bytes[start].is_ascii_digit())
-        .then(|| (end, sql[start..end].to_ascii_lowercase()))
-}
-
-fn keyword_at(bytes: &[u8], index: usize, keyword: &[u8]) -> bool {
-    bytes
-        .get(index..index + keyword.len())
-        .is_some_and(|word| word.eq_ignore_ascii_case(keyword))
-        && (index == 0 || !is_identifier_byte(bytes[index - 1]))
-        && !bytes
-            .get(index + keyword.len())
-            .is_some_and(|byte| is_identifier_byte(*byte))
-}
-
 /// The outcome of renaming the field selections of one view definition.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct FieldRename {
@@ -122,67 +72,46 @@ pub(super) struct FieldRename {
 /// Renames each `(expr).from` field selection in `sql` to `(expr).to`. An
 /// unaliased select-list item keeps its output column name with `AS from`, as
 /// PostgreSQL's view keeps the column names it was created with.
+///
+/// `plain_qualifiers` are the folded names and aliases of the base tables the
+/// view reads: `qualifier.from` there names a column of that table, never an
+/// attribute of a composite value, so it neither needs a rewrite nor makes the
+/// view ambiguous.
 #[must_use]
-pub(super) fn rename_field_selections(sql: &str, from: &str, to: &str) -> FieldRename {
-    let bytes = sql.as_bytes();
+pub(super) fn rename_field_selections(
+    sql: &str,
+    from: &str,
+    to: &str,
+    plain_qualifiers: &BTreeSet<String>,
+) -> FieldRename {
+    let tokens = tokenize(sql);
+    let ambiguous = names_other_reference(sql, &tokens, from, plain_qualifiers);
     let mut rewritten = String::with_capacity(sql.len() + 16);
     let mut copied = 0;
     let mut changed = false;
-    let mut ambiguous = false;
     let mut depth = 0_usize;
     let mut past_select_list = false;
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\'' => index = quoted_end(bytes, index, b'\''),
-            b'(' => {
-                depth += 1;
-                index += 1;
+    for (index, token) in tokens.iter().enumerate() {
+        if token.is_punct(sql, b'(') {
+            depth += 1;
+        } else if token.is_punct(sql, b')') {
+            depth = depth.saturating_sub(1);
+            let Some(name) = field_after_parenthesis(sql, &tokens, index, from) else {
+                continue;
+            };
+            rewritten.push_str(&sql[copied..name.start]);
+            rewritten.push_str(&quote_identifier(to));
+            let ends_item = tokens
+                .get(index + 3)
+                .is_none_or(|next| next.is_punct(sql, b',') || next.is_keyword(sql, "from"));
+            if depth == 0 && !past_select_list && ends_item {
+                rewritten.push_str(" AS ");
+                rewritten.push_str(&quote_identifier(from));
             }
-            b')' => {
-                depth = depth.saturating_sub(1);
-                let dot = skip_whitespace(bytes, index + 1);
-                index += 1;
-                if bytes.get(dot) != Some(&b'.') {
-                    continue;
-                }
-                let start = skip_whitespace(bytes, dot + 1);
-                let Some((end, name)) = identifier_at(sql, start) else {
-                    continue;
-                };
-                if name != from {
-                    continue;
-                }
-                rewritten.push_str(&sql[copied..start]);
-                rewritten.push_str(&quote_identifier(to));
-                let next = skip_whitespace(bytes, end);
-                let ends_item =
-                    next >= bytes.len() || bytes[next] == b',' || keyword_at(bytes, next, b"from");
-                if depth == 0 && !past_select_list && ends_item {
-                    rewritten.push_str(" AS ");
-                    rewritten.push_str(&quote_identifier(from));
-                }
-                copied = end;
-                changed = true;
-                index = end;
-            }
-            b'.' => {
-                let start = skip_whitespace(bytes, index + 1);
-                if identifier_at(sql, start).is_some_and(|(_, name)| name == from) {
-                    ambiguous = true;
-                }
-                index += 1;
-            }
-            byte => {
-                if depth == 0 && keyword_at(bytes, index, b"from") {
-                    past_select_list = true;
-                }
-                index += if byte == b'"' {
-                    quoted_end(bytes, index, b'"') - index
-                } else {
-                    1
-                };
-            }
+            copied = name.end;
+            changed = true;
+        } else if depth == 0 && token.is_keyword(sql, "from") {
+            past_select_list = true;
         }
     }
     let query = changed.then(|| {
@@ -190,6 +119,49 @@ pub(super) fn rename_field_selections(sql: &str, from: &str, to: &str) -> FieldR
         rewritten
     });
     FieldRename { query, ambiguous }
+}
+
+/// The attribute token of `(expr).attribute` when the parenthesis at `close`
+/// ends a parenthesized expression that selects `from`.
+fn field_after_parenthesis(sql: &str, tokens: &[Token], close: usize, from: &str) -> Option<Token> {
+    if !tokens.get(close + 1)?.is_punct(sql, b'.') {
+        return None;
+    }
+    let name = *tokens.get(close + 2)?;
+    (name.identifier(sql).as_deref() == Some(from)).then_some(name)
+}
+
+/// Whether a dotted reference to `from` other than a parenthesized field
+/// selection or a column of a base table of the view remains.
+pub(super) fn names_other_reference(
+    sql: &str,
+    tokens: &[Token],
+    from: &str,
+    plain_qualifiers: &BTreeSet<String>,
+) -> bool {
+    chains(sql, tokens).iter().any(|chain| {
+        let [first, .., last] = chain.parts.as_slice() else {
+            return false;
+        };
+        tokens[*last].identifier(sql).as_deref() == Some(from)
+            && tokens[*first]
+                .identifier(sql)
+                .is_none_or(|qualifier| !plain_qualifiers.contains(&qualifier))
+    })
+}
+
+/// Whether `sql` selects `attribute` from a composite value: `(expr).attribute`
+/// or a dotted reference whose qualifier is not a base table of the view.
+pub(super) fn selects_attribute(
+    sql: &str,
+    attribute: &str,
+    plain_qualifiers: &BTreeSet<String>,
+) -> bool {
+    let tokens = tokenize(sql);
+    (0..tokens.len()).any(|index| {
+        tokens[index].is_punct(sql, b')')
+            && field_after_parenthesis(sql, &tokens, index, attribute).is_some()
+    }) || names_other_reference(sql, &tokens, attribute, plain_qualifiers)
 }
 
 #[cfg(test)]

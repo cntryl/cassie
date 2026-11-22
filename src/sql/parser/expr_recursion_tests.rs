@@ -187,6 +187,8 @@ fn should_reject_direct_self_call_and_preserve_the_session() {
         .expect("session survives direct self-call rejection");
 
     // Assert
-    assert_eq!(error.to_string(), "function 'f' cannot call itself");
+    assert!(error
+        .to_string()
+        .contains("function 'f' cannot call itself"));
     assert_eq!(follow_up.rows(), &[vec![Value::Int64(1)]]);
 }

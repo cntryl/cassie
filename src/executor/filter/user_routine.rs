@@ -1,7 +1,7 @@
 //! SQL routine argument and body evaluation under the invoking expression context.
 use super::{
     cast_scalar, eval_scalar, execution_controls, merge_local_args, scalar_from_value, EvalContext,
-    HashMap, QueryError, RowAccess, Value,
+    EvaluationMemory, HashMap, QueryError, RowAccess, Value,
 };
 use std::cell::Cell;
 
@@ -12,6 +12,17 @@ thread_local! {
 }
 
 struct UserFunctionDepthGuard(usize);
+
+struct RoutineMemoryGuard<'a> {
+    memory: &'a EvaluationMemory,
+    baseline: usize,
+}
+
+impl Drop for RoutineMemoryGuard<'_> {
+    fn drop(&mut self) {
+        self.memory.shrink_to(self.baseline);
+    }
+}
 
 impl Drop for UserFunctionDepthGuard {
     fn drop(&mut self) {
@@ -61,6 +72,10 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
             args.len()
         )));
     }
+    let baseline = context.memory.map(EvaluationMemory::bytes);
+    let _routine_memory = baseline.zip(context.memory).map(|(baseline, memory)| {
+        RoutineMemoryGuard { memory, baseline }
+    });
     let _function_memory_scope = if let Some(memory) = context.memory {
         Some(memory.scope(crate::executor::retained_memory::add(
             crate::executor::retained_memory::mul(metadata.body.len(), 128)?,

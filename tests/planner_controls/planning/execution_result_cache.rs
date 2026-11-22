@@ -532,6 +532,8 @@ fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views
         "SELECT generated_at FROM cache_clock_view",
         "SELECT generated_at FROM (SELECT now() AS generated_at) AS nested_clock",
         "SELECT generated_at FROM (SELECT now() AS generated_at) AS nested_clock",
+        "SELECT 'now'::timestamptz",
+        "SELECT 'now'::timestamptz",
     ] {
         cassie
             .execute_sql(&session, sql, vec![])
@@ -548,9 +550,8 @@ fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views
     // Assert
     assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(1));
     assert_eq!(
-        metrics["execution_result_cache"]["bypass_reasons"]["clock_dependent_builtin"]
-            .as_u64(),
-        Some(8)
+        metrics["execution_result_cache"]["bypass_reasons"]["clock_dependent_builtin"].as_u64(),
+        Some(10)
     );
     let _ = std::fs::remove_dir_all(path);
 }

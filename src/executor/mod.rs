@@ -10,6 +10,7 @@ pub(crate) use execution::explain_graph_sources;
 pub(crate) use execution::install_checkpoint_ddl_stage_hook;
 pub(crate) use execution::native_result_text_bound;
 pub(crate) use execution::plan_needs_statement_data;
+pub(crate) use execution::plan_uses_clock_dependent_builtin_including_views;
 pub(crate) use execution::plan_uses_volatile_builtin_including_views;
 pub(crate) use execution::refresh_materialized_view_concurrently_external;
 pub(crate) use execution::{

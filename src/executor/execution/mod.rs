@@ -78,6 +78,7 @@ pub use types::{
 
 mod constant_planning;
 mod volatile_plan_inspection;
+pub(crate) use volatile_plan_inspection::plan_uses_clock_dependent_builtin_including_views;
 pub(crate) use volatile_plan_inspection::plan_uses_volatile_builtin_including_views;
 mod cte_reachability;
 pub(crate) use constant_planning::check_plan as check_plan_constants;

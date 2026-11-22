@@ -557,6 +557,12 @@ impl Cassie {
         ) {
             return Some("volatile_builtin");
         }
+        if crate::executor::plan_uses_clock_dependent_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
+            return Some("clock_dependent_builtin");
+        }
         if ["set_config", "pg_catalog.set_config"].iter().any(|name| {
             crate::executor::plan_uses_function_including_views(
                 &physical.logical,

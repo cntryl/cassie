@@ -8,13 +8,88 @@ use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 
-fn function_is_volatile_builtin(function: &crate::sql::ast::FunctionCall) -> bool {
-    if crate::planner::cte_inlining::volatile_builtin_name(&function.name) {
-        return true;
+#[derive(Clone, Copy)]
+enum ResultCacheBypassBuiltin {
+    Volatile,
+    ClockDependent,
+}
+
+impl ResultCacheBypassBuiltin {
+    fn matches_function(self, function: &crate::sql::ast::FunctionCall) -> bool {
+        match self {
+            Self::Volatile => {
+                crate::planner::cte_inlining::volatile_builtin_name(&function.name)
+                    || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                        crate::planner::cte_inlining::volatile_builtin(&function.name, metadata.id)
+                    })
+            }
+            Self::ClockDependent => {
+                crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                    metadata.id == crate::sql::functions::FunctionId::Temporal
+                        && clock_function(&function.name, function.args.len())
+                })
+            }
+        }
     }
-    crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-        crate::planner::cte_inlining::volatile_builtin(&function.name, metadata.id)
-    })
+
+    fn matches_expression(self, expression: &Expr) -> bool {
+        if !matches!(self, Self::ClockDependent) {
+            return false;
+        }
+        let Expr::Cast {
+            expr, data_type, ..
+        } = expression
+        else {
+            return false;
+        };
+        is_temporal_type(data_type) && contains_clock_input(expr)
+    }
+}
+
+fn clock_function(name: &str, argument_count: usize) -> bool {
+    let name = name.rsplit('.').next().unwrap_or(name);
+    match name.to_ascii_lowercase().as_str() {
+        "now"
+        | "transaction_timestamp"
+        | "statement_timestamp"
+        | "clock_timestamp"
+        | "current_date"
+        | "timeofday" => argument_count == 0,
+        "current_timestamp" | "localtimestamp" | "current_time" | "localtime" => {
+            argument_count <= 1
+        }
+        "age" => argument_count <= 1,
+        _ => false,
+    }
+}
+
+fn is_temporal_type(data_type: &crate::types::DataType) -> bool {
+    use crate::types::{extended::ExtendedType, DataType};
+    matches!(
+        data_type,
+        DataType::Date
+            | DataType::Time
+            | DataType::Timestamp
+            | DataType::Extended(
+                ExtendedType::Date
+                    | ExtendedType::Time { .. }
+                    | ExtendedType::TimeTz { .. }
+                    | ExtendedType::Timestamp { .. }
+                    | ExtendedType::TimestampTz { .. }
+            )
+    )
+}
+
+fn contains_clock_input(expression: &Expr) -> bool {
+    if let Expr::StringLiteral(value) = expression {
+        if ["now", "today", "tomorrow", "yesterday"]
+            .iter()
+            .any(|clock_input| value.eq_ignore_ascii_case(clock_input))
+        {
+            return true;
+        }
+    }
+    expression.any_child(contains_clock_input)
 }
 
 pub(crate) fn plan_uses_volatile_builtin_including_views(
@@ -22,150 +97,173 @@ pub(crate) fn plan_uses_volatile_builtin_including_views(
     catalog: &crate::catalog::Catalog,
 ) -> bool {
     let mut visited_views = HashSet::new();
-    plan_uses_volatile_with_views(plan, catalog, &mut visited_views)
+    plan_uses_with_views(
+        plan,
+        catalog,
+        &mut visited_views,
+        ResultCacheBypassBuiltin::Volatile,
+    )
 }
 
-fn plan_uses_volatile_with_views(
+pub(crate) fn plan_uses_clock_dependent_builtin_including_views(
+    plan: &LogicalPlan,
+    catalog: &crate::catalog::Catalog,
+) -> bool {
+    let mut visited_views = HashSet::new();
+    plan_uses_with_views(
+        plan,
+        catalog,
+        &mut visited_views,
+        ResultCacheBypassBuiltin::ClockDependent,
+    )
+}
+
+fn plan_uses_with_views(
     plan: &LogicalPlan,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
-    source_uses_volatile_with_views(&plan.source, catalog, visited_views)
+    source_uses_with_views(&plan.source, catalog, visited_views, builtin)
         || plan
             .projection
             .iter()
-            .any(|item| item_uses_volatile_with_views(item, catalog, visited_views))
+            .any(|item| item_uses_with_views(item, catalog, visited_views, builtin))
         || plan
             .filter
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .distinct_on
             .iter()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .group_by
             .iter()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .having
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .order
             .iter()
-            .any(|order| expr_uses_volatile_with_views(&order.expr, catalog, visited_views))
+            .any(|order| expr_uses_with_views(&order.expr, catalog, visited_views, builtin))
         || plan
             .limit
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .offset
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || plan
             .ctes
             .iter()
-            .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
+            .any(|cte| cte_uses_with_views(cte, catalog, visited_views, builtin))
         || plan
             .set
             .as_ref()
-            .is_some_and(|set| select_uses_volatile_with_views(&set.right, catalog, visited_views))
+            .is_some_and(|set| select_uses_with_views(&set.right, catalog, visited_views, builtin))
 }
 
-fn cte_uses_volatile_with_views(
+fn cte_uses_with_views(
     cte: &CommonTableExpression,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => {
-            parsed_statement_uses_volatile_with_views(statement, catalog, visited_views)
+            parsed_statement_uses_with_views(statement, catalog, visited_views, builtin)
         }
         CteQuery::Recursive {
             base, recursive, ..
         } => {
-            parsed_statement_uses_volatile_with_views(base, catalog, visited_views)
-                || parsed_statement_uses_volatile_with_views(recursive, catalog, visited_views)
+            parsed_statement_uses_with_views(base, catalog, visited_views, builtin)
+                || parsed_statement_uses_with_views(recursive, catalog, visited_views, builtin)
         }
     }
 }
 
-fn parsed_statement_uses_volatile_with_views(
+fn parsed_statement_uses_with_views(
     statement: &crate::sql::ast::ParsedStatement,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
     match &statement.statement {
         QueryStatement::Select(select) => {
-            select_uses_volatile_with_views(select, catalog, visited_views)
+            select_uses_with_views(select, catalog, visited_views, builtin)
         }
         _ => false,
     }
 }
 
-fn select_uses_volatile_with_views(
+fn select_uses_with_views(
     select: &SelectStatement,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
-    source_uses_volatile_with_views(&select.source, catalog, visited_views)
+    source_uses_with_views(&select.source, catalog, visited_views, builtin)
         || select
             .projection
             .iter()
-            .any(|item| item_uses_volatile_with_views(item, catalog, visited_views))
+            .any(|item| item_uses_with_views(item, catalog, visited_views, builtin))
         || select
             .filter
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .distinct_on
             .iter()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .group_by
             .iter()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .having
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .order
             .iter()
-            .any(|order| expr_uses_volatile_with_views(&order.expr, catalog, visited_views))
+            .any(|order| expr_uses_with_views(&order.expr, catalog, visited_views, builtin))
         || select
             .limit
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .offset
             .as_ref()
-            .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+            .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         || select
             .ctes
             .iter()
-            .any(|cte| cte_uses_volatile_with_views(cte, catalog, visited_views))
+            .any(|cte| cte_uses_with_views(cte, catalog, visited_views, builtin))
         || select
             .set
             .as_ref()
-            .is_some_and(|set| select_uses_volatile_with_views(&set.right, catalog, visited_views))
+            .is_some_and(|set| select_uses_with_views(&set.right, catalog, visited_views, builtin))
 }
 
-fn item_uses_volatile_with_views(
+fn item_uses_with_views(
     item: &SelectItem,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
     match item {
         SelectItem::Function { function, .. } => {
-            function_is_volatile_builtin(function)
+            builtin.matches_function(function)
                 || function
                     .expressions()
-                    .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+                    .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         }
         SelectItem::Expr { expr, .. } => {
-            expr_uses_volatile_with_views(expr, catalog, visited_views)
+            expr_uses_with_views(expr, catalog, visited_views, builtin)
         }
         SelectItem::WindowFunction { function, .. } => function
             .args
@@ -173,49 +271,50 @@ fn item_uses_volatile_with_views(
             .chain(function.filter.as_deref())
             .chain(&function.partition_by)
             .chain(function.order_by.iter().map(|order| &order.expr))
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin)),
         SelectItem::Column { .. } | SelectItem::Wildcard => false,
     }
 }
 
-fn source_uses_volatile_with_views(
+fn source_uses_with_views(
     source: &QuerySource,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
     match source {
         QuerySource::Values { rows } => rows
             .iter()
             .flatten()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin)),
         QuerySource::TableSample {
             source,
             rate,
             repeatable,
             ..
         } => {
-            source_uses_volatile_with_views(source, catalog, visited_views)
-                || expr_uses_volatile_with_views(rate, catalog, visited_views)
+            source_uses_with_views(source, catalog, visited_views, builtin)
+                || expr_uses_with_views(rate, catalog, visited_views, builtin)
                 || repeatable
                     .as_ref()
-                    .is_some_and(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views))
+                    .is_some_and(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin))
         }
         QuerySource::Aliased { source, .. } => {
-            source_uses_volatile_with_views(source, catalog, visited_views)
+            source_uses_with_views(source, catalog, visited_views, builtin)
         }
         QuerySource::Subquery { select, .. } => {
-            select_uses_volatile_with_views(select, catalog, visited_views)
+            select_uses_with_views(select, catalog, visited_views, builtin)
         }
         QuerySource::Join {
             left, right, on, ..
         } => {
-            source_uses_volatile_with_views(left, catalog, visited_views)
-                || source_uses_volatile_with_views(right, catalog, visited_views)
-                || expr_uses_volatile_with_views(on, catalog, visited_views)
+            source_uses_with_views(left, catalog, visited_views, builtin)
+                || source_uses_with_views(right, catalog, visited_views, builtin)
+                || expr_uses_with_views(on, catalog, visited_views, builtin)
         }
         QuerySource::TableFunction { function, .. } => function
             .expressions()
-            .any(|expr| expr_uses_volatile_with_views(expr, catalog, visited_views)),
+            .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin)),
         QuerySource::Collection(name) => {
             let Some(view) = catalog.get_view(name) else {
                 return false;
@@ -241,7 +340,7 @@ fn source_uses_volatile_with_views(
                     _ => None,
                 })
                 .is_some_and(|select| {
-                    select_uses_volatile_with_views(&select, catalog, visited_views)
+                    select_uses_with_views(&select, catalog, visited_views, builtin)
                 });
             visited_views.remove(&key);
             found
@@ -250,22 +349,26 @@ fn source_uses_volatile_with_views(
     }
 }
 
-fn expr_uses_volatile_with_views(
+fn expr_uses_with_views(
     expr: &Expr,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
+    builtin: ResultCacheBypassBuiltin,
 ) -> bool {
+    if builtin.matches_expression(expr) {
+        return true;
+    }
     if let Expr::Function(function) = expr {
-        if function_is_volatile_builtin(function) {
+        if builtin.matches_function(function) {
             return true;
         }
     }
     if let Some(statement) = expr.subquery_statement() {
-        if parsed_statement_uses_volatile_with_views(statement, catalog, visited_views) {
+        if parsed_statement_uses_with_views(statement, catalog, visited_views, builtin) {
             return true;
         }
     }
-    expr.any_child(|child| expr_uses_volatile_with_views(child, catalog, visited_views))
+    expr.any_child(|child| expr_uses_with_views(child, catalog, visited_views, builtin))
 }
 
 #[cfg(test)]

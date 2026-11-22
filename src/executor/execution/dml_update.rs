@@ -146,6 +146,9 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
     }) else {
         return Ok(());
     };
+    session.attach_transaction_unique_waits(std::sync::Arc::clone(
+        &cassie.transaction_unique_waits,
+    ));
     let Some(waits) = session.transaction_unique_waits() else {
         return Ok(());
     };

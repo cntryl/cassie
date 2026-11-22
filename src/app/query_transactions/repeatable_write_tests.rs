@@ -333,6 +333,7 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
         .execute_sql(&first, "UPDATE rr_row_guard SET a = 10 WHERE id = 1", Vec::new())
         .expect("first update");
     let (updated, updated_rx) = std::sync::mpsc::channel();
+    let (allow_commit, allow_commit_rx) = std::sync::mpsc::channel();
     let worker_cassie = cassie.clone();
 
     // Act
@@ -343,6 +344,14 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
             Vec::new(),
         );
         updated.send(update.is_ok()).expect("report update");
+        if allow_commit_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .is_err()
+        {
+            return Err(CassieError::Execution(
+                "second commit was not released".to_owned(),
+            ));
+        }
         worker_cassie.execute_sql(&second, "COMMIT", Vec::new())
     });
     let worker = match updated_rx.recv_timeout(std::time::Duration::from_secs(1)) {
@@ -363,6 +372,7 @@ fn should_keep_repeatable_read_serialization_failure_for_row_contention() {
     cassie
         .execute_sql(&first, "COMMIT", Vec::new())
         .expect("first commit");
+    allow_commit.send(()).expect("release second commit");
     let second_commit = worker.join().expect("second worker");
 
     // Assert

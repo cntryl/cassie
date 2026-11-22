@@ -4,8 +4,60 @@ use crate::sql::ast::{
     CteQuery, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 use crate::sql::SqlError;
+use std::cell::Cell;
 
 pub(super) const MAX_POSTFIX_DEPTH: usize = 128;
+const MAX_RECURSIVE_EXPRESSION_DEPTH: usize = 128;
+
+thread_local! {
+    static NOT_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+struct ParseDepthGuard {
+    kind: ParseDepthKind,
+    previous: usize,
+}
+
+#[derive(Clone, Copy)]
+enum ParseDepthKind {
+    Not,
+    Case,
+}
+
+impl Drop for ParseDepthGuard {
+    fn drop(&mut self) {
+        match self.kind {
+            ParseDepthKind::Not => NOT_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+            ParseDepthKind::Case => CASE_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+        }
+    }
+}
+
+pub(super) fn enter_not_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    enter_parse_depth(&NOT_PARSE_DEPTH, "NOT", ParseDepthKind::Not)
+}
+
+pub(super) fn enter_case_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    enter_parse_depth(&CASE_PARSE_DEPTH, "CASE", ParseDepthKind::Case)
+}
+
+fn enter_parse_depth(
+    depth: &'static std::thread::LocalKey<Cell<usize>>,
+    expression: &str,
+    kind: ParseDepthKind,
+) -> Result<ParseDepthGuard, SqlError> {
+    depth.with(|depth| {
+        let previous = depth.get();
+        if previous >= MAX_RECURSIVE_EXPRESSION_DEPTH {
+            return Err(SqlError::resource_limit(format!(
+                "{expression} nesting exceeds {MAX_RECURSIVE_EXPRESSION_DEPTH}"
+            )));
+        }
+        depth.set(previous + 1);
+        Ok(ParseDepthGuard { kind, previous })
+    })
+}
 
 pub(super) fn limit_error() -> SqlError {
     SqlError::resource_limit(format!(

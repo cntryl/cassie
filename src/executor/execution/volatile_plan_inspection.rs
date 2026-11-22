@@ -329,7 +329,17 @@ fn source_uses_volatile_with_views(
             if !visited_views.insert(key.clone()) {
                 return false;
             }
-            let found = crate::sql::parse_statement(&view.query)
+            // Stored view bodies resolve type names from the view's own
+            // database and schema, including enum/domain/composite types.
+            let context = crate::sql::binder::BindingContext::unscoped(
+                crate::catalog::relation_database_name(&view.name)
+                    .unwrap_or_else(|| crate::sql::binder::BindingContext::default().database),
+                vec![
+                    crate::catalog::relation_schema_name(&view.name),
+                    "public".to_string(),
+                ],
+            );
+            let found = crate::sql::parse_statement_in_catalog(catalog, &context, &view.query)
                 .ok()
                 .and_then(|parsed| match parsed.statement {
                     QueryStatement::Select(select) => Some(select),

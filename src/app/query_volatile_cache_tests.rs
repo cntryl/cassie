@@ -271,3 +271,35 @@ fn should_not_replay_default_volatile_udf_results_hidden_in_a_view() {
     assert_ne!(first.rows(), second.rows());
     assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
 }
+
+#[test]
+fn should_not_replay_random_results_from_a_view_with_catalog_enum_types() {
+    // Arrange
+    let (cassie, session) = fixture();
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TYPE volatile_cache_mood AS ENUM ('sad')",
+            vec![],
+        )
+        .expect("enum type");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE VIEW volatile_cache_enum_view AS SELECT 'sad'::volatile_cache_mood AS mood, random() AS value FROM volatile_cache_rows",
+            vec![],
+        )
+        .expect("enum-typed volatile view");
+
+    // Act
+    let first = cassie
+        .execute_sql(&session, "SELECT mood, value FROM volatile_cache_enum_view", vec![])
+        .expect("first enum view query");
+    let second = cassie
+        .execute_sql(&session, "SELECT mood, value FROM volatile_cache_enum_view", vec![])
+        .expect("second enum view query");
+
+    // Assert
+    assert_ne!(first.rows(), second.rows());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}

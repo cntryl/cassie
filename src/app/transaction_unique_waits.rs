@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use parking_lot::{Condvar, Mutex};
+#[cfg(test)]
+use parking_lot::MutexGuard;
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -18,16 +20,23 @@ use crate::runtime::QueryExecutionControls;
 
 #[cfg(test)]
 static ROW_WAIT_OBSERVER: OnceLock<Mutex<Option<Sender<()>>>> = OnceLock::new();
+#[cfg(test)]
+static ROW_WAIT_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[cfg(test)]
-pub(crate) struct RowWaitObserverGuard;
+pub(crate) struct RowWaitObserverGuard {
+    _test_lock: MutexGuard<'static, ()>,
+}
 
 #[cfg(test)]
 pub(crate) fn install_row_wait_observer(sender: Sender<()>) -> RowWaitObserverGuard {
+    let test_lock = ROW_WAIT_TEST_LOCK.get_or_init(|| Mutex::new(())).lock();
     *ROW_WAIT_OBSERVER
         .get_or_init(|| Mutex::new(None))
         .lock() = Some(sender);
-    RowWaitObserverGuard
+    RowWaitObserverGuard {
+        _test_lock: test_lock,
+    }
 }
 
 #[cfg(test)]

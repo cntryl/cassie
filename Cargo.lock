@@ -257,7 +257,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jiff",
- "jiff-tzdb 0.1.9",
+ "jiff-tzdb",
  "lz4_flex",
  "md-5",
  "num-bigint 0.5.1",
@@ -302,7 +302,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jiff",
- "jiff-tzdb 0.1.9",
+ "jiff-tzdb",
  "md-5",
  "num-bigint 0.5.1",
  "num-integer",
@@ -1275,7 +1275,7 @@ checksum = "ed5d126d72eb017f10b302e73bdeca446bea405ee449af4d9e7866d6b082d83e"
 dependencies = [
  "jiff-core",
  "jiff-static",
- "jiff-tzdb 1.0.0",
+ "jiff-tzdb",
  "log",
  "portable-atomic",
  "portable-atomic-util",
@@ -1302,12 +1302,6 @@ dependencies = [
  "quote",
  "syn 3.0.10",
 ]
-
-[[package]]
-name = "jiff-tzdb"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa8377070c6bae868759445e5a77f66d84f0b72f3a054bfb00e6d038b8282da7"
 
 [[package]]
 name = "jiff-tzdb"

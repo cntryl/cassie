@@ -9,6 +9,7 @@ pub(super) fn bind_create_function(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateFunctionStatement, CassieError> {
+    let requested_name = statement.name.trim().to_owned();
     let name = super::normalize_new_relation_name(statement.name.trim(), context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
@@ -81,7 +82,7 @@ pub(super) fn bind_create_function(
 
     if function_body_references(&parsed_body, &name, context) {
         return Err(CassieError::Planner(format!(
-            "function '{name}' cannot call itself"
+            "function '{requested_name}' cannot call itself"
         )));
     }
 

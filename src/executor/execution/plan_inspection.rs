@@ -1278,6 +1278,29 @@ mod tests {
     }
 
     #[test]
+    fn should_stop_view_volatility_walk_at_a_catalog_cycle() {
+        // Arrange
+        let catalog = crate::catalog::Catalog::new();
+        catalog.register_view(crate::catalog::ViewMeta::new(
+            "cycle",
+            "SELECT value FROM cycle",
+            crate::types::Schema { fields: Vec::new() },
+        ));
+        let parsed = crate::sql::parse_statement("SELECT value FROM cycle").expect("view query");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let contains_volatile_builtin =
+            plan_uses_volatile_builtin_including_views(&plan, &catalog);
+
+        // Assert
+        assert!(!contains_volatile_builtin);
+    }
+
+    #[test]
     fn should_find_nested_routines_given_aggregate_filter_and_order_when_dependencies_are_inspected(
     ) {
         // Arrange

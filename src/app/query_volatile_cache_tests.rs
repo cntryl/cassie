@@ -187,3 +187,55 @@ fn should_not_replay_volatile_results_in_limit_offset_or_table_sample() {
     assert_eq!(sample_first.columns(), sample_second.columns());
     assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
 }
+
+#[test]
+fn should_not_replay_volatile_results_hidden_in_a_cte() {
+    // Arrange
+    let (cassie, session) = fixture();
+
+    // Act
+    let first = cassie
+        .execute_sql(
+            &session,
+            "WITH volatile AS (SELECT random() AS value) SELECT value FROM volatile",
+            vec![],
+        )
+        .expect("volatile CTE");
+    let second = cassie
+        .execute_sql(
+            &session,
+            "WITH volatile AS (SELECT random() AS value) SELECT value FROM volatile",
+            vec![],
+        )
+        .expect("volatile CTE replay");
+
+    // Assert
+    assert_ne!(first.rows(), second.rows());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}
+
+#[test]
+fn should_not_replay_volatile_results_hidden_in_a_set_branch() {
+    // Arrange
+    let (cassie, session) = fixture();
+
+    // Act
+    let first = cassie
+        .execute_sql(
+            &session,
+            "SELECT random() AS value UNION ALL SELECT random()",
+            vec![],
+        )
+        .expect("volatile set branch");
+    let second = cassie
+        .execute_sql(
+            &session,
+            "SELECT random() AS value UNION ALL SELECT random()",
+            vec![],
+        )
+        .expect("volatile set branch replay");
+
+    // Assert
+    assert_ne!(first.rows(), second.rows());
+    assert_eq!(cassie.metrics()["execution_result_cache"]["hits"], 0);
+}

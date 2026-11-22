@@ -148,6 +148,37 @@ fn should_evaluate_a_correlated_merge_set_subquery_for_each_matching_source_row(
 }
 
 #[test]
+fn should_insert_values_from_a_correlated_merge_subquery_per_source_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1458-correlated-merge-insert-values",
+        &[
+            "CREATE TABLE mg (id INT, w INT)",
+            "CREATE TABLE mgs (id INT, v INT)",
+            "INSERT INTO mgs VALUES (1, 42), (2, 7)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "MERGE INTO mg t USING mgs s ON t.id = s.id \
+             WHEN NOT MATCHED THEN INSERT (id, w) VALUES \
+             (s.id, (SELECT x.v FROM mgs x WHERE x.id = s.id))",
+        )
+        .expect("insert each correlated source value");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, w FROM mg ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(42)],
+            vec![Value::Int64(2), Value::Int64(7)],
+        ]
+    );
+}
+
+#[test]
 fn should_keep_uncorrelated_merge_set_subqueries_working() {
     // Arrange
     let fixture = correlated_merge_fixture("issue-1458-uncorrelated-merge-set");

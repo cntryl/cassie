@@ -171,6 +171,18 @@ fn should_keep_the_spaced_negative_literal_after_a_keyword() {
 }
 
 #[test]
+fn should_parse_keyword_immediately_before_a_positive_literal() {
+    // Arrange
+    let fixture = fixture("kw-and-positive-literal");
+
+    // Act
+    let rows = fixture.rows("SELECT 1 WHERE true AND+1 > 0");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
 fn should_parse_lowercase_conjunction_directly_before_a_parenthesis() {
     // Arrange
     let fixture = fixture("kw-and-lower");

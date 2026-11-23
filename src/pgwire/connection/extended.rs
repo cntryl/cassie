@@ -322,10 +322,10 @@ async fn execute_prepared_portal(
         .backend_registration
         .as_ref()
         .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
-    let cancellation = registration.begin_query();
-    let cancellation_handle = cancellation.handle();
+    let cancellation_guard = registration.begin_query();
+    let cancellation_handle = cancellation_guard.handle();
+    let mut cancellation = Some(cancellation_guard);
     let result_cap = cassie.runtime.limits().max_result_rows;
-    let standalone_publication = standalone && session.is_implicit_transaction();
     let explicit_commit = matches!(
         &parsed.statement,
         crate::sql::ast::QueryStatement::Transaction(transaction)
@@ -353,6 +353,7 @@ async fn execute_prepared_portal(
     )
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    let standalone_publication = standalone && session.is_implicit_transaction();
     if standalone_publication {
         let transaction_session = session.clone();
         if let Err(error) = run_pgwire_blocking(
@@ -366,17 +367,16 @@ async fn execute_prepared_portal(
             return Err(ExtendedQueryError::cassie(&error));
         }
     }
+    if standalone_publication || explicit_commit {
+        drop(cancellation.take());
+    }
     transaction_owner.close_completed(state, runtime, session);
     if let Some(notice) = notice {
         super::writers::write_notice_response(write_half, &notice)
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     }
-    let acknowledgement_cancellation = if standalone_publication || explicit_commit {
-        None
-    } else {
-        Some(cancellation.handle())
-    };
+    let acknowledgement_cancellation = cancellation.as_ref().map(|guard| guard.handle());
 
     write_fresh_result(
         write_half,

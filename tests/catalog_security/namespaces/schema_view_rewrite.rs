@@ -94,3 +94,75 @@ fn should_keep_a_literal_in_a_materialized_view_while_renaming_a_schema() {
         vec![vec![Value::String("a.txt".into()), Value::Int64(1)]]
     );
 }
+
+#[test]
+fn should_rewrite_an_external_view_when_its_source_schema_is_renamed() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema_rename_external_view",
+        &[
+            "CREATE SCHEMA a",
+            "CREATE SCHEMA x",
+            "CREATE TABLE a.t (id INT)",
+            "INSERT INTO a.t VALUES (5)",
+            "CREATE VIEW x.vv AS SELECT id FROM a.t",
+        ],
+    );
+
+    // Act
+    fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
+    let rows = fixture.rows("SELECT * FROM x.vv");
+    let stored = fixture.cassie.catalog.get_view("x.vv").expect("view metadata");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert!(stored.query.contains("b.t"));
+}
+
+#[test]
+fn should_preserve_literals_in_an_external_view_when_its_source_schema_is_renamed() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema_rename_external_literal",
+        &[
+            "CREATE SCHEMA a",
+            "CREATE SCHEMA x",
+            "CREATE TABLE a.t (id INT)",
+            "INSERT INTO a.t VALUES (5)",
+            "CREATE VIEW x.vv AS SELECT 'a.t' AS label, id FROM a.t",
+        ],
+    );
+
+    // Act
+    fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
+    let rows = fixture.rows("SELECT * FROM x.vv");
+    let stored = fixture.cassie.catalog.get_view("x.vv").expect("view metadata");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::String("a.t".into()), Value::Int64(5)]]);
+    assert!(stored.query.contains("'a.t'"));
+    assert!(stored.query.contains("b.t"));
+}
+
+#[test]
+fn should_leave_an_unrelated_view_definition_unchanged_when_a_schema_is_renamed() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema_rename_unrelated_view",
+        &[
+            "CREATE SCHEMA a",
+            "CREATE SCHEMA z",
+            "CREATE TABLE a.t (id INT)",
+            "CREATE TABLE z.source (id INT)",
+            "CREATE VIEW z.vv AS SELECT id FROM z.source",
+        ],
+    );
+    let before = fixture.cassie.catalog.get_view("z.vv").expect("view metadata").query;
+
+    // Act
+    fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
+    let after = fixture.cassie.catalog.get_view("z.vv").expect("view metadata").query;
+
+    // Assert
+    assert_eq!(after, before);
+}

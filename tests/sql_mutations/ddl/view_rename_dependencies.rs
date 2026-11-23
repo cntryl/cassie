@@ -1,7 +1,5 @@
 //! `ALTER TABLE ... RENAME TO` and `RENAME COLUMN` while a view reads the
-//! table or the column. PostgreSQL rewrites the view; Cassie has no SQL
-//! renderer for views, so it refuses with 2BP01 (a documented deviation) and
-//! never leaves a view that no longer resolves. `ALTER COLUMN TYPE` under a
+//! table or the column. `ALTER COLUMN TYPE` under a view
 //! view is refused with 0A000 as PostgreSQL does.
 
 use cassie::types::Value;
@@ -257,6 +255,62 @@ fn should_allow_renaming_a_table_no_view_reads() {
     // Assert
     assert!(renamed.is_ok(), "no view reads rt");
     assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(9)]]);
+}
+
+#[test]
+fn should_preserve_aliased_join_chain_results_after_table_rename() {
+    // Arrange
+    let fixture = base(
+        "rename-table-aliased-join-chain",
+        "CREATE VIEW rv0 AS SELECT x.id AS source_id, ot.m FROM rt AS x JOIN ot ON x.id = ot.id",
+    );
+    fixture
+        .execute("CREATE VIEW rv AS SELECT source_id, m FROM rv0")
+        .expect("the dependent view is created");
+
+    // Act
+    let renamed = fixture.execute("ALTER TABLE rt RENAME TO rt2");
+    let rows = view_rows(&fixture);
+
+    // Assert
+    assert!(renamed.is_ok(), "the stored relation reference is rewritten");
+    assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(9)]]);
+}
+
+#[test]
+fn should_preserve_the_projected_column_name_and_type_after_column_rename() {
+    // Arrange
+    let fixture = base("rename-column-output-contract", "CREATE VIEW rv AS SELECT n FROM rt");
+
+    // Act
+    let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
+    let rows = view_rows(&fixture);
+    let field = &fixture.cassie.catalog.get_view("rv").expect("view metadata").schema.fields[0];
+
+    // Assert
+    assert!(renamed.is_ok(), "the stored column reference is rewritten");
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert_eq!(field.name, "n");
+    assert_eq!(field.data_type, cassie::types::DataType::Int);
+}
+
+#[test]
+fn should_rewrite_column_predicates_without_changing_literal_text() {
+    // Arrange
+    let fixture = base(
+        "rename-column-predicate-literal",
+        "CREATE VIEW rv AS SELECT n AS value FROM rt WHERE n > 4 AND 'n' = 'n'",
+    );
+
+    // Act
+    let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
+    let rows = view_rows(&fixture);
+    let stored = fixture.cassie.catalog.get_view("rv").expect("view metadata");
+
+    // Assert
+    assert!(renamed.is_ok(), "the stored predicate and projection are rewritten");
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert!(stored.query.contains("'n' = 'n'"));
 }
 
 #[test]

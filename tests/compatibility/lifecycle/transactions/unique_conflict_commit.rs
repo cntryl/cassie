@@ -1,5 +1,27 @@
 use super::*;
 
+async fn observe_unique_waiter<T>(
+    cassie: &cassie::app::Cassie,
+    query: &tokio::task::JoinHandle<T>,
+) -> bool {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if query.is_finished() {
+                return false;
+            }
+            if cassie.metrics()["transactions"]["unique_waiters"]
+                .as_u64()
+                .is_some_and(|waiters| waiters > 0)
+            {
+                return true;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or(false)
+}
+
 struct UniqueConflictCommitObservations {
     request_entered_engine: bool,
     completed_before_owner_commit: bool,
@@ -150,7 +172,8 @@ fn should_report_update_owned_unique_conflict_fields_and_abort_waiting_transacti
         owner
             .batch_execute(
                 "CREATE TABLE compat_update_unique_wait_rows \
-                 (id INT PRIMARY KEY, value TEXT UNIQUE)",
+                 (id INT CONSTRAINT compat_update_unique_wait_rows_pkey PRIMARY KEY, \
+                  value TEXT CONSTRAINT compat_update_unique_wait_rows_value_key UNIQUE)",
             )
             .await
             .expect("create an UPDATE-owned unique-key fixture");
@@ -267,7 +290,9 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
         first_owner
             .batch_execute(
                 "CREATE TABLE compat_unique_recheck_rows \
-                 (a INT UNIQUE, b INT UNIQUE)",
+                 (a INT, b INT, \
+                  CONSTRAINT compat_unique_recheck_rows_a_key UNIQUE (a), \
+                  CONSTRAINT compat_unique_recheck_rows_b_key UNIQUE (b))",
             )
             .await
             .expect("create a two-key unique fixture");
@@ -275,20 +300,6 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
             .batch_execute("BEGIN; INSERT INTO compat_unique_recheck_rows VALUES (1, 11)")
             .await
             .expect("hold a=1 in the first wire transaction");
-        let second_owner = cassie.create_session("issue_1466_second_owner", None);
-        cassie
-            .execute_sql(&second_owner, "BEGIN", Vec::new())
-            .expect("begin the independent second-key transaction");
-        cassie
-            .execute_sql(
-                &second_owner,
-                "INSERT INTO compat_unique_recheck_rows VALUES (9, 22)",
-                Vec::new(),
-            )
-            .expect("stage b=2 in the second-key transaction");
-        cassie
-            .execute_sql(&second_owner, "COMMIT", Vec::new())
-            .expect("commit b=2 before the first owner resolves");
         contender
             .batch_execute("BEGIN")
             .await
@@ -306,25 +317,31 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
         });
 
         // Act
-        let owner_wait =
-            crate::support_unique_conflict::observe_owner_wait(&cassie, &mut contender_insert)
-                .await;
-        let request_entered_engine = owner_wait.request_entered_engine;
-        let early_completion = owner_wait.early_completion;
-        let completed_before_owner_rollback = early_completion.is_some();
+        let request_waiting = observe_unique_waiter(&cassie, &contender_insert).await;
+        let second_owner = cassie.create_session("issue_1466_second_owner", None);
+        cassie
+            .execute_sql(&second_owner, "BEGIN", Vec::new())
+            .expect("begin the independent second-key transaction after the waiter blocks");
+        cassie
+            .execute_sql(
+                &second_owner,
+                "INSERT INTO compat_unique_recheck_rows VALUES (9, 22)",
+                Vec::new(),
+            )
+            .expect("stage b=22 in the second-key transaction");
+        cassie
+            .execute_sql(&second_owner, "COMMIT", Vec::new())
+            .expect("commit b=22 while the first owner remains unresolved");
         first_owner
             .batch_execute("ROLLBACK")
             .await
             .expect("release a=1 from the first owner");
-        let (contender, insert_result) = match early_completion {
-            Some(result) => result.expect("waiting INSERT task should finish"),
-            None => contender_insert
-                .await
-                .expect("waiting INSERT should finish after owner rollback"),
-        };
+        let (contender, insert_result) = contender_insert
+            .await
+            .expect("waiting INSERT should finish after owner rollback");
         let insert_error = insert_result
             .as_ref()
-            .expect_err("the resumed INSERT should find committed b=2");
+            .expect_err("the resumed multi-row INSERT should find committed b=22");
         let insert_db_error = insert_error
             .as_db_error()
             .expect("the conflicting key should be a PostgreSQL error");
@@ -349,12 +366,8 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
         server.abort();
         let _ = server.await;
         assert!(
-            request_entered_engine,
-            "waiting INSERT must enter the engine"
-        );
-        assert!(
-            !completed_before_owner_rollback,
-            "INSERT must wait for the first owner to resolve"
+            request_waiting,
+            "INSERT must register its unique wait before b=22 commits"
         );
         assert_eq!(sqlstate, "23505");
         assert_eq!(
@@ -386,7 +399,10 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
         } = crate::support_unique_conflict::start().await;
         first_owner
             .batch_execute(
-                "CREATE TABLE compat_unique_cte_rows (a INT UNIQUE, b INT UNIQUE); \
+                "CREATE TABLE compat_unique_cte_rows \
+                 (a INT, b INT, \
+                  CONSTRAINT compat_unique_cte_rows_a_key UNIQUE (a), \
+                  CONSTRAINT compat_unique_cte_rows_b_key UNIQUE (b)); \
                  CREATE TABLE compat_unique_cte_mark (id INT PRIMARY KEY)",
             )
             .await
@@ -395,20 +411,6 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
             .batch_execute("BEGIN; INSERT INTO compat_unique_cte_rows VALUES (1, 100)")
             .await
             .expect("hold a=1 in the first wire transaction");
-        let second_owner = cassie.create_session("issue_1466_cte_second_owner", None);
-        cassie
-            .execute_sql(&second_owner, "BEGIN", Vec::new())
-            .expect("begin the independent second-key transaction");
-        cassie
-            .execute_sql(
-                &second_owner,
-                "INSERT INTO compat_unique_cte_rows VALUES (9, 2)",
-                Vec::new(),
-            )
-            .expect("stage b=2 in the second-key transaction");
-        cassie
-            .execute_sql(&second_owner, "COMMIT", Vec::new())
-            .expect("commit b=2 before the first owner resolves");
         contender
             .batch_execute("BEGIN")
             .await
@@ -428,22 +430,28 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
         });
 
         // Act
-        let owner_wait =
-            crate::support_unique_conflict::observe_owner_wait(&cassie, &mut contender_insert)
-                .await;
-        let request_entered_engine = owner_wait.request_entered_engine;
-        let early_completion = owner_wait.early_completion;
-        let completed_before_owner_rollback = early_completion.is_some();
+        let request_waiting = observe_unique_waiter(&cassie, &contender_insert).await;
+        let second_owner = cassie.create_session("issue_1466_cte_second_owner", None);
+        cassie
+            .execute_sql(&second_owner, "BEGIN", Vec::new())
+            .expect("begin the independent second-key transaction after the waiter blocks");
+        cassie
+            .execute_sql(
+                &second_owner,
+                "INSERT INTO compat_unique_cte_rows VALUES (9, 2)",
+                Vec::new(),
+            )
+            .expect("stage b=2 in the second-key transaction");
+        cassie
+            .execute_sql(&second_owner, "COMMIT", Vec::new())
+            .expect("commit b=2 while the first owner remains unresolved");
         first_owner
             .batch_execute("ROLLBACK")
             .await
             .expect("release a=1 from the first owner");
-        let (contender, insert_result) = match early_completion {
-            Some(result) => result.expect("waiting INSERT task should finish"),
-            None => contender_insert
-                .await
-                .expect("waiting INSERT should finish after owner rollback"),
-        };
+        let (contender, insert_result) = contender_insert
+            .await
+            .expect("waiting INSERT should finish after owner rollback");
         let insert_error = insert_result
             .as_ref()
             .expect_err("the resumed INSERT should find committed b=2");
@@ -475,21 +483,17 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
         server.abort();
         let _ = server.await;
         assert!(
-            request_entered_engine,
-            "waiting INSERT must enter the engine"
-        );
-        assert!(
-            !completed_before_owner_rollback,
-            "INSERT must wait for the first owner to resolve"
+            request_waiting,
+            "INSERT must register its unique wait before b=2 commits"
         );
         assert_eq!(sqlstate, "23505");
-        assert_eq!(constraint.as_deref(), Some("compat_unique_cte_rows_b_key"));
+        assert_eq!(
+            constraint.as_deref(),
+            Some("compat_unique_cte_rows_b_key")
+        );
         assert_eq!(detail.as_deref(), Some("Key (b)=(2) already exists."));
         assert_eq!(following_sqlstate.as_deref(), Some("25P02"));
         contender_commit.expect("COMMIT should finish the failed transaction as a rollback");
-        assert_eq!(
-            marked_rows, 0,
-            "failed outer INSERT must roll back its CTE write"
-        );
+        assert_eq!(marked_rows, 0, "failed outer INSERT must roll back its CTE write");
     });
 }

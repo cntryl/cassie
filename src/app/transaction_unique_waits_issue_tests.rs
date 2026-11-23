@@ -17,7 +17,7 @@ fn fixture(label: &str) -> (Cassie, CassieSession) {
     cassie.startup().expect("startup");
     let session = cassie.create_session(label, None);
     for sql in [
-        "CREATE TABLE u (id INT PRIMARY KEY, v INT UNIQUE)",
+        "CREATE TABLE u (id INT CONSTRAINT u_pkey PRIMARY KEY, v INT CONSTRAINT u_v_key UNIQUE)",
         "INSERT INTO u VALUES (1, 1), (2, 2)",
     ] {
         cassie

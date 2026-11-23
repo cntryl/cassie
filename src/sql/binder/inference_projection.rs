@@ -1,7 +1,7 @@
 //! Field names and type evidence for ordinary SELECT outputs and set operands.
 use super::{
-    infer_expr_type, infer_function_return_type, schema_field_type, DataType, Expr, FieldSchema,
-    HashMap, ProjectionMode, Schema, SelectItem,
+    DataType, Expr, FieldSchema, HashMap, ProjectionMode, Schema, SelectItem, infer_expr_type,
+    infer_function_return_type, schema_field_type,
 };
 use crate::sql::binder::infer_window_return_type;
 
@@ -47,7 +47,7 @@ pub(super) fn projection_schema(
             }
             SelectItem::Expr { expr, alias } => {
                 fields.push(FieldSchema {
-                    name: alias.as_deref().unwrap_or("expr").to_string(),
+                    name: alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     data_type: if mode == ProjectionMode::SetOperand
                         && matches!(expr, Expr::StringLiteral(_))
                     {

@@ -1,18 +1,18 @@
 use super::table_functions::bind as bind_table_function;
 pub(super) use super::table_functions::columns as table_function_columns;
 use super::{
+    BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FieldSchema, HashMap,
+    HashSet, QuerySource, QueryStatement, Schema, SelectItem, SelectSet, SelectStatement,
     bind_recursive_cte_query, bind_statement, mem, qualified_fields, resolve_relation_path,
     validate_distinct_on_order_prefix, validate_expression_in_scope,
     validate_expression_operand_families, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
-    virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
-    FieldSchema, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem, SelectSet,
-    SelectStatement,
+    virtual_views,
 };
 use crate::sql::ast::IdentifierPath;
 use crate::sql::ast::JoinKind;
 use crate::types::row_identity::{
-    is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
+    LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN, is_legacy_id_column, is_row_identity_column,
 };
 
 use std::borrow::Cow;
@@ -547,9 +547,7 @@ pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 .as_deref()
                 .unwrap_or(&function.name)
                 .to_ascii_lowercase(),
-            SelectItem::Expr { alias, .. } => {
-                alias.as_deref().unwrap_or("expr").to_ascii_lowercase()
-            }
+            SelectItem::Expr { .. } => item.output_name().to_ascii_lowercase(),
             SelectItem::WindowFunction { function, alias } => alias
                 .as_deref()
                 .unwrap_or(&function.name)
@@ -934,7 +932,7 @@ fn bind_collection_source(
 
 #[cfg(test)]
 mod tests {
-    use super::{canonicalize_column_literal_pair, DataType, Expr};
+    use super::{DataType, Expr, canonicalize_column_literal_pair};
 
     #[test]
     fn should_canonicalize_temporal_string_predicate_literals() {

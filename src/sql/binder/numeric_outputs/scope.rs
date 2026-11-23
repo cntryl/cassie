@@ -1,10 +1,9 @@
 use super::{
-    inference, Analyzer, CassieError, CommonTableExpression, CteQuery, CteScope, DataType, Expr,
-    OutputField, OutputFields, QuerySource, QueryStatement, SelectItem, SelectStatement,
-    SetOperator,
+    Analyzer, CassieError, CommonTableExpression, CteQuery, CteScope, DataType, Expr, OutputField,
+    OutputFields, QuerySource, QueryStatement, SelectItem, SelectStatement, SetOperator, inference,
 };
 use crate::types::row_identity::{
-    is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
+    LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN, is_legacy_id_column, is_row_identity_column,
 };
 
 pub(super) struct SourceScope {
@@ -320,7 +319,7 @@ impl Analyzer<'_> {
                     )
                 }
                 SelectItem::Expr { expr, alias } => (
-                    alias.as_deref().unwrap_or("expr").to_string(),
+                    alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     self.expression(expr, lookup)?,
                     true,
                 ),

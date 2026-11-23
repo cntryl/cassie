@@ -235,6 +235,29 @@ pub enum SelectItem {
     },
 }
 
+impl SelectItem {
+    /// PostgreSQL's implicit label for a select-list item.
+    #[must_use]
+    pub fn output_name(&self) -> String {
+        match self {
+            Self::Wildcard => "*".to_owned(),
+            Self::Column { name, alias } => alias.clone().unwrap_or_else(|| {
+                crate::sql::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
+            }),
+            Self::Function { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+            Self::Expr { expr, alias } => {
+                alias.clone().unwrap_or_else(|| expr.implicit_output_name())
+            }
+            Self::WindowFunction { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FunctionCall {
     pub name: String,
@@ -484,10 +507,41 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// PostgreSQL's implicit name for an expression select-list item.
+    #[must_use]
+    pub fn implicit_output_name(&self) -> String {
+        match self {
+            Self::Column(name) => crate::sql::ColumnIdentifierPath::parse(name)
+                .map_or_else(|_| name.clone(), |column| column.implicit_output_label()),
+            Self::Function(function) => function.name.clone(),
+            Self::Cast {
+                expr, data_type, ..
+            } => match expr.as_ref() {
+                Self::Column(_) | Self::Function(_) => expr.implicit_output_name(),
+                _ => Self::cast_output_name(data_type),
+            },
+            Self::Collate { expr, .. } | Self::ArraySubscript { array: expr, .. } => {
+                expr.implicit_output_name()
+            }
+            Self::Case { .. } => "case".to_owned(),
+            _ => "?column?".to_owned(),
+        }
+    }
+
     /// Returns whether this node runs a subquery (`EXISTS` or any sublink).
     #[must_use]
     pub const fn is_subquery_node(&self) -> bool {
         matches!(self, Self::Exists(_) | Self::Subquery(_))
+    }
+
+    fn cast_output_name(data_type: &DataType) -> String {
+        match data_type {
+            DataType::SmallInt => "int2".to_owned(),
+            DataType::Int => "int4".to_owned(),
+            DataType::BigInt => "int8".to_owned(),
+            DataType::Float => "float8".to_owned(),
+            _ => data_type.type_name(),
+        }
     }
 
     /// Returns whether this expression or a descendant runs a subquery.
@@ -588,8 +642,8 @@ impl BinaryOp {
     /// The family operator this operator names, if it has one.
     #[must_use]
     pub const fn typed_operator(&self) -> Option<crate::types::extended::TypedOperator> {
-        use crate::types::extended::TypedOperator;
         use crate::types::IntegerOperation;
+        use crate::types::extended::TypedOperator;
         let operation = match self {
             Self::Typed { operator } => return Some(*operator),
             Self::Add => return Some(TypedOperator::Add),

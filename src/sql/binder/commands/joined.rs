@@ -1,10 +1,10 @@
 //! `UPDATE ... FROM`, `DELETE ... USING`, tuple-subquery assignments and
 //! `RETURNING` row images bind against the target joined to its source.
 
-use super::super::{coalesce_results::ResultTypes, BindingContext, CassieError, Catalog, HashSet};
+use super::super::{BindingContext, CassieError, Catalog, HashSet, coalesce_results::ResultTypes};
 use super::mutations::{
-    bind_assignments, bind_mutation_source, bind_predicate, bind_returning, resolve_target,
-    row_image_fields, target_qualifier, JoinedScope,
+    JoinedScope, bind_assignments, bind_mutation_source, bind_predicate, bind_returning,
+    resolve_target, row_image_fields, target_qualifier,
 };
 use crate::sql::ast::{DeleteStatement, IdentifierPath, QuerySource, UpdateStatement};
 
@@ -85,6 +85,7 @@ pub(super) fn bind_joined_update(
         (&schema, &qualifier),
         statement.from.as_ref(),
         &scope,
+        catalog,
     )?;
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     statement.alias = Some(qualifier);
@@ -120,6 +121,7 @@ pub(super) fn bind_joined_delete(
         (&schema, &qualifier),
         statement.using.as_ref(),
         &scope,
+        catalog,
     )?;
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     statement.alias = Some(qualifier);

@@ -6,7 +6,7 @@ use crate::executor::ColumnMeta;
 use crate::sql::ast::{
     CommonTableExpression, Expr, FunctionCall, QuerySource, SelectItem, WindowFunctionCall,
 };
-use crate::types::row_identity::{is_row_identity_column, LEGACY_ID_COLUMN};
+use crate::types::row_identity::{LEGACY_ID_COLUMN, is_row_identity_column};
 use crate::types::{DataType, FieldSchema, Schema};
 
 #[must_use]
@@ -161,7 +161,7 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 )
                 .unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
-                    alias.clone().unwrap_or_else(|| "expr".to_string()),
+                    alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     &data_type,
                 )]
             }

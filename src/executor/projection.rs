@@ -1,13 +1,13 @@
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
+use crate::executor::QueryError;
 use crate::executor::batch::RowAccess;
 use crate::executor::batch::{Batch, BatchRow};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
-use crate::executor::QueryError;
 use crate::sql::ast::{Expr, SelectItem};
-use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use crate::types::Value;
+use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod character_casts;
@@ -257,7 +257,7 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                 }
             }
             SelectItem::Expr { expr, alias } => ProjectionOp::ScalarFunction {
-                key: alias.as_deref().unwrap_or("expr").to_string(),
+                key: alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                 expr: expr.clone(),
                 precomputed_key: Some(projection_expr_key(expr)),
             },

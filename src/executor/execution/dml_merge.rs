@@ -11,18 +11,18 @@
 use std::collections::HashSet;
 
 use super::dml_joined::{
-    combined_row, joined_returning_schema, match_rows, payload_row, row_image_entries, source_rows,
-    target_rows, ExecutionScope, JoinedTarget, SourceRows,
+    ExecutionScope, JoinedTarget, SourceRows, combined_row, joined_returning_schema, match_rows,
+    payload_row, row_image_entries, source_rows, target_rows,
 };
 use super::dml_joined_update::{delete_target_row, update_target_row};
 use super::{
-    build_dml_result, check_timeout, filter, row_id_from_batch_row, BatchRow, Cassie,
-    CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QueryResult, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
+    HashMap, QueryError, QueryExecutionControls, QueryResult, Value, build_dml_result,
+    check_timeout, filter, row_id_from_batch_row,
 };
 use crate::sql::ast::{
-    InsertSource, InsertStatement, MergeAction, MergeClause, MergeMatch, MergeStatement,
-    MERGE_ACTION_COLUMN,
+    InsertSource, InsertStatement, MERGE_ACTION_COLUMN, MergeAction, MergeClause, MergeMatch,
+    MergeStatement,
 };
 
 struct MergeRun<'a> {
@@ -156,28 +156,14 @@ impl<'a> MergeRun<'a> {
             let Some(condition) = clause.condition.as_ref() else {
                 return Ok(Some(clause));
             };
-            let (_read, _overlay) =
-                crate::executor::execution::entrypoints::enter_statement_read(self.scope.controls);
-            let condition = crate::executor::execution::resolve_statement_exists(
-                self.scope.cassie,
-                self.scope.session,
-                condition,
-                self.scope.user_functions,
-                self.scope.params,
-                self.scope.controls,
-            )?;
-            if filter::eval_scalar(
-                row,
-                &condition,
-                self.scope.params,
-                None,
-                self.scope.user_functions,
-                None,
-                self.scope.session,
-            )?
-            .is_true()?
-            {
-                return Ok(Some(clause));
+            match super::dml_subqueries::evaluate_joined(&self.scope, row, condition)? {
+                Value::Bool(true) => return Ok(Some(clause)),
+                Value::Bool(false) | Value::Null => {}
+                _ => {
+                    return Err(QueryError::General(
+                        "argument of MERGE WHEN must be type boolean".into(),
+                    ));
+                }
             }
         }
         Ok(None)
@@ -348,14 +334,10 @@ impl<'a> MergeRun<'a> {
                 continue;
             }
             let value = super::dml_subqueries::resolve_statement_subqueries(&self.scope, value)?;
-            kept_values.push(filter::evaluate_expr_value(
+            kept_values.push(super::dml_subqueries::evaluate_joined(
+                &self.scope,
                 row,
                 &value,
-                self.scope.params,
-                None,
-                self.scope.user_functions,
-                self.scope.session,
-                None,
             )?);
             kept_columns.push(column);
         }

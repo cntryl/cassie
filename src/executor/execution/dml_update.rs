@@ -1,8 +1,8 @@
 use super::{
-    apply_update_value, build_dml_result, check_timeout, dml_referential_actions, filter,
-    inserted_row_to_batch_row, row_id_from_batch_row, BatchRow, Cassie, CassieSession,
-    CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QueryResult, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
+    HashMap, QueryError, QueryExecutionControls, QueryResult, Value, apply_update_value,
+    build_dml_result, check_timeout, dml_referential_actions, filter, inserted_row_to_batch_row,
+    row_id_from_batch_row,
 };
 
 struct PreparedUpdateRow {
@@ -247,6 +247,7 @@ fn prepare_update_row(
             table: &context.statement.table,
             schema: context.schema,
             subqueries: Some(context.subqueries),
+            joined_scope: None,
             array_targets: &context.statement.array_targets,
         },
         row,
@@ -289,6 +290,7 @@ pub(super) struct AssignmentTarget<'a> {
     pub(super) table: &'a str,
     pub(super) schema: &'a CollectionSchema,
     pub(super) subqueries: Option<&'a super::dml_subqueries::RowSubqueries<'a>>,
+    pub(super) joined_scope: Option<&'a super::dml_joined::ExecutionScope<'a>>,
     pub(super) array_targets: &'a [crate::sql::ast::UpdateTarget],
 }
 
@@ -321,8 +323,11 @@ pub(super) fn updated_payload_from_row(
         }
         let mut expr = expr.clone();
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
-        let value = match target.subqueries {
-            Some(subqueries) if expr.contains_subquery() => subqueries.evaluate(row, &expr)?,
+        let value = match (target.subqueries, target.joined_scope) {
+            (Some(subqueries), _) if expr.contains_subquery() => subqueries.evaluate(row, &expr)?,
+            (_, Some(scope)) if expr.contains_subquery() => {
+                super::dml_subqueries::evaluate_joined(scope, row, &expr)?
+            }
             _ => filter::evaluate_expr_value(
                 row,
                 &expr,
@@ -338,6 +343,12 @@ pub(super) fn updated_payload_from_row(
             .iter()
             .find(|target| target.assignment_index == assignment_index)
         {
+            let value = match schema.fields.iter().find(|column| column.name == *field) {
+                Some(column) if matches!(expr, Expr::StringLiteral(_)) => {
+                    super::unknown_literal_value(value, &column.data_type)?
+                }
+                _ => value,
+            };
             apply_array_update_value(
                 &mut payload,
                 field,

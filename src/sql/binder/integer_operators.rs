@@ -8,6 +8,20 @@ pub(super) fn resolve(
     left: Option<&DataType>,
     right: Option<&DataType>,
 ) -> Result<bool, CassieError> {
+    if matches!(op, BinaryOp::Modulo)
+        && [left, right].into_iter().flatten().any(|kind| {
+            matches!(
+                kind,
+                DataType::Float | DataType::Extended(crate::types::extended::ExtendedType::Real)
+            )
+        })
+    {
+        return Err(CassieError::Execution(format!(
+            "operator does not exist: {} % {}",
+            left.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+            right.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+        )));
+    }
     if [left, right]
         .into_iter()
         .flatten()

@@ -132,6 +132,12 @@ fn should_reject_json_equality_signatures_while_preserving_jsonb_comparison() {
         true,
     );
     let json_literal = fixture::execute_cycle("SELECT '{}'::JSON = '{}'", None, 0, true);
+    let json_distinct = fixture::execute_cycle(
+        "SELECT '{}'::JSON IS DISTINCT FROM '{}'::JSON",
+        None,
+        0,
+        true,
+    );
     let mixed = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSON", None, 0, true);
     let jsonb = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSONB", None, 0, true);
 
@@ -139,15 +145,16 @@ fn should_reject_json_equality_signatures_while_preserving_jsonb_comparison() {
     let batches = fixture::run_cycles(
         "issue-1469-json-comparison-signatures",
         &[],
-        vec![json_equality, json_literal, mixed, jsonb],
+        vec![json_equality, json_literal, json_distinct, mixed, jsonb],
     );
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
     assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
-    fixture::assert_success(&batches[3]);
-    assert_eq!(wire::data_rows(&batches[3]), vec![vec![Some("t".to_owned())]]);
+    assert_eq!(wire::error_code(&batches[3]).as_deref(), Some("42883"));
+    fixture::assert_success(&batches[4]);
+    assert_eq!(wire::data_rows(&batches[4]), vec![vec![Some("t".to_owned())]]);
 }
 
 #[test]

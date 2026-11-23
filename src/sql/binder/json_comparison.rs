@@ -10,6 +10,19 @@ pub(super) fn qualify(
     left_type: Option<&DataType>,
     right_type: Option<&DataType>,
 ) -> Result<(), CassieError> {
+    if let Some(comparison) = RowComparisonOp::from_binary(op) {
+        if left_type == Some(&DataType::Json) || right_type == Some(&DataType::Json) {
+            let type_name = |kind: Option<&DataType>| {
+                kind.map_or_else(|| "unknown".to_owned(), DataType::type_name)
+            };
+            return Err(CassieError::Execution(format!(
+                "operator does not exist: {} {} {}",
+                type_name(left_type),
+                comparison.symbol(),
+                type_name(right_type),
+            )));
+        }
+    }
     let comparison = if let BinaryOp::JsonbCompare { comparison } = op {
         *comparison
     } else {
@@ -21,10 +34,19 @@ pub(super) fn qualify(
         };
         comparison
     };
-    for (expression, kind) in [(left, left_type), (right, right_type)] {
+    for (index, (expression, kind)) in [(left, left_type), (right, right_type)]
+        .into_iter()
+        .enumerate()
+    {
         if let Expr::StringLiteral(literal) = expression {
-            serde_json::from_str::<serde::de::IgnoredAny>(literal)
-                .map_err(|_| CassieError::Planner(format!("invalid JSON literal '{literal}'")))?;
+            serde_json::from_str::<serde::de::IgnoredAny>(literal).map_err(|error| {
+                crate::app::DiagnosticError::new(
+                    "22P02",
+                    "invalid input syntax for type json",
+                )
+                .with_detail(error.to_string())
+                .into()
+            })?;
             *expression = Expr::Cast {
                 expr: Box::new(std::mem::replace(expression, Expr::Null)),
                 data_type: DataType::Jsonb,
@@ -32,9 +54,22 @@ pub(super) fn qualify(
                 identity: CastIdentity::Scalar,
             };
         } else if kind.is_some_and(|kind| !matches!(kind, DataType::Jsonb | DataType::Null)) {
-            return Err(CassieError::Execution(
-                "operator does not exist: jsonb comparison with incompatible operands".into(),
-            ));
+            let type_name = kind.map_or_else(|| "unknown".to_owned(), DataType::type_name);
+            let (left_name, right_name) = if index == 0 {
+                (
+                    type_name,
+                    right_type.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+                )
+            } else {
+                (
+                    left_type.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+                    type_name,
+                )
+            };
+            return Err(CassieError::Execution(format!(
+                "operator does not exist: {left_name} {} {right_name}",
+                comparison.symbol(),
+            )));
         }
     }
     *op = BinaryOp::JsonbCompare { comparison };

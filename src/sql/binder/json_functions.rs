@@ -6,6 +6,26 @@ use crate::sql::functions::{self, FunctionId, FunctionInputSignature};
 use crate::types::DataType;
 
 pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Result<(), CassieError> {
+    if matches!(function.name.as_str(), "json_object" | "jsonb_object") {
+        let array_type = DataType::Array(Box::new(DataType::Text));
+        for argument in &mut function.args {
+            if matches!(argument, Expr::StringLiteral(_)) {
+                crate::sql::literal_inputs::validate_with_controls(
+                    argument,
+                    &array_type,
+                    CastIdentity::Scalar,
+                    types.controls(),
+                )?;
+                *argument = Expr::Cast {
+                    expr: Box::new(std::mem::replace(argument, Expr::Null)),
+                    data_type: array_type.clone(),
+                    source_type: None,
+                    identity: CastIdentity::Scalar,
+                };
+            }
+        }
+        return Ok(());
+    }
     if types
         .declared_function(&function.name)
         .is_some_and(|metadata| metadata.args.len() == function.args.len())

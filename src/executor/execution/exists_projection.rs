@@ -1,7 +1,6 @@
 //! Classify each SELECT EXISTS through the existing binder's scope rules.
 use super::{
-    check_timeout, ExistsResolutionContext, Expr, FunctionMeta, HashSet, QueryError, QuerySource,
-    SelectItem,
+    check_timeout, ExistsResolutionContext, Expr, HashSet, QueryError, QuerySource, SelectItem,
 };
 
 mod admission;

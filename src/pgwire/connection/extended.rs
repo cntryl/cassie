@@ -367,7 +367,8 @@ async fn execute_prepared_portal(
             return Err(ExtendedQueryError::cassie(&error));
         }
     }
-    if standalone_publication || explicit_commit {
+    let publication_complete = explicit_commit || (standalone && !session.is_transaction_active());
+    if publication_complete {
         drop(cancellation.take());
     }
     transaction_owner.close_completed(state, runtime, session);
@@ -376,7 +377,9 @@ async fn execute_prepared_portal(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     }
-    let acknowledgement_cancellation = cancellation.as_ref().map(|guard| guard.handle());
+    let acknowledgement_cancellation = cancellation
+        .as_ref()
+        .map(crate::runtime::PgwireQueryCancellationGuard::handle);
 
     write_fresh_result(
         write_half,

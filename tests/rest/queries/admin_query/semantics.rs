@@ -300,6 +300,60 @@ fn should_explain_admin_query_through_rest() {
 }
 
 #[test]
+fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
+    // Arrange
+    let data_dir = data_dir("restricted-schema-visibility");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        cassie.startup().expect("startup");
+        let admin = cassie
+            .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
+            .expect("admin");
+        for sql in [
+            "CREATE TABLE rest_schema_visible (id INTEGER)",
+            "CREATE TABLE rest_schema_secret (token TEXT)",
+            "CREATE ROLE rest_schema_reader LOGIN PASSWORD 'reader-secret'",
+            "GRANT CONNECT ON DATABASE postgres TO rest_schema_reader",
+        ] {
+            cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+        }
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let reader_cookie =
+            login_cookie_as(&client, &base_url, "rest_schema_reader", "reader-secret").await;
+
+        // Act
+        let response = client
+            .get(format!(
+                "{base_url}/api/v1/admin/query/schema?database=postgres"
+            ))
+            .header("cookie", &reader_cookie)
+            .send()
+            .await
+            .expect("schema request");
+        let payload = response.json::<serde_json::Value>().await.expect("json");
+
+        // Assert
+        assert!(!contains_item(
+            section_items(&payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_schema_secret")
+        ));
+        assert!(!contains_item(
+            section_items(&payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_schema_visible")
+        ));
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn should_return_admin_query_schema_sections_in_stable_order() {
     // Arrange
     let data_dir = data_dir("schema");

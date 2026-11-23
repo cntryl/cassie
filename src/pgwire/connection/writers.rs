@@ -145,6 +145,9 @@ pub(super) async fn write_error_response(
     append_error_field(&mut payload, b't', error.table.as_deref());
     append_error_field(&mut payload, b'c', error.column.as_deref());
     append_error_field(&mut payload, b'n', error.constraint.as_deref());
+    if let Some(position) = error.position {
+        append_error_field(&mut payload, b'P', Some(&position.to_string()));
+    }
     payload.push(0);
 
     let mut frame = Vec::new();

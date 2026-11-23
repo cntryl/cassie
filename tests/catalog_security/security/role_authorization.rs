@@ -21,6 +21,7 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
         "CREATE TABLE catalog_visible (id INTEGER)",
         "CREATE TABLE catalog_secret (token TEXT)",
         "CREATE ROLE catalog_reader LOGIN PASSWORD 'reader-secret'",
+        "CREATE ROLE catalog_blocked LOGIN PASSWORD 'blocked-secret'",
         "GRANT USAGE ON SCHEMA public TO catalog_reader",
         "GRANT SELECT ON TABLE public.catalog_visible TO catalog_reader",
     ] {
@@ -29,6 +30,9 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
     let reader = cassie
         .authenticate_role("catalog_reader", Some("reader-secret"), None)
         .expect("reader login");
+    let blocked = cassie
+        .authenticate_role("catalog_blocked", Some("blocked-secret"), None)
+        .expect("blocked login");
 
     // Act
     let tables = cassie
@@ -51,6 +55,25 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             Vec::new(),
         )
         .expect("read visible columns");
+    let blocked_tables = cassie
+        .execute_sql(
+            &blocked,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret')",
+            Vec::new(),
+        )
+        .expect("read tables as blocked role");
+    let admin_tables = cassie
+        .execute_sql(
+            &admin,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read tables as administrator");
 
     // Assert
     assert_eq!(
@@ -66,6 +89,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             cassie::types::Value::String("id".to_owned()),
         ]]
     );
+    assert!(blocked_tables.rows().is_empty());
+    assert_eq!(admin_tables.rows().len(), 2);
 }
 
 async fn copy_out_frames_as(

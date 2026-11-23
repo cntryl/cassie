@@ -16,7 +16,8 @@ const INDEX_PREDICATE_SETUP: &[&str] = &[
     "CREATE INDEX mvp_catalog_rows_partial_idx ON mvp_catalog_rows (payload) WHERE payload <> ''",
 ];
 
-const INDEX_PREDICATE_QUERY: &str = "SELECT index_class.relname AS indexrelid, i.indisunique, i.indisprimary, i.indpred \
+const INDEX_PREDICATE_QUERY: &str =
+    "SELECT index_class.relname AS indexrelid, i.indisunique, i.indisprimary, i.indpred \
     FROM pg_catalog.pg_index i \
     JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid \
     JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid \
@@ -41,10 +42,7 @@ fn should_report_syntax_message_and_character_position_in_error_response() {
         .expect("simple-query ErrorResponse");
     let fields = support::parse_error_fields(&error.1);
     assert!(fields.contains(&('C', "42601".to_owned())));
-    assert!(fields.contains(&(
-        'M',
-        "syntax error at or near \"t_probe\"".to_owned()
-    )));
+    assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
     assert!(fields.contains(&('P', "15".to_owned())));
 }
 
@@ -62,11 +60,26 @@ fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
         .find(|(tag, _)| *tag == b'E')
         .expect("Parse ErrorResponse");
     let fields = support::parse_error_fields(&error.1);
-    assert!(fields.contains(&(
-        'M',
-        "syntax error at or near \"t_probe\"".to_owned()
-    )));
+    assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
     assert!(fields.contains(&('P', "25".to_owned())));
+}
+
+#[test]
+fn should_omit_position_given_runtime_division_by_zero() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-runtime-no-position", &[]);
+
+    // Act
+    let frames = simple_round_trip(cassie, path, "SELECT 1 / 0");
+
+    // Assert
+    let error = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("runtime ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&('C', "22012".to_owned())));
+    assert!(!fields.iter().any(|(tag, _)| *tag == 'P'));
 }
 
 fn configured_cassie(label: &str, setup: &[&str]) -> (Cassie, String) {

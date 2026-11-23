@@ -384,7 +384,7 @@ fn should_restrict_pg_table_visibility_to_search_path() {
         let result = cassie
             .execute_sql(
                 &session,
-        "SELECT n.nspname, pg_catalog.pg_table_is_visible(c.oid) \
+                "SELECT n.nspname, pg_catalog.pg_table_is_visible(c.oid) \
          FROM pg_catalog.pg_class c \
          JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
          WHERE c.relname = 'visible_docs' ORDER BY n.nspname",
@@ -396,14 +396,8 @@ fn should_restrict_pg_table_visibility_to_search_path() {
         assert_eq!(
             result.rows(),
             vec![
-                vec![
-                    Value::String("public".to_string()),
-                    Value::Bool(false),
-                ],
-                vec![
-                    Value::String("reporting".to_string()),
-                    Value::Bool(true),
-                ],
+                vec![Value::String("public".to_string()), Value::Bool(false),],
+                vec![Value::String("reporting".to_string()), Value::Bool(true),],
             ]
         );
     });

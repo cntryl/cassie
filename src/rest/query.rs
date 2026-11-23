@@ -265,7 +265,7 @@ fn schema_for_database(
 ) -> Result<QuerySchemaResponse, CassieError> {
     Ok(QuerySchemaResponse {
         sections: vec![
-            section("tables", "Tables", table_items(cassie, database)?),
+            section("tables", "Tables", table_items(cassie, session, database)?),
             section("views", "Views", view_items(cassie, database)?),
             section("indexes", "Indexes", index_items(cassie, database)?),
             section("udfs", "UDFs", function_items(cassie, database)?),
@@ -291,11 +291,20 @@ fn section(id: &str, label: &str, items: Vec<QuerySchemaItem>) -> QuerySchemaSec
     }
 }
 
-fn table_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
+fn table_items(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    database: &str,
+) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_collections_canonical()
         .into_iter()
+        .filter(|collection| {
+            session.is_none_or(|session| {
+                crate::app::relation_readable(&cassie.catalog, database, session, &collection.name)
+            })
+        })
         .map(|collection| {
             let relation = canonical_relation(&collection.name)?;
             let schema = cassie.catalog.get_schema(collection.name.as_str());

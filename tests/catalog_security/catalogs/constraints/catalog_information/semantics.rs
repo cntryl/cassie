@@ -14,12 +14,12 @@ fn should_render_supported_constraint_definitions_from_pg_catalog_oids() {
     // Act
     let selected = fixture
         .execute(
-            "SELECT conname, pg_get_constraintdef(oid), \
+            "SELECT contype, pg_get_constraintdef(oid), \
                     pg_catalog.pg_get_constraintdef(oid, true) \
              FROM pg_constraint \
              WHERE conrelid = 'constraint_child'::regclass \
                AND contype IN ('p', 'u', 'c', 'f') \
-             ORDER BY conname",
+             ORDER BY contype",
         )
         .expect("render constraint definitions");
     let nulls = fixture
@@ -31,17 +31,12 @@ fn should_render_supported_constraint_definitions_from_pg_catalog_oids() {
         selected.rows(),
         vec![
             vec![
-                Value::String("constraint_child_amount_check".to_owned()),
+                Value::String("c".to_owned()),
                 Value::String("CHECK ((amount > 0))".to_owned()),
                 Value::String("CHECK ((amount > 0))".to_owned()),
             ],
             vec![
-                Value::String("constraint_child_code_key".to_owned()),
-                Value::String("UNIQUE (code)".to_owned()),
-                Value::String("UNIQUE (code)".to_owned()),
-            ],
-            vec![
-                Value::String("constraint_child_parent_id_fkey".to_owned()),
+                Value::String("f".to_owned()),
                 Value::String(
                     "FOREIGN KEY (parent_id) REFERENCES constraint_parent(id)".to_owned()
                 ),
@@ -50,9 +45,14 @@ fn should_render_supported_constraint_definitions_from_pg_catalog_oids() {
                 ),
             ],
             vec![
-                Value::String("constraint_child_pkey".to_owned()),
+                Value::String("p".to_owned()),
                 Value::String("PRIMARY KEY (id)".to_owned()),
                 Value::String("PRIMARY KEY (id)".to_owned()),
+            ],
+            vec![
+                Value::String("u".to_owned()),
+                Value::String("UNIQUE (code)".to_owned()),
+                Value::String("UNIQUE (code)".to_owned()),
             ],
         ]
     );

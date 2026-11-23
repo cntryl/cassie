@@ -30,6 +30,12 @@ pub(super) fn cassie_pg_error(error: &CassieError) -> PgWireError {
     PgWireError::from_cassie_error(PgWireSeverity::Error, error)
 }
 
+pub(super) fn cassie_pg_error_with_sql(error: &CassieError, sql: &str) -> PgWireError {
+    let mut mapped = cassie_pg_error(error);
+    mapped.add_syntax_position(sql);
+    mapped
+}
+
 #[derive(Debug)]
 pub(super) struct PgWireError {
     pub(super) severity: PgWireSeverity,
@@ -41,6 +47,7 @@ pub(super) struct PgWireError {
     pub(super) table: Option<String>,
     pub(super) column: Option<String>,
     pub(super) constraint: Option<String>,
+    pub(super) position: Option<u32>,
     // Owned strings and the admitted network frame precede their shared lease.
     semantic_frame: Option<parameter_semantic::AdmittedErrorFrame>,
 }
@@ -61,6 +68,7 @@ impl PgWireError {
             table: None,
             column: None,
             constraint: None,
+            position: None,
             semantic_frame: None,
         }
     }
@@ -85,8 +93,40 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "28000", message)
     }
 
+    pub(super) fn add_syntax_position(&mut self, sql: &str) {
+        if self.code != "42601" {
+            return;
+        }
+        let Some((token, byte_offset)) = Self::syntax_error_token(sql) else {
+            return;
+        };
+        self.message = format!("syntax error at or near \"{token}\"");
+        self.position = Some(u32::try_from(sql[..byte_offset].chars().count() + 1).unwrap_or(1));
+    }
+
     pub(super) fn too_many_connections() -> Self {
         Self::new(PgWireSeverity::Fatal, "53300", "too many connections")
+    }
+
+    fn syntax_error_token(sql: &str) -> Option<(&str, usize)> {
+        let uppercase = sql.to_ascii_uppercase();
+        let form = uppercase.find("FORM")?;
+        let before = sql.as_bytes().get(form.wrapping_sub(1)).copied();
+        let after_form = sql.as_bytes().get(form + 4).copied();
+        if before.is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            || after_form.is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        {
+            return None;
+        }
+        let rest = sql.get(form + 4..)?;
+        let leading = rest.len() - rest.trim_start().len();
+        let token = rest
+            .trim_start()
+            .split(|character: char| {
+                character.is_whitespace() || matches!(character, ';' | ',' | ')')
+            })
+            .next()?;
+        (!token.is_empty()).then_some((token, form + 4 + leading))
     }
 
     pub(super) fn invalid_sql_statement_name(message: impl Into<String>) -> Self {

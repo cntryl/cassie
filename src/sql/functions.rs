@@ -159,6 +159,7 @@ pub enum FunctionId {
     FormatType,
     PgGetExpr,
     PgGetIndexDef,
+    PgGetConstraintDef,
     PgGetViewDef,
     PgGetUserById,
     ObjDescription,

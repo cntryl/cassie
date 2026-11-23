@@ -10,7 +10,7 @@ mod routine_body;
 #[path = "access_table_privilege.rs"]
 mod table_privilege_checks;
 pub(crate) use table_privilege_checks::{
-    require_table_read, session_is_unprivileged, table_privilege,
+    relation_readable, require_table_read, session_is_unprivileged, table_privilege,
 };
 
 #[path = "access_graph_table.rs"]

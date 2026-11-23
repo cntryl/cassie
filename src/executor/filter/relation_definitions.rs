@@ -44,16 +44,14 @@ pub(super) fn evaluate_pg_get_indexdef(
                 )
             },
         ),
-        Value::String(index_name) => {
-            column.map_or_else(
-                || crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name),
-                |column| {
-                    crate::catalog::virtual_views::index_column_definition_by_name(
-                        &catalog, index_name, column,
-                    )
-                },
-            )
-        }
+        Value::String(index_name) => column.map_or_else(
+            || crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name),
+            |column| {
+                crate::catalog::virtual_views::index_column_definition_by_name(
+                    &catalog, index_name, column,
+                )
+            },
+        ),
         _ => None,
     };
     Ok(definition.map_or(Value::Null, Value::String))

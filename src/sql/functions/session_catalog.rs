@@ -260,6 +260,22 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
+        id: FunctionId::PgGetConstraintDef,
+        name: "pg_get_constraintdef",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgGetConstraintDef,
+        name: "pg_catalog.pg_get_constraintdef",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::PgGetViewDef,
         name: "pg_get_viewdef",
         arity: FunctionArity::Range { min: 1, max: 2 },

@@ -38,6 +38,23 @@ fn resolved_table_privilege(
     if system_qualified || crate::catalog::is_system_schema(&schema_name) {
         return Ok(());
     }
+
+    pub(crate) fn relation_readable(
+        catalog: &crate::catalog::Catalog,
+        default_database: &str,
+        session: &CassieSession,
+        relation: &str,
+    ) -> bool {
+        !session_is_unprivileged(catalog, session)
+            || resolved_table_privilege(
+                catalog,
+                default_database,
+                session,
+                relation,
+                RoleObjectPrivilege::Select,
+            )
+            .is_ok()
+    }
     let Some(collection) = catalog.get_collection(&resolved) else {
         return Err(CassieError::InsufficientPrivilege);
     };

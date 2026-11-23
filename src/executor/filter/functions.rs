@@ -18,8 +18,7 @@ use crate::executor::batch::RowAccess;
 
 pub(super) fn invalid_function_signature(name: &str) -> QueryError {
     QueryError::Cassie(
-        crate::app::DiagnosticError::new("42883", format!("function {name} does not exist"))
-            .into(),
+        crate::app::DiagnosticError::new("42883", format!("function {name} does not exist")).into(),
     )
 }
 
@@ -306,6 +305,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
         }
+        "pg_get_constraintdef" | "pg_catalog.pg_get_constraintdef" => {
+            Some(evaluate_pg_get_constraintdef(name, args, session))
+        }
         "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
             Some(evaluate_pg_get_viewdef(name, args, session))
         }
@@ -411,6 +413,7 @@ fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError>
     if args.iter().any(|value| matches!(value, Value::Null)) {
         return Ok(Value::Null);
     }
+
     if args
         .get(2)
         .is_some_and(|pretty| !matches!(pretty, Value::Bool(_) | Value::Null))
@@ -423,6 +426,37 @@ fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError>
         )),
         None => Ok(Value::Null),
     }
+}
+
+fn evaluate_pg_get_constraintdef(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count_range(name, args, 1..=2)?;
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+    if args
+        .get(1)
+        .is_some_and(|pretty| !matches!(pretty, Value::Bool(_)))
+    {
+        return Err(invalid_function_signature(name));
+    }
+    let oid = signed_integer_arg(name, &args[0])?;
+    let Some(oid) = oid else {
+        return Ok(Value::Null);
+    };
+    let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) else {
+        return Ok(Value::Null);
+    };
+    Ok(crate::catalog::virtual_views::constraint_definition_by_oid(
+        &catalog,
+        &context.database,
+        oid,
+        session,
+    )
+    .map_or(Value::Null, Value::String))
 }
 
 fn evaluate_current_setting(
@@ -776,7 +810,9 @@ fn evaluate_format_type(
     let oid = signed_integer_arg(name, &args[0])?;
     let typmod = signed_integer_arg(name, &args[1])?;
     Ok(match (oid, typmod) {
-        (Some(oid), Some(typmod)) => Value::String(format_type_oid_in_session(oid, typmod, session)),
+        (Some(oid), Some(typmod)) => {
+            Value::String(format_type_oid_in_session(oid, typmod, session))
+        }
         (Some(oid), None) => Value::String(format_type_oid_in_session(oid, -1, session)),
         _ => Value::Null,
     })

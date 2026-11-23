@@ -516,5 +516,7 @@ fn index_column_definition(index: &IndexMeta, column: i64) -> String {
     index
         .normalized_expressions()
         .get(position.saturating_sub(fields.len()))
-        .map_or_else(String::new, |expression| format_stored_expression(expression))
+        .map_or_else(String::new, |expression| {
+            format_stored_expression(expression)
+        })
 }

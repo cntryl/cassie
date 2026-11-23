@@ -78,6 +78,12 @@ NULL. `pg_get_indexdef(oid)` and `pg_get_indexdef(oid, column, pretty)` return
 the full definition for column zero, the selected key name for a positive
 column, and empty text when the positive column is beyond the index keys. The
 pretty flag does not change the rendered output for these supported forms.
+`pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, pretty)` render the
+PRIMARY KEY, UNIQUE, CHECK, and FOREIGN KEY definitions already exposed by
+`pg_constraint`; NULL and an unmatched or inaccessible OID return SQL NULL.
+Restricted authenticated roles see only tables and constraints for which they
+hold SELECT, including in the REST schema payload. The contract does not add
+other pg_catalog visibility rules.
 
 Evidence for the #843 catalog rows (executed in the final full run on
 1d0750c19): descriptors in

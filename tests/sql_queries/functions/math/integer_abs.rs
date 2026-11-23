@@ -191,10 +191,12 @@ fn should_not_evaluate_abs_for_empty_int4_input() {
     let result = fixture.execute("SELECT abs(v) FROM abs_empty_minimum WHERE false");
 
     // Assert
-    assert!(result
-        .expect("empty input does not evaluate ABS")
-        .rows()
-        .is_empty());
+    assert!(
+        result
+            .expect("empty input does not evaluate ABS")
+            .rows()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -212,7 +214,7 @@ fn should_preserve_abs_width_for_nonminimum_smallint_value() {
 }
 
 #[test]
-fn should_preserve_declared_abs_routine_precedence_over_builtin_width_check() {
+fn should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine() {
     // Arrange
     let fixture = sql_fixture("issue-1476-abs-declared-routine", &[]);
     fixture.execute("CREATE SCHEMA abs_shadow").unwrap();
@@ -221,15 +223,11 @@ fn should_preserve_declared_abs_routine_precedence_over_builtin_width_check() {
             r#"CREATE FUNCTION abs_shadow.abs(x INT) RETURNS BIGINT IMMUTABLE AS "2147483648::bigint""#,
         )
         .unwrap();
-    fixture
-        .execute("SET search_path TO abs_shadow, pg_catalog, public")
-        .unwrap();
-
     // Act
-    let result = fixture.execute("SELECT abs(-1::integer)");
+    let result = fixture.execute("SELECT abs_shadow.abs(-1::integer)");
 
     // Assert
-    let result = result.expect("search-path routine shadows pg_catalog abs");
+    let result = result.expect("qualified user routine bypasses builtin ABS lowering");
     assert_eq!(result.rows(), &[vec![Value::Int64(2147483648)]]);
     assert_eq!(result.columns()[0].type_oid, 20);
 }

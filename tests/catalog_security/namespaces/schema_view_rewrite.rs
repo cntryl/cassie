@@ -112,10 +112,33 @@ fn should_rewrite_an_external_view_when_its_source_schema_is_renamed() {
     // Act
     fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
     let rows = fixture.rows("SELECT * FROM x.vv");
-    let stored = fixture.cassie.catalog.get_view("x.vv").expect("view metadata");
 
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+}
+
+#[test]
+fn should_update_external_view_text_to_the_renamed_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema_rename_external_view_text",
+        &[
+            "CREATE SCHEMA a",
+            "CREATE SCHEMA x",
+            "CREATE TABLE a.t (id INT)",
+            "CREATE VIEW x.vv AS SELECT id FROM a.t",
+        ],
+    );
+
+    // Act
+    fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("x.vv")
+        .expect("view metadata");
+
+    // Assert
     assert!(stored.query.contains("b.t"));
 }
 
@@ -136,10 +159,17 @@ fn should_preserve_literals_in_an_external_view_when_its_source_schema_is_rename
     // Act
     fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
     let rows = fixture.rows("SELECT * FROM x.vv");
-    let stored = fixture.cassie.catalog.get_view("x.vv").expect("view metadata");
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("x.vv")
+        .expect("view metadata");
 
     // Assert
-    assert_eq!(rows, vec![vec![Value::String("a.t".into()), Value::Int64(5)]]);
+    assert_eq!(
+        rows,
+        vec![vec![Value::String("a.t".into()), Value::Int64(5)]]
+    );
     assert!(stored.query.contains("'a.t'"));
     assert!(stored.query.contains("b.t"));
 }
@@ -157,11 +187,21 @@ fn should_leave_an_unrelated_view_definition_unchanged_when_a_schema_is_renamed(
             "CREATE VIEW z.vv AS SELECT id FROM z.source",
         ],
     );
-    let before = fixture.cassie.catalog.get_view("z.vv").expect("view metadata").query;
+    let before = fixture
+        .cassie
+        .catalog
+        .get_view("z.vv")
+        .expect("view metadata")
+        .query;
 
     // Act
     fixture.execute("ALTER SCHEMA a RENAME TO b").unwrap();
-    let after = fixture.cassie.catalog.get_view("z.vv").expect("view metadata").query;
+    let after = fixture
+        .cassie
+        .catalog
+        .get_view("z.vv")
+        .expect("view metadata")
+        .query;
 
     // Assert
     assert_eq!(after, before);

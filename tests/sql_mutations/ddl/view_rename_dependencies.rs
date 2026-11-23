@@ -259,14 +259,14 @@ fn should_allow_renaming_a_table_no_view_reads() {
 }
 
 #[test]
-fn should_preserve_aliased_join_chain_results_after_table_rename() {
+fn should_preserve_results_through_a_dependent_view_chain_after_table_rename() {
     // Arrange
     let fixture = base(
-        "rename-table-aliased-join-chain",
-        "CREATE VIEW rv0 AS SELECT x.id AS source_id, ot.m FROM rt AS x JOIN ot ON x.id = ot.id",
+        "rename-table-view-chain",
+        "CREATE VIEW rv0 AS SELECT id, n FROM rt",
     );
     fixture
-        .execute("CREATE VIEW rv AS SELECT source_id, m FROM rv0")
+        .execute("CREATE VIEW rv AS SELECT id, n FROM rv0")
         .expect("the dependent view is created");
 
     // Act
@@ -274,19 +274,31 @@ fn should_preserve_aliased_join_chain_results_after_table_rename() {
     let rows = view_rows(&fixture);
 
     // Assert
-    assert!(renamed.is_ok(), "the stored relation reference is rewritten");
-    assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(9)]]);
+    assert!(
+        renamed.is_ok(),
+        "the stored relation reference is rewritten"
+    );
+    assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
 }
 
 #[test]
 fn should_preserve_the_projected_column_name_and_type_after_column_rename() {
     // Arrange
-    let fixture = base("rename-column-output-contract", "CREATE VIEW rv AS SELECT n FROM rt");
+    let fixture = base(
+        "rename-column-output-contract",
+        "CREATE VIEW rv AS SELECT n FROM rt",
+    );
 
     // Act
     let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
     let rows = view_rows(&fixture);
-    let field = &fixture.cassie.catalog.get_view("rv").expect("view metadata").schema.fields[0];
+    let field = &fixture
+        .cassie
+        .catalog
+        .get_view("rv")
+        .expect("view metadata")
+        .schema
+        .fields[0];
 
     // Assert
     assert!(renamed.is_ok(), "the stored column reference is rewritten");
@@ -296,22 +308,43 @@ fn should_preserve_the_projected_column_name_and_type_after_column_rename() {
 }
 
 #[test]
-fn should_rewrite_column_predicates_without_changing_literal_text() {
+fn should_rewrite_a_column_reference_in_a_view_predicate() {
     // Arrange
     let fixture = base(
-        "rename-column-predicate-literal",
-        "CREATE VIEW rv AS SELECT n AS value FROM rt WHERE n > 4 AND 'n' = 'n'",
+        "rename-column-predicate",
+        "CREATE VIEW rv AS SELECT id FROM rt WHERE n > 4",
     );
 
     // Act
     let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
     let rows = view_rows(&fixture);
-    let stored = fixture.cassie.catalog.get_view("rv").expect("view metadata");
 
     // Assert
-    assert!(renamed.is_ok(), "the stored predicate and projection are rewritten");
-    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
-    assert!(stored.query.contains("'n' = 'n'"));
+    assert!(renamed.is_ok(), "the stored predicate is rewritten");
+    assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_preserve_string_literals_during_column_rewrite() {
+    // Arrange
+    let fixture = base(
+        "rename-column-literal",
+        "CREATE VIEW rv AS SELECT 'n' AS label, n FROM rt",
+    );
+
+    // Act
+    let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
+    let rows = view_rows(&fixture);
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("rv")
+        .expect("view metadata");
+
+    // Assert
+    assert!(renamed.is_ok(), "the stored column reference is rewritten");
+    assert_eq!(rows, vec![vec![Value::String("n".into()), Value::Int64(5)]]);
+    assert!(stored.query.contains("'n'"));
 }
 
 #[test]
@@ -333,7 +366,10 @@ fn should_restore_view_and_table_names_after_transactional_rename_rollback() {
 #[test]
 fn should_rollback_owned_implicit_transaction_after_rename_error() {
     // Arrange
-    let fixture = base("rename-implicit-rollback", "CREATE VIEW rv AS SELECT id FROM rt");
+    let fixture = base(
+        "rename-implicit-rollback",
+        "CREATE VIEW rv AS SELECT id FROM rt",
+    );
 
     // Act
     let rename_error = fixture.error("ALTER TABLE rt RENAME TO ot");

@@ -49,9 +49,10 @@ pub(super) fn execute_atomic_dml(
             let batch = cassie
                 .new_statement_batch(session)
                 .map_err(QueryError::from)?;
-            // The new owner paths use READ COMMITTED arbitration. Repeatable
-            // read mutations retain their row-conflict check at native commit.
-            let arbitrate = !include_preimages || !batch.session().is_repeatable_read_write();
+            // Leave generic ON CONFLICT and Repeatable Read mutations on
+            // their existing native commit paths.
+            let arbitrate = wait_for_unique_owner
+                || (include_preimages && !batch.session().is_repeatable_read_write());
             batch.session().set_defer_unique_wait_duplicate(arbitrate);
             let statement_controls = super::super::entrypoints::working_statement_read_controls(
                 cassie,

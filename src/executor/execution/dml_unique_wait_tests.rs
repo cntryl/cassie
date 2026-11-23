@@ -63,5 +63,7 @@ fn should_not_restore_a_unique_claim_removed_by_savepoint_rollback() {
         .snapshot_owner_keys(owner)
         .is_empty());
     assert_eq!(session.transaction_status(), "in_transaction");
-    cassie.execute_sql(&session, "ROLLBACK", Vec::new()).unwrap();
+    cassie
+        .execute_sql(&session, "ROLLBACK", Vec::new())
+        .unwrap();
 }

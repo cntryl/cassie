@@ -70,27 +70,32 @@ pub(super) fn execute_atomic_dml(
                     "session transaction changed while DML was executing".to_owned(),
                 )));
             }
-            let owner = batch.unique_owner_id();
+            let owner = if batch.has_enclosing_transaction() {
+                batch.unique_owner_id()
+            } else {
+                uuid::Uuid::new_v4()
+            };
             let catalog = batch
                 .session()
                 .transaction_catalog_overlay()
                 .unwrap_or_else(|| cassie.catalog.clone());
-            let keys = crate::app::collect_unique_keys_with_preimages(
-                &catalog,
-                &cassie.midge,
-                batch.session(),
-                include_preimages,
-            )
-            .map_err(QueryError::from)?;
-            let candidate_keys =
-                crate::app::collect_unique_keys(&catalog, &cassie.midge, batch.session());
+            let (keys, candidate_keys) = {
+                let _read = crate::midge::adapter::StatementReadScope::enter(None);
+                let _overlay = crate::app::SessionReadScope::enter(None);
+                crate::app::collect_statement_unique_keys(
+                    &catalog,
+                    &cassie.midge,
+                    batch.session(),
+                    &batch.changed_row_ids()?,
+                    include_preimages,
+                )?
+            };
             let pending = PendingUniqueDml {
                 owner,
                 batch,
                 result,
                 keys,
                 candidate_keys,
-                previous_keys: cassie.transaction_unique_waits.snapshot_owner_keys(owner),
                 resolved_keys: std::collections::BTreeSet::new(),
             };
             attempt_unique_dml_publication(
@@ -126,7 +131,6 @@ struct PendingUniqueDml {
     result: QueryResult,
     keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
     candidate_keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
-    previous_keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
     resolved_keys: std::collections::BTreeSet<crate::app::UniqueTransactionKey>,
 }
 
@@ -149,6 +153,39 @@ fn attempt_unique_dml_publication(
     #[cfg(test)]
     tests::before_unique_publication();
     let waits = &cassie.transaction_unique_waits;
+    let claim =
+        original.with_unique_statement_publication(&pending.batch, controls, |publish| {
+            claim_unique_dml(cassie, &pending, wait_for_unique_owner, publish)
+        })?;
+    if let crate::app::UniqueKeyClaim::Wait { key, owner } = claim {
+        pending.resolved_keys.insert(key.clone());
+        return Ok(AtomicDmlAttempt::Wait {
+            pending: Box::new(pending),
+            key,
+            owner,
+        });
+    }
+    if !pending.batch.has_enclosing_transaction() {
+        let publication = cassie.publish_statement_batch(Some(original), pending.batch, controls);
+        waits.release_owner(pending.owner);
+        publication?;
+    }
+    Ok(AtomicDmlAttempt::Published(pending.result))
+}
+
+fn claim_unique_dml(
+    cassie: &Cassie,
+    pending: &PendingUniqueDml,
+    wait_for_unique_owner: bool,
+    publish: &mut dyn FnMut() -> Result<(), crate::app::CassieError>,
+) -> Result<crate::app::UniqueKeyClaim, crate::app::CassieError> {
+    use crate::app::UniqueKeyClaim;
+
+    // A modifying WITH statement may still own a source snapshot. Its row
+    // expressions retain that snapshot, while arbitration checks current data.
+    let _read = crate::midge::adapter::StatementReadScope::enter(None);
+    let _overlay = crate::app::SessionReadScope::enter(None);
+    let waits = &cassie.transaction_unique_waits;
     let catalog = pending
         .batch
         .session()
@@ -161,31 +198,26 @@ fn attempt_unique_dml_publication(
             &cassie.midge,
             pending.batch.session(),
             key,
-        )
-        .map_err(QueryError::from)?;
+        )?;
     }
 
+    let previous_keys = waits.snapshot_owner_keys(pending.owner);
     let claim = if wait_for_unique_owner {
         waits.claim_keys(pending.owner, &pending.keys)
     } else {
         waits.claim_keys_without_wait(pending.owner, &pending.keys)
-    }
-    .map_err(QueryError::from)?;
-    match claim {
-        crate::app::UniqueKeyClaim::Wait { key, owner } => {
-            pending.resolved_keys.insert(key.clone());
-            return Ok(AtomicDmlAttempt::Wait {
-                pending: Box::new(pending),
-                key,
-                owner,
-            });
-        }
-        crate::app::UniqueKeyClaim::Claimed => {}
+    }?;
+    if matches!(&claim, UniqueKeyClaim::Wait { .. }) {
+        return Ok(claim);
     }
 
     // Validation may have deferred a committed duplicate to a registered
     // transaction owner. Recheck every staged candidate after claiming, even
     // when that owner resolved before claim_keys found a blocker.
+    pending
+        .batch
+        .session()
+        .set_defer_unique_wait_duplicate(false);
     let recheck_result = pending.candidate_keys.iter().try_for_each(|key| {
         crate::app::validate_unique_key_candidate(
             cassie,
@@ -195,24 +227,9 @@ fn attempt_unique_dml_publication(
             key,
         )
     });
-    if let Err(error) = recheck_result {
-        waits
-            .restore_owner_keys(pending.owner, &pending.previous_keys)
-            .map_err(QueryError::from)?;
-        return Err(QueryError::from(error));
+    if let Err(error) = recheck_result.and_then(|()| publish()) {
+        waits.restore_owner_keys(pending.owner, &previous_keys)?;
+        return Err(error);
     }
-
-    let result = pending.result;
-    if let Err(error) = cassie.publish_statement_batch(Some(original), pending.batch, controls) {
-        waits
-            .restore_owner_keys(pending.owner, &pending.previous_keys)
-            .map_err(QueryError::from)?;
-        return Err(QueryError::from(error));
-    }
-    if !original.is_transaction_active() {
-        waits
-            .restore_owner_keys(pending.owner, &pending.previous_keys)
-            .map_err(QueryError::from)?;
-    }
-    Ok(AtomicDmlAttempt::Published(result))
+    Ok(claim)
 }

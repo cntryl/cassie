@@ -464,26 +464,35 @@ pub(crate) fn collect_unique_keys(
     keys
 }
 
-pub(crate) fn collect_unique_keys_with_preimages(
+pub(crate) fn collect_statement_unique_keys(
     catalog: &Catalog,
     midge: &Midge,
     session: &crate::app::CassieSession,
+    changed_rows: &BTreeMap<String, BTreeSet<String>>,
     include_preimages: bool,
-) -> Result<BTreeSet<UniqueTransactionKey>, CassieError> {
+) -> Result<
+    (
+        BTreeSet<UniqueTransactionKey>,
+        BTreeSet<UniqueTransactionKey>,
+    ),
+    CassieError,
+> {
     let writes = session.transaction_writes();
-    let mut keys = BTreeSet::new();
-    for (collection, changes) in writes {
-        let constraints = catalog.get_constraints(&collection);
+    let mut preimages = BTreeSet::new();
+    let mut candidates = BTreeSet::new();
+    for (collection, ids) in changed_rows {
+        let constraints = catalog.get_constraints(collection);
         if constraints.is_empty() {
             continue;
         }
-        let schema = catalog.get_schema(&collection);
-        let relation = midge.canonical_collection_name(&collection);
+        let schema = catalog.get_schema(collection);
+        let relation = midge.canonical_collection_name(collection);
         let has_published_relation =
-            include_preimages && midge.current_row_schema_identity(&collection)?.is_some();
-        for (id, change) in &changes {
+            include_preimages && midge.current_row_schema_identity(collection)?.is_some();
+        let changes = writes.get(collection);
+        for id in ids {
             let previous = if has_published_relation {
-                midge.get_document(&collection, id)?
+                midge.get_document(collection, id)?
             } else {
                 None
             };
@@ -491,11 +500,13 @@ pub(crate) fn collect_unique_keys_with_preimages(
                 if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
                     continue;
                 }
-                if let TransactionRowChange::Upsert(payload) = change {
+                if let Some(TransactionRowChange::Upsert(payload)) =
+                    changes.and_then(|rows| rows.get(id))
+                {
                     collect_constraint_value(
-                        &mut keys,
+                        &mut candidates,
                         &relation,
-                        &collection,
+                        collection,
                         constraint,
                         schema.as_ref(),
                         payload,
@@ -503,9 +514,9 @@ pub(crate) fn collect_unique_keys_with_preimages(
                 }
                 if let Some(previous) = &previous {
                     collect_constraint_value(
-                        &mut keys,
+                        &mut preimages,
                         &relation,
-                        &collection,
+                        collection,
                         constraint,
                         schema.as_ref(),
                         &previous.payload,
@@ -514,7 +525,8 @@ pub(crate) fn collect_unique_keys_with_preimages(
             }
         }
     }
-    Ok(keys)
+    preimages.extend(candidates.iter().cloned());
+    Ok((preimages, candidates))
 }
 
 pub(crate) fn has_unique_wait_owner(

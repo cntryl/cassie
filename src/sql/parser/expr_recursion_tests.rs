@@ -87,15 +87,38 @@ fn should_reject_boolean_chains_one_operand_over_boundary() {
 #[test]
 fn should_count_mixed_logical_operators_through_grouped_expressions() {
     // Arrange
-    let sql = "SELECT true OR (true AND (false OR (true AND true)))";
+    let grouped_path = |outer_operands, inner_operands| {
+        format!(
+            "SELECT {} OR ({})",
+            vec!["true"; outer_operands - 1].join(" OR "),
+            vec!["true"; inner_operands].join(" AND ")
+        )
+    };
+    let at_limit = grouped_path(65, 64);
+    let over_limit = grouped_path(66, 64);
+    let left_sibling = vec!["true"; 127].join(" AND ");
+    let right_sibling = vec!["true"; 127].join(" AND ");
+    let independent_siblings = format!("SELECT ({left_sibling}) OR ({right_sibling})");
 
     // Act
-    let result = parse_statement(sql);
+    let accepted = parse_statement(&at_limit);
+    let rejected = parse_statement(&over_limit);
+    let siblings = parse_statement(&independent_siblings);
 
     // Assert
     assert!(
-        result.is_ok(),
-        "ordinary grouped boolean logic remains supported"
+        accepted.is_ok(),
+        "127 combined logical nodes are within the limit"
+    );
+    assert_eq!(
+        rejected
+            .expect_err("128 combined logical nodes exceed the limit")
+            .kind(),
+        SqlErrorKind::ResourceLimit
+    );
+    assert!(
+        siblings.is_ok(),
+        "each sibling subtree gets an independent depth budget"
     );
 }
 

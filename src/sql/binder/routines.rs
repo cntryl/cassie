@@ -85,6 +85,28 @@ pub(super) fn bind_create_function(
 
     crate::sql::definition_guard::legacy_expression(&parsed_body)?;
 
+    let argument_names = statement
+        .args
+        .iter()
+        .map(|arg| crate::sql::ColumnIdentifierPath::reference_field_key(&arg.name))
+        .collect::<HashSet<_>>();
+    let scope = super::CteScope::new(None, &[]);
+    super::validate_expression_in_scope(
+        &parsed_body,
+        &argument_names,
+        &HashSet::new(),
+        false,
+        super::references::ReferenceScope::new(&scope, catalog, context),
+    )
+    .map_err(|error| match error {
+        CassieError::UndefinedColumn(column) => crate::app::DiagnosticError::new(
+            "42703",
+            format!("column \"{column}\" does not exist"),
+        )
+        .into(),
+        error => error,
+    })?;
+
     if function_body_references(&parsed_body, &name, context) {
         return Err(CassieError::Planner(format!(
             "function '{requested_name}' cannot call itself"

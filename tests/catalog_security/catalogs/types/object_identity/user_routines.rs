@@ -259,7 +259,7 @@ fn should_unescape_doubled_quotes_in_a_single_quoted_function_body() {
 }
 
 #[test]
-fn should_reject_unterminated_and_empty_quoted_function_bodies() {
+fn should_reject_malformed_quoted_function_bodies() {
     // Arrange
     let fixture = sql_fixture("routine_invalid_quoted_bodies", &[]);
 
@@ -318,7 +318,7 @@ fn should_preserve_quotes_inside_tagged_dollar_quoted_function_bodies() {
 }
 
 #[test]
-fn should_accept_double_precision_function_arguments_and_returns() {
+fn should_accept_double_precision_function_signatures() {
     // Arrange
     let fixture = sql_fixture("routine_double_precision_types", &[]);
 
@@ -351,7 +351,7 @@ fn should_accept_a_double_precision_function_result_type() {
 }
 
 #[test]
-fn should_accept_timestamp_with_time_zone_function_arguments_and_results() {
+fn should_accept_zoned_timestamp_function_signatures() {
     // Arrange
     let fixture = sql_fixture("routine_timestamptz_argument", &[]);
     fixture.execute("SET TIME ZONE 'UTC'").expect("set UTC time zone");

@@ -355,17 +355,7 @@ async fn execute_prepared_portal(
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let standalone_publication = standalone && session.is_implicit_transaction();
     if standalone_publication {
-        let transaction_session = session.clone();
-        if let Err(error) = run_pgwire_blocking(
-            Arc::clone(&cassie),
-            "pgwire_standalone_ddl_commit",
-            move |cassie| cassie.commit_transaction(&transaction_session),
-        )
-        .await
-        {
-            super::transactions::fail_owned_transaction(session).await;
-            return Err(ExtendedQueryError::cassie(&error));
-        }
+        commit_standalone_portal_transaction(&cassie, session).await?;
     }
     let publication_complete = explicit_commit || (standalone && !session.is_transaction_active());
     if publication_complete {
@@ -395,6 +385,36 @@ async fn execute_prepared_portal(
         },
     )
     .await?;
+    finish_prepared_portal_output(write_half, runtime, state, session, portal_name, standalone)
+        .await
+}
+
+async fn commit_standalone_portal_transaction(
+    cassie: &Arc<Cassie>,
+    session: &CassieSession,
+) -> Result<(), ExtendedQueryError> {
+    let transaction_session = session.clone();
+    if let Err(error) = run_pgwire_blocking(
+        Arc::clone(cassie),
+        "pgwire_standalone_ddl_commit",
+        move |cassie| cassie.commit_transaction(&transaction_session),
+    )
+    .await
+    {
+        super::transactions::fail_owned_transaction(session).await;
+        return Err(ExtendedQueryError::cassie(&error));
+    }
+    Ok(())
+}
+
+async fn finish_prepared_portal_output(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    runtime: &RuntimeState,
+    state: &mut SessionState,
+    session: &CassieSession,
+    portal_name: &str,
+    standalone: bool,
+) -> Result<(), ExtendedQueryError> {
     super::writers::write_changed_parameter_statuses(
         write_half,
         session,

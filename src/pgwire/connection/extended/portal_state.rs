@@ -1,5 +1,6 @@
 use tokio::io::AsyncWrite;
 
+use super::super::result_frames::PortalFrameOwner;
 use super::super::result_frames::QueryResultFrames;
 use super::super::writers::ensure_row_widths;
 use super::{
@@ -326,31 +327,18 @@ pub(super) async fn write_suspended_result(
             .as_mut()
             .expect("prepared owner")
             .restore_frames(frames.into_storage());
-        suspended.row_offset += page_len;
-        suspended.row_description_sent = row_description_sent;
-        suspended.rows_emitted = suspended.rows_emitted.saturating_add(page_len);
-        let completion = suspended.result.clone();
-        let retained = remains_suspended.then_some(suspended);
-        store_portal_state(
+        publish_suspended_page(
             state,
             portal_name,
-            row_description_sent,
-            completion.command(),
-            retained,
+            suspended,
+            SuspendedPageState {
+                page_len,
+                row_description_sent,
+                remains_suspended,
+            },
+            cancellation.as_ref(),
+            frame_owner,
         );
-        if remains_suspended
-            && state
-                .portals
-                .get(portal_name)
-                .is_some_and(|portal| portal.suspended.is_some())
-        {
-            state
-                .portal_frames
-                .publish(frame_owner.take().expect("retained frame owner"));
-        }
-        if !remains_suspended {
-            clear_cancellation(state, cancellation.as_ref());
-        }
         Ok(())
     }
     .await;
@@ -359,6 +347,47 @@ pub(super) async fn write_suspended_result(
     }
     state.portal_frames.release_empty();
     output
+}
+
+struct SuspendedPageState {
+    page_len: usize,
+    row_description_sent: bool,
+    remains_suspended: bool,
+}
+
+fn publish_suspended_page(
+    state: &mut SessionState,
+    portal_name: &str,
+    mut suspended: PortalSuspended,
+    page: SuspendedPageState,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+    mut frame_owner: Option<PortalFrameOwner>,
+) {
+    suspended.row_offset += page.page_len;
+    suspended.row_description_sent = page.row_description_sent;
+    suspended.rows_emitted = suspended.rows_emitted.saturating_add(page.page_len);
+    let completion = suspended.result.clone();
+    let retained = page.remains_suspended.then_some(suspended);
+    store_portal_state(
+        state,
+        portal_name,
+        page.row_description_sent,
+        completion.command(),
+        retained,
+    );
+    if page.remains_suspended
+        && state
+            .portals
+            .get(portal_name)
+            .is_some_and(|portal| portal.suspended.is_some())
+    {
+        state
+            .portal_frames
+            .publish(frame_owner.take().expect("retained frame owner"));
+    }
+    if !page.remains_suspended {
+        clear_cancellation(state, cancellation);
+    }
 }
 
 pub(super) struct StreamingPortalResult {

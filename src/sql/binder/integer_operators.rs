@@ -109,7 +109,7 @@ fn diagnostic_type_name(data_type: Option<&DataType>) -> String {
         DataType::Char { .. } => "character".to_owned(),
         DataType::Varchar { .. } => "character varying".to_owned(),
         DataType::Array(element) => format!("{}[]", diagnostic_type_name(Some(element))),
-        DataType::Extended(kind) => kind.type_name(),
+        DataType::Extended(kind) => kind.name().to_owned(),
         other => other.type_name(),
     }
 }

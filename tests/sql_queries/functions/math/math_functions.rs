@@ -210,6 +210,22 @@ fn should_reject_float_remainder_overloads_with_operator_sqlstates() {
             "SELECT 7.5::DOUBLE PRECISION % 2.5::DOUBLE PRECISION",
             "operator does not exist: double precision % double precision",
         ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 1.2::NUMERIC(5,1)",
+            "operator does not exist: double precision % numeric",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % B'101'::BIT(3)",
+            "operator does not exist: double precision % bit",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % '12:00:00'::TIME(2)",
+            "operator does not exist: double precision % time",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % ARRAY[1.2]::NUMERIC(5,1)[]",
+            "operator does not exist: double precision % numeric[]",
+        ),
     ];
 
     // Act

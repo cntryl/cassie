@@ -1,4 +1,65 @@
 #[test]
+fn should_render_supported_constraint_definitions_from_pg_catalog_oids() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1487-constraint-definitions",
+        &[
+            "CREATE TABLE constraint_parent (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE constraint_child (id INTEGER PRIMARY KEY, code TEXT UNIQUE, \
+             amount INTEGER CHECK (amount > 0), parent_id INTEGER REFERENCES constraint_parent(id))",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT conname, pg_get_constraintdef(oid), \
+                    pg_catalog.pg_get_constraintdef(oid, true) \
+             FROM pg_constraint \
+             WHERE conrelid = 'constraint_child'::regclass \
+               AND contype IN ('p', 'u', 'c', 'f') \
+             ORDER BY conname",
+        )
+        .expect("render constraint definitions");
+    let nulls = fixture
+        .execute("SELECT pg_get_constraintdef(NULL), pg_get_constraintdef(999999999)")
+        .expect("render null constraint definitions");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![
+            vec![
+                Value::String("constraint_child_amount_check".to_owned()),
+                Value::String("CHECK ((amount > 0))".to_owned()),
+                Value::String("CHECK ((amount > 0))".to_owned()),
+            ],
+            vec![
+                Value::String("constraint_child_code_key".to_owned()),
+                Value::String("UNIQUE (code)".to_owned()),
+                Value::String("UNIQUE (code)".to_owned()),
+            ],
+            vec![
+                Value::String("constraint_child_parent_id_fkey".to_owned()),
+                Value::String(
+                    "FOREIGN KEY (parent_id) REFERENCES constraint_parent(id)".to_owned()
+                ),
+                Value::String(
+                    "FOREIGN KEY (parent_id) REFERENCES constraint_parent(id)".to_owned()
+                ),
+            ],
+            vec![
+                Value::String("constraint_child_pkey".to_owned()),
+                Value::String("PRIMARY KEY (id)".to_owned()),
+                Value::String("PRIMARY KEY (id)".to_owned()),
+            ],
+        ]
+    );
+    assert_eq!(nulls.rows(), vec![vec![Value::Null, Value::Null]]);
+}
+
+#[test]
 fn should_report_created_table_constraint_identities() {
     // Arrange
     let fixture = created_object_catalog_fixture("issue-817-created-table-constraints");

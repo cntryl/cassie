@@ -26,6 +26,49 @@ const INDEX_PREDICATE_QUERY: &str = "SELECT index_class.relname AS indexrelid, i
 
 type Frames = Vec<(u8, Vec<u8>)>;
 
+#[test]
+fn should_report_syntax_message_and_character_position_in_error_response() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-syntax-position", &[]);
+
+    // Act
+    let simple = simple_round_trip(cassie, path, "SELECT 1 FORM t_probe;");
+
+    // Assert
+    let error = simple
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("simple-query ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&('C', "42601".to_owned())));
+    assert!(fields.contains(&(
+        'M',
+        "syntax error at or near \"t_probe\"".to_owned()
+    )));
+    assert!(fields.contains(&('P', "15".to_owned())));
+}
+
+#[test]
+fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-multibyte-position", &[]);
+
+    // Act
+    let frames = binary_round_trip(cassie, path, "SELECT 'é' AS café FORM t_probe;");
+
+    // Assert
+    let error = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("Parse ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&(
+        'M',
+        "syntax error at or near \"t_probe\"".to_owned()
+    )));
+    assert!(fields.contains(&('P', "25".to_owned())));
+}
+
 fn configured_cassie(label: &str, setup: &[&str]) -> (Cassie, String) {
     let path = support::data_dir(label);
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");

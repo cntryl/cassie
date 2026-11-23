@@ -9,6 +9,65 @@ use tokio_postgres::NoTls;
 use super::support_sql as support;
 use support::*;
 
+#[test]
+fn should_hide_ungranted_relations_from_information_schema_for_restricted_role() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let admin = cassie
+        .authenticate_role("root", Some(support::test_root_password()), None)
+        .expect("admin login");
+    for sql in [
+        "CREATE TABLE catalog_visible (id INTEGER)",
+        "CREATE TABLE catalog_secret (token TEXT)",
+        "CREATE ROLE catalog_reader LOGIN PASSWORD 'reader-secret'",
+        "GRANT USAGE ON SCHEMA public TO catalog_reader",
+        "GRANT SELECT ON TABLE public.catalog_visible TO catalog_reader",
+    ] {
+        cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+    }
+    let reader = cassie
+        .authenticate_role("catalog_reader", Some("reader-secret"), None)
+        .expect("reader login");
+
+    // Act
+    let tables = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read visible tables");
+    let columns = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name, ordinal_position",
+            Vec::new(),
+        )
+        .expect("read visible columns");
+
+    // Assert
+    assert_eq!(
+        tables.rows(),
+        vec![vec![cassie::types::Value::String(
+            "catalog_visible".to_owned()
+        )]]
+    );
+    assert_eq!(
+        columns.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible".to_owned()),
+            cassie::types::Value::String("id".to_owned()),
+        ]]
+    );
+}
+
 async fn copy_out_frames_as(
     address: std::net::SocketAddr,
     user: &str,

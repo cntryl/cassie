@@ -299,7 +299,7 @@ fn should_consume_over_cap_data_modifying_cte_returning_rows_as_an_input() {
 }
 
 #[test]
-fn should_reject_unaccounted_modifying_cte_returning_copies_before_publication() {
+fn should_rollback_modifying_cte_when_query_memory_budget_is_exceeded() {
     // Arrange
     let fixture = fixture_with_query_memory_budget("modifying-cte-copy-budget", 8 * 1024);
 
@@ -314,20 +314,20 @@ fn should_reject_unaccounted_modifying_cte_returning_copies_before_publication()
         result.is_err_and(|error| {
             error.sql_state() == "54000" && error.to_string().contains("query memory budget")
         }),
-        "a query-memory budget denial must roll back the modifying CTE"
+        "the query must be rejected by the memory budget"
     );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM retained"),
         vec![vec![Value::Int64(0)]],
-        "a denied intermediate copy must roll back the modifying CTE"
+        "the budget denial must roll back the modifying CTE"
     );
 }
 
 #[test]
 fn should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget() {
     // Arrange
-    // Retained copies in this end-to-end query fit within 256 KiB; the guard
-    // above verifies rollback when the query budget denies those copies.
+    // Source unit tests cover clone admission; this end-to-end query fits
+    // within 256 KiB, while the 8 KiB case verifies rollback after denial.
     let fixture = fixture_with_query_memory_budget("modifying-cte-copy-budget-fit", 256 * 1024);
 
     // Act

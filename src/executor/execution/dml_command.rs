@@ -824,8 +824,8 @@ fn execute_atomic_dml(
         &QueryExecutionControls,
     ) -> Result<QueryResult, QueryError>,
 ) -> Result<QueryResult, QueryError> {
-    let fallback = (wait_for_unique_owner && session.is_none())
-        .then(|| cassie.create_session("root", None));
+    let fallback =
+        (wait_for_unique_owner && session.is_none()).then(|| cassie.create_session("root", None));
     let session = session.or(fallback.as_ref());
     let collections = cassie.referential_write_collections(table);
     let mut pending_attempt: Option<PendingUniqueInsert> = None;

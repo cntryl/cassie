@@ -9,11 +9,11 @@ use parking_lot::{Condvar, Mutex};
 use uuid::Uuid;
 
 #[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
 use std::sync::mpsc::Sender;
 #[cfg(test)]
 use std::sync::OnceLock;
-#[cfg(test)]
-use std::cell::RefCell;
 
 use crate::app::{Cassie, CassieError, CassieSession, TransactionErrorKind, TransactionRowChange};
 use crate::catalog::{Catalog, FieldConstraint};
@@ -38,7 +38,10 @@ fn observe_next_unique_transaction_wait_for_test(
     observer: impl FnOnce() + Send + 'static,
 ) -> UniqueWaitTestObserverGuard {
     UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
-        assert!(slot.borrow().is_none(), "unique wait observer already installed");
+        assert!(
+            slot.borrow().is_none(),
+            "unique wait observer already installed"
+        );
         *slot.borrow_mut() = Some(Box::new(observer));
     });
     UniqueWaitTestObserverGuard

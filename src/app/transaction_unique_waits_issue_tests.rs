@@ -241,8 +241,11 @@ fn should_detect_deadlock_when_insert_waits_for_update_owner() {
             .execute_sql(&waiter, sql, Vec::new())
             .expect("stage second wait-cycle owner");
     }
-    let (events, worker) =
-        start_observed_insert(cassie.clone(), waiter.clone(), "INSERT INTO u VALUES (4, 99)");
+    let (events, worker) = start_observed_insert(
+        cassie.clone(),
+        waiter.clone(),
+        "INSERT INTO u VALUES (4, 99)",
+    );
     let wait_event = receive_event(&events);
     let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 

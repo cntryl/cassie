@@ -108,13 +108,13 @@ fn should_accept_pretty_flag_given_pg_get_expr_when_describing_a_default() {
 
     // Act
     let selected = fixture
-        .execute("SELECT pg_catalog.pg_get_expr('7', 0, true)")
+        .execute("SELECT pg_get_expr('7', 0), pg_catalog.pg_get_expr('7', 0, true)")
         .expect("render a stored default with pretty flag");
 
     // Assert
     assert_eq!(
         selected.rows(),
-        vec![vec![Value::String("7".to_owned())]]
+        vec![vec![Value::String("7".to_owned()), Value::String("7".to_owned())]]
     );
 }
 

@@ -274,6 +274,33 @@ fn should_return_key_name_given_positive_column_when_calling_pg_get_indexdef() {
 }
 
 #[test]
+fn should_return_empty_text_given_column_beyond_index_keys_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-out-of-range",
+        &[
+            "CREATE TABLE issue_1486_range_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_range_idx ON issue_1486_range_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_get_indexdef(oid, 2, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_range_idx'",
+        )
+        .expect("read a column beyond the index keys");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(String::new())]]
+    );
+}
+
+#[test]
 fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
     // Arrange
     let fixture = sql_fixture("issue-1486-pg-get-indexdef-extra-argument", &[]);

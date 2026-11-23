@@ -348,7 +348,10 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
         let _ = owner_connection.await;
         server.abort();
         let _ = server.await;
-        assert!(request_entered_engine, "waiting INSERT must enter the engine");
+        assert!(
+            request_entered_engine,
+            "waiting INSERT must enter the engine"
+        );
         assert!(
             !completed_before_owner_rollback,
             "INSERT must wait for the first owner to resolve"
@@ -471,19 +474,22 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
         let _ = owner_connection.await;
         server.abort();
         let _ = server.await;
-        assert!(request_entered_engine, "waiting INSERT must enter the engine");
+        assert!(
+            request_entered_engine,
+            "waiting INSERT must enter the engine"
+        );
         assert!(
             !completed_before_owner_rollback,
             "INSERT must wait for the first owner to resolve"
         );
         assert_eq!(sqlstate, "23505");
-        assert_eq!(
-            constraint.as_deref(),
-            Some("compat_unique_cte_rows_b_key")
-        );
+        assert_eq!(constraint.as_deref(), Some("compat_unique_cte_rows_b_key"));
         assert_eq!(detail.as_deref(), Some("Key (b)=(2) already exists."));
         assert_eq!(following_sqlstate.as_deref(), Some("25P02"));
         contender_commit.expect("COMMIT should finish the failed transaction as a rollback");
-        assert_eq!(marked_rows, 0, "failed outer INSERT must roll back its CTE write");
+        assert_eq!(
+            marked_rows, 0,
+            "failed outer INSERT must roll back its CTE write"
+        );
     });
 }

@@ -2,6 +2,7 @@
 //! `DROP TABLE` and `ALTER TABLE ... DROP COLUMN` agree with PostgreSQL 18.6
 //! (SQLSTATE 2BP01) however the view spells its sources and column references.
 
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
@@ -383,6 +384,83 @@ fn should_preserve_the_view_creation_search_path_for_function_dependencies() {
 }
 
 #[test]
+fn should_execute_a_view_with_its_persisted_function_search_path() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-function-execution-search-path",
+        &[
+            "CREATE SCHEMA selected_execution",
+            "CREATE SCHEMA caller_execution",
+            "CREATE FUNCTION selected_execution.same_name() RETURNS INT AS '11'",
+            "CREATE FUNCTION caller_execution.same_name() RETURNS INT AS '22'",
+            "SET search_path = selected_execution, public",
+            "CREATE VIEW execution_context_view AS SELECT same_name() AS result",
+            "SET search_path = caller_execution, public",
+        ],
+    );
+
+    // Act
+    let value = fixture.rows("SELECT result FROM execution_context_view");
+
+    // Assert
+    assert_eq!(value, vec![vec![Value::Int64(11)]]);
+}
+
+struct ViewFunctionDirectory(String);
+
+impl Drop for ViewFunctionDirectory {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).expect("remove closed view-function fixture");
+    }
+}
+
+#[test]
+fn should_preserve_view_function_resolution_after_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let directory =
+        ViewFunctionDirectory(crate::support_sql::data_dir("view-function-restart"));
+    {
+        let cassie = Cassie::new_with_data_dir(&directory.0).expect("create initial Cassie");
+        cassie.startup().expect("initialize initial Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE SCHEMA restart_selected",
+            "CREATE SCHEMA restart_caller",
+            "CREATE FUNCTION restart_selected.same_name() RETURNS INT AS '31'",
+            "CREATE FUNCTION restart_caller.same_name() RETURNS INT AS '32'",
+            "SET search_path = restart_selected, public",
+            "CREATE VIEW restart_context_view AS SELECT same_name() AS result",
+        ] {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("create restart fixture");
+        }
+        cassie.shutdown();
+    }
+
+    let cassie = Cassie::new_with_data_dir(&directory.0).expect("reopen Cassie");
+    cassie.startup().expect("restore view function dependencies");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "SET search_path = restart_caller, public",
+            vec![],
+        )
+        .expect("change caller function search path");
+
+    // Act
+    let result = cassie
+        .execute_sql(&session, "SELECT result FROM restart_context_view", vec![])
+        .expect("execute restored view");
+
+    // Assert
+    assert_eq!(result.rows(), &[vec![Value::Int64(31)]]);
+    cassie.shutdown();
+}
+
+#[test]
 fn should_reject_drop_function_cascade_without_deleting_dependents() {
     // Arrange
     let fixture = sql_fixture(
@@ -524,6 +602,35 @@ fn should_honor_quoted_create_view_column_names() {
             vec![Value::String("q".into())]
         ]
     );
+}
+
+#[test]
+fn should_ignore_parentheses_inside_quoted_create_view_identifiers() {
+    // Arrange
+    let fixture = sql_fixture("view-quoted-parentheses", &[]);
+
+    // Act
+    let created_view = fixture.execute(
+        "CREATE VIEW \"quoted(view)\"(\"left(part)\", q) AS SELECT 1, 2",
+    );
+    let names = fixture.rows(
+        "SELECT column_name FROM information_schema.columns \
+         WHERE table_name = 'quoted(view)' ORDER BY ordinal_position",
+    );
+    let values = fixture.rows(
+        "SELECT \"left(part)\", q FROM \"quoted(view)\"",
+    );
+
+    // Assert
+    assert!(created_view.is_ok());
+    assert_eq!(
+        names,
+        vec![
+            vec![Value::String("left(part)".into())],
+            vec![Value::String("q".into())]
+        ]
+    );
+    assert_eq!(values, vec![vec![Value::Int64(1), Value::Int64(2)]]);
 }
 
 #[test]

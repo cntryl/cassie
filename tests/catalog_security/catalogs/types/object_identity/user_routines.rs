@@ -282,11 +282,21 @@ fn should_reject_malformed_quoted_function_bodies() {
         fixture.error("CREATE FUNCTION unfinished_single() RETURNS INT AS 'SELECT 1");
     let unterminated_dollar =
         fixture.error("CREATE FUNCTION unfinished_dollar() RETURNS INT AS $$ SELECT 1");
+    let invalid_numeric_tag = fixture.error(
+        "CREATE FUNCTION invalid_numeric_tag() RETURNS INT \
+         AS $1$ SELECT 1 $1$ LANGUAGE sql",
+    );
+    let invalid_space_tag = fixture.error(
+        "CREATE FUNCTION invalid_space_tag() RETURNS INT \
+         AS $bad tag$ SELECT 1 $bad tag$ LANGUAGE sql",
+    );
     let empty = fixture.error("CREATE FUNCTION empty_body() RETURNS INT AS ''");
 
     // Assert
     assert_eq!(unterminated_single.sql_state(), "42601");
     assert_eq!(unterminated_dollar.sql_state(), "42601");
+    assert_eq!(invalid_numeric_tag.sql_state(), "42601");
+    assert_eq!(invalid_space_tag.sql_state(), "42601");
     assert!(empty.to_string().contains("empty function/procedure body"));
 }
 
@@ -379,12 +389,17 @@ fn should_accept_zoned_timestamp_function_signatures() {
              RETURNS timestamp with time zone IMMUTABLE AS \"x\"",
         )
         .expect("create a function with multiword timestamp types");
+    let signature = single_text(
+        &fixture,
+        "SELECT to_regprocedure('ts(timestamp with time zone)')::text",
+    );
     let result = fixture.rows(
         "SELECT ts('2020-01-01 00:00:00+00') = \
          '2020-01-01 00:00:00+00'::timestamp with time zone",
     );
 
     // Assert
+    assert_eq!(signature, text("ts(timestamp with time zone)"));
     assert_eq!(result, vec![vec![Value::Bool(true)]]);
 }
 
@@ -396,7 +411,7 @@ fn should_accept_character_varying_function_arguments() {
     // Act
     fixture
         .execute(
-            "CREATE FUNCTION f(x character varying(10)) \
+            "CREATE FUNCTION f(x character varying(3)) \
              RETURNS character varying AS \"x\"",
         )
         .expect("create a function with a length-qualified character type");

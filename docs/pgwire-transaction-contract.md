@@ -56,21 +56,29 @@ state. Focused probes are in
 No extended COPY, distributed transactions, new isolation levels, or persistent
 transaction format is introduced.
 
-## Selected READ COMMITTED unique-owner wait slice
+## Selected READ COMMITTED unique-owner wait slice (#819 and #1465)
 
 The scoped runtime increment for [#819](https://github.com/cntryl/cassie/issues/819)
 tracks non-null values from single-column PRIMARY KEY and UNIQUE constraints
-staged by plain SQL `INSERT` and `UPDATE` in an explicit READ COMMITTED
-transaction. A competing plain SQL `INSERT` for the same key waits until its
-owner commits, rolls back, disconnects, or rolls back to a savepoint that
-removed the staged value. An `UPDATE` claims its resulting unique values after
-its statement batch is prepared and before that batch is published. The waiter
-releases collection write gates while waiting, then rechecks resolved candidates
-against gated live constraint state before waiting on another owner or
-publishing. A committed duplicate returns `23505` without waiting on unrelated
-unresolved keys. If the owner rolls back, the waiting `INSERT` can stage and
-commit without evaluating defaults or expressions a second time. Unchanged
-unique values held by an `UPDATE` do not block inserts of different values.
+staged by plain SQL `INSERT`, `UPDATE`, `DELETE`, and `MERGE` in an explicit READ
+COMMITTED transaction. A competing plain SQL `INSERT` for the same key waits
+until its owner commits, rolls back, disconnects, or rolls back to a savepoint
+that removed the staged value. `UPDATE` and `MERGE` claim both pre-write and
+staged post-write unique values; `DELETE` and `MERGE`-delete retain the
+pre-write values until the transaction resolves. The claim is made after the
+statement batch is prepared and before it is published. The waiter releases
+collection write gates while waiting, then rechecks resolved candidates against
+gated live constraint state before waiting on another owner or publishing. A
+committed duplicate returns `23505` without waiting on unrelated unresolved
+keys. If the owner rolls back, the waiting `INSERT` rechecks the committed row
+state and reports a duplicate where it remains; if the owner commits a removal,
+the insert may proceed. The waiting `INSERT` does not evaluate defaults or
+expressions a second time. Unchanged unique values held by a DML statement do
+not block inserts of different values. `INSERT` is the only DML waiter in this
+slice. An `UPDATE`, `DELETE`, or `MERGE` that reaches a key owned by another
+live transaction returns retryable `40001` before publishing its prepared
+statement batch; Cassie does not replay a prepared non-`INSERT` batch or publish
+it without a key claim.
 Savepoint rollback releases keys acquired after that savepoint. Waits honor
 query cancellation and deadlines. Detected wait cycles return `40P01`; the
 victim's previously staged keys remain owned until transaction resolution.

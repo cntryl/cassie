@@ -89,8 +89,34 @@ impl Midge {
             .clone();
         let operations =
             self.prepare_add_column_backfill_operations(&collection, &field_name, default_value)?;
-        let (writes, options, target_generation) =
-            self.prepare_add_column_write_batch(&collection, database, operations, &mut overlay)?;
+        let no_document_changes = operations.is_empty();
+        let target_generation = if no_document_changes {
+            let target_generation = self.collection_generation(&collection)?.saturating_add(1);
+            overlay.stage_untracked(
+                Self::collection_generation_key(&collection),
+                target_generation.to_be_bytes().to_vec(),
+            );
+            Some(target_generation)
+        } else {
+            None
+        };
+        let mut writes = std::collections::BTreeMap::new();
+        writes.insert(collection.clone(), operations);
+        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        options.data_database = Some(database);
+        options.normalized_vector_collection = Some(collection.clone());
+        if let Some(target_generation) = target_generation {
+            let column_batch_debt =
+                Self::column_batch_maintenance_debt_write(&collection, target_generation)?;
+            let projection_hash_debt =
+                Self::projection_hash_maintenance_debt_write(&collection, target_generation)?;
+            options
+                .additional_data_writes
+                .push((column_batch_debt.0, Some(column_batch_debt.1)));
+            options
+                .additional_data_writes
+                .push((projection_hash_debt.0, Some(projection_hash_debt.1)));
+        }
         self.apply_document_write_batches_with_transactional_ddl_and_schema(
             &writes,
             &options,
@@ -102,60 +128,6 @@ impl Midge {
         if let Some(target_generation) = target_generation {
             let _ = self.complete_column_batch_maintenance(&collection, target_generation, None);
             let _ = self.complete_projection_hash_maintenance(&collection, target_generation, 0);
-        }
-        Ok(())
-    }
-
-    fn prepare_add_column_write_batch(
-        &self,
-        collection: &str,
-        database: String,
-        operations: Vec<DocumentWriteOp>,
-        overlay: &mut StorageOverlay,
-    ) -> Result<
-        (
-            std::collections::BTreeMap<String, Vec<DocumentWriteOp>>,
-            DocumentWriteBatchOptions,
-            Option<u64>,
-        ),
-        CassieError,
-    > {
-        let no_document_changes = operations.is_empty();
-        let target_generation = if no_document_changes {
-            let target_generation = self.collection_generation(collection)?.saturating_add(1);
-            overlay.stage_untracked(
-                Self::collection_generation_key(collection),
-                target_generation.to_be_bytes().to_vec(),
-            );
-            Some(target_generation)
-        } else {
-            None
-        };
-        let mut writes = std::collections::BTreeMap::new();
-        writes.insert(collection.to_string(), operations);
-        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
-        options.data_database = Some(database);
-        options.normalized_vector_collection = Some(collection.to_string());
-        Self::stage_add_column_maintenance_debts(&mut options, collection, target_generation)?;
-        Ok((writes, options, target_generation))
-    }
-
-    fn stage_add_column_maintenance_debts(
-        options: &mut DocumentWriteBatchOptions,
-        collection: &str,
-        target_generation: Option<u64>,
-    ) -> Result<(), CassieError> {
-        if let Some(target_generation) = target_generation {
-            let column_batch_debt =
-                Self::column_batch_maintenance_debt_write(collection, target_generation)?;
-            let projection_hash_debt =
-                Self::projection_hash_maintenance_debt_write(collection, target_generation)?;
-            options
-                .additional_data_writes
-                .push((column_batch_debt.0, Some(column_batch_debt.1)));
-            options
-                .additional_data_writes
-                .push((projection_hash_debt.0, Some(projection_hash_debt.1)));
         }
         Ok(())
     }

@@ -327,18 +327,13 @@ impl Midge {
                 write_guards.push(write_gate.lock());
             }
 
-            let database = options.database_for(
-                collections
-                    .first()
-                    .map(|(collection, _)| collection.as_str()),
-                &self.default_database,
-            );
-            options::require_single_database(
+            let collection_names = || {
                 collections
                     .iter()
-                    .map(|(collection, _)| collection.as_str()),
-                &database,
-            )?;
+                    .map(|(collection, _)| collection.as_str())
+            };
+            let database = options.database_for(collection_names().next(), &self.default_database);
+            options::require_single_database(collection_names(), &database)?;
             let _overlay_scope = if let Some(overlay) = overlay {
                 let overlay = Arc::new(parking_lot::Mutex::new(overlay.clone()));
                 Some(self.enter_transactional_ddl_scope(&database, overlay, false)?)

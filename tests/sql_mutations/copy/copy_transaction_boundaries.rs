@@ -187,13 +187,44 @@ fn should_rollback_transactional_copy_without_publishing_rows() {
     });
 }
 
-#[test]
-fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
-    // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-        .expect("in-memory Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("copy-rollback-publication-state", None);
+type CopyRollbackRows = Vec<Vec<Value>>;
+
+struct CopyRollbackMetadata {
+    collection: String,
+    projection_name: String,
+    index_name: String,
+    indexes: Vec<cassie::catalog::IndexMeta>,
+}
+
+struct CopyRollbackBaseline {
+    rows: CopyRollbackRows,
+    warmed: CopyRollbackRows,
+    hits: u64,
+    scans_before: u64,
+    scans_after: u64,
+    plan: CopyRollbackRows,
+    generation: u64,
+    cardinality: cassie::catalog::CollectionCardinalityStats,
+    projection_state: CopyRollbackRows,
+    rollup_state: CopyRollbackRows,
+}
+
+struct CopyRollbackOutcome {
+    cached: CopyRollbackRows,
+    hits: u64,
+    plan: CopyRollbackRows,
+    scans_before: u64,
+    scans_after: u64,
+    column_rows: CopyRollbackRows,
+    projection_rows: CopyRollbackRows,
+    rollup_rows: CopyRollbackRows,
+    generation: u64,
+    cardinality: cassie::catalog::CollectionCardinalityStats,
+    projection_state: CopyRollbackRows,
+    rollup_state: CopyRollbackRows,
+}
+
+fn setup_copy_rollback(cassie: &Cassie, session: &CassieSession) -> CopyRollbackMetadata {
     for sql in [
         "CREATE TABLE copy_rollback_state \
          (id INT PRIMARY KEY, tenant TEXT, ts TIMESTAMP, n INT, tag TEXT, title TEXT)",
@@ -209,10 +240,10 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         "REFRESH ROLLUP copy_rollback_rollup",
     ] {
         cassie
-            .execute_sql(&session, sql, Vec::new())
+            .execute_sql(session, sql, Vec::new())
             .expect("set up COPY rollback publication state");
     }
-    let collection = support::canonical_test_collection(&cassie, "copy_rollback_state");
+    let collection = support::canonical_test_collection(cassie, "copy_rollback_state");
     let projection_name = cassie
         .catalog
         .get_materialized_projection("copy_rollback_projection")
@@ -224,77 +255,17 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .find(|index| index.kind == cassie::catalog::IndexKind::Column)
         .expect("column index metadata")
         .name;
-    let query = "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
-    let eligible_column_query =
-        "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
-    let explain = |sql: &str| {
-        cassie
-            .execute_sql(&session, &format!("EXPLAIN {sql}"), Vec::new())
-            .expect("explain column-batch read")
-            .rows()
-            .to_vec()
-    };
-    let eligible_column_plan_before = explain(eligible_column_query);
-    let select_rows = || {
-        cassie
-            .execute_sql(&session, query, Vec::new())
-            .expect("warm transactional COPY query")
-            .rows()
-            .to_vec()
-    };
-    let cache_hits = || {
-        cassie.metrics()["execution_result_cache"]["hits"]
-            .as_u64()
-            .expect("cache hit metric")
-    };
-    let column_scans = || {
-        cassie.metrics()["column_batches"]["scans"]
-            .as_u64()
-            .expect("column batch scan metric")
-    };
-    let projection_state = || {
-        cassie
-            .execute_sql(
-                &session,
-                &format!(
-                    "SELECT state FROM pg_catalog.pg_materialized_projections \
-                     WHERE projection_name = '{projection_name}'"
-                ),
-                Vec::new(),
-            )
-            .expect("read projection state")
-            .rows()
-            .to_vec()
-    };
-    let rollup_state = || {
-        cassie
-            .execute_sql(
-                &session,
-                "SELECT state FROM pg_catalog.pg_rollups \
-                 WHERE rollup_name = 'copy_rollback_rollup'",
-                Vec::new(),
-            )
-            .expect("read rollup state")
-            .rows()
-            .to_vec()
-    };
-    let scans_before_baseline = column_scans();
-    let rows_before = select_rows();
-    let scans_after_baseline = column_scans();
-    let warmed = select_rows();
-    let hits_before_rollback = cache_hits();
-    let generation_before = cassie
-        .midge
-        .collection_generation(&collection)
-        .expect("source generation");
-    let cardinality_before = cassie
-        .catalog
-        .get_cardinality_stats(&collection)
-        .expect("warmed cardinality state");
-    let projection_state_before = projection_state();
-    let rollup_state_before = rollup_state();
+    CopyRollbackMetadata {
+        collection,
+        projection_name,
+        index_name: index_name.clone(),
+        indexes: indexes_before,
+    }
+}
+
+fn stage_copy_rollback(cassie: &Cassie, session: &CassieSession) {
     cassie
-        .execute_sql(&session, "BEGIN", Vec::new())
+        .execute_sql(session, "BEGIN", Vec::new())
         .expect("begin COPY rollback transaction");
     let statement = CopyStatement {
         table: "copy_rollback_state".to_string(),
@@ -311,116 +282,258 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
     };
     cassie
         .copy_from_csv_stdin(
-            &session,
+            session,
             &statement,
             b"2,a,2024-01-01 00:20:00,2,kept,after\n",
         )
         .expect("stage COPY row");
+}
 
-    // Act
+fn copy_rollback_baseline(
+    cassie: &Cassie,
+    session: &CassieSession,
+    metadata: &CopyRollbackMetadata,
+) -> CopyRollbackBaseline {
+    let query = "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    let eligible = "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    let plan = cassie
+        .execute_sql(session, &format!("EXPLAIN {eligible}"), Vec::new())
+        .expect("explain column-batch read")
+        .rows()
+        .to_vec();
+    let scans_before = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column batch scan metric");
+    let rows = cassie
+        .execute_sql(session, query, Vec::new())
+        .expect("warm transactional COPY query")
+        .rows()
+        .to_vec();
+    let scans_after = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column batch scan metric");
+    let warmed = cassie
+        .execute_sql(session, query, Vec::new())
+        .expect("warm transactional COPY cache")
+        .rows()
+        .to_vec();
+    let hits = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hit metric");
+    CopyRollbackBaseline {
+        rows,
+        warmed,
+        hits,
+        scans_before,
+        scans_after,
+        plan,
+        generation: cassie
+            .midge
+            .collection_generation(&metadata.collection)
+            .expect("source generation"),
+        cardinality: cassie
+            .catalog
+            .get_cardinality_stats(&metadata.collection)
+            .expect("warmed cardinality state"),
+        projection_state: copy_rollback_projection_state(cassie, session, metadata),
+        rollup_state: copy_rollback_rollup_state(cassie, session),
+    }
+}
+
+fn copy_rollback_projection_state(
+    cassie: &Cassie,
+    session: &CassieSession,
+    metadata: &CopyRollbackMetadata,
+) -> CopyRollbackRows {
     cassie
-        .execute_sql(&session, "ROLLBACK", Vec::new())
+        .execute_sql(
+            session,
+            &format!(
+                "SELECT state FROM pg_catalog.pg_materialized_projections \
+                 WHERE projection_name = '{}'",
+                metadata.projection_name
+            ),
+            Vec::new(),
+        )
+        .expect("read projection state")
+        .rows()
+        .to_vec()
+}
+
+fn copy_rollback_rollup_state(cassie: &Cassie, session: &CassieSession) -> CopyRollbackRows {
+    cassie
+        .execute_sql(
+            session,
+            "SELECT state FROM pg_catalog.pg_rollups \
+             WHERE rollup_name = 'copy_rollback_rollup'",
+            Vec::new(),
+        )
+        .expect("read rollup state")
+        .rows()
+        .to_vec()
+}
+
+fn copy_rollback_outcome(
+    cassie: &Cassie,
+    session: &CassieSession,
+    metadata: &CopyRollbackMetadata,
+) -> CopyRollbackOutcome {
+    let eligible = "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    cassie
+        .execute_sql(session, "ROLLBACK", Vec::new())
         .expect("rollback transactional COPY");
-    let cached_after_rollback = select_rows();
-    let hits_after_rollback = cache_hits();
-    let eligible_column_plan = explain(eligible_column_query);
-    let scans_before_eligible_read = column_scans();
-    let column_rows_after_rollback = cassie
-        .execute_sql(&session, eligible_column_query, Vec::new())
+    let cached = cassie
+        .execute_sql(
+            session,
+            "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title",
+            Vec::new(),
+        )
+        .expect("cached read after rollback")
+        .rows()
+        .to_vec();
+    let hits = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hit metric");
+    let plan = cassie
+        .execute_sql(session, &format!("EXPLAIN {eligible}"), Vec::new())
+        .expect("explain post-rollback read")
+        .rows()
+        .to_vec();
+    let scans_before = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column scan metric");
+    let column_rows = cassie
+        .execute_sql(session, eligible, Vec::new())
         .expect("read column batches after rollback")
         .rows()
         .to_vec();
-    let scans_after_eligible_read = column_scans();
-    let projection_rows = cassie
-        .execute_sql(
-            &session,
-            "SELECT title FROM copy_rollback_projection ORDER BY id",
-            Vec::new(),
-        )
-        .expect("read projection after rollback")
-        .rows()
-        .to_vec();
-    let rollup_rows = cassie
-        .execute_sql(
-            &session,
-            "SELECT time_bucket('1 day', ts) AS bucket, tenant, COUNT(*) AS total \
-             FROM copy_rollback_state GROUP BY time_bucket('1 day', ts), tenant",
-            Vec::new(),
-        )
-        .expect("read rollup-backed aggregate after rollback")
-        .rows()
-        .to_vec();
+    let scans_after = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column scan metric");
+    CopyRollbackOutcome {
+        cached,
+        hits,
+        plan,
+        scans_before,
+        scans_after,
+        column_rows,
+        projection_rows: cassie
+            .execute_sql(
+                session,
+                "SELECT title FROM copy_rollback_projection ORDER BY id",
+                Vec::new(),
+            )
+            .expect("read projection after rollback")
+            .rows()
+            .to_vec(),
+        rollup_rows: cassie
+            .execute_sql(
+                session,
+                "SELECT time_bucket('1 day', ts) AS bucket, tenant, COUNT(*) AS total \
+                 FROM copy_rollback_state GROUP BY time_bucket('1 day', ts), tenant",
+                Vec::new(),
+            )
+            .expect("read rollup-backed aggregate after rollback")
+            .rows()
+            .to_vec(),
+        generation: cassie
+            .midge
+            .collection_generation(&metadata.collection)
+            .expect("post-rollback source generation"),
+        cardinality: cassie
+            .catalog
+            .get_cardinality_stats(&metadata.collection)
+            .expect("post-rollback cardinality state"),
+        projection_state: copy_rollback_projection_state(cassie, session, metadata),
+        rollup_state: copy_rollback_rollup_state(cassie, session),
+    }
+}
 
-    // Assert
-    assert_eq!(rows_before, vec![vec![Value::String("before".into())]]);
-    assert_eq!(warmed, rows_before);
-    assert_eq!(cached_after_rollback, rows_before);
-    assert_eq!(hits_after_rollback, hits_before_rollback + 1);
+fn assert_copy_rollback_preserved(
+    cassie: &Cassie,
+    session: &CassieSession,
+    metadata: &CopyRollbackMetadata,
+    baseline: &CopyRollbackBaseline,
+    outcome: &CopyRollbackOutcome,
+) {
+    assert_eq!(baseline.rows, vec![vec![Value::String("before".into())]]);
+    assert_eq!(baseline.warmed, baseline.rows);
+    assert_eq!(outcome.cached, baseline.rows);
+    assert_eq!(outcome.hits, baseline.hits + 1);
     assert!(
-        scans_after_baseline > scans_before_baseline,
+        baseline.scans_after > baseline.scans_before,
         "the exact baseline read must use column batches"
     );
-    let [plan_row_before] = eligible_column_plan_before.as_slice() else {
+    let [before] = baseline.plan.as_slice() else {
         panic!("expected one pre-COPY column-batch plan row");
     };
-    let [plan_row] = eligible_column_plan.as_slice() else {
-        panic!("expected one column-batch plan row");
+    let [after] = outcome.plan.as_slice() else {
+        panic!("expected one post-COPY column-batch plan row");
     };
-    let [Value::String(plan_before)] = plan_row_before.as_slice() else {
+    let [Value::String(before)] = before.as_slice() else {
         panic!("expected textual pre-COPY column-batch plan");
     };
-    let [Value::String(plan)] = plan_row.as_slice() else {
-        panic!("expected textual column-batch plan");
+    let [Value::String(after)] = after.as_slice() else {
+        panic!("expected textual post-COPY column-batch plan");
     };
-    let canonical_index = format!("column_batch_index={index_name}");
-    assert!(plan_before.contains(&canonical_index));
+    let canonical_index = format!("column_batch_index={}", metadata.index_name);
+    assert!(before.contains(&canonical_index));
     assert!(
-        plan.contains(&canonical_index),
-        "post-rollback plan: {plan}"
+        after.contains(&canonical_index),
+        "post-rollback plan: {after}"
     );
-    assert_eq!(plan, plan_before);
+    assert_eq!(after, before);
     assert_eq!(
         cassie.catalog.list_indexes("copy_rollback_state"),
-        indexes_before
+        metadata.indexes
     );
     assert_eq!(session.transaction_status(), "idle");
     assert!(
-        plan.contains("column_fallback_reason=none"),
-        "post-rollback plan: {plan}"
+        after.contains("column_fallback_reason=none"),
+        "post-rollback plan: {after}"
     );
     assert!(
-        scans_after_eligible_read > scans_before_eligible_read,
+        outcome.scans_after > outcome.scans_before,
         "the eligible post-rollback read must use the preserved column batches"
     );
     assert_eq!(
-        column_rows_after_rollback,
+        outcome.column_rows,
         vec![vec![
             Value::String("kept".into()),
             Value::String("before".into())
         ]]
     );
+    assert_eq!(outcome.generation, baseline.generation);
+    assert_eq!(outcome.cardinality, baseline.cardinality);
+    assert_eq!(outcome.projection_state, baseline.projection_state);
     assert_eq!(
-        cassie
-            .midge
-            .collection_generation(&collection)
-            .expect("post-rollback source generation"),
-        generation_before
+        outcome.projection_rows,
+        vec![vec![Value::String("before".into())]]
     );
-    assert_eq!(
-        cassie
-            .catalog
-            .get_cardinality_stats(&collection)
-            .expect("post-rollback cardinality state"),
-        cardinality_before
-    );
-    assert_eq!(projection_state(), projection_state_before);
-    assert_eq!(projection_rows, vec![vec![Value::String("before".into())]]);
-    assert_eq!(rollup_state(), rollup_state_before);
-    assert_eq!(rollup_rows[0][2], Value::Int64(1));
+    assert_eq!(outcome.rollup_state, baseline.rollup_state);
+    assert_eq!(outcome.rollup_rows[0][2], Value::Int64(1));
 }
 
 #[test]
-fn should_publish_copy_through_warm_cache_and_column_batch_reads_after_commit() {
+fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("copy-rollback-publication-state", None);
+    let metadata = setup_copy_rollback(&cassie, &session);
+    let baseline = copy_rollback_baseline(&cassie, &session, &metadata);
+    stage_copy_rollback(&cassie, &session);
+
+    // Act
+    let outcome = copy_rollback_outcome(&cassie, &session, &metadata);
+
+    // Assert
+    assert_copy_rollback_preserved(&cassie, &session, &metadata, &baseline, &outcome);
+}
+
+#[test]
+fn should_publish_copy_through_warm_cache_with_column_batch_reads_after_commit() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
         .expect("in-memory Cassie");

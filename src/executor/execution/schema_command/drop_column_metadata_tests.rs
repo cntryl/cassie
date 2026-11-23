@@ -104,6 +104,6 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
         stored_metadata.as_deref(),
         Some(malformed_metadata.as_slice())
     );
-    assert_eq!(surviving_view.rows()[0][0].to_string(), "1");
+    assert_eq!(surviving_view.rows()[0][0], crate::types::Value::Int64(1));
     assert!(foreign_key_insert.is_err());
 }

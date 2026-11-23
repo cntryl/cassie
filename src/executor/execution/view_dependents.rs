@@ -89,20 +89,18 @@ pub(super) fn views_calling_function(
         .into_iter()
         .filter(|view| {
             if !view.function_dependency_database.is_empty() {
-                return view
-                    .function_dependency_ids
-                    .iter()
-                    .any(|object_id| *object_id == function.object_id);
+                return view.function_dependency_ids.contains(&function.object_id);
             }
             parsed_select(cassie, view).is_some_and(|select| {
                 let mut calls = Vec::new();
+                let view_database = crate::catalog::relation_database_name(&view.name)
+                    .unwrap_or_else(|| cassie.default_database.clone());
                 crate::sql::binder::collect_functions(&select, &mut calls);
                 calls.into_iter().any(|call| {
                     call_resolves_legacy_function(
                         &call.name,
                         (&database, &schema, &name),
-                        crate::catalog::relation_database_name(&view.name)
-                            .unwrap_or_else(|| cassie.default_database.clone()),
+                        &view_database,
                         &database,
                     )
                 })
@@ -114,7 +112,7 @@ pub(super) fn views_calling_function(
 fn call_resolves_legacy_function(
     written: &str,
     target: (&str, &str, &str),
-    view_database: String,
+    view_database: &str,
     function_database: &str,
 ) -> bool {
     if !view_database.eq_ignore_ascii_case(function_database) {
@@ -501,36 +499,6 @@ impl Walker<'_> {
             }
         }
     }
-}
-
-/// Views store their definition as SQL text and Cassie has no renderer that
-/// could rewrite it, so a rename that a view depends on is refused rather than
-/// leaving the view unresolvable (PostgreSQL rewrites the view instead).
-pub(super) fn reject_view_dependents(
-    cassie: &Cassie,
-    action: &str,
-    kind: &str,
-    name: &str,
-    views: Vec<ViewMeta>,
-) -> Result<(), QueryError> {
-    let views = with_transitive_dependents(cassie, views);
-    if views.is_empty() {
-        return Ok(());
-    }
-    let display_name = name.rsplit('.').next().unwrap_or(name);
-    let dependent = views
-        .iter()
-        .map(|view| format!("view {}", view.name))
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(QueryError::Cassie(
-        crate::app::DiagnosticError::new(
-            "2BP01",
-            format!("cannot {action} {kind} {display_name} because other objects depend on it"),
-        )
-        .with_detail(format!("dependent objects: {dependent}"))
-        .into(),
-    ))
 }
 
 /// A view records the output types of its columns, so a type change under a

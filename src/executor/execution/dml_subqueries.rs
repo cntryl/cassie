@@ -199,7 +199,9 @@ pub(super) fn evaluate_joined(
         controls: scope.controls,
         outer_row: Some(row),
     };
-    let resolve = |expr: &Expr| super::resolve_exists_expr(&context, expr);
+    let resolve = |expr: &Expr, _: Option<&HashMap<String, Value>>| {
+        super::resolve_exists_expr(&context, expr)
+    };
     filter::evaluate_resolving_exists(
         row,
         expr,

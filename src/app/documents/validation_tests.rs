@@ -5,7 +5,7 @@ use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
 use crate::config::CassieRuntimeConfig;
 use serde_json::json;
 
-fn document_error(column_type: &str, invalid_value: serde_json::Value) -> CassieError {
+fn document_error(column_type: &str, invalid_value: &serde_json::Value) -> CassieError {
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
         .expect("in-memory document fixture");
     cassie.startup().expect("startup");
@@ -38,7 +38,7 @@ fn document_error(column_type: &str, invalid_value: serde_json::Value) -> Cassie
 }
 
 #[test]
-fn should_report_invalid_boolean_and_float_document_input_as_typed_input_errors() {
+fn should_report_invalid_boolean_float_document_input_as_typed_input_errors() {
     // Arrange
     let cases = [
         (
@@ -52,7 +52,7 @@ fn should_report_invalid_boolean_and_float_document_input_as_typed_input_errors(
     ];
 
     // Act
-    let errors = cases.map(|(column_type, _)| document_error(column_type, json!("banana")));
+    let errors = cases.map(|(column_type, _)| document_error(column_type, &json!("banana")));
 
     // Assert
     for (error, (_, diagnostic)) in errors.into_iter().zip(cases) {
@@ -67,7 +67,7 @@ fn should_report_a_document_varchar_length_error() {
     let too_long = json!("four");
 
     // Act
-    let error = document_error("VARCHAR(3)", too_long);
+    let error = document_error("VARCHAR(3)", &too_long);
 
     // Assert
     assert_eq!(error.sql_state(), "22001", "{error}");
@@ -80,14 +80,14 @@ fn should_report_a_document_varchar_length_error() {
 }
 
 #[test]
-fn should_report_numeric_range_errors_for_oid_and_integer_document_fields() {
+fn should_report_numeric_range_errors_for_oid_integer_document_fields() {
     // Arrange
     let oid_overflow = json!(4_294_967_296_u64);
     let int_overflow = json!(2_147_483_648_u64);
 
     // Act
-    let oid = document_error("OID", oid_overflow);
-    let integer = document_error("INTEGER", int_overflow);
+    let oid = document_error("OID", &oid_overflow);
+    let integer = document_error("INTEGER", &int_overflow);
 
     // Assert
     assert_eq!(oid.sql_state(), "22003", "{oid}");
@@ -102,7 +102,7 @@ fn should_keep_the_vector_error_for_a_wrong_length_document_vector() {
     let short_vector = json!([1.0, 2.0]);
 
     // Act
-    let error = document_error("VECTOR(3)", short_vector);
+    let error = document_error("VECTOR(3)", &short_vector);
 
     // Assert
     assert_eq!(error.sql_state(), "22000", "{error}");
@@ -132,7 +132,7 @@ fn should_report_reachable_non_vector_document_shape_errors_without_vector_diagn
     // Act
     let errors = cases
         .clone()
-        .map(|(column_type, value)| document_error(column_type, value));
+        .map(|(column_type, value)| document_error(column_type, &value));
 
     // Assert
     for (error, (column_type, _)) in errors.into_iter().zip(cases) {
@@ -147,7 +147,7 @@ fn should_report_a_document_name_length_error_as_string_too_long() {
     let too_long = json!("x".repeat(64));
 
     // Act
-    let error = document_error("NAME", too_long);
+    let error = document_error("NAME", &too_long);
 
     // Assert
     assert_eq!(error.sql_state(), "22001", "{error}");
@@ -169,7 +169,7 @@ fn should_report_malformed_temporal_document_strings_as_typed_input_errors() {
     // Act
     let errors = cases
         .clone()
-        .map(|(column_type, value, _)| document_error(column_type, value));
+        .map(|(column_type, value, _)| document_error(column_type, &value));
 
     // Assert
     for (error, (column_type, _, type_name)) in errors.into_iter().zip(cases) {

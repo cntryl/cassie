@@ -26,9 +26,11 @@ pub(super) fn evaluate(
         controls: env.controls,
         outer_row: Some(&outer),
     };
-    let resolve = |expr: &Expr, local_args| {
-        super::resolve_exists_expr_with_local_args(&context, expr, local_args)
-    };
+    let resolve =
+        |expr: &Expr,
+         local_args: Option<&std::collections::HashMap<String, crate::types::Value>>| {
+            super::resolve_exists_expr_with_local_args(&context, expr, local_args)
+        };
     filter::evaluate_resolving_exists(
         row,
         expr,
@@ -81,9 +83,11 @@ pub(super) fn evaluate_with_owner(
         controls: env.controls,
         outer_row: Some(&outer),
     };
-    let resolve = |expr: &Expr, local_args| {
-        super::resolve_exists_expr_with_local_args(&context, expr, local_args)
-    };
+    let resolve =
+        |expr: &Expr,
+         local_args: Option<&std::collections::HashMap<String, crate::types::Value>>| {
+            super::resolve_exists_expr_with_local_args(&context, expr, local_args)
+        };
     filter::evaluate_source_argument_resolving(
         row,
         expr,

@@ -28,49 +28,7 @@ pub(super) fn materialize(
     search: Option<&filter::SearchContext>,
 ) -> Result<Option<LogicalPlan>, QueryError> {
     let mut rewritten = plan.clone();
-    let mut filtered_aggregates = Vec::new();
-    let mut aggregate_index = 0;
-    for item in &mut rewritten.projection {
-        match item {
-            SelectItem::Expr { expr, .. } => rewrite_filtered_aggregates(
-                expr,
-                &mut filtered_aggregates,
-                &mut aggregate_index,
-                env.user_functions,
-            ),
-            SelectItem::Function { function, .. } => {
-                let mut expression = Expr::Function(Box::new(function.clone()));
-                rewrite_filtered_aggregates(
-                    &mut expression,
-                    &mut filtered_aggregates,
-                    &mut aggregate_index,
-                    env.user_functions,
-                );
-                if let Expr::Function(rewritten) = expression {
-                    *function = *rewritten;
-                }
-            }
-            SelectItem::WindowFunction { .. }
-            | SelectItem::Wildcard
-            | SelectItem::Column { .. } => {}
-        }
-    }
-    if let Some(having) = &mut rewritten.having {
-        rewrite_filtered_aggregates(
-            having,
-            &mut filtered_aggregates,
-            &mut aggregate_index,
-            env.user_functions,
-        );
-    }
-    for order in &mut rewritten.order {
-        rewrite_filtered_aggregates(
-            &mut order.expr,
-            &mut filtered_aggregates,
-            &mut aggregate_index,
-            env.user_functions,
-        );
-    }
+    let filtered_aggregates = rewrite_aggregate_filters(&mut rewritten, env.user_functions);
 
     let mut targets = Vec::new();
     for expr in &rewritten.group_by {
@@ -156,6 +114,56 @@ pub(super) fn materialize(
         }
     }
     Ok(Some(rewritten))
+}
+
+fn rewrite_aggregate_filters(
+    rewritten: &mut LogicalPlan,
+    user_functions: &std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+) -> Vec<FilteredAggregate> {
+    let mut filtered_aggregates = Vec::new();
+    let mut aggregate_index = 0;
+    for item in &mut rewritten.projection {
+        match item {
+            SelectItem::Expr { expr, .. } => rewrite_filtered_aggregates(
+                expr,
+                &mut filtered_aggregates,
+                &mut aggregate_index,
+                user_functions,
+            ),
+            SelectItem::Function { function, .. } => {
+                let mut expression = Expr::Function(Box::new(function.clone()));
+                rewrite_filtered_aggregates(
+                    &mut expression,
+                    &mut filtered_aggregates,
+                    &mut aggregate_index,
+                    user_functions,
+                );
+                if let Expr::Function(rewritten) = expression {
+                    *function = *rewritten;
+                }
+            }
+            SelectItem::WindowFunction { .. }
+            | SelectItem::Wildcard
+            | SelectItem::Column { .. } => {}
+        }
+    }
+    if let Some(having) = &mut rewritten.having {
+        rewrite_filtered_aggregates(
+            having,
+            &mut filtered_aggregates,
+            &mut aggregate_index,
+            user_functions,
+        );
+    }
+    for order in &mut rewritten.order {
+        rewrite_filtered_aggregates(
+            &mut order.expr,
+            &mut filtered_aggregates,
+            &mut aggregate_index,
+            user_functions,
+        );
+    }
+    filtered_aggregates
 }
 
 fn plan_exprs(plan: &LogicalPlan) -> impl Iterator<Item = &Expr> {
@@ -254,9 +262,9 @@ fn rewrite_filtered_aggregates(
                     for order in &mut function.order_by {
                         replace_filtered_expression(&mut order.expr, &expressions);
                     }
-                    function.filter = Some(Expr::Column(filter_column.clone()));
+                    function.filter = Some(Box::new(Expr::Column(filter_column.clone())));
                     filtered_aggregates.push(FilteredAggregate {
-                        filter,
+                        filter: *filter,
                         filter_column,
                         expressions,
                     });

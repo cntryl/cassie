@@ -313,7 +313,10 @@ fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
     let result = fixture.execute("SELECT pg_get_indexdef(1, 0, true, false)");
 
     // Assert
-    assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
+    assert_eq!(
+        result.expect_err("reject an extra argument").sql_state(),
+        "42883"
+    );
 }
 
 #[test]

@@ -494,10 +494,6 @@ fn class_row(
     current_database: Option<&str>,
 ) -> VirtualRow {
     let relation_name = local_name(name);
-    let schema_name = index.map_or_else(
-        || relation_schema_name(name),
-        |index| relation_schema_name(&index.collection),
-    );
     let namespace = index.map_or_else(
         || relation_namespace(name),
         |index| relation_namespace(&index.collection),

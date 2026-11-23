@@ -42,7 +42,7 @@ fn should_rewrite_a_table_reference_in_a_dependent_view() {
 }
 
 #[test]
-fn should_validate_table_and_column_rewrites_in_the_view_function_scope() {
+fn should_validate_table_column_rewrites_in_the_view_function_scope() {
     // Arrange
     let fixture = sql_fixture(
         "rename-view-validation-function-scope",
@@ -315,7 +315,7 @@ fn should_preserve_results_through_a_dependent_view_chain_after_table_rename() {
 }
 
 #[test]
-fn should_preserve_the_projected_column_name_and_type_after_column_rename() {
+fn should_preserve_the_projected_column_name_type_after_column_rename() {
     // Arrange
     let fixture = base(
         "rename-column-output-contract",
@@ -381,7 +381,7 @@ fn should_preserve_string_literals_during_column_rewrite() {
 }
 
 #[test]
-fn should_restore_view_and_table_names_after_transactional_rename_rollback() {
+fn should_restore_view_table_names_after_transactional_rename_rollback() {
     // Arrange
     let fixture = base("rename-rollback", "CREATE VIEW rv AS SELECT id, n FROM rt");
     fixture.execute("BEGIN").expect("begin");
@@ -421,7 +421,7 @@ fn should_rollback_owned_implicit_transaction_after_rename_error() {
         .to_vec();
 
     // Assert
-    assert!(!rename_error.to_string().is_empty());
+    assert_ne!(rename_error.to_string(), "");
     assert_eq!(visible, vec![vec![Value::Int64(7)]]);
 }
 

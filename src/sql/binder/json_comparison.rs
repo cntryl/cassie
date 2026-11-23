@@ -44,9 +44,10 @@ pub(super) fn qualify(
     {
         if let Expr::StringLiteral(literal) = expression {
             serde_json::from_str::<serde::de::IgnoredAny>(literal).map_err(|error| {
-                crate::app::DiagnosticError::new("22P02", "invalid input syntax for type json")
-                    .with_detail(error.to_string())
-                    .into()
+                CassieError::from(
+                    crate::app::DiagnosticError::new("22P02", "invalid input syntax for type json")
+                        .with_detail(error.to_string()),
+                )
             })?;
             *expression = Expr::Cast {
                 expr: Box::new(std::mem::replace(expression, Expr::Null)),

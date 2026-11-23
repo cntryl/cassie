@@ -89,10 +89,11 @@ pub(super) fn project(
     let source = QuerySource::Collection(
         crate::sql::IdentifierPath::parse(context.table).map_err(QueryError::General)?,
     );
+    let binding_context = context.cassie.binding_context_for_session(context.session);
     let env = source::SourceExecutionEnv {
         cassie: context.cassie,
         session: context.session,
-        binding_context: context.binding_context,
+        binding_context: Some(&binding_context),
         user_functions: context.user_functions,
         params: context.params,
         parameter_type_oids: &[],

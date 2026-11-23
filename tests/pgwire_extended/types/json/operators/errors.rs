@@ -122,7 +122,7 @@ fn should_suppress_jsonpath_structural_errors_only_for_silent_forms() {
 }
 
 #[test]
-fn should_reject_json_equality_and_report_invalid_jsonb_comparands() {
+fn should_reject_json_equality_with_invalid_jsonb_comparands_reported() {
     // Arrange
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../corpus/postgresql18/type-oracles.json"
@@ -159,38 +159,7 @@ fn should_reject_json_equality_and_report_invalid_jsonb_comparands() {
             Vec::new(),
         ),
     ];
-    let cases = [
-        (
-            "SELECT '{}'::JSON = '{}'::JSON",
-            "42883",
-            "operator does not exist: json = json",
-        ),
-        (
-            "SELECT '{\"a\":1}'::JSON = 'abc'",
-            "42883",
-            "operator does not exist: json = unknown",
-        ),
-        (
-            "SELECT * FROM issue_1469_json_comparison WHERE document = '{}'::JSON",
-            "42883",
-            "operator does not exist: json = json",
-        ),
-        (
-            "SELECT * FROM issue_1471_jsonb_comparison WHERE document = 'abc'",
-            "22P02",
-            "invalid input syntax for type json",
-        ),
-        (
-            "SELECT '{\"a\":1}'::JSONB <> 'abc'",
-            "22P02",
-            "invalid input syntax for type json",
-        ),
-        (
-            "SELECT 'abc' = '{\"a\":1}'::JSONB",
-            "22P02",
-            "invalid input syntax for type json",
-        ),
-    ];
+    let cases = json_comparison_error_cases();
     let cycles = cases
         .iter()
         .map(|(sql, _, _)| fixture::execute_cycle(sql, None, 0, true))
@@ -234,4 +203,39 @@ fn should_reject_json_equality_and_report_invalid_jsonb_comparands() {
         fixture::assert_success(frames);
         assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
     }
+}
+
+fn json_comparison_error_cases() -> [(&'static str, &'static str, &'static str); 6] {
+    [
+        (
+            "SELECT '{}'::JSON = '{}'::JSON",
+            "42883",
+            "operator does not exist: json = json",
+        ),
+        (
+            "SELECT '{\"a\":1}'::JSON = 'abc'",
+            "42883",
+            "operator does not exist: json = unknown",
+        ),
+        (
+            "SELECT * FROM issue_1469_json_comparison WHERE document = '{}'::JSON",
+            "42883",
+            "operator does not exist: json = json",
+        ),
+        (
+            "SELECT * FROM issue_1471_jsonb_comparison WHERE document = 'abc'",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+        (
+            "SELECT '{\"a\":1}'::JSONB <> 'abc'",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+        (
+            "SELECT 'abc' = '{\"a\":1}'::JSONB",
+            "22P02",
+            "invalid input syntax for type json",
+        ),
+    ]
 }

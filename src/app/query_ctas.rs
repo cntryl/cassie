@@ -123,52 +123,7 @@ impl Cassie {
             source_fingerprint,
             declared_oids,
         )?;
-        if !as_query.column_names.is_empty() && as_query.column_names.len() != columns.len() {
-            return Err(CassieError::Planner(format!(
-                "CREATE TABLE AS column list has {} names but query returns {} columns",
-                as_query.column_names.len(),
-                columns.len()
-            )));
-        }
-
-        let output_names = columns
-            .iter()
-            .map(|column| column.name.clone())
-            .collect::<Vec<_>>();
-        if as_query.column_names.is_empty() {
-            crate::sql::binder::validate_unique_output_column_names(&output_names)?;
-        } else {
-            crate::sql::binder::validate_unique_output_column_names(&as_query.column_names)?;
-        }
-        let domains = self.ctas_output_domains(&as_query.query.statement, &output_names);
-        let fields = columns
-            .iter()
-            .enumerate()
-            .map(|(index, column)| {
-                let name = as_query
-                    .column_names
-                    .get(index)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        if column.name.is_empty() {
-                            format!("column{}", index + 1)
-                        } else {
-                            column.name.clone()
-                        }
-                    });
-                let data_type = match domains.get(index).cloned().flatten() {
-                    Some(domain) => crate::types::DataType::Domain(domain),
-                    None => self
-                        .parse_data_type_for_session(Some(session), &column.data_type)
-                        .map_err(CassieError::Parse)?,
-                };
-                Ok(FieldDefinition {
-                    name,
-                    data_type,
-                    constraints: Vec::new(),
-                })
-            })
-            .collect::<Result<Vec<_>, CassieError>>()?;
+        let fields = self.ctas_target_fields(session, as_query, &columns)?;
         let create_table = ParsedStatement {
             raw_sql: format!("CREATE TABLE {}", target.table),
             statement: QueryStatement::CreateTable(CreateTableStatement {
@@ -219,6 +174,59 @@ impl Cassie {
         };
 
         command_result(&format!("SELECT {row_count}"), controls)
+    }
+
+    fn ctas_target_fields(
+        &self,
+        session: &CassieSession,
+        as_query: &CreateTableAsClause,
+        columns: &[crate::executor::ColumnMeta],
+    ) -> Result<Vec<FieldDefinition>, CassieError> {
+        if !as_query.column_names.is_empty() && as_query.column_names.len() != columns.len() {
+            return Err(CassieError::Planner(format!(
+                "CREATE TABLE AS column list has {} names but query returns {} columns",
+                as_query.column_names.len(),
+                columns.len()
+            )));
+        }
+        let output_names = columns
+            .iter()
+            .map(|column| column.name.clone())
+            .collect::<Vec<_>>();
+        if as_query.column_names.is_empty() {
+            crate::sql::binder::validate_unique_output_column_names(&output_names)?;
+        } else {
+            crate::sql::binder::validate_unique_output_column_names(&as_query.column_names)?;
+        }
+        let domains = self.ctas_output_domains(&as_query.query.statement, &output_names);
+        columns
+            .iter()
+            .enumerate()
+            .map(|(index, column)| {
+                let name = as_query
+                    .column_names
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        if column.name.is_empty() {
+                            format!("column{}", index + 1)
+                        } else {
+                            column.name.clone()
+                        }
+                    });
+                let data_type = match domains.get(index).cloned().flatten() {
+                    Some(domain) => crate::types::DataType::Domain(domain),
+                    None => self
+                        .parse_data_type_for_session(Some(session), &column.data_type)
+                        .map_err(CassieError::Parse)?,
+                };
+                Ok(FieldDefinition {
+                    name,
+                    data_type,
+                    constraints: Vec::new(),
+                })
+            })
+            .collect()
     }
 
     /// Creates the CTAS target inside the statement's own transaction. Unlike a

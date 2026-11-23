@@ -20,7 +20,7 @@ use super::{
     SelectItem, Value,
 };
 
-type ExprResolution<'a> = Result<Expr, QueryError>;
+type ExprResolution = Result<Expr, QueryError>;
 type AccessPathResult = Result<Option<Vec<BatchRow>>, QueryError>;
 type AccessPathFn = for<'a> fn(&mut AccessPathContext<'a>) -> AccessPathResult;
 
@@ -312,6 +312,15 @@ fn execute_plan_with_physical(
             .runtime
             .record_mixed_execution_fallback(plan.collection.clone(), reason);
     }
+    execute_source_plan(env, plan, cte_context, outer_row)
+}
+
+fn execute_source_plan(
+    env: &PlanExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    outer_row: Option<&BatchRow>,
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     let relational_controls =
         plan_has_cte_boundary(plan).then(|| env.controls.for_relational_scalar_cte());
     let source_env = source::source_execution_env_with_parameter_oids(
@@ -602,10 +611,10 @@ pub(super) fn resolve_statement_exists(
     )
 }
 
-pub(super) fn resolve_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-) -> ExprResolution<'a> {
+pub(super) fn resolve_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+) -> ExprResolution {
     match expr {
         Expr::Case {
             operand,
@@ -709,7 +718,7 @@ pub(super) fn resolve_exists_expr_with_local_args(
     context: &ExistsResolutionContext<'_>,
     expr: &Expr,
     local_args: Option<&HashMap<String, Value>>,
-) -> ExprResolution<'_> {
+) -> ExprResolution {
     let Some(local_args) = local_args else {
         return resolve_exists_expr(context, expr);
     };
@@ -760,11 +769,11 @@ pub(super) fn resolve_exists_expr_with_local_args(
     resolve_exists_expr(&scoped, expr)
 }
 
-fn resolve_subscript_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    array: &'a Expr,
-    subscripts: &'a [crate::sql::ast::ArraySubscript],
-) -> ExprResolution<'a> {
+fn resolve_subscript_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    array: &Expr,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+) -> ExprResolution {
     Ok(Expr::ArraySubscript {
         array: Box::new(resolve_exists_expr(context, array)?),
         subscripts: subscripts
@@ -796,10 +805,10 @@ fn resolve_subscript_exists_expr<'a>(
     })
 }
 
-fn resolve_row_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    comparison: &'a crate::sql::ast::RowComparison,
-) -> ExprResolution<'a> {
+fn resolve_row_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    comparison: &crate::sql::ast::RowComparison,
+) -> ExprResolution {
     Ok(Expr::RowCompare(Box::new(crate::sql::ast::RowComparison {
         left: comparison
             .left
@@ -815,12 +824,12 @@ fn resolve_row_exists_expr<'a>(
     })))
 }
 
-fn resolve_binary_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    left: &'a Expr,
-    op: &'a crate::sql::ast::BinaryOp,
-    right: &'a Expr,
-) -> ExprResolution<'a> {
+fn resolve_binary_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    left: &Expr,
+    op: &crate::sql::ast::BinaryOp,
+    right: &Expr,
+) -> ExprResolution {
     Ok(Expr::Binary {
         left: Box::new(resolve_exists_expr(context, left)?),
         op: op.clone(),
@@ -828,23 +837,23 @@ fn resolve_binary_exists_expr<'a>(
     })
 }
 
-fn resolve_is_null_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
+fn resolve_is_null_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
     negated: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::IsNull {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         negated,
     })
 }
 
-fn resolve_in_list_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    values: &'a [Expr],
+fn resolve_in_list_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    values: &[Expr],
     negated: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     let expr = resolve_exists_expr(context, expr)?;
     let mut resolved_values = Vec::with_capacity(values.len());
     for value in values {
@@ -857,22 +866,19 @@ fn resolve_in_list_exists_expr<'a>(
     })
 }
 
-fn resolve_not_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-) -> ExprResolution<'a> {
+fn resolve_not_exists_expr(context: &ExistsResolutionContext<'_>, expr: &Expr) -> ExprResolution {
     Ok(Expr::Not {
         expr: Box::new(resolve_exists_expr(context, expr)?),
     })
 }
 
-fn resolve_cast_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    data_type: &'a crate::types::DataType,
-    source_type: Option<&'a crate::types::DataType>,
+fn resolve_cast_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    data_type: &crate::types::DataType,
+    source_type: Option<&crate::types::DataType>,
     identity: crate::sql::ast::CastIdentity,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::Cast {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         data_type: data_type.clone(),

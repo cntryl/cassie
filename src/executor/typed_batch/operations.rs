@@ -12,6 +12,19 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{BinaryOp, Expr, SelectItem};
 use crate::types::Value;
 
+fn projection_width(projection: &[SelectItem], schema_width: usize) -> usize {
+    projection
+        .iter()
+        .map(|item| {
+            if matches!(item, SelectItem::Wildcard) {
+                schema_width
+            } else {
+                1
+            }
+        })
+        .sum()
+}
+
 impl TypedBatch {
     pub(crate) fn filter(
         &self,
@@ -69,16 +82,7 @@ impl TypedBatch {
             functions,
             session,
         };
-        let count = projection
-            .iter()
-            .map(|item| {
-                if matches!(item, SelectItem::Wildcard) {
-                    self.schema().len()
-                } else {
-                    1
-                }
-            })
-            .sum::<usize>();
+        let count = projection_width(projection, self.schema().len());
         let mut scratch = controls.reserve_query_memory(mul(
             count,
             add(

@@ -1,10 +1,11 @@
 //! SQL routine argument and body evaluation under the invoking expression context.
 use super::{
-    cast_scalar, execution_controls, scalar_from_value, EvalContext, HashMap, HashSet, QueryError,
+    cast_scalar, execution_controls, scalar_from_value, EvalContext, HashMap, QueryError,
     RowAccess, Value,
 };
 use crate::executor::filter::EvaluationMemory;
 use std::cell::Cell;
+use std::collections::HashSet;
 
 const MAX_USER_FUNCTION_DEPTH: usize = 64;
 
@@ -171,30 +172,6 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
             ))
         })
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
-    if context.memory.is_some() {
-        let result = super::super::evaluate_expr_value_with_context(
-            row,
-            &body,
-            EvalContext {
-                local_args: Some(&locals),
-                ..context
-            },
-        )
-        .and_then(|value| {
-            cast_scalar(
-                &scalar_from_value(&value),
-                &metadata.return_type,
-                execution_controls(context),
-            )
-        })
-        .map(|value| value.to_value());
-        if result.is_ok() {
-            if let Some(guard) = routine_memory.as_mut() {
-                guard.complete();
-            }
-        }
-        return result;
-    }
     let result = super::super::evaluate_expr_value_with_context(
         row,
         &body,
@@ -203,7 +180,13 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
             ..context
         },
     )
-    .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
+    .and_then(|value| {
+        cast_scalar(
+            &scalar_from_value(&value),
+            &metadata.return_type,
+            execution_controls(context),
+        )
+    })
     .map(|value| value.to_value());
     if result.is_ok() {
         if let Some(guard) = routine_memory.as_mut() {

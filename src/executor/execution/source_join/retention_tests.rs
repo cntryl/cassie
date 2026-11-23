@@ -60,6 +60,19 @@ fn should_admit_merge_keyed_state_before_cloning_a_retained_row() {
     assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
 }
 
+fn loaded_join_side(text_key: bool, side: &str) -> [BatchRow; 1] {
+    let key = if text_key {
+        Value::String("k".repeat(8192))
+    } else {
+        Value::Int64(1)
+    };
+    let mut entries = vec![(format!("{side}.key"), key)];
+    if !text_key {
+        entries.push((format!("{side}.payload"), Value::String("p".repeat(8192))));
+    }
+    [BatchRow::new(entries)]
+}
+
 fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieError> {
     let path = std::env::temp_dir().join(format!(
         "cassie-join-retention-phase-{}",
@@ -83,20 +96,8 @@ fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieErr
         controls: &controls,
     };
     let text_key = phase == JoinRetentionPhase::HashBuild;
-    let rows = |side: &str| {
-        let key = if text_key {
-            Value::String("k".repeat(8192))
-        } else {
-            Value::Int64(1)
-        };
-        let mut entries = vec![(format!("{side}.key"), key)];
-        if !text_key {
-            entries.push((format!("{side}.payload"), Value::String("p".repeat(8192))));
-        }
-        [BatchRow::new(entries)]
-    };
-    let left = rows("left");
-    let right = rows("right");
+    let left = loaded_join_side(text_key, "left");
+    let right = loaded_join_side(text_key, "right");
     let left_template = BatchRow::new(vec![("left.key".to_owned(), Value::Null)]);
     let right_template = BatchRow::new(vec![("right.key".to_owned(), Value::Null)]);
     let on = Expr::Binary {

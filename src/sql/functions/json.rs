@@ -7,7 +7,7 @@ pub(crate) fn is_standard_object(name: &str) -> bool {
     let (schema, function) = name
         .rsplit_once('.')
         .map_or((None, name), |(schema, function)| (Some(schema), function));
-    schema.map_or(true, |schema| schema.eq_ignore_ascii_case("pg_catalog"))
+    schema.is_none_or(|schema| schema.eq_ignore_ascii_case("pg_catalog"))
         && (function.eq_ignore_ascii_case("json_object")
             || function.eq_ignore_ascii_case("jsonb_object"))
 }

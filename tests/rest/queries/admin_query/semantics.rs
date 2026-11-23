@@ -368,8 +368,8 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
             section_items(&payload, "views"),
             &canonical_relation_name("postgres", "public", "rest_graph_view")
         ));
-        assert!(section_items(&payload, "views").is_empty());
-        assert!(section_items(&payload, "indexes").is_empty());
+        assert_eq!(section_items(&payload, "views").len(), 0);
+        assert_eq!(section_items(&payload, "indexes").len(), 0);
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

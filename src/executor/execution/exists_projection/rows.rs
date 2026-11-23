@@ -36,7 +36,10 @@ pub(in crate::executor::execution) fn project(
                 controls: env.controls,
                 outer_row: Some(&outer),
             };
-            let resolve = |expr: &Expr, local_args| {
+            let resolve = |expr: &Expr,
+                           local_args: Option<
+                &std::collections::HashMap<String, crate::types::Value>,
+            >| {
                 super::super::resolve_exists_expr_with_local_args(&context, expr, local_args)
             };
             let result = crate::executor::projection::project_batches_resolving_exists(

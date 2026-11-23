@@ -180,7 +180,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
 }
 
 pub(super) fn validate_drop_column_index_metadata(
-    tx: &super::DataReadTransaction,
+    tx: &crate::midge::adapter::DataReadTransaction,
     collection: &str,
     field: &str,
 ) -> Result<(), CassieError> {

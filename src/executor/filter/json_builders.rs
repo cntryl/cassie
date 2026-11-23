@@ -131,11 +131,13 @@ fn build_standard_object(
         [pairs] => {
             let pairs = text_array(pairs, kinds.first().and_then(Option::as_ref))?;
             if !pairs.len().is_multiple_of(2) {
-                return Err(crate::app::DiagnosticError::new(
-                    "2202E",
-                    "argument array must have even number of elements",
-                )
-                .into());
+                return Err(
+                    crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                        "2202E",
+                        "argument array must have even number of elements",
+                    ))
+                    .into(),
+                );
             }
             let (pairs, _) = pairs.as_chunks::<2>();
             let (keys, values): (Vec<_>, Vec<_>) = pairs
@@ -148,11 +150,13 @@ fn build_standard_object(
             let keys = text_array(key_values, kinds.first().and_then(Option::as_ref))?;
             let values = text_array(value_values, kinds.get(1).and_then(Option::as_ref))?;
             if keys.len() != values.len() {
-                return Err(crate::app::DiagnosticError::new(
-                    "2202E",
-                    "JSON object keys and values arrays must have the same length",
-                )
-                .into());
+                return Err(
+                    crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                        "2202E",
+                        "JSON object keys and values arrays must have the same length",
+                    ))
+                    .into(),
+                );
             }
             (keys, values)
         }
@@ -177,11 +181,13 @@ fn build_standard_object(
     for (key, value) in keys.iter().zip(&values) {
         check(controls)?;
         let Some(key) = key else {
-            return Err(crate::app::DiagnosticError::new(
-                "22004",
-                "JSON object keys must not be NULL",
-            )
-            .into());
+            return Err(
+                crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                    "22004",
+                    "JSON object keys must not be NULL",
+                ))
+                .into(),
+            );
         };
         let key =
             serde_json::to_string(key).map_err(|error| QueryError::General(error.to_string()))?;

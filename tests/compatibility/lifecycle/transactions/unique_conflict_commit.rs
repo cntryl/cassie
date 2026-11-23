@@ -156,8 +156,38 @@ fn should_wait_for_unique_conflict_owner_commit_before_returning_unique_violatio
     });
 }
 
+async fn setup_update_owned_unique_conflict(
+    owner: &tokio_postgres::Client,
+    contender: &tokio_postgres::Client,
+) {
+    owner
+        .batch_execute(
+            "CREATE TABLE compat_update_unique_wait_rows \
+             (id INT CONSTRAINT compat_update_unique_wait_rows_pkey PRIMARY KEY, \
+              value TEXT CONSTRAINT compat_update_unique_wait_rows_value_key UNIQUE)",
+        )
+        .await
+        .expect("create an UPDATE-owned unique-key fixture");
+    owner
+        .batch_execute("INSERT INTO compat_update_unique_wait_rows VALUES (1, 'original')")
+        .await
+        .expect("seed the row that the owner will update");
+    owner
+        .batch_execute("BEGIN")
+        .await
+        .expect("begin the transaction that stages the unique value");
+    owner
+        .batch_execute("UPDATE compat_update_unique_wait_rows SET value = 'shared' WHERE id = 1")
+        .await
+        .expect("stage the unique value in an UPDATE");
+    contender
+        .batch_execute("BEGIN")
+        .await
+        .expect("begin the waiting transaction");
+}
+
 #[test]
-fn should_report_update_owned_unique_conflict_fields_and_abort_waiting_transaction() {
+fn should_report_update_owned_unique_conflict_fields_after_aborting_waiting_transaction() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -169,34 +199,7 @@ fn should_report_update_owned_unique_conflict_fields_and_abort_waiting_transacti
             contender_connection,
             server,
         } = crate::support_unique_conflict::start().await;
-        owner
-            .batch_execute(
-                "CREATE TABLE compat_update_unique_wait_rows \
-                 (id INT CONSTRAINT compat_update_unique_wait_rows_pkey PRIMARY KEY, \
-                  value TEXT CONSTRAINT compat_update_unique_wait_rows_value_key UNIQUE)",
-            )
-            .await
-            .expect("create an UPDATE-owned unique-key fixture");
-        owner
-            .batch_execute(
-                "INSERT INTO compat_update_unique_wait_rows VALUES (1, 'original')",
-            )
-            .await
-            .expect("seed the row that the owner will update");
-        owner
-            .batch_execute("BEGIN")
-            .await
-            .expect("begin the transaction that stages the unique value");
-        owner
-            .batch_execute(
-                "UPDATE compat_update_unique_wait_rows SET value = 'shared' WHERE id = 1",
-            )
-            .await
-            .expect("stage the unique value in an UPDATE");
-        contender
-            .batch_execute("BEGIN")
-            .await
-            .expect("begin the waiting transaction");
+        setup_update_owned_unique_conflict(&owner, &contender).await;
 
         let mut contender_insert = tokio::spawn(async move {
             let result = contender
@@ -275,7 +278,7 @@ fn should_report_update_owned_unique_conflict_fields_and_abort_waiting_transacti
 }
 
 #[test]
-fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction() {
+fn should_report_other_unique_key_after_wire_insert_wait_aborts_transaction() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -305,7 +308,7 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
             .await
             .expect("begin the wire transaction that waits on a=1");
 
-        let mut contender_insert = tokio::spawn(async move {
+        let contender_insert = tokio::spawn(async move {
             let result = contender
                 .query_one(
                     "INSERT INTO compat_unique_recheck_rows \
@@ -384,6 +387,33 @@ fn should_report_other_unique_key_after_wire_insert_wait_and_abort_transaction()
     });
 }
 
+async fn setup_modifying_cte_unique_conflict(
+    owner: &tokio_postgres::Client,
+    contender: &tokio_postgres::Client,
+) {
+    owner
+        .batch_execute(
+            "CREATE TABLE compat_unique_cte_rows \
+             (a INT, b INT, \
+              CONSTRAINT compat_unique_cte_rows_a_key UNIQUE (a), \
+              CONSTRAINT compat_unique_cte_rows_b_key UNIQUE (b))",
+        )
+        .await
+        .expect("create the unique target table");
+    owner
+        .batch_execute("CREATE TABLE compat_unique_cte_mark (id INT PRIMARY KEY)")
+        .await
+        .expect("create the side-effect table");
+    owner
+        .batch_execute("BEGIN; INSERT INTO compat_unique_cte_rows VALUES (1, 100)")
+        .await
+        .expect("hold a=1 in the first wire transaction");
+    contender
+        .batch_execute("BEGIN")
+        .await
+        .expect("begin the wire transaction that waits on a=1");
+}
+
 #[test]
 fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
     // Arrange
@@ -397,29 +427,9 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
             contender_connection,
             server,
         } = crate::support_unique_conflict::start().await;
-        first_owner
-            .batch_execute(
-                "CREATE TABLE compat_unique_cte_rows \
-                 (a INT, b INT, \
-                  CONSTRAINT compat_unique_cte_rows_a_key UNIQUE (a), \
-                  CONSTRAINT compat_unique_cte_rows_b_key UNIQUE (b))",
-            )
-            .await
-            .expect("create the unique target table");
-        first_owner
-            .batch_execute("CREATE TABLE compat_unique_cte_mark (id INT PRIMARY KEY)")
-            .await
-            .expect("create the side-effect table");
-        first_owner
-            .batch_execute("BEGIN; INSERT INTO compat_unique_cte_rows VALUES (1, 100)")
-            .await
-            .expect("hold a=1 in the first wire transaction");
-        contender
-            .batch_execute("BEGIN")
-            .await
-            .expect("begin the wire transaction that waits on a=1");
+        setup_modifying_cte_unique_conflict(&first_owner, &contender).await;
 
-        let mut contender_insert = tokio::spawn(async move {
+        let contender_insert = tokio::spawn(async move {
             let result = contender
                 .query_one(
                     "WITH side AS (\

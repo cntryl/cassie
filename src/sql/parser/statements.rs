@@ -265,7 +265,7 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
         }
         (
             target[..open].trim(),
-            super::schema_identifiers::parse_column_declaration_list(&target[open + 1..close])?,
+            super::schema::parse_column_declaration_list(&target[open + 1..close])?,
         )
     } else {
         (target, Vec::new())
@@ -511,13 +511,14 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
         }
         _ => {
             // PostgreSQL routines are VOLATILE unless explicitly narrowed.
-            if tokens.len() > 1 && parse_data_type(&tokens.join(" ")).is_err() {
-                if parse_data_type(tokens[0]).is_ok() {
-                    return Err(SqlError::new(format!(
-                        "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
-                        tokens[1]
-                    )));
-                }
+            if tokens.len() > 1
+                && parse_data_type(&tokens.join(" ")).is_err()
+                && parse_data_type(tokens[0]).is_ok()
+            {
+                return Err(SqlError::new(format!(
+                    "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
+                    tokens[1]
+                )));
             }
             (tokens.as_slice(), Volatility::Volatile)
         }
@@ -561,13 +562,13 @@ fn parse_function_body(raw: &str) -> Result<String, SqlError> {
         return Err(SqlError::new("empty function/procedure body".into()));
     }
     if normalize_without_language || has_language_clause {
-        Ok(normalize_scalar_select_body(body))
+        Ok(normalize_scalar_select_body(&body))
     } else {
         Ok(body)
     }
 }
 
-fn normalize_scalar_select_body(body: String) -> String {
+fn normalize_scalar_select_body(body: &str) -> String {
     let body = body.trim();
     if body
         .get(..6)

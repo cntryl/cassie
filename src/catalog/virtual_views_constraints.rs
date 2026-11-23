@@ -484,7 +484,7 @@ fn pg_constraint_row(
                 catalog
                     .get_index(collection, constraint_name)
                     .map_or(Value::Int64(0), |index| {
-                        Value::Int64(super::virtual_views_pg::index_oid(index))
+                        Value::Int64(super::virtual_views_pg::index_oid(&index))
                     })
             } else {
                 Value::Int64(0)
@@ -496,7 +496,7 @@ fn pg_constraint_row(
                 catalog
                     .get_index(collection, constraint_name)
                     .map_or(Value::Int64(0), |index| {
-                        Value::Int64(super::virtual_views_pg::index_oid(index))
+                        Value::Int64(super::virtual_views_pg::index_oid(&index))
                     })
             } else {
                 Value::Int64(0)

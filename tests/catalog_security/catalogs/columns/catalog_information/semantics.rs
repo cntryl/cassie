@@ -143,7 +143,10 @@ fn should_reject_four_arguments_when_calling_pg_get_expr() {
     let result = fixture.execute("SELECT pg_get_expr('7', 0, true, false)");
 
     // Assert
-    assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
+    assert_eq!(
+        result.expect_err("reject an extra argument").sql_state(),
+        "42883"
+    );
 }
 
 #[test]
@@ -160,7 +163,7 @@ fn should_reject_non_boolean_pretty_flag_when_calling_pg_get_expr() {
 }
 
 #[test]
-fn should_return_default_expression_for_matching_catalog_oid_and_schema() {
+fn should_return_default_expression_for_matching_catalog_oid_schema() {
     // Arrange
     let fixture = sql_fixture(
         "issue-1489-default-oid-join",

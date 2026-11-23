@@ -1,10 +1,10 @@
 use super::dml_referential_actions;
 use super::{
     aggregate, batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, projection,
-    reserve_projection_output_before_building, scan, BatchRow, Cassie, CassieSession,
-    CollectionSchema, ColumnMeta, CteContext, DataType, Expr, FieldMeta, FunctionMeta, HashMap,
-    InsertSource, LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource,
-    SelectItem, Value,
+    reserve_projection_output_before_building, resolve_exists_expr, scan, BatchRow, Cassie,
+    CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType, ExistsResolutionContext,
+    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
 };
 use crate::types::row_identity::ROW_IDENTITY_COLUMN;
 

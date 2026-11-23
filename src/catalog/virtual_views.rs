@@ -213,12 +213,10 @@ fn rows_for_database(
 
 fn constraint_row_relation_oid(row: &VirtualRow) -> Option<i64> {
     row.iter().find_map(|(name, value)| {
-        (name == "conrelid")
-            .then_some(())
-            .and_then(|()| match value {
-                Value::Int64(oid) => Some(*oid),
-                _ => None,
-            })
+        (name == "conrelid").then_some(()).and(match value {
+            Value::Int64(oid) => Some(*oid),
+            _ => None,
+        })
     })
 }
 

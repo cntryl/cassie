@@ -474,16 +474,13 @@ impl Cassie {
                     .is_some_and(|text| text.len() <= crate::types::name::MAX_NAME_BYTES)
                 {
                     Ok(())
+                } else if value.is_string() {
+                    Err(
+                        crate::app::DiagnosticError::new("22001", "value too long for type name")
+                            .into(),
+                    )
                 } else {
-                    if value.is_string() {
-                        Err(crate::app::DiagnosticError::new(
-                            "22001",
-                            "value too long for type name",
-                        )
-                        .into())
-                    } else {
-                        Self::invalid_type_input("name", value)
-                    }
+                    Self::invalid_type_input("name", value)
                 }
             }
             crate::types::DataType::Text | crate::types::DataType::Uuid => {
@@ -570,7 +567,7 @@ impl Cassie {
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         if !value.is_string() {
-            return Self::invalid_type_input(expected.type_name(), value);
+            return Self::invalid_type_input(&expected.type_name(), value);
         }
 
         if let crate::types::DataType::Uuid = expected {
@@ -643,7 +640,7 @@ impl Cassie {
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         let Some(text) = value.as_str() else {
-            return Self::invalid_type_input(expected.type_name(), value);
+            return Self::invalid_type_input(&expected.type_name(), value);
         };
         let valid = match expected {
             crate::types::DataType::Date => crate::types::temporal::canonical_date(text).is_ok(),
@@ -656,7 +653,7 @@ impl Cassie {
         if valid {
             Ok(())
         } else {
-            Self::invalid_type_input(expected.type_name(), value)
+            Self::invalid_type_input(&expected.type_name(), value)
         }
     }
 

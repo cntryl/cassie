@@ -53,7 +53,10 @@ pub(super) fn filter_rows_per_outer_row(
             outer_row: Some(&outer),
             ..*context
         };
-        let resolve = |expr: &Expr, local_args| {
+        let resolve = |expr: &Expr,
+                       local_args: Option<
+            &std::collections::HashMap<String, crate::types::Value>,
+        >| {
             super::resolve_exists_expr_with_local_args(&row_context, expr, local_args)
         };
         let value = filter::evaluate_resolving_exists(

@@ -16,8 +16,8 @@ use super::dml_joined::{
 };
 use super::dml_joined_update::{delete_target_row, update_target_row};
 use super::{
-    build_dml_result, check_timeout, filter, row_id_from_batch_row, BatchRow, Cassie,
-    CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
+    build_dml_result, check_timeout, row_id_from_batch_row, BatchRow, Cassie, CassieSession,
+    CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
     QueryExecutionControls, QueryResult, Value,
 };
 use crate::sql::ast::{

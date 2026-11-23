@@ -9,14 +9,10 @@ use tokio_postgres::NoTls;
 use super::support_sql as support;
 use support::*;
 
-#[test]
-fn should_hide_ungranted_relations_from_information_schema_for_restricted_role() {
-    // Arrange
-    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
-    cassie.startup().expect("startup");
-    let admin = cassie
-        .authenticate_role("root", Some(support::test_root_password()), None)
-        .expect("admin login");
+fn catalog_visibility_roles(
+    cassie: &Cassie,
+    admin: &CassieSession,
+) -> (CassieSession, CassieSession) {
     for sql in [
         "CREATE TABLE catalog_visible (id INTEGER)",
         "CREATE TABLE catalog_secret (token TEXT)",
@@ -40,14 +36,27 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
         "GRANT SELECT ON TABLE public.catalog_visible TO catalog_reader",
         "GRANT SELECT ON TABLE public.catalog_graph_visible TO catalog_reader",
     ] {
-        cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+        cassie.execute_sql(admin, sql, Vec::new()).expect("setup");
     }
-    let reader = cassie
-        .authenticate_role("catalog_reader", Some("reader-secret"), None)
-        .expect("reader login");
-    let blocked = cassie
-        .authenticate_role("catalog_blocked", Some("blocked-secret"), None)
-        .expect("blocked login");
+    (
+        cassie
+            .authenticate_role("catalog_reader", Some("reader-secret"), None)
+            .expect("reader login"),
+        cassie
+            .authenticate_role("catalog_blocked", Some("blocked-secret"), None)
+            .expect("blocked login"),
+    )
+}
+
+#[test]
+fn should_hide_ungranted_relations_from_information_schema_for_restricted_role() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let admin = cassie
+        .authenticate_role("root", Some(support::test_root_password()), None)
+        .expect("admin login");
+    let (reader, blocked) = catalog_visibility_roles(&cassie, &admin);
 
     // Act
     let tables = cassie
@@ -139,7 +148,7 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             cassie::types::Value::String("id".to_owned()),
         ]]
     );
-    assert!(blocked_tables.rows().is_empty());
+    assert_eq!(blocked_tables.rows().len(), 0);
     assert_eq!(admin_tables.rows().len(), 2);
 }
 

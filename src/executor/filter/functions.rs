@@ -10,8 +10,8 @@ mod json_functions;
 #[path = "json_result_owner.rs"]
 mod json_result_owner;
 use super::{
-    cast_scalar, eval_scalar, scalar_from_value, CassieSession, DataType, EvalContext, Expr,
-    FunctionCall, HashMap, QueryError, Value,
+    cast_scalar, scalar_from_value, CassieSession, DataType, EvalContext, Expr, FunctionCall,
+    HashMap, QueryError, Value,
 };
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;

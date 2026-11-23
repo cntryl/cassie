@@ -3,7 +3,7 @@ use super::{
     bool_value, collation, constraint_has_default, int_value, is_not_null, relation_oid, string,
     VirtualRow,
 };
-use crate::catalog::{local_name, Catalog, FieldConstraint};
+use crate::catalog::{Catalog, FieldConstraint};
 use crate::types::DataType;
 
 /// One `pg_attribute` column described independently of its owning relation.

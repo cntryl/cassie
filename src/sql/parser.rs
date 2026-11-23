@@ -180,7 +180,7 @@ impl SqlError {
         self
     }
 
-    pub(crate) fn map_source_position(
+    fn map_source_position(
         mut self,
         decoded: &lexical::DecodedSql<'_>,
         base: usize,

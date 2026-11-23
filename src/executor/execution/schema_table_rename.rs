@@ -113,7 +113,7 @@ fn prepare_column_view_renames(
             if collection.name == target {
                 return true;
             }
-            let fields = cassie
+            let fields: Vec<String> = cassie
                 .catalog
                 .get_view(written)
                 .map(|candidate| {

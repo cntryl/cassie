@@ -153,11 +153,15 @@ fn should_keep_the_transaction_usable_after_a_failed_commit_is_rolled_back() {
         &session,
         "INSERT INTO seal_unique (value) VALUES (2)",
     );
-    run(
-        &cassie,
-        &other,
-        "INSERT INTO seal_unique (value) VALUES (2)",
-    );
+    // Plain INSERT waits for the staged owner. Use COPY to create the
+    // committed conflict independently, preserving the failed-COMMIT case.
+    let copy = crate::sql::ast::CopyStatement {
+        table: "seal_unique".to_owned(),
+        columns: vec!["value".to_owned()],
+        format: crate::sql::ast::CopyFormat::Csv,
+        header: false,
+    };
+    cassie.copy_from_csv_stdin(&other, &copy, b"2\n").unwrap();
 
     // Act
     let commit = cassie.execute_sql(&session, "COMMIT", vec![]);

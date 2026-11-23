@@ -33,6 +33,7 @@ impl CassieSession {
         drop(transaction);
         let base_generation = working_state.generation;
         let base_rollback_epoch = working_state.rollback_epoch;
+        let base_unique_owner_id = working_state.unique_owner_id;
         let base_writes = working_state.writes.clone();
         let conflict_intents = &working_state.conflict_intents;
         let catalog_overlay = working_state
@@ -56,6 +57,7 @@ impl CassieSession {
             publication_fence: Arc::clone(&self.publication_fence),
             transaction: Arc::new(Mutex::new(working_state)),
             transaction_unique_waits: Arc::clone(&self.transaction_unique_waits),
+            defer_unique_wait_duplicate: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             owns_transaction_lifecycle: false,
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
             random: Arc::clone(&self.random),
@@ -68,6 +70,7 @@ impl CassieSession {
             base_transaction_active,
             base_generation,
             base_rollback_epoch,
+            base_unique_owner_id,
             base_writes,
             base_conflict_intent_count,
             base_catalog_overlay: catalog_overlay,
@@ -177,6 +180,40 @@ impl CassieSession {
                 "session transaction changed while statement was executing".to_owned(),
             ));
         }
+        Self::publish_statement_delta(&mut transaction, batch, delta)
+    }
+
+    pub(crate) fn with_unique_statement_publication<T>(
+        &self,
+        batch: &StatementMutationBatch,
+        controls: &crate::runtime::QueryExecutionControls,
+        attempt: impl FnOnce(&mut dyn FnMut() -> Result<(), CassieError>) -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        if !batch.matches_owner_state(&transaction) || transaction.sealed_for_commit {
+            return Err(CassieError::Execution(
+                "session transaction changed while DML was executing".to_owned(),
+            ));
+        }
+
+        // Rollback, savepoints and commit retirement take the session lock
+        // before changing key ownership. Keep admission and explicit staging
+        // in the same critical section so none can observe tentative claims.
+        attempt(&mut || {
+            controls.check_interruption()?;
+            if batch.has_enclosing_transaction() {
+                Self::publish_statement_delta(&mut transaction, batch, batch.delta()?)?;
+            }
+            Ok(())
+        })
+    }
+
+    fn publish_statement_delta(
+        transaction: &mut SessionTransactionState,
+        batch: &StatementMutationBatch,
+        delta: StatementMutationDelta,
+    ) -> Result<(), CassieError> {
         for mutation in &delta.rows {
             let current = transaction
                 .writes
@@ -247,6 +284,37 @@ impl StatementMutationBatch {
 
     pub(crate) const fn has_enclosing_transaction(&self) -> bool {
         self.base_transaction_active
+    }
+
+    pub(crate) const fn unique_owner_id(&self) -> uuid::Uuid {
+        self.base_unique_owner_id
+    }
+
+    pub(crate) fn changed_row_ids(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, std::collections::BTreeSet<String>>, CassieError>
+    {
+        let mut ids = std::collections::BTreeMap::<_, std::collections::BTreeSet<_>>::new();
+        for row in self.delta()?.rows {
+            ids.entry(row.collection).or_default().insert(row.id);
+        }
+        Ok(ids)
+    }
+
+    pub(crate) fn matches_current_owner(&self, current: &CassieSession) -> bool {
+        self.matches_owner_state(&current.transaction.lock())
+    }
+
+    fn matches_owner_state(&self, transaction: &SessionTransactionState) -> bool {
+        let expected_status = if self.base_transaction_active {
+            SessionTransactionStatus::InTransaction
+        } else {
+            SessionTransactionStatus::Idle
+        };
+        transaction.status == expected_status
+            && transaction.generation == self.base_generation
+            && transaction.rollback_epoch == self.base_rollback_epoch
+            && transaction.unique_owner_id == self.base_unique_owner_id
     }
 
     pub(in crate::app) fn into_session(self) -> CassieSession {

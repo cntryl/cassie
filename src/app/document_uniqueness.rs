@@ -63,7 +63,17 @@ impl Cassie {
                 )?
                 .is_some()
             };
-            if conflict {
+            let conflict_is_owned_by_waiting_transaction = session.is_some_and(|session| {
+                super::has_unique_wait_owner(
+                    &self.catalog,
+                    &self.midge,
+                    session,
+                    collection,
+                    &constraint.field,
+                    value,
+                )
+            });
+            if conflict && !conflict_is_owned_by_waiting_transaction {
                 return Err(CassieError::UniqueViolation {
                     table: collection.to_owned(),
                     column: constraint.field.clone(),
@@ -86,6 +96,7 @@ impl Cassie {
         })?;
         let schema = self.catalog.get_schema(collection);
         let row_schema = self.midge.row_schema(collection)?;
+        let constraints = self.catalog.get_constraints(collection);
         for index in self.catalog.list_indexes(collection) {
             if !index.unique || index.kind != IndexKind::Scalar {
                 continue;
@@ -110,9 +121,49 @@ impl Cassie {
                 continue;
             };
             let owner = published_owner(self, collection, &index, &key)?;
-            if has_conflicting_owner(self, session, collection, owner, exclude_id, |candidate| {
-                Ok(key_matches(candidate)?.as_deref() == Some(key.as_slice()))
-            })? {
+            let conflict =
+                has_conflicting_owner(self, session, collection, owner, exclude_id, |candidate| {
+                    Ok(key_matches(candidate)?.as_deref() == Some(key.as_slice()))
+                })?;
+            let conflict_is_owned_by_waiting_constraint_transaction =
+                session.is_some_and(|session| {
+                    let [field] = fields.as_slice() else {
+                        return false;
+                    };
+                    let [value] = key.as_slice() else {
+                        return false;
+                    };
+                    let backs_single_column_constraint = constraints.iter().any(|constraint| {
+                        let generated_primary_key_name =
+                            format!("{}_pkey", crate::catalog::local_name(collection));
+                        let generated_primary_key_matches = constraint.primary_key
+                            && constraint.primary_key_name.is_none()
+                            && crate::catalog::local_name(&index.name)
+                                == generated_primary_key_name;
+                        constraint.field == *field
+                            && crate::catalog::enforces_single_column_uniqueness(
+                                constraint,
+                                &constraints,
+                            )
+                            && (index.name == constraint.unique_constraint_name(collection)
+                                || constraint.constraint_index_name.as_deref()
+                                    == Some(index.name.as_str())
+                                || generated_primary_key_matches)
+                    });
+                    backs_single_column_constraint
+                        && index.predicate.is_none()
+                        && index.normalized_expressions().is_empty()
+                        && index.normalized_fields().as_slice() == std::slice::from_ref(field)
+                        && super::has_unique_wait_owner(
+                            &self.catalog,
+                            &self.midge,
+                            session,
+                            collection,
+                            field,
+                            value,
+                        )
+                });
+            if conflict && !conflict_is_owned_by_waiting_constraint_transaction {
                 return Err(index.unique_violation(collection));
             }
         }

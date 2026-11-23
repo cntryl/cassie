@@ -344,10 +344,29 @@ impl CassieError {
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
+            Self::Diagnostic(error) if error.sql_state == "23505" => {
+                unique_diagnostic_descriptor(error)
+            }
             Self::Diagnostic(error) => {
                 bad_request_descriptor(error.sql_state, error.message.clone())
             }
         }
+    }
+}
+
+fn unique_diagnostic_descriptor(error: &DiagnosticError) -> CassieErrorDescriptor {
+    let constraint = error
+        .message
+        .strip_prefix("duplicate key value violates unique constraint \"")
+        .and_then(|message| message.strip_suffix('"'))
+        .map(str::to_owned);
+    CassieErrorDescriptor {
+        http_status: 409,
+        sql_state: error.sql_state,
+        message: error.message.clone(),
+        table: None,
+        column: None,
+        constraint,
     }
 }
 

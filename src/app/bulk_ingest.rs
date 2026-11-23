@@ -375,9 +375,6 @@ impl Cassie {
         if transactional {
             check_copy_cancellation(cancellation)?;
             session.publish_statement_batch(&batch)?;
-            // Same effect as INSERT in a transaction (`apply_write_side_effects`).
-            crate::executor::mark_source_rollups_stale_external(self, &statement.table)
-                .map_err(|error| CassieError::Execution(error.to_string()))?;
             return Ok((affected, None, skipped));
         }
 

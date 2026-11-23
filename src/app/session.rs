@@ -58,7 +58,7 @@ use super::{
 use crate::catalog::{Catalog, DEFAULT_SCHEMA};
 use crate::midge::adapter::StorageOverlay;
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -87,6 +87,8 @@ pub struct CassieSession {
     publication_fence: publication_fence::PublicationFence,
     #[serde(skip)]
     transaction_unique_waits: Arc<Mutex<Option<Arc<super::TransactionUniqueWaits>>>>,
+    #[serde(skip)]
+    defer_unique_wait_duplicate: Arc<AtomicBool>,
     #[serde(skip)]
     owns_transaction_lifecycle: bool,
     #[serde(skip)]
@@ -233,6 +235,7 @@ pub(crate) struct StatementMutationBatch {
     base_transaction_active: bool,
     base_generation: u64,
     base_rollback_epoch: u64,
+    base_unique_owner_id: uuid::Uuid,
     base_writes: SharedTransactionWrites,
     base_conflict_intent_count: usize,
     base_catalog_overlay: Option<Catalog>,
@@ -353,6 +356,7 @@ impl CassieSession {
                 deferred_failure: DeferredFailure::None,
             })),
             transaction_unique_waits: Arc::default(),
+            defer_unique_wait_duplicate: Arc::new(AtomicBool::new(false)),
             owns_transaction_lifecycle: true,
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
             random: Arc::new(Mutex::new(SessionRandom::default())),
@@ -374,6 +378,15 @@ impl CassieSession {
 
     pub(crate) fn transaction_unique_owner_id(&self) -> Uuid {
         self.transaction.lock().unique_owner_id
+    }
+
+    pub(crate) fn set_defer_unique_wait_duplicate(&self, defer: bool) {
+        self.defer_unique_wait_duplicate
+            .store(defer, Ordering::Relaxed);
+    }
+
+    pub(crate) fn defers_unique_wait_duplicate(&self) -> bool {
+        self.defer_unique_wait_duplicate.load(Ordering::Relaxed)
     }
 
     /// Runs `operation` against this session's `random()` sequence.

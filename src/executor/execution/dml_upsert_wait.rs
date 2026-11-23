@@ -102,10 +102,12 @@ pub(super) fn execute(request: UpsertRequest<'_>) -> Result<QueryResult, QueryEr
                 key,
                 blocker,
                 owner,
+                wait_id,
             } => request.cassie.transaction_unique_waits.wait_for_key(
                 owner,
                 blocker,
                 &key,
+                wait_id,
                 request.controls,
             )?,
         }
@@ -175,37 +177,30 @@ impl PendingUpsert {
             .transaction_unique_waits
             .claim_keys(current_owner, keys)?
         {
-            UniqueKeyClaim::Wait { key, owner } => {
+            UniqueKeyClaim::Wait {
+                key,
+                owner,
+                wait_id,
+            } => {
                 return Ok(Attempt::Wait {
                     key,
                     blocker: owner,
                     owner: current_owner,
+                    wait_id,
                 })
             }
             UniqueKeyClaim::Claimed => {}
         }
-        let result: Result<QueryResult, QueryError> = (|| {
-            let result = super::dml::execute_prepared_insert(
-                &working_cassie,
-                batch.session(),
-                statement,
-                params,
-                functions,
-                controls,
-                prepared.take().expect("prepared candidates"),
-            )?;
-            let actual =
-                crate::app::collect_unique_keys(&cassie.catalog, &cassie.midge, batch.session());
-            let mut retained = previous.clone();
-            retained.extend(keys.intersection(&actual).cloned());
-            cassie.publish_statement_batch(session, batch, controls)?;
-            if session.is_some_and(CassieSession::is_transaction_active) {
-                cassie
-                    .transaction_unique_waits
-                    .restore_owner_keys(current_owner, &retained)?;
-            }
-            Ok(result)
-        })();
+        let result = publish_prepared_upsert(PreparedUpsertPublication {
+            request,
+            controls,
+            working_cassie: &working_cassie,
+            batch,
+            prepared,
+            current_owner,
+            previous,
+            keys,
+        });
         if result.is_err() || !session.is_some_and(CassieSession::is_transaction_active) {
             cassie
                 .transaction_unique_waits
@@ -215,12 +210,67 @@ impl PendingUpsert {
     }
 }
 
+struct PreparedUpsertPublication<'a> {
+    request: UpsertRequest<'a>,
+    controls: &'a QueryExecutionControls,
+    working_cassie: &'a Cassie,
+    batch: crate::app::StatementMutationBatch,
+    prepared: &'a mut Option<super::dml::WaitingInsert>,
+    current_owner: uuid::Uuid,
+    previous: &'a BTreeSet<UniqueTransactionKey>,
+    keys: &'a BTreeSet<UniqueTransactionKey>,
+}
+
+fn publish_prepared_upsert(
+    publication: PreparedUpsertPublication<'_>,
+) -> Result<QueryResult, QueryError> {
+    let PreparedUpsertPublication {
+        request,
+        controls,
+        working_cassie,
+        batch,
+        prepared,
+        current_owner,
+        previous,
+        keys,
+    } = publication;
+    let UpsertRequest {
+        cassie,
+        session,
+        statement,
+        params,
+        functions,
+        controls: _,
+        arbiter: _,
+    } = request;
+    let result = super::dml::execute_prepared_insert(
+        working_cassie,
+        batch.session(),
+        statement,
+        params,
+        functions,
+        controls,
+        prepared.take().expect("prepared candidates"),
+    )?;
+    let actual = crate::app::collect_unique_keys(&cassie.catalog, &cassie.midge, batch.session());
+    let mut retained = previous.clone();
+    retained.extend(keys.intersection(&actual).cloned());
+    cassie.publish_statement_batch(session, batch, controls)?;
+    if session.is_some_and(CassieSession::is_transaction_active) {
+        cassie
+            .transaction_unique_waits
+            .restore_owner_keys(current_owner, &retained)?;
+    }
+    Ok(result)
+}
+
 enum Attempt {
     Published(QueryResult),
     Wait {
         key: UniqueTransactionKey,
         blocker: uuid::Uuid,
         owner: uuid::Uuid,
+        wait_id: uuid::Uuid,
     },
 }
 

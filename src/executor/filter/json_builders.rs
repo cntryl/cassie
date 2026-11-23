@@ -124,6 +124,11 @@ fn build_standard_object(
     context: EvalContext<'_>,
     binary: bool,
 ) -> Result<Value, QueryError> {
+    if matches!(function.name.as_str(), "json_object" | "jsonb_object")
+        && args.iter().any(|argument| matches!(argument, Value::Null))
+    {
+        return Ok(Value::Null);
+    }
     let kinds = argument_types(function, row, context);
     let (keys, values) = match args {
         [pairs] => {

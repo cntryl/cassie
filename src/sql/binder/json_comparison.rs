@@ -12,14 +12,18 @@ pub(super) fn qualify(
 ) -> Result<(), CassieError> {
     if let Some(comparison) = RowComparisonOp::from_binary(op) {
         if left_type == Some(&DataType::Json) || right_type == Some(&DataType::Json) {
-            let type_name = |kind: Option<&DataType>| {
-                kind.map_or_else(|| "unknown".to_owned(), DataType::type_name)
+            let type_name = |expression: &Expr, kind: Option<&DataType>| {
+                if matches!(expression, Expr::StringLiteral(_)) {
+                    "unknown".to_owned()
+                } else {
+                    kind.map_or_else(|| "unknown".to_owned(), DataType::type_name)
+                }
             };
             return Err(CassieError::Execution(format!(
                 "operator does not exist: {} {} {}",
-                type_name(left_type),
+                type_name(left, left_type),
                 comparison.symbol(),
-                type_name(right_type),
+                type_name(right, right_type),
             )));
         }
     }

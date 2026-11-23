@@ -738,6 +738,50 @@ fn should_resolve_function_body_parameter_names_case_insensitively() {
 }
 
 #[test]
+fn should_resolve_a_quoted_mixed_case_function_parameter() {
+    // Arrange
+    let fixture = sql_fixture("routine_quoted_parameter_case", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION quoted_arg("X" INT) RETURNS INT AS '"X" + 1'"#)
+        .expect("create a function with a quoted mixed-case parameter");
+
+    // Act
+    let result = fixture.rows("SELECT quoted_arg(4)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(5)]]);
+}
+
+#[test]
+fn should_allow_distinct_quoted_and_unquoted_function_arguments() {
+    // Arrange
+    let fixture = sql_fixture("routine_distinct_quoted_arguments", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION mixed_args(x INT, "X" INT) RETURNS INT AS 'x + "X"'"#)
+        .expect("create a function with distinct unquoted and quoted parameters");
+
+    // Act
+    let result = fixture.rows("SELECT mixed_args(2, 40)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(42)]]);
+}
+
+#[test]
+fn should_reject_a_quoted_lowercase_function_argument_duplicate() {
+    // Arrange
+    let fixture = sql_fixture("routine_quoted_argument_duplicate", &[]);
+
+    // Act
+    let error = fixture.error(
+        r#"CREATE FUNCTION duplicate_arg(x INT, "x" INT) RETURNS INT AS '1'"#,
+    );
+
+    // Assert
+    assert!(error.to_string().contains("duplicate argument"));
+}
+
+#[test]
 fn should_resolve_a_function_parameter_before_a_caller_column_with_the_same_name() {
     // Arrange
     let fixture = sql_fixture(

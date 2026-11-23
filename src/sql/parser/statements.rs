@@ -2,7 +2,7 @@
 mod explain_options;
 #[path = "statements/session_objects.rs"]
 mod session_objects;
-pub(super) use session_objects::{SESSION_OBJECT_KEYWORDS, parse_session_object_statement};
+pub(super) use session_objects::{parse_session_object_statement, SESSION_OBJECT_KEYWORDS};
 #[path = "statements/settings.rs"]
 mod settings;
 #[path = "statements/transaction.rs"]
@@ -17,10 +17,10 @@ use super::schema::{
     starts_with_keyword, tokenize_schema_field,
 };
 use super::{
-    CallProcedureStatement, CreateFunctionStatement, CreateProcedureStatement, CreateViewStatement,
-    DataType, DropFunctionStatement, DropProcedureStatement, DropViewStatement, ExplainStatement,
-    FunctionArg, ParsedStatement, QueryStatement, SqlError, Value, Volatility,
-    find_top_level_keyword, parse_statement,
+    find_top_level_keyword, parse_statement, CallProcedureStatement, CreateFunctionStatement,
+    CreateProcedureStatement, CreateViewStatement, DataType, DropFunctionStatement,
+    DropProcedureStatement, DropViewStatement, ExplainStatement, FunctionArg, ParsedStatement,
+    QueryStatement, SqlError, Value, Volatility,
 };
 
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

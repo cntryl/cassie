@@ -354,7 +354,9 @@ fn should_accept_a_double_precision_function_result_type() {
 fn should_accept_zoned_timestamp_function_signatures() {
     // Arrange
     let fixture = sql_fixture("routine_timestamptz_argument", &[]);
-    fixture.execute("SET TIME ZONE 'UTC'").expect("set UTC time zone");
+    fixture
+        .execute("SET TIME ZONE 'UTC'")
+        .expect("set UTC time zone");
 
     // Act
     fixture

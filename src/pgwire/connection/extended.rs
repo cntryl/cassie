@@ -73,7 +73,7 @@ mod record_parameters;
 mod text_parameters;
 use portal_state::{
     take_portal_execution, write_completed_portal, write_fresh_result, FreshPortalWriteRequest,
-    PortalExecution, PortalFetchWindow,
+    PortalExecution,
 };
 use portal_streaming::{
     execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
@@ -322,9 +322,18 @@ async fn execute_prepared_portal(
         .backend_registration
         .as_ref()
         .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
-    let cancellation = registration.begin_query();
-    let cancellation_handle = cancellation.handle();
+    let cancellation_guard = registration.begin_query();
+    let cancellation_handle = cancellation_guard.handle();
+    let mut cancellation = Some(cancellation_guard);
     let result_cap = cassie.runtime.limits().max_result_rows;
+    let explicit_commit = matches!(
+        &parsed.statement,
+        crate::sql::ast::QueryStatement::Transaction(transaction)
+            if matches!(
+                &transaction.action,
+                crate::sql::ast::TransactionAction::Commit
+            )
+    );
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
     let bound_read = state.portal_reads.get(portal_name);
     let result = run_pgwire_blocking(
@@ -344,18 +353,13 @@ async fn execute_prepared_portal(
     )
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    if standalone && session.is_implicit_transaction() {
-        let transaction_session = session.clone();
-        if let Err(error) = run_pgwire_blocking(
-            Arc::clone(&cassie),
-            "pgwire_standalone_ddl_commit",
-            move |cassie| cassie.commit_transaction(&transaction_session),
-        )
-        .await
-        {
-            super::transactions::fail_owned_transaction(session).await;
-            return Err(ExtendedQueryError::cassie(&error));
-        }
+    let standalone_publication = standalone && session.is_implicit_transaction();
+    if standalone_publication {
+        commit_standalone_portal_transaction(&cassie, session).await?;
+    }
+    let publication_complete = explicit_commit || (standalone && !session.is_transaction_active());
+    if publication_complete {
+        drop(cancellation.take());
     }
     transaction_owner.close_completed(state, runtime, session);
     if let Some(notice) = notice {
@@ -363,13 +367,9 @@ async fn execute_prepared_portal(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     }
-    let window = PortalFetchWindow::new(result_cap, 0, max_rows);
-    let suspended_cancellation = if window.page_rows() < result.row_count() {
-        Some(cancellation.suspend())
-    } else {
-        drop(cancellation);
-        None
-    };
+    let acknowledgement_cancellation = cancellation
+        .as_ref()
+        .map(crate::runtime::PgwireQueryCancellationGuard::handle);
 
     write_fresh_result(
         write_half,
@@ -379,7 +379,7 @@ async fn execute_prepared_portal(
             portal,
             prepared,
             result,
-            cancellation: suspended_cancellation,
+            cancellation: acknowledgement_cancellation,
             max_rows,
             result_cap,
         },
@@ -394,6 +394,24 @@ async fn execute_prepared_portal(
     .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     if standalone && state.remove_portal(portal_name).is_some() {
         runtime.record_pgwire_portal_delta(-1);
+    }
+    Ok(())
+}
+
+async fn commit_standalone_portal_transaction(
+    cassie: &Arc<Cassie>,
+    session: &CassieSession,
+) -> Result<(), ExtendedQueryError> {
+    let transaction_session = session.clone();
+    if let Err(error) = run_pgwire_blocking(
+        Arc::clone(cassie),
+        "pgwire_standalone_ddl_commit",
+        move |cassie| cassie.commit_transaction(&transaction_session),
+    )
+    .await
+    {
+        super::transactions::fail_owned_transaction(session).await;
+        return Err(ExtendedQueryError::cassie(&error));
     }
     Ok(())
 }

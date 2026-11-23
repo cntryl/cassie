@@ -1,5 +1,6 @@
 use tokio::io::AsyncWrite;
 
+use super::super::result_frames::PortalFrameOwner;
 use super::super::result_frames::QueryResultFrames;
 use super::super::writers::ensure_row_widths;
 use super::{
@@ -201,6 +202,7 @@ pub(super) async fn write_materialized_result(
             remains_suspended,
         },
         &mut frames,
+        cancellation.as_ref(),
     )
     .await
     .inspect_err(|_| {
@@ -249,6 +251,7 @@ pub(super) struct SuspendedPortalWriteRequest<'a> {
     pub(super) portal_name: &'a str,
     pub(super) portal: &'a PortalExecution,
     pub(super) suspended: PortalSuspended,
+    pub(super) active_cancellation: Option<crate::runtime::QueryCancellationHandle>,
     pub(super) max_rows: usize,
     pub(super) result_cap: usize,
 }
@@ -262,10 +265,11 @@ pub(super) async fn write_suspended_result(
         portal_name,
         portal,
         mut suspended,
+        active_cancellation,
         max_rows,
         result_cap,
     } = request;
-    let cancellation = suspended.cancellation.clone();
+    let cancellation = active_cancellation.or_else(|| suspended.cancellation.clone());
     let mut frame_owner = state.portal_frames.take(portal_name);
     let output = async {
         let window = PortalFetchWindow::new(result_cap, suspended.rows_emitted, max_rows);
@@ -316,6 +320,7 @@ pub(super) async fn write_suspended_result(
                 remains_suspended,
             },
             &mut frames,
+            cancellation.as_ref(),
         )
         .await?;
         frame_owner
@@ -334,16 +339,7 @@ pub(super) async fn write_suspended_result(
             completion.command(),
             retained,
         );
-        if remains_suspended
-            && state
-                .portals
-                .get(portal_name)
-                .is_some_and(|portal| portal.suspended.is_some())
-        {
-            state
-                .portal_frames
-                .publish(frame_owner.take().expect("retained frame owner"));
-        }
+        publish_retained_portal_frames(state, portal_name, remains_suspended, &mut frame_owner);
         if !remains_suspended {
             clear_cancellation(state, cancellation.as_ref());
         }
@@ -355,6 +351,24 @@ pub(super) async fn write_suspended_result(
     }
     state.portal_frames.release_empty();
     output
+}
+
+fn publish_retained_portal_frames(
+    state: &mut SessionState,
+    portal_name: &str,
+    remains_suspended: bool,
+    frame_owner: &mut Option<PortalFrameOwner>,
+) {
+    if remains_suspended
+        && state
+            .portals
+            .get(portal_name)
+            .is_some_and(|portal| portal.suspended.is_some())
+    {
+        state
+            .portal_frames
+            .publish(frame_owner.take().expect("retained frame owner"));
+    }
 }
 
 pub(super) struct StreamingPortalResult {
@@ -419,6 +433,7 @@ pub(super) async fn write_streaming_result(
             row_description_already_sent: row_description_sent,
             remains_suspended: has_more,
         },
+        cancellation.as_ref(),
     )
     .await
     .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
@@ -485,6 +500,7 @@ struct PortalPageFrames<'a> {
 async fn write_portal_page_frames(
     write_half: &mut (impl AsyncWrite + Unpin),
     page: PortalPageFrames<'_>,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<bool, ExtendedQueryError> {
     let PortalPageFrames {
         result,
@@ -510,6 +526,7 @@ async fn write_portal_page_frames(
             remains_suspended,
         },
         &mut frames,
+        cancellation,
     )
     .await
 }
@@ -518,6 +535,7 @@ async fn write_prepared_portal_page_frames(
     write_half: &mut (impl AsyncWrite + Unpin),
     page: PortalPageFrames<'_>,
     frames: &mut QueryResultFrames<'_>,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<bool, ExtendedQueryError> {
     let PortalPageFrames {
         result,
@@ -530,6 +548,7 @@ async fn write_prepared_portal_page_frames(
     let columns = result.columns();
     let mut row_description_sent = row_description_already_sent;
     if !row_description_sent && !columns.is_empty() {
+        check_cancellation(cancellation)?;
         frames
             .description(columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
@@ -537,16 +556,27 @@ async fn write_prepared_portal_page_frames(
         row_description_sent = true;
     }
     for (index, row) in rows.iter().enumerate() {
+        check_cancellation(cancellation)?;
         frames
             .row(row_offset + index, row, columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
         write_frame(write_half, frames.bytes()).await?;
     }
+    check_cancellation(cancellation)?;
     frames
         .completion(remains_suspended)
         .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     write_frame(write_half, frames.bytes()).await?;
     Ok(row_description_sent)
+}
+
+fn check_cancellation(
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> Result<(), ExtendedQueryError> {
+    if cancellation.is_some_and(crate::runtime::QueryCancellationHandle::is_canceled) {
+        return Err(ExtendedQueryError::cassie(&CassieError::QueryCanceled));
+    }
+    Ok(())
 }
 
 /// Writes the reply for an `Execute` against a portal that already ran to

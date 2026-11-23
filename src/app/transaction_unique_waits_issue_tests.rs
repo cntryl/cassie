@@ -279,6 +279,43 @@ fn should_recheck_unique_value_after_delete_owner_rolls_back() {
 }
 
 #[test]
+fn should_wait_for_primary_key_reuse_while_delete_owner_is_unresolved() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_primary_key_delete_owner");
+    for sql in ["BEGIN", "DELETE FROM u WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage DELETE of primary key");
+    }
+    let waiter = cassie.create_session("issue_1465_primary_key_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (1, 50)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_commit.is_ok());
+    assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(50)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+}
+
+#[test]
 fn should_wait_for_autocommit_insert_while_merge_updates_unique_value() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_merge_update_owner");

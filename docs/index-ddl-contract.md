@@ -108,6 +108,10 @@ Focused evidence already present in the repository includes:
 - **Normalization order.** case fold, accent fold, tokenize, stop words, stem,
   then synonym expansion matched on stemmed forms. Indexing, `search()`,
   `search_score()`, snippets and highlighting all use this one pipeline.
+- **Dotted I.** with `case_folding = true`, uppercase dotted `İ` folds to `i`
+  as in the PostgreSQL 18.6 `en_US.UTF-8` simple-analyzer case. This does not
+  make precomposed and decomposed accents equivalent while `accent_folding` is
+  off, and indexing and queries use the same mapping.
 - **Highlighting.** Spans are the source byte ranges of the original tokens
   whose analyzed (stemmed/synonym-expanded) form equals a query term.
 - **Synonym format.** `synonyms = 'car,auto;tv,television'`: groups separated by
@@ -129,7 +133,7 @@ Focused evidence already present in the repository includes:
   `Midge::alter_fulltext_index_analyzer`.
 - **Versioning and rebuild.** Persisted metadata records the analyzer
   configuration, including `stemming` and the synonym map, under persisted state
-  version 2. An older persisted version is rebuilt from source on open (no
+  version 4. An older persisted version is rebuilt from source on open (no
   migration code). The active analyzer generation is the `analyzer_version`
   index option (absent means 1, incremented by every ALTER), visible in
   `pg_class.reloptions` together with non-default `stemming` and `synonyms`.

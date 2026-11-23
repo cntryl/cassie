@@ -29,7 +29,7 @@ mod vocabulary;
 pub(crate) use incremental::FulltextCommitChanges;
 pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
 
-const STATE_VERSION: u32 = 3;
+const STATE_VERSION: u32 = 4;
 const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
 /// Key plus value bytes one index-build transaction may carry. Posting blocks
 /// reach 64 KiB each, so a batch bounded only by record count can exceed the

@@ -120,7 +120,7 @@ fn reject_unverifiable_legacy_default(
     data_type: &DataType,
     constraints: &[crate::catalog::FieldConstraint],
     pending: bool,
-    existing_field: Option<&FieldSchema>,
+    existing_field: Option<&crate::catalog::FieldMeta>,
 ) -> Result<(), QueryError> {
     let unverifiable_legacy_default = constraints.iter().find_map(|constraint| {
         if crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)

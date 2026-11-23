@@ -191,12 +191,10 @@ fn should_not_evaluate_abs_for_empty_int4_input() {
     let result = fixture.execute("SELECT abs(v) FROM abs_empty_minimum WHERE false");
 
     // Assert
-    assert!(
-        result
-            .expect("empty input does not evaluate ABS")
-            .rows()
-            .is_empty()
-    );
+    assert!(result
+        .expect("empty input does not evaluate ABS")
+        .rows()
+        .is_empty());
 }
 
 #[test]

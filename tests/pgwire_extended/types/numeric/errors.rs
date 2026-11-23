@@ -136,7 +136,10 @@ fn should_raise_integer_out_of_range_for_a_prepared_int4_abs_projection() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("prepared ABS parameter description");
-    assert_eq!(wire::parse_parameter_description(&parameter_description.1), vec![23]);
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_description.1),
+        vec![23]
+    );
     let error_frames = &batches[2];
     assert_eq!(wire::error_code(error_frames).as_deref(), Some("22003"));
     let message = error_frames

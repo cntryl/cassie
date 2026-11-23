@@ -731,7 +731,7 @@ fn execute_update_command(
             session,
             &statement.table,
             controls,
-            false,
+            true,
             |working_cassie, working, controls| {
                 super::dml::execute_update(
                     working_cassie,

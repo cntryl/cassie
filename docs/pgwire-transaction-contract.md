@@ -60,14 +60,17 @@ transaction format is introduced.
 
 The scoped runtime increment for [#819](https://github.com/cntryl/cassie/issues/819)
 tracks non-null values from single-column PRIMARY KEY and UNIQUE constraints
-staged by plain SQL `INSERT` in an explicit transaction. A competing plain SQL
-`INSERT` for the same key waits until its owner commits, rolls back, disconnects,
-or rolls back to a savepoint that removed the staged insert. The waiter releases
-collection write gates while waiting, then rechecks resolved candidates against
-gated live constraint state before waiting on another owner or publishing. A
-committed duplicate returns `23505` without waiting on unrelated unresolved
-keys. If the owner rolls back, the waiting `INSERT` can stage and commit without
-evaluating defaults or expressions a second time.
+staged by plain SQL `INSERT` and `UPDATE` in an explicit READ COMMITTED
+transaction. A competing plain SQL `INSERT` for the same key waits until its
+owner commits, rolls back, disconnects, or rolls back to a savepoint that
+removed the staged value. An `UPDATE` claims its resulting unique values after
+its statement batch is prepared and before that batch is published. The waiter
+releases collection write gates while waiting, then rechecks resolved candidates
+against gated live constraint state before waiting on another owner or
+publishing. A committed duplicate returns `23505` without waiting on unrelated
+unresolved keys. If the owner rolls back, the waiting `INSERT` can stage and
+commit without evaluating defaults or expressions a second time. Unchanged
+unique values held by an `UPDATE` do not block inserts of different values.
 Savepoint rollback releases keys acquired after that savepoint. Waits honor
 query cancellation and deadlines. Detected wait cycles return `40P01`; the
 victim's previously staged keys remain owned until transaction resolution.

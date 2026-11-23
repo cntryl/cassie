@@ -1,4 +1,4 @@
-//! Transaction scoped ownership for single column unique keys staged by INSERT.
+//! Transaction scoped ownership for single column unique keys staged by INSERT or UPDATE.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;

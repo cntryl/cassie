@@ -173,15 +173,15 @@ fn collect_orm_metadata_rows(cassie: &Cassie) -> OrmMetadataRows {
         ),
         attributes: query_rows(
             cassie,
-            "SELECT attname, attnum, atttypid, attnotnull, atttypmod, atthasdef FROM pg_catalog.pg_attribute WHERE attrelid = 'catalog_orm_parents' ORDER BY attnum",
+            "SELECT a.attname, a.attnum, a.atttypid, a.attnotnull, a.atttypmod, a.atthasdef FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON a.attrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_orm_parents' AND n.nspname = 'public' ORDER BY a.attnum",
         ),
         defaults: query_rows(
             cassie,
-            "SELECT adrelid, adnum, adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'catalog_orm_parents' ORDER BY adnum",
+            "SELECT c.relname, d.adnum, d.adsrc FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_orm_parents' AND n.nspname = 'public' ORDER BY d.adnum",
         ),
         indexes: query_rows(
             cassie,
-            "SELECT indexrelid, indrelid, indisunique, indisprimary, indkey FROM pg_catalog.pg_index WHERE indrelid = 'catalog_orm_children' ORDER BY indexrelid",
+            "SELECT index_class.relname, table_class.relname, i.indisunique, i.indisprimary, i.indkey FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid JOIN pg_catalog.pg_namespace n ON table_class.relnamespace = n.oid WHERE table_class.relname = 'catalog_orm_children' AND n.nspname = 'public' ORDER BY index_class.relname",
         ),
     }
 }

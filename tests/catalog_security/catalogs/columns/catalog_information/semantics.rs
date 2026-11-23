@@ -42,8 +42,10 @@ fn should_render_precision_scale_numeric_default_as_sql_expression() {
         .expect("read column defaults");
     let catalog_defaults = fixture
         .execute(
-            "SELECT adsrc FROM pg_catalog.pg_attrdef \
-             WHERE adrelid = 'default_rendering'",
+            "SELECT d.adsrc FROM pg_catalog.pg_attrdef d \
+             JOIN pg_catalog.pg_class c ON d.adrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'default_rendering' AND n.nspname = 'public'",
         )
         .expect("read PostgreSQL attribute default");
 
@@ -80,8 +82,10 @@ fn should_escape_quotes_in_text_column_default_expression() {
         .expect("read text default");
     let catalog_defaults = fixture
         .execute(
-            "SELECT adsrc FROM pg_catalog.pg_attrdef \
-             WHERE adrelid = 'text_default_rendering'",
+            "SELECT d.adsrc FROM pg_catalog.pg_attrdef d \
+             JOIN pg_catalog.pg_class c ON d.adrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'text_default_rendering' AND n.nspname = 'public'",
         )
         .expect("read PostgreSQL attribute default");
 
@@ -181,5 +185,37 @@ fn should_return_default_expression_for_matching_catalog_oid_and_schema() {
             ],
         ]
     );
+}
+
+#[test]
+fn should_return_no_rows_given_nonmatching_catalog_oids() {
+    // Arrange
+    let fixture = sql_fixture("issue-1489-nonmatching-oids", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT count(*) FROM pg_catalog.pg_class c \
+             JOIN pg_catalog.pg_attrdef d ON c.oid = d.adrelid \
+             WHERE c.relname = 'missing_catalog_relation'",
+        )
+        .expect("compare valid but nonmatching catalog OIDs");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_reject_incompatible_catalog_comparison_operands() {
+    // Arrange
+    let fixture = sql_fixture("issue-1489-incompatible-operand", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT oid FROM pg_catalog.pg_class WHERE relname = true");
+
+    // Assert
+    assert_eq!(result.expect_err("reject a text and boolean comparison").sql_state(), "42601");
 }
 

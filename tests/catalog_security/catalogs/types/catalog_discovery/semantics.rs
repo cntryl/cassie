@@ -107,7 +107,7 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
         .expect("finite scalar registry");
     let attributes = fixture
         .execute(
-            "SELECT attname, atttypid, atttypmod FROM pg_catalog.pg_attribute WHERE attrelid = 'p04_character_modifiers' AND attname IN ('c3', 'c9', 'v8', 'v12') ORDER BY attnum",
+            "SELECT a.attname, a.atttypid, a.atttypmod FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON a.attrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'p04_character_modifiers' AND n.nspname = 'public' AND a.attname IN ('c3', 'c9', 'v8', 'v12') ORDER BY a.attnum",
         )
         .expect("character column modifiers");
 
@@ -785,7 +785,7 @@ fn should_keep_installed_vector_type_after_materialized_view_drop() {
         "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector' ORDER BY oid",
     ).expect("installed vector type");
     let attributes = fixture.execute(
-        "SELECT attname, atttypid FROM pg_catalog.pg_attribute WHERE attrelid = 'mv_type_projection' ORDER BY attnum",
+        "SELECT a.attname, a.atttypid FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON a.attrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'mv_type_projection' AND n.nspname = 'public' ORDER BY a.attnum",
     ).expect("materialized view attribute identities");
     fixture
         .execute("DROP MATERIALIZED VIEW mv_type_projection")

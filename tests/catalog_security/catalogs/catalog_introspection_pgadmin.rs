@@ -50,22 +50,22 @@ fn collect_pgadmin_catalog_rows(cassie: &Cassie, session: &CassieSession) -> PgA
         columns: query_rows(
             cassie,
             session,
-            "SELECT attname, attnum, pg_catalog.format_type(atttypid, atttypmod), attnotnull, atthasdef, attrelid_oid, attisdropped FROM pg_catalog.pg_attribute WHERE attrelid = 'catalog_pgadmin_docs' ORDER BY attnum",
+            "SELECT a.attname, a.attnum, pg_catalog.format_type(a.atttypid, a.atttypmod), a.attnotnull, a.atthasdef, a.attrelid_oid, a.attisdropped FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON a.attrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_pgadmin_docs' AND n.nspname = 'public' ORDER BY a.attnum",
         ),
         defaults: query_rows(
             cassie,
             session,
-            "SELECT adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'catalog_pgadmin_docs' ORDER BY adnum",
+            "SELECT d.adsrc FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_pgadmin_docs' AND n.nspname = 'public' ORDER BY d.adnum",
         ),
         indexes: query_rows(
             cassie,
             session,
-            "SELECT indexrelid, indrelid, indexrelid_oid, indrelid_oid, indisunique, indisprimary, indisvalid FROM pg_catalog.pg_index WHERE indrelid = 'catalog_pgadmin_docs' ORDER BY indexrelid",
+            "SELECT index_class.relname, table_class.relname, i.indexrelid_oid, i.indrelid_oid, i.indisunique, i.indisprimary, i.indisvalid FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid JOIN pg_catalog.pg_namespace n ON table_class.relnamespace = n.oid WHERE table_class.relname = 'catalog_pgadmin_docs' AND n.nspname = 'public' ORDER BY index_class.relname",
         ),
         constraints: query_rows(
             cassie,
             session,
-            "SELECT conname, conrelid, conrelid_oid, contype, conkey, convalidated FROM pg_catalog.pg_constraint WHERE conrelid = 'catalog_pgadmin_docs' ORDER BY conname",
+            "SELECT con.conname, c.relname, con.conrelid_oid, con.contype, con.conkey, con.convalidated FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON con.conrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_pgadmin_docs' AND n.nspname = 'public' ORDER BY con.conname",
         ),
         view: query_rows(
             cassie,

@@ -6,10 +6,12 @@ fn should_report_created_table_constraint_identities() {
     // Act
     let constraints = fixture
         .execute(
-            "SELECT conname, contype::text, convalidated \
-             FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'items' \
-             ORDER BY conname",
+            "SELECT con.conname, con.contype::text, con.convalidated \
+             FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'items' AND n.nspname = 'issue_817_catalog_probe' \
+             ORDER BY con.conname",
         )
         .expect("read table constraints");
 

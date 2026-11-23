@@ -6,10 +6,12 @@ fn should_report_created_table_attribute_type_identities() {
     // Act
     let attributes = fixture
         .execute(
-            "SELECT attname, attnum, atttypid, atttypmod, attnotnull, attidentity::text \
-             FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'items' \
-               AND attnum > 0 \
+            "SELECT a.attname, a.attnum, a.atttypid, a.atttypmod, a.attnotnull, a.attidentity::text \
+             FROM pg_catalog.pg_attribute a \
+             JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'items' AND n.nspname = 'issue_817_catalog_probe' \
+               AND a.attnum > 0 \
              ORDER BY attnum",
         )
         .expect("read table attribute type identities");

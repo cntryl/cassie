@@ -314,7 +314,7 @@ fn should_reject_unaccounted_modifying_cte_returning_copies_before_publication()
         result.is_err_and(|error| {
             error.sql_state() == "54000" && error.to_string().contains("query memory budget")
         }),
-        "retaining the CTE parameter copy must be admitted against the query budget"
+        "a query-memory budget denial must roll back the modifying CTE"
     );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM retained"),
@@ -326,7 +326,9 @@ fn should_reject_unaccounted_modifying_cte_returning_copies_before_publication()
 #[test]
 fn should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget() {
     // Arrange
-    let fixture = fixture_with_query_memory_budget("modifying-cte-copy-budget-fit", 64 * 1024);
+    // Retained copies in this end-to-end query fit within 256 KiB; the guard
+    // above verifies rollback when the query budget denies those copies.
+    let fixture = fixture_with_query_memory_budget("modifying-cte-copy-budget-fit", 256 * 1024);
 
     // Act
     let result = fixture.rows(

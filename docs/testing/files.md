@@ -1616,7 +1616,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/names/reserved_id_payload_keys.rs` | test_module | 49 | 1 | sql_queries | keep | `tests/sql_queries/names/reserved_id_payload_keys.rs` |
 | `tests/sql_queries/names/reserved_id_row_identity_column.rs` | test_module | 220 | 4 | sql_queries | keep | `tests/sql_queries/names/reserved_id_row_identity_column.rs` |
 | `tests/sql_queries/names/reserved_id_source_resolution.rs` | test_module | 301 | 5 | sql_queries | keep | `tests/sql_queries/names/reserved_id_source_resolution.rs` |
-| `tests/sql_queries/offset_result_cap.rs` | test_module | 134 | 7 | sql_queries | move_with_module_alias | `tests/sql_queries/expressions/offset_result_cap.rs` |
+| `tests/sql_queries/offset_result_cap.rs` | test_module | 398 | 19 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/core/offset_result_cap.rs`; `tests/sql_queries/expressions/offset_result_cap.rs` |
 | `tests/sql_queries/ordering/index_type_equivalence.rs` | test_support | 304 | 0 | sql_queries | keep | `tests/sql_queries/ordering/index_type_equivalence.rs` |
 | `tests/sql_queries/ordering/jsonb_semantic_keys.rs` | test_module | 241 | 15 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs`; `tests/sql_queries/types/json/jsonb_semantic_keys.rs` |
 | `tests/sql_queries/ordering/numeric_real_order.rs` | test_module | 426 | 25 | sql_queries | move_with_module_alias | `tests/sql_queries/types/numeric/numeric_real_order.rs` |

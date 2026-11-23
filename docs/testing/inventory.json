@@ -300806,7 +300806,7 @@
       "name": "should_not_evaluate_abs_for_empty_int4_input",
       "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
       "line": 183,
-      "end_line": 198,
+      "end_line": 200,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -300836,8 +300836,8 @@
       "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_abs_width_for_nonminimum_smallint_value",
       "name": "should_preserve_abs_width_for_nonminimum_smallint_value",
       "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
-      "line": 201,
-      "end_line": 212,
+      "line": 203,
+      "end_line": 214,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -300864,11 +300864,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_declared_abs_routine_precedence_over_builtin_width_check",
-      "name": "should_preserve_declared_abs_routine_precedence_over_builtin_width_check",
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine",
+      "name": "should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine",
       "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
-      "line": 215,
-      "end_line": 235,
+      "line": 217,
+      "end_line": 241,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -300876,7 +300876,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_declared_abs_routine_precedence_over_builtin_width_check"
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine"
         }
       ],
       "attributes": [
@@ -382502,8 +382502,8 @@
       "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 235,
-      "sha256": "a79af58074f10379c55aa64c872ece043ed6bb78d8bbf4b1b87b386541bb4520",
+      "lines": 241,
+      "sha256": "d9647a97620a0d6816c34e959e9ec4bb243d23c50b6f6f006e2e9b9c83098b0c",
       "test_declarations": 14,
       "registered_suites": [
         "sql_queries"

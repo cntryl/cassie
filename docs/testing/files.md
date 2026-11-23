@@ -1588,7 +1588,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/expressions/predicate_precedence.rs` | test_module | 81 | 6 | sql_queries | move_with_module_alias | `tests/sql_queries/predicates/predicate_precedence.rs` |
 | `tests/sql_queries/expressions/sql_semantic_regressions.rs` | test_module | 630 | 20 | sql_queries | keep | `tests/sql_queries/expressions/sql_semantic_regressions.rs` |
 | `tests/sql_queries/expressions/unary_numeric.rs` | test_module | 155 | 8 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/numeric/unary_numeric.rs`; `tests/sql_queries/types/numeric/unary_numeric.rs` |
-| `tests/sql_queries/functions/math/integer_abs.rs` | test_module | 235 | 14 | sql_queries | keep | `tests/sql_queries/functions/math/integer_abs.rs` |
+| `tests/sql_queries/functions/math/integer_abs.rs` | test_module | 241 | 14 | sql_queries | keep | `tests/sql_queries/functions/math/integer_abs.rs` |
 | `tests/sql_queries/functions/math/math_functions.rs` | test_module | 836 | 52 | sql_queries | keep | `tests/sql_queries/functions/math/math_functions.rs` |
 | `tests/sql_queries/functions/scalar_functions/runtime.rs` | test_module | 756 | 14 | sql_queries | keep | `tests/sql_queries/functions/scalar_functions/runtime.rs` |
 | `tests/sql_queries/functions/scalar_functions.rs` | test_module | 466 | 10 | sql_queries | keep | `tests/sql_queries/functions/scalar_functions.rs` |

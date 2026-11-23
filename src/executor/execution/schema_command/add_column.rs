@@ -210,7 +210,7 @@ fn apply_add_column_under_gates(
         if !constraints.is_empty() {
             cassie
                 .catalog
-                .register_constraints(context.table, merged_constraints.clone());
+                .register_constraints(context.table, merged_constraints);
         }
         if let Err(error) = refresh_table_cardinality_stats(cassie, context.table) {
             cassie.catalog.clear_cardinality_stats(context.table);
@@ -229,7 +229,7 @@ fn apply_add_column_under_gates(
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
-                .register_constraints(context.table, merged_constraints.clone());
+                .register_constraints(context.table, merged_constraints);
         }
         refresh_table_cardinality_stats(cassie, context.table)
     }

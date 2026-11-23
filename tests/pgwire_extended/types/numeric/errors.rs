@@ -100,3 +100,56 @@ fn should_report_numeric_bind_input_errors_with_postgresql_sqlstates() {
         );
     }
 }
+
+#[test]
+fn should_raise_integer_out_of_range_for_a_prepared_int4_abs_projection() {
+    // Arrange
+    let statement = "abs_int4_parameter";
+    let portal = "abs_int4_parameter_portal";
+    let sql = "SELECT abs($1)";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(statement, sql, &[23])),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                portal,
+                statement,
+                &[0],
+                &[Some(&b"-2147483648"[..])],
+                &[0],
+            ),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-1476-prepared-int4-abs", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None, "Parse");
+    let parameter_description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("prepared ABS parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameter_description.1), vec![23]);
+    let error_frames = &batches[2];
+    assert_eq!(wire::error_code(error_frames).as_deref(), Some("22003"));
+    let message = error_frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| {
+            wire::parse_error_fields(payload)
+                .into_iter()
+                .find(|(kind, _)| *kind == 'M')
+                .map(|(_, message)| message)
+        });
+    assert_eq!(message.as_deref(), Some("integer out of range"));
+    assert!(!error_frames
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'T' | b'D' | b'C')));
+}

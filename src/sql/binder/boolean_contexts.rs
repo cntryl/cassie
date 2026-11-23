@@ -247,6 +247,25 @@ pub(super) fn validate_select_with_types(
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }
+        if let SelectItem::Function { function, alias } = item {
+            if let Some(width) = abs_result_width(function, types) {
+                let function = std::mem::take(function);
+                let alias = alias.take().or_else(|| {
+                    Some(
+                        function
+                            .name
+                            .rsplit('.')
+                            .next()
+                            .unwrap_or(&function.name)
+                            .to_ascii_lowercase(),
+                    )
+                });
+                *item = SelectItem::Expr {
+                    expr: integer_width_cast(Expr::Function(Box::new(function)), width),
+                    alias,
+                };
+            }
+        }
         super::conditional_types::validate_item(item, types)?;
     }
     for expression in select
@@ -413,6 +432,53 @@ pub(super) fn validate_value(
     Ok(())
 }
 
+fn abs_result_width(
+    function: &crate::sql::ast::FunctionCall,
+    types: &ResultTypes,
+) -> Option<crate::types::IntegerWidth> {
+    let is_builtin_abs = function.args.len() == 1
+        && types.declared_function(&function.name).is_none()
+        && crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Abs);
+    is_builtin_abs
+        .then(|| types.expression_type(&function.args[0]))
+        .flatten()
+        .and_then(|data_type| crate::types::IntegerWidth::from_data_type(&data_type))
+}
+
+fn integer_width_cast(expr: Expr, width: crate::types::IntegerWidth) -> Expr {
+    Expr::Cast {
+        expr: Box::new(expr),
+        data_type: width.data_type(),
+        source_type: None,
+        identity: crate::sql::ast::CastIdentity::Scalar,
+    }
+}
+
+fn validate_function_expression(
+    function: &mut crate::sql::ast::FunctionCall,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+    preserve_abs_width: bool,
+) -> Result<Option<crate::types::IntegerWidth>, CassieError> {
+    for argument in function.expressions_mut() {
+        validate_expression(argument, types, catalog, context)?;
+    }
+    let changed = super::power_coercion::function(function, types);
+    for (argument, changed) in function.args.iter_mut().zip(changed) {
+        if changed {
+            validate_expression(argument, types, catalog, context)?;
+        }
+    }
+    super::coalesce_coercion::coerce_function(function, types);
+    enum_operands::type_support_arguments(function, types);
+    validate_boolean_aggregate(function, types)?;
+    Ok(preserve_abs_width
+        .then(|| abs_result_width(function, types))
+        .flatten())
+}
+
 fn validate_expression(
     expr: &mut Expr,
     types: &ResultTypes,
@@ -470,19 +536,16 @@ fn validate_expression(
         expression @ Expr::Between { .. } => {
             validate_between_expression(expression, types, catalog, context)?;
         }
-        Expr::Function(function) => {
-            for argument in function.expressions_mut() {
-                validate_expression(argument, types, catalog, context)?;
+        expression @ Expr::Function(_) => {
+            let Expr::Function(function) = expression else {
+                unreachable!("function expression matched above")
+            };
+            if let Some(width) =
+                validate_function_expression(function, types, catalog, context, true)?
+            {
+                let call = std::mem::replace(expression, Expr::Null);
+                *expression = integer_width_cast(call, width);
             }
-            let changed = super::power_coercion::function(function, types);
-            for (argument, changed) in function.args.iter_mut().zip(changed) {
-                if changed {
-                    validate_expression(argument, types, catalog, context)?;
-                }
-            }
-            super::coalesce_coercion::coerce_function(function, types);
-            enum_operands::type_support_arguments(function, types);
-            validate_boolean_aggregate(function, types)?;
         }
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;
@@ -698,6 +761,18 @@ fn validate_cast(
     )?;
     if matches!(expr.as_ref(), Expr::NumericLiteral(_)) {
         validate_numeric_literal_cast(data_type, *identity)?;
+    } else if matches!(
+        expr.as_ref(),
+        Expr::Function(function) if abs_result_width(function, types).is_some()
+    ) {
+        let Expr::Function(function) = expr.as_mut() else {
+            unreachable!("ABS cast branch matched a function")
+        };
+        let abs_width = validate_function_expression(function, types, catalog, context, true)?;
+        if let Some(width) = abs_width.filter(|width| width.data_type() != *data_type) {
+            let call = std::mem::replace(expr.as_mut(), Expr::Null);
+            **expr = integer_width_cast(call, width);
+        }
     } else {
         validate_expression(expr, types, catalog, context)?;
     }

@@ -343,17 +343,12 @@ pub(super) fn updated_payload_from_row(
             .iter()
             .find(|target| target.assignment_index == assignment_index)
         {
-            let value = match schema.fields.iter().find(|column| column.name == *field) {
-                Some(column) if matches!(expr, Expr::StringLiteral(_)) => {
-                    super::unknown_literal_value(value, &column.data_type)?
-                }
-                _ => value,
-            };
             apply_array_update_value(
                 &mut payload,
                 field,
                 &array_target.subscripts,
                 &value,
+                matches!(expr, Expr::StringLiteral(_)),
                 (row, params, user_functions, session),
                 schema,
             )?;
@@ -375,6 +370,7 @@ fn apply_array_update_value(
     field: &str,
     subscripts: &[crate::sql::ast::ArraySubscript],
     assigned: &Value,
+    assigned_unknown_literal: bool,
     evaluation: (
         &BatchRow,
         &[Value],
@@ -421,7 +417,12 @@ fn apply_array_update_value(
     match &subscripts[0] {
         crate::sql::ast::ArraySubscript::Index(expression) => {
             let index = evaluate_array_bound(expression, row, params, user_functions, session)?;
-            set_array_element(&mut array, index, assigned.clone())?;
+            let assigned = if assigned_unknown_literal {
+                super::unknown_literal_value(assigned.clone(), element_type)?
+            } else {
+                assigned.clone()
+            };
+            set_array_element(&mut array, index, assigned)?;
         }
         crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
             let default_lower = array
@@ -450,7 +451,12 @@ fn apply_array_update_value(
                 })
                 .transpose()?
                 .unwrap_or(default_upper);
-            let replacement = match assigned {
+            let assigned = if assigned_unknown_literal {
+                super::unknown_literal_value(assigned.clone(), &field_schema.data_type)?
+            } else {
+                assigned.clone()
+            };
+            let replacement = match &assigned {
                 Value::Array(array) => array.clone(),
                 Value::Json(value) if value.is_array() => crate::types::SqlArray::from_nested_json(
                     value,

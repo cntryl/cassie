@@ -524,6 +524,7 @@ impl Expr {
                 expr.implicit_output_name()
             }
             Self::Case { .. } => "case".to_owned(),
+            Self::Exists(_) => "exists".to_owned(),
             _ => "?column?".to_owned(),
         }
     }
@@ -540,6 +541,16 @@ impl Expr {
             DataType::Int => "int4".to_owned(),
             DataType::BigInt => "int8".to_owned(),
             DataType::Float => "float8".to_owned(),
+            DataType::Boolean => "bool".to_owned(),
+            DataType::Char { .. } => "bpchar".to_owned(),
+            DataType::Varchar { .. } => "varchar".to_owned(),
+            DataType::Vector(_) => "vector".to_owned(),
+            DataType::Array(element) => Self::cast_output_name(element),
+            DataType::Domain(domain) => catalog_type_name(&domain.name),
+            DataType::Enum(kind) => catalog_type_name(&kind.name),
+            DataType::Composite(kind) => catalog_type_name(&kind.name),
+            DataType::ObjectId(kind) => kind.name().to_owned(),
+            DataType::Extended(kind) => kind.typname().to_owned(),
             _ => data_type.type_name(),
         }
     }
@@ -568,6 +579,10 @@ impl Expr {
             _ => None,
         }
     }
+}
+
+fn catalog_type_name(name: &str) -> String {
+    name.rsplit('.').next().unwrap_or(name).to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

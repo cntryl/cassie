@@ -1,6 +1,6 @@
 //! An unaliased cast of a column is named after the column (PostgreSQL 18.6),
 //! which also decides what `ORDER BY <name>` sorts.
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use crate::support_sql_fixture::{SqlFixture, sql_fixture};
 use cassie::types::Value;
 
 fn fixture(label: &str) -> SqlFixture {
@@ -115,6 +115,48 @@ fn should_name_unaliased_casts_case_and_cast_function_expressions() {
     assert_eq!(function_cast.columns()[0].type_oid, 1082);
     assert_eq!(column_names(&boolean), ["?column?"]);
     assert_eq!(column_names(&negative), ["?column?"]);
+}
+
+#[test]
+fn should_name_unaliased_casts_with_postgresql_catalog_types_and_exists() {
+    // Arrange
+    let fixture = fixture("unaliased-expression-catalog-type-names");
+
+    // Act
+    let result = fixture
+        .execute(
+            "SELECT true::boolean, 'x'::char, 1::smallint, 1::integer, 1::bigint, \
+             1::real, 1::double precision, 1::numeric, 'x'::text, 'x'::varchar, \
+             '2020-01-01'::date, '12:00:00'::time, \
+             '2020-01-01 12:00:00'::timestamp, '{}'::json, '{}'::jsonb, '$'::jsonpath, \
+             '{1,2}'::int[], EXISTS (SELECT 1)",
+        )
+        .expect("catalog cast labels");
+
+    // Assert
+    assert_eq!(
+        column_names(&result),
+        [
+            "bool",
+            "bpchar",
+            "int2",
+            "int4",
+            "int8",
+            "float4",
+            "float8",
+            "numeric",
+            "text",
+            "varchar",
+            "date",
+            "time",
+            "timestamp",
+            "json",
+            "jsonb",
+            "jsonpath",
+            "int4",
+            "exists",
+        ]
+    );
 }
 
 #[test]

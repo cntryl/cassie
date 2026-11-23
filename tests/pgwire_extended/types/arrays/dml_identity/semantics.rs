@@ -119,12 +119,18 @@ fn should_coerce_array_literals_for_slice_assignment() {
         0,
         true,
     );
+    let element = fixture::execute_cycle(
+        "UPDATE issue_1460_array_slice_literal SET items[1] = '7' RETURNING items::TEXT",
+        None,
+        0,
+        true,
+    );
 
     // Act
     let batches = fixture::run_cycles(
         "issue-1460-array-slice-literal",
         &setup,
-        vec![literal, constructor],
+        vec![literal, constructor, element],
     );
 
     // Assert
@@ -137,6 +143,11 @@ fn should_coerce_array_literals_for_slice_assignment() {
     assert_eq!(
         wire::data_rows(&batches[1]),
         vec![vec![Some("{3,4}".to_owned())]]
+    );
+    fixture::assert_success(&batches[2]);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("{7,4}".to_owned())]]
     );
 }
 

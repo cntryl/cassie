@@ -71,10 +71,7 @@ fn should_return_sql_null_for_whole_null_standard_object_arrays() {
 
     // Assert
     fixture::assert_success(&batches[0]);
-    assert_eq!(
-        wire::data_rows(&batches[0]),
-        vec![vec![None, None, None]]
-    );
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None, None, None]]);
 }
 
 #[test]
@@ -108,12 +105,7 @@ fn should_resolve_case_insensitive_and_qualified_standard_object_names() {
 fn should_report_json_object_array_shape_sqlstates() {
     // Arrange
     let odd = fixture::execute_cycle("SELECT json_object('{a}')", None, 0, true);
-    let mismatch = fixture::execute_cycle(
-        "SELECT jsonb_object('{a,b}', '{1}')",
-        None,
-        0,
-        true,
-    );
+    let mismatch = fixture::execute_cycle("SELECT jsonb_object('{a,b}', '{1}')", None, 0, true);
 
     // Act
     let batches = fixture::run_cycles(
@@ -137,6 +129,9 @@ fn should_report_null_json_object_keys_with_null_not_null_sqlstate() {
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22004"));
+}
+
+#[test]
 fn should_preserve_null_json_object_values_and_array_error_sqlstates() {
     // Arrange
     let success_sql = [
@@ -150,11 +145,11 @@ fn should_preserve_null_json_object_values_and_array_error_sqlstates() {
         .map(|sql| fixture::execute_cycle(sql, None, 0, true))
         .collect();
     let error_cases = [
-        ("SELECT jsonb_object('{NULL,b}', '{1,2}')", None),
-        ("SELECT json_object('{a,b,c}')", Some("2202E")),
-        ("SELECT json_object('{a,b}', '{1,2,3}')", Some("2202E")),
-        ("SELECT json_object('{a,NULL,c}', '{1,2,3}')", Some("22004")),
-        ("SELECT json_build_object('a')", Some("22023")),
+        ("SELECT jsonb_object('{NULL,b}', '{1,2}')", "22004"),
+        ("SELECT json_object('{a,b,c}')", "2202E"),
+        ("SELECT json_object('{a,b}', '{1,2,3}')", "2202E"),
+        ("SELECT json_object('{a,NULL,c}', '{1,2,3}')", "22004"),
+        ("SELECT json_build_object('a')", "22023"),
     ];
     let error_cycles = error_cases
         .iter()
@@ -185,12 +180,11 @@ fn should_preserve_null_json_object_values_and_array_error_sqlstates() {
     assert_eq!(wire::data_rows(&successes[3]), vec![vec![None]]);
     assert_eq!(errors.len(), error_cases.len());
     for (frames, (sql, expected_code)) in errors.iter().zip(error_cases) {
-        let code = wire::error_code(frames);
-        if let Some(expected_code) = expected_code {
-            assert_eq!(code.as_deref(), Some(expected_code), "{sql}");
-        } else {
-            assert!(code.is_some(), "NULL JSON key must fail: {sql}");
-        }
+        assert_eq!(
+            wire::error_code(frames).as_deref(),
+            Some(expected_code),
+            "{sql}"
+        );
         assert!(wire::data_rows(frames).is_empty(), "{sql}");
     }
 }

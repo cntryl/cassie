@@ -437,7 +437,6 @@ fn abs_result_width(
     types: &ResultTypes,
 ) -> Option<crate::types::IntegerWidth> {
     let is_builtin_abs = function.args.len() == 1
-        && types.declared_function(&function.name).is_none()
         && crate::sql::functions::function(&function.name)
             .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Abs);
     is_builtin_abs

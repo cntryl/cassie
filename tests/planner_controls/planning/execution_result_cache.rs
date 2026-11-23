@@ -509,7 +509,7 @@ fn should_bypass_volatile_user_functions_called_with_different_identifier_case()
 }
 
 #[test]
-fn should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views() {
+fn should_bypass_result_cache_for_queries_that_read_the_clock() {
     // Arrange
     let path = data_dir("clock-builtins-result-cache");
     let cassie = Cassie::new_in_memory_with_config(cache_config(128, 1_048_576)).expect("cassie");

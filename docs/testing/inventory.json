@@ -231610,8 +231610,8 @@
       }
     },
     {
-      "id": "tests/planner_controls/planning/execution_result_cache.rs::should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views",
-      "name": "should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views",
+      "id": "tests/planner_controls/planning/execution_result_cache.rs::should_bypass_result_cache_for_queries_that_read_the_clock",
+      "name": "should_bypass_result_cache_for_queries_that_read_the_clock",
       "current_file": "tests/planner_controls/planning/execution_result_cache.rs",
       "line": 512,
       "end_line": 567,
@@ -231622,7 +231622,7 @@
       "instances": [
         {
           "suite": "planner_controls",
-          "name": "execution_result_cache::should_bypass_result_cache_for_clock_builtins_in_autocommit_queries_and_views"
+          "name": "execution_result_cache::should_bypass_result_cache_for_queries_that_read_the_clock"
         }
       ],
       "attributes": [
@@ -376367,7 +376367,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 863,
-      "sha256": "3354c0bf7b66d7b314ed1c4780a10edd384db87286245fa986e64c4d9b7d8f55",
+      "sha256": "ab68ae0ec8edf6ccb3557a330c5a5a23bc20a8bc9cc877851e9559cc8b24530a",
       "test_declarations": 19,
       "registered_suites": [
         "planner_controls"

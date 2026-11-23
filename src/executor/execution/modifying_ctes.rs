@@ -190,7 +190,8 @@ fn relation(
     let relation_reservation = controls.reserve_query_memory(relation_memory_bytes)?;
     relation_memory.try_push_with(0, || relation_reservation)?;
     controls.check_interruption()?;
-    let columns = columns
+    let columns = returned
+        .columns()
         .iter()
         .map(|column| column.name.clone())
         .collect::<Vec<_>>();
@@ -601,7 +602,7 @@ mod retained_relation_tests {
     }
 
     #[test]
-    fn should_admit_result_at_exact_row_cap() {
+    fn should_admit_one_cte_relation_clone_at_its_exact_memory_budget() {
         // Arrange
         let result_controls = controls_with_budget(64 * 1024);
         let mut builder = QueryResult::try_builder(&result_controls).expect("result builder");

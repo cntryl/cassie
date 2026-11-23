@@ -306,13 +306,19 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .expect("rollback transactional COPY");
     let cached_after_rollback = select_rows();
     let hits_after_rollback = cache_hits();
-    let column_rows_after_rollback = cassie
+    let eligible_column_query =
+        "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    let eligible_column_plan = cassie
         .execute_sql(
             &session,
-            "SELECT title FROM copy_rollback_state \
-             WHERE tag = 'kept' AND id > 0 ORDER BY id",
+            &format!("EXPLAIN {eligible_column_query}"),
             Vec::new(),
         )
+        .expect("explain column-batch rollback read")
+        .rows()
+        .to_vec();
+    let column_rows_after_rollback = cassie
+        .execute_sql(&session, eligible_column_query, Vec::new())
         .expect("read column batches after rollback")
         .rows()
         .to_vec();
@@ -341,10 +347,28 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
     assert_eq!(warmed, rows_before);
     assert_eq!(cached_after_rollback, rows_before);
     assert_eq!(hits_after_rollback, hits_before_rollback + 1);
-    assert_eq!(column_rows_after_rollback, rows_before);
+    assert!(
+        scans_before > 0,
+        "the warm baseline must use column batches"
+    );
+    let [plan_row] = eligible_column_plan.as_slice() else {
+        panic!("expected one column-batch plan row");
+    };
+    let [Value::String(plan)] = plan_row.as_slice() else {
+        panic!("expected textual column-batch plan");
+    };
+    assert!(plan.contains("column_batch_index=copy_rollback_state_idx"));
+    assert!(plan.contains("column_fallback_reason=none"));
     assert!(
         column_scans() > scans_before,
-        "the post-rollback read must exercise refreshed column-batch content"
+        "the eligible post-rollback read must use the preserved column batches"
+    );
+    assert_eq!(
+        column_rows_after_rollback,
+        vec![vec![
+            Value::String("kept".into()),
+            Value::String("before".into())
+        ]]
     );
     assert_eq!(
         cassie

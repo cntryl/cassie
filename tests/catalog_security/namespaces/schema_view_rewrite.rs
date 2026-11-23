@@ -2,6 +2,7 @@
 //! schema qualifier stands, never inside literals or at aliases.
 
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 fn schema_a(label: &str, view: &str) -> SqlFixture {
@@ -140,6 +141,98 @@ fn should_update_external_view_text_to_the_renamed_schema() {
 
     // Assert
     assert!(stored.query.contains("b.t"));
+}
+
+#[test]
+fn should_rewrite_persisted_function_scope_when_a_schema_is_renamed() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema_rename_view_function_scope",
+        &[
+            "CREATE SCHEMA fn_source",
+            "CREATE SCHEMA fn_caller",
+            "CREATE FUNCTION fn_source.same_name() RETURNS INT AS '41'",
+            "SET search_path = fn_source, public",
+            "CREATE VIEW fn_caller.scoped_view AS SELECT same_name() AS result",
+            "SET search_path = fn_caller, public",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute("ALTER SCHEMA fn_source RENAME TO fn_renamed")
+        .expect("rename function source schema");
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("fn_caller.scoped_view")
+        .expect("view metadata");
+    let rows = fixture.rows("SELECT result FROM fn_caller.scoped_view");
+
+    // Assert
+    assert_eq!(
+        stored.function_dependency_search_path,
+        ["fn_renamed", "public"]
+    );
+    assert_eq!(rows, vec![vec![Value::Int64(41)]]);
+}
+
+struct SchemaViewDirectory(String);
+
+impl Drop for SchemaViewDirectory {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).expect("remove closed schema-view fixture");
+    }
+}
+
+#[test]
+fn should_preserve_rewritten_view_function_scope_after_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let directory =
+        SchemaViewDirectory(crate::support_sql::data_dir("schema-view-function-restart"));
+    {
+        let cassie = Cassie::new_with_data_dir(&directory.0).expect("create initial Cassie");
+        cassie.startup().expect("initialize initial Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE SCHEMA restart_fn_source",
+            "CREATE SCHEMA restart_view_owner",
+            "CREATE FUNCTION restart_fn_source.same_name() RETURNS INT AS '51'",
+            "SET search_path = restart_fn_source, public",
+            "CREATE VIEW restart_view_owner.scoped_view AS SELECT same_name() AS result",
+            "ALTER SCHEMA restart_fn_source RENAME TO restart_fn_renamed",
+        ] {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("create renamed-schema fixture");
+        }
+        cassie.shutdown();
+    }
+
+    let cassie = Cassie::new_with_data_dir(&directory.0).expect("reopen Cassie");
+    cassie.startup().expect("restore renamed view scope");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "SET search_path = restart_view_owner, public",
+            vec![],
+        )
+        .expect("change caller schema");
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT result FROM restart_view_owner.scoped_view",
+            vec![],
+        )
+        .expect("execute restored cross-schema view");
+
+    // Assert
+    assert_eq!(result.rows(), &[vec![Value::Int64(51)]]);
+    cassie.shutdown();
 }
 
 #[test]

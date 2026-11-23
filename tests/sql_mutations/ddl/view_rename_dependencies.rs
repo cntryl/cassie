@@ -42,6 +42,36 @@ fn should_rewrite_a_table_reference_in_a_dependent_view() {
 }
 
 #[test]
+fn should_validate_table_and_column_rewrites_in_the_view_function_scope() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rename-view-validation-function-scope",
+        &[
+            "CREATE SCHEMA validation_functions",
+            "CREATE FUNCTION validation_functions.identity_value(x INT) RETURNS INT AS 'x'",
+            "SET search_path = validation_functions, public",
+            "CREATE TABLE validation_source (id INT)",
+            "INSERT INTO validation_source VALUES (7)",
+            "CREATE VIEW validation_view AS \
+             SELECT identity_value(id) AS id_value FROM validation_source",
+            "SET search_path = public",
+        ],
+    );
+
+    // Act
+    let column_rename = fixture
+        .execute("ALTER TABLE validation_source RENAME COLUMN id TO next_id");
+    let table_rename =
+        fixture.execute("ALTER TABLE validation_source RENAME TO validation_next");
+    let rows = fixture.rows("SELECT id_value FROM validation_view");
+
+    // Assert
+    assert!(column_rename.is_ok());
+    assert!(table_rename.is_ok());
+    assert_eq!(rows, vec![vec![Value::Int64(7)]]);
+}
+
+#[test]
 fn should_rewrite_a_table_reference_in_a_join_view() {
     // Arrange
     let (label, view) = (

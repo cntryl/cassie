@@ -285,3 +285,63 @@ fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
     // Assert
     assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
 }
+
+#[test]
+fn should_join_supported_catalog_oid_fields_for_psql_describe_queries() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1489-psql-oid-joins",
+        &[
+            "CREATE SCHEMA issue_1489_first",
+            "CREATE SCHEMA issue_1489_second",
+            "CREATE TABLE issue_1489_first.items (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 7)",
+            "CREATE TABLE issue_1489_second.items (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 9)",
+            "CREATE INDEX issue_1489_first_amount_idx ON issue_1489_first.items (amount)",
+            "CREATE INDEX issue_1489_second_amount_idx ON issue_1489_second.items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'items' AND n.nspname LIKE 'issue_1489_%'), \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_am am ON c.relam = am.oid \
+                 WHERE c.relname LIKE 'issue_1489_%_idx' AND am.amname = 'btree'), \
+                (SELECT count(*) FROM pg_catalog.pg_index i \
+                 JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid \
+                 WHERE table_class.relname = 'items'), \
+                (SELECT count(*) FROM pg_catalog.pg_attrdef d \
+                 JOIN pg_catalog.pg_attribute a ON d.adrelid = a.attrelid \
+                 WHERE d.adnum = a.attnum), \
+                (SELECT count(*) FROM pg_catalog.pg_constraint con \
+                 JOIN pg_catalog.pg_index i \
+                   ON con.conrelid = i.indrelid AND con.conindid = i.indexrelid \
+                 WHERE con.contype = 'p'), \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_class toast ON c.reltoastrelid = toast.oid \
+                 WHERE c.relname = 'items'), \
+                (SELECT count(*) FROM pg_catalog.pg_publication_rel pr \
+                 JOIN pg_catalog.pg_class c ON pr.prrelid = c.oid)",
+        )
+        .expect("execute supported psql catalog joins");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::Int64(2),
+            Value::Int64(4),
+            Value::Int64(4),
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Int64(0),
+            Value::Int64(0),
+        ]]
+    );
+}

@@ -142,3 +142,44 @@ fn should_reject_four_arguments_when_calling_pg_get_expr() {
     assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
 }
 
+#[test]
+fn should_return_default_expression_for_matching_catalog_oid_and_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1489-default-oid-join",
+        &[
+            "CREATE SCHEMA issue_1489_first",
+            "CREATE SCHEMA issue_1489_second",
+            "CREATE TABLE issue_1489_first.items (amount INTEGER DEFAULT 7)",
+            "CREATE TABLE issue_1489_second.items (amount INTEGER DEFAULT 9)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT n.nspname, pg_catalog.pg_get_expr(d.adbin, d.adrelid, true) \
+             FROM pg_catalog.pg_class AS c \
+             JOIN pg_catalog.pg_namespace AS n ON c.relnamespace = n.oid \
+             JOIN pg_catalog.pg_attrdef AS d ON c.oid = d.adrelid \
+             WHERE c.relname = 'items' ORDER BY n.nspname",
+        )
+        .expect("join default expressions to the matching relation OID");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![
+            vec![
+                Value::String("issue_1489_first".to_owned()),
+                Value::String("7".to_owned()),
+            ],
+            vec![
+                Value::String("issue_1489_second".to_owned()),
+                Value::String("9".to_owned()),
+            ],
+        ]
+    );
+}
+

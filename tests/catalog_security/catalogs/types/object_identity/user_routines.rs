@@ -241,6 +241,20 @@ fn should_evaluate_a_single_quoted_select_body_with_a_trailing_language_clause()
 }
 
 #[test]
+fn should_preserve_the_create_error_for_a_select_body_without_language() {
+    // Arrange
+    let fixture = sql_fixture("routine_select_body_without_language", &[]);
+
+    // Act
+    let error = fixture.error("CREATE FUNCTION one2() RETURNS INT AS 'SELECT 1'");
+
+    // Assert
+    assert!(error
+        .to_string()
+        .contains("invalid function body for 'one2'"));
+}
+
+#[test]
 fn should_unescape_doubled_quotes_in_a_single_quoted_function_body() {
     // Arrange
     let fixture = sql_fixture("routine_doubled_body_quotes", &["CREATE SEQUENCE ps"]);

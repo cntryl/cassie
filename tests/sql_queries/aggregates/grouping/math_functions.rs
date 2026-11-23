@@ -5,6 +5,9 @@ use std::f64::consts::{E, FRAC_PI_2, FRAC_PI_4, PI};
 
 use crate::support_sql_fixture::sql_fixture;
 
+#[path = "../../functions/math/integer_abs.rs"]
+mod integer_abs;
+
 fn predicate_rows(label: &str, sql: &str) -> Vec<Vec<Value>> {
     let fixture = sql_fixture(label, &[]);
     fixture

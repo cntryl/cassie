@@ -8,10 +8,12 @@ use std::cell::Cell;
 
 pub(super) const MAX_POSTFIX_DEPTH: usize = 128;
 const MAX_RECURSIVE_EXPRESSION_DEPTH: usize = 128;
+const MAX_LOGICAL_OPERANDS: usize = 128;
 
 thread_local! {
     static NOT_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
     static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static LOGICAL_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
     static EXPRESSION_PREFLIGHT_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
@@ -28,10 +30,33 @@ enum ParseDepthKind {
 
 pub(super) struct ExpressionPreflightGuard;
 
+pub(super) struct LogicalParseDepthGuard {
+    previous: usize,
+}
+
 impl Drop for ExpressionPreflightGuard {
     fn drop(&mut self) {
         EXPRESSION_PREFLIGHT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
     }
+}
+
+impl Drop for LogicalParseDepthGuard {
+    fn drop(&mut self) {
+        LOGICAL_PARSE_DEPTH.with(|depth| depth.set(self.previous));
+    }
+}
+
+pub(super) fn enter_logical_parse_depth() -> Result<LogicalParseDepthGuard, SqlError> {
+    LOGICAL_PARSE_DEPTH.with(|depth| {
+        let previous = depth.get();
+        if previous >= MAX_LOGICAL_OPERANDS - 1 {
+            return Err(SqlError::resource_limit(format!(
+                "logical expression nesting exceeds {MAX_LOGICAL_OPERANDS} operands"
+            )));
+        }
+        depth.set(previous + 1);
+        Ok(LogicalParseDepthGuard { previous })
+    })
 }
 
 pub(super) fn enter_expression_preflight(raw: &str) -> Result<ExpressionPreflightGuard, SqlError> {

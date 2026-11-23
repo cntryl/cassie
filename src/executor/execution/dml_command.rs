@@ -824,6 +824,9 @@ fn execute_atomic_dml(
         &QueryExecutionControls,
     ) -> Result<QueryResult, QueryError>,
 ) -> Result<QueryResult, QueryError> {
+    let fallback = (wait_for_unique_owner && session.is_none())
+        .then(|| cassie.create_session("root", None));
+    let session = session.or(fallback.as_ref());
     let collections = cassie.referential_write_collections(table);
     let mut pending_attempt: Option<PendingUniqueInsert> = None;
     loop {
@@ -854,8 +857,8 @@ fn execute_atomic_dml(
             check_timeout(controls)?;
 
             if wait_for_unique_owner {
-                if let Some(original) = session.filter(|session| session.is_transaction_active()) {
-                    if !batch.has_enclosing_transaction() {
+                if let Some(original) = session {
+                    if original.is_transaction_active() && !batch.has_enclosing_transaction() {
                         return Err(QueryError::from(crate::app::CassieError::Execution(
                             "session transaction changed while INSERT was executing".to_owned(),
                         )));
@@ -965,6 +968,11 @@ fn attempt_unique_insert_publication(
             .restore_owner_keys(pending.owner, &pending.previous_keys)
             .map_err(QueryError::from)?;
         return Err(QueryError::from(error));
+    }
+    if !original.is_transaction_active() {
+        waits
+            .restore_owner_keys(pending.owner, &pending.previous_keys)
+            .map_err(QueryError::from)?;
     }
     Ok(AtomicDmlAttempt::Published(result))
 }

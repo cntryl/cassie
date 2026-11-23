@@ -635,6 +635,26 @@ fn should_bind_a_function_parameter_inside_a_scalar_subquery_with_table_columns(
 }
 
 #[test]
+fn should_prefer_a_subquery_table_column_over_a_routine_parameter() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_local_column_scope",
+        &[
+            "CREATE TABLE routine_source (x INT, a INT)",
+            "INSERT INTO routine_source VALUES (100, 7)",
+            "CREATE FUNCTION add_source(x INT) RETURNS INT AS \
+             '(SELECT x + a FROM routine_source LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT add_source(1)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(107)]]);
+}
+
+#[test]
 fn should_return_null_when_a_function_scalar_subquery_returns_no_rows() {
     // Arrange
     let fixture = sql_fixture(

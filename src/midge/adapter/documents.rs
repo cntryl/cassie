@@ -253,7 +253,7 @@ impl Midge {
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        self.apply_document_write_batches_with_storage_overlay(writes, options, None)
+        self.apply_document_write_batches_with_storage_overlay(writes, options, None, None)
     }
 
     pub(crate) fn apply_document_write_batches_with_transactional_ddl(
@@ -262,7 +262,24 @@ impl Midge {
         options: &DocumentWriteBatchOptions,
         overlay: &super::StorageOverlay,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        self.apply_document_write_batches_with_storage_overlay(writes, options, Some(overlay))
+        self.apply_document_write_batches_with_storage_overlay(writes, options, Some(overlay), None)
+    }
+
+    pub(crate) fn apply_document_write_batches_with_transactional_ddl_and_schema(
+        &self,
+        writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
+        options: &DocumentWriteBatchOptions,
+        overlay: &super::StorageOverlay,
+        schema: &Schema,
+        row_schema: &RowSchema,
+        constraints: &[FieldConstraint],
+    ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
+        self.apply_document_write_batches_with_storage_overlay(
+            writes,
+            options,
+            Some(overlay),
+            Some((schema, row_schema, constraints)),
+        )
     }
 
     fn apply_document_write_batches_with_storage_overlay(
@@ -270,6 +287,7 @@ impl Midge {
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
         overlay: Option<&super::StorageOverlay>,
+        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint])>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if writes.is_empty() && options.additional_data_writes.is_empty() {
             if let Some(overlay) = overlay {
@@ -309,18 +327,13 @@ impl Midge {
                 write_guards.push(write_gate.lock());
             }
 
-            let database = options.database_for(
-                collections
-                    .first()
-                    .map(|(collection, _)| collection.as_str()),
-                &self.default_database,
-            );
-            options::require_single_database(
+            let collection_names = || {
                 collections
                     .iter()
-                    .map(|(collection, _)| collection.as_str()),
-                &database,
-            )?;
+                    .map(|(collection, _)| collection.as_str())
+            };
+            let database = options.database_for(collection_names().next(), &self.default_database);
+            options::require_single_database(collection_names(), &database)?;
             let _overlay_scope = if let Some(overlay) = overlay {
                 let overlay = Arc::new(parking_lot::Mutex::new(overlay.clone()));
                 Some(self.enter_transactional_ddl_scope(&database, overlay, false)?)
@@ -328,7 +341,11 @@ impl Midge {
                 None
             };
             for (collection, operations) in &collections {
-                let context = self.document_write_batch_context(collection, options)?;
+                let context = self.document_write_batch_context_with_schema_override(
+                    collection,
+                    options,
+                    schema_override,
+                )?;
                 let prepared =
                     Self::prepare_document_writes(collection, operations.clone(), &context)?;
                 prepared_writes.push((collection.clone(), context, prepared));
@@ -478,6 +495,27 @@ impl Midge {
             )?;
         }
         Ok((report, vector_writes))
+    }
+
+    fn document_write_batch_context_with_schema_override(
+        &self,
+        collection: &str,
+        options: &DocumentWriteBatchOptions,
+        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint])>,
+    ) -> Result<DocumentWriteBatchContext, CassieError> {
+        let mut context = self.document_write_batch_context(collection, options)?;
+        if let Some((schema, row_schema, constraints)) = schema_override {
+            context.schema = schema.clone();
+            context.row_schema = row_schema.clone();
+            context.unique_constraints = constraints
+                .iter()
+                .filter(|constraint| {
+                    crate::catalog::enforces_single_column_uniqueness(constraint, constraints)
+                })
+                .cloned()
+                .collect();
+        }
+        Ok(context)
     }
 
     fn document_write_batch_context(

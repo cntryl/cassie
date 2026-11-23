@@ -323,3 +323,28 @@ column is durable and its backfill is pending. A retry may resume the recorded
 definition. A different type or default must produce a clear conflict without
 changing the recorded definition. An unknown commit outcome still requires
 recovery before its state can be reported.
+
+Legacy pending-field records contain the field facts and evaluated JSON default,
+but not the original SQL default expression. A retry that supplies a default
+expression therefore cannot prove that its expression matches the recorded
+definition: evaluating a volatile expression again can produce a different
+value. For this legacy case, return a clear recovery-required diagnostic that
+identifies the durable column and pending backfill, leave the recorded operation
+unchanged, and let the existing recorded-state recovery complete the persisted
+default. A matching literal default, or a retry with no default, continues to
+use exact stored field/value comparison. This compatibility boundary applies
+only to legacy records; ordinary new atomic ADD COLUMN operations retain their
+existing supported volatile-default behavior. No persistent format change is
+selected.
+
+Legacy pending-field records also omit explicit shared sequence defaults such
+as `DEFAULT nextval('shared_seq')`; the recorded backfill value is absent and
+the shared sequence identity is not stored. A same-type retry that supplies
+such a default cannot prove that it matches the interrupted definition, so it
+must return a recovery-required diagnostic and leave the legacy operation
+unchanged. Existing startup recovery can finish the durable field/backfill from
+the recorded state, but cannot reconstruct that omitted sequence binding. After
+recovery, the operator must apply the intended shared default explicitly with
+`ALTER COLUMN ... SET DEFAULT`. Generated owned `SERIAL` retry behavior remains
+supported, and new atomic ADD COLUMN operations retain their existing shared
+sequence behavior. No persistent format change is selected.

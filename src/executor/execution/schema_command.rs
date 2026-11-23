@@ -1,12 +1,11 @@
 use super::command_output::empty as empty_command;
-use super::{catalog, virtual_views, Cassie, FieldSchema, QueryError, QueryResult, QueryStatement};
+use super::{catalog, virtual_views, Cassie, QueryError, QueryResult, QueryStatement};
 use crate::app::{CassieError, CassieSession, CatalogObjectKind};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     AlterTableOperation, AlterTableStatement, CreateViewStatement, DropTableStatement,
     DropViewStatement,
 };
-use crate::types::DataType;
 
 #[path = "comment_cleanup.rs"]
 mod comment_cleanup;
@@ -18,6 +17,8 @@ mod access_method_conversion;
 #[path = "schema_using.rs"]
 mod using;
 
+#[path = "schema_command/add_column.rs"]
+mod add_column;
 #[path = "scalar_index_rename.rs"]
 mod scalar_index_rename;
 #[path = "schema_constraint_helpers.rs"]
@@ -424,11 +425,11 @@ fn execute_alter_table_operation(
             data_type,
             constraints,
             if_not_exists,
-        } => alter_table_add_column(
+        } => add_column::alter_table_add_column(
             cassie,
             session,
             &statement.table,
-            &NewColumn {
+            &add_column::NewColumn {
                 field,
                 data_type,
                 constraints,
@@ -537,178 +538,6 @@ fn staged_add_column_default(
         })
         .and_then(|constraint| constraint.default_value.clone())
         .map(|default_value| (field.clone(), default_value))
-}
-
-/// The column of an `ALTER TABLE ... ADD COLUMN`.
-struct NewColumn<'a> {
-    field: &'a str,
-    data_type: &'a DataType,
-    constraints: &'a [crate::catalog::FieldConstraint],
-    if_not_exists: bool,
-}
-
-fn alter_table_add_column(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    column: &NewColumn<'_>,
-) -> Result<(), QueryError> {
-    let NewColumn {
-        field,
-        data_type,
-        constraints,
-        if_not_exists,
-    } = *column;
-    if if_not_exists
-        && cassie.catalog.get_schema(table).is_some_and(|schema| {
-            schema.fields.iter().any(|existing| {
-                crate::sql::ColumnIdentifierPath::stored_field_key(&existing.name)
-                    == crate::sql::ColumnIdentifierPath::stored_field_key(field)
-            })
-        })
-    {
-        return Ok(());
-    }
-
-    let sequences =
-        super::sequence_command::prepare_add_column_sequences(cassie, data_type, constraints)?;
-    let default_value = constraints
-        .iter()
-        .find(|constraint| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
-                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
-        })
-        .and_then(|constraint| {
-            // A volatile default such as `now()` is evaluated once and
-            // backfilled into existing rows, as PostgreSQL does.
-            constraint.default_value.clone().or_else(|| {
-                constraint
-                    .default_expression
-                    .as_deref()
-                    .and_then(crate::catalog::evaluate_volatile_default)
-            })
-        });
-    let mut gated_collections = vec![table.to_string()];
-    gated_collections.extend(
-        constraints
-            .iter()
-            .filter_map(|constraint| constraint.references_table.clone()),
-    );
-    cassie
-        .midge
-        .with_collection_write_gates(&gated_collections, || {
-            if !add_column_resumed(cassie, table, field)? {
-                add_column_to_storage(cassie, session, table, column, default_value.clone())?;
-            }
-
-            super::sequence_command::persist_created_sequences(cassie, sequences)?;
-            if !constraints.is_empty() {
-                let mut merged = cassie.catalog.get_constraints(table);
-                crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
-                cassie
-                    .midge
-                    .save_constraints_with_unique_reservations(table, merged.as_slice())
-                    .map_err(|error| QueryError::General(error.to_string()))?;
-                cassie.catalog.register_constraints(table, merged);
-            }
-            refresh_table_cardinality_stats(cassie, table)
-        })?;
-    Ok(())
-}
-
-/// Adds the column to storage and the catalog, keeping the catalog in step with
-/// storage when the backfill fails after the schema commit.
-fn add_column_to_storage(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    column: &NewColumn<'_>,
-    default_value: Option<serde_json::Value>,
-) -> Result<(), QueryError> {
-    let NewColumn {
-        field,
-        data_type,
-        constraints,
-        ..
-    } = *column;
-    let default_value =
-        cassie.domain_add_column_default(session, table, data_type, default_value)?;
-    // Existing rows receive the default, so validate the constraints
-    // against that value before anything is committed.
-    let backfilled = default_value.clone().unwrap_or(serde_json::Value::Null);
-    let added = crate::app::AddedColumnDefault {
-        field,
-        value: &backfilled,
-    };
-    cassie.validate_existing_rows_after_added_column(table, constraints, Some(added))?;
-    cassie.validate_existing_foreign_key_rows_after_added_column(
-        table,
-        constraints,
-        Some(added),
-    )?;
-
-    let field_schema = FieldSchema {
-        name: field.to_string(),
-        data_type: data_type.clone(),
-        nullable: true,
-    };
-    let altered = cassie.midge.alter_collection_add_column_with_default(
-        table,
-        field_schema.clone(),
-        default_value,
-    );
-    // The schema commit precedes the backfill, so a backfill failure
-    // leaves the column durable: the catalog must agree with storage.
-    if altered.is_err()
-        && cassie.midge.collection_schema(table).is_some_and(|schema| {
-            schema
-                .fields
-                .iter()
-                .any(|entry| entry.name == field_schema.name)
-        })
-    {
-        cassie.catalog.add_collection_field(
-            table,
-            field_schema.name.clone(),
-            field_schema.data_type.clone(),
-        );
-        cassie
-            .catalog
-            .register_maintenance_debt(catalog::MaintenanceDebtMeta::new(
-                table,
-                catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
-                0,
-                0,
-                altered.as_ref().err().map(ToString::to_string),
-            ));
-    }
-    altered.map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .add_collection_field(table, field_schema.name, field_schema.data_type);
-    Ok(())
-}
-
-/// Resumes the journaled backfill of an `ADD COLUMN` that an earlier statement
-/// committed but could not finish, so retrying it completes instead of failing
-/// with a duplicate column.
-fn add_column_resumed(cassie: &Cassie, table: &str, field: &str) -> Result<bool, QueryError> {
-    let in_catalog = cassie
-        .catalog
-        .get_schema(table)
-        .is_some_and(|schema| schema.fields.iter().any(|entry| entry.name == field));
-    if !in_catalog {
-        return Ok(false);
-    }
-    let resumed = cassie
-        .midge
-        .resume_pending_field_add(table, field)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_maintenance_debt(
-        table,
-        &catalog::MaintenanceDebtMeta::add_column_backfill_artifact(field),
-    );
-    Ok(resumed)
 }
 
 fn alter_table_add_constraint(

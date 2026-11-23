@@ -73,7 +73,6 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
             .row_hash(&collection, &row_id)
             .unwrap()
             .unwrap();
-
         // Act
         restarted
             .execute_sql(
@@ -102,6 +101,7 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
 
         // Assert
         assert_eq!(first.digest, restarted_hash.digest);
+        assert_ne!(restarted_hash.schema_epoch, schema_hash.schema_epoch);
         assert_ne!(first.digest, schema_hash.digest);
         assert_ne!(schema_hash.digest, updated_hash.digest);
         assert_eq!(updated_hash.algorithm, "cassie-fnv128");

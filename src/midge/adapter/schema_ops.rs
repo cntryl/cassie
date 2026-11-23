@@ -1,3 +1,5 @@
+#[path = "schema_ops/atomic_add_column.rs"]
+mod atomic_add_column;
 #[path = "schema_ops/copy_identity.rs"]
 mod copy_identity;
 #[path = "schema_ops/descriptor.rs"]

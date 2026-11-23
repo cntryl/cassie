@@ -96,3 +96,49 @@ fn should_escape_quotes_in_text_column_default_expression() {
     );
 }
 
+#[test]
+fn should_accept_pretty_flag_given_pg_get_expr_when_describing_a_default() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-expr-pretty", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_expr('7', 0, true)")
+        .expect("render a stored default with pretty flag");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("7".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_null_given_null_expression_when_calling_pg_get_expr() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-expr-null", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_get_expr(NULL, 0, true)")
+        .expect("render a NULL expression");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_reject_four_arguments_when_calling_pg_get_expr() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-expr-extra-argument", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_expr('7', 0, true, false)");
+
+    // Assert
+    assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
+}
+

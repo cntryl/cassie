@@ -215,3 +215,73 @@ fn should_render_a_created_index_definition() {
         )]]
     );
 }
+
+#[test]
+fn should_return_full_definition_given_column_zero_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-full",
+        &[
+            "CREATE TABLE issue_1486_index_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_amount_idx ON issue_1486_index_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_catalog.pg_get_indexdef(oid, 0, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_amount_idx'",
+        )
+        .expect("render the full index definition");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(
+            "CREATE INDEX issue_1486_amount_idx ON public.issue_1486_index_items USING btree (amount)"
+                .to_owned(),
+        )]]
+    );
+}
+
+#[test]
+fn should_return_key_name_given_positive_column_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-key-name",
+        &[
+            "CREATE TABLE issue_1486_key_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_key_idx ON issue_1486_key_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_get_indexdef(oid, 1, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_key_idx'",
+        )
+        .expect("read the indexed key name");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("amount".to_owned())]]
+    );
+}
+
+#[test]
+fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-indexdef-extra-argument", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(1, 0, true, false)");
+
+    // Assert
+    assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
+}

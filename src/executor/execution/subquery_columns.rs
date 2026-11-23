@@ -18,16 +18,16 @@ pub(super) fn materialize(
 ) -> Result<Option<LogicalPlan>, QueryError> {
     let mut targets = Vec::new();
     for expr in &plan.group_by {
-        collect(expr, &mut targets);
+        collect(expr, &mut targets, env.user_functions);
     }
     for expr in plan_exprs(plan) {
-        aggregate_arguments(expr, &mut targets);
+        aggregate_arguments(expr, &mut targets, env.user_functions);
     }
     for item in &plan.projection {
         if let SelectItem::Function { function, .. } = item {
             if crate::sql::functions::is_aggregate_function(&function.name) {
                 for arg in function.expressions() {
-                    collect(arg, &mut targets);
+                    collect(arg, &mut targets, env.user_functions);
                 }
             }
         }
@@ -80,19 +80,27 @@ fn plan_exprs(plan: &LogicalPlan) -> impl Iterator<Item = &Expr> {
 }
 
 /// Collects the unresolved subqueries of each aggregate call under `expr`.
-fn aggregate_arguments(expr: &Expr, targets: &mut Vec<Expr>) {
+fn aggregate_arguments(
+    expr: &Expr,
+    targets: &mut Vec<Expr>,
+    user_functions: &std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+) {
     if let Expr::Function(function) = expr {
         if crate::sql::functions::is_aggregate_function(&function.name) {
             for arg in function.expressions() {
-                collect(arg, targets);
+                collect(arg, targets, user_functions);
             }
             return;
         }
     }
-    expr.for_each_child(|child| aggregate_arguments(child, targets));
+    expr.for_each_child(|child| aggregate_arguments(child, targets, user_functions));
 }
 
-fn collect(expr: &Expr, targets: &mut Vec<Expr>) {
+fn collect(
+    expr: &Expr,
+    targets: &mut Vec<Expr>,
+    user_functions: &std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+) {
     if let Expr::Subquery(subquery) = expr {
         if subquery.outcome.is_none() {
             if !targets.iter().any(|target| target.structurally_eq(expr)) {
@@ -101,7 +109,13 @@ fn collect(expr: &Expr, targets: &mut Vec<Expr>) {
             return;
         }
     }
-    expr.for_each_child(|child| collect(child, targets));
+    if filter::expression_contains_routine_subquery(expr, user_functions) {
+        if !targets.iter().any(|target| target.structurally_eq(expr)) {
+            targets.push(expr.clone());
+        }
+        return;
+    }
+    expr.for_each_child(|child| collect(child, targets, user_functions));
 }
 
 fn rewrite(expr: &Expr, targets: &[Expr]) -> Expr {

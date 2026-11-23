@@ -19,6 +19,13 @@ pub(super) fn contains_exists(expr: &Expr) -> bool {
     expr.contains_subquery()
 }
 
+pub(super) fn contains_exists_or_routine_subquery(
+    expr: &Expr,
+    user_functions: &std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    contains_exists(expr) || filter::expression_contains_routine_subquery(expr, user_functions)
+}
+
 /// Keeps the rows of `batches` for which `filter_expr` holds, evaluating each
 /// `EXISTS` with that row as the subquery's outer row.
 ///

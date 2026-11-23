@@ -247,7 +247,9 @@ fn execute_plan_with_physical(
 
     let resolved_plan;
     let _exists_memory;
-    let (plan, physical) = if super::exists_plan::plan_has_unresolved_exists(plan) {
+    let has_unresolved_exists =
+        super::exists_plan::plan_has_unresolved_exists(plan, env.user_functions);
+    let (plan, physical) = if has_unresolved_exists {
         (resolved_plan, _exists_memory) = super::exists_plan::resolve_plan_exists(
             &ExistsResolutionContext {
                 cassie: env.cassie,

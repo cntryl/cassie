@@ -507,7 +507,10 @@ pub(super) fn execute_source_query_with_outer_row(
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;
-    let batches = if super::exists_projection::contains(&plan.projection) {
+    let batches = if super::exists_projection::contains_routine_subquery(
+        &plan.projection,
+        env.user_functions,
+    ) {
         projection::OwnedExpanded::untracked(exists_projection_phase::apply(
             env,
             batches,

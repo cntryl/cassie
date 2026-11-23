@@ -13,17 +13,6 @@ pub(super) fn evaluate(
     expr: &Expr,
     search: Option<&filter::SearchContext>,
 ) -> Result<Value, QueryError> {
-    if !super::exists_correlated::contains_exists(expr) {
-        return filter::evaluate_expr_value(
-            row,
-            expr,
-            env.params,
-            search,
-            env.user_functions,
-            env.session,
-            None,
-        );
-    }
     check_timeout(env.controls)?;
     let outer = super::exists_projection::outer_row(env, source, row)?;
     let context = ExistsResolutionContext {
@@ -59,7 +48,7 @@ pub(super) fn evaluate_with_owner(
     search: Option<&filter::SearchContext>,
     memory: &filter::EvaluationMemory,
 ) -> Result<Value, QueryError> {
-    if !super::exists_correlated::contains_exists(expr) {
+    if !super::exists_correlated::contains_exists_or_routine_subquery(expr, env.user_functions) {
         let context = filter::evaluation::ProjectionValueContext {
             params: env.params,
             search,
@@ -116,7 +105,7 @@ pub(super) fn having(
     };
     let having = super::aggregate_exec::rewrite_aggregate_expr(having, &plan.group_by);
     let _output_memory = ensure_query_memory_budget(env.controls, &batches)?;
-    if super::exists_correlated::contains_exists(&having) {
+    if super::exists_correlated::contains_exists_or_routine_subquery(&having, env.user_functions) {
         for batch in &mut batches {
             let mut failure = None;
             batch.retain(|row| {

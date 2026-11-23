@@ -593,6 +593,20 @@ fn evaluate_cast_function(
 mod routine;
 use routine::evaluate_user_defined_function;
 
+pub(crate) fn expression_contains_routine_subquery(
+    expression: &Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::expression_contains_routine_subquery(expression, user_functions)
+}
+
+pub(crate) fn function_contains_routine_subquery(
+    function: &FunctionCall,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::function_contains_routine_subquery(function, user_functions)
+}
+
 pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,

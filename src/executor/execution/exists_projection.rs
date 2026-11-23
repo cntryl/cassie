@@ -1,6 +1,7 @@
 //! Classify each SELECT EXISTS through the existing binder's scope rules.
 use super::{
-    check_timeout, ExistsResolutionContext, Expr, HashSet, QueryError, QuerySource, SelectItem,
+    check_timeout, ExistsResolutionContext, Expr, FunctionMeta, HashSet, QueryError, QuerySource,
+    SelectItem,
 };
 
 mod admission;
@@ -18,6 +19,30 @@ pub(super) fn contains(projection: &[SelectItem]) -> bool {
             .args
             .iter()
             .any(super::exists_correlated::contains_exists),
+        _ => false,
+    })
+}
+
+pub(super) fn contains_routine_subquery(
+    projection: &[SelectItem],
+    user_functions: &std::collections::HashMap<String, super::FunctionMeta>,
+) -> bool {
+    projection.iter().any(|item| match item {
+        SelectItem::Expr { expr, .. } => {
+            super::exists_correlated::contains_exists_or_routine_subquery(expr, user_functions)
+        }
+        SelectItem::Function { function, .. } => {
+            super::filter::function_contains_routine_subquery(function, user_functions)
+        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(|expr| {
+                super::exists_correlated::contains_exists_or_routine_subquery(expr, user_functions)
+            }),
         _ => false,
     })
 }

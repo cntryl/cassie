@@ -190,7 +190,7 @@ impl<'a> Cursor<'a> {
             memory.absorb(reservation);
         }
         if plan.limit_value() != Some(0)
-            && super::super::exists_plan::plan_has_unresolved_exists(&plan)
+            && super::super::exists_plan::plan_has_unresolved_exists(&plan, env.user_functions)
         {
             let (resolved, reservation) = super::super::exists_plan::resolve_plan_exists(
                 &super::ExistsResolutionContext {
@@ -388,7 +388,10 @@ fn projected(
     ctes: &mut CteContext,
     batches: Vec<super::Batch>,
 ) -> Result<super::projection::OwnedExpanded, QueryError> {
-    if super::super::exists_projection::contains(&plan.projection) {
+    if super::super::exists_projection::contains_routine_subquery(
+        &plan.projection,
+        env.user_functions,
+    ) {
         super::exists_projection_phase::apply(env, batches, plan, ctes, None)
             .map(super::projection::OwnedExpanded::untracked)
     } else {

@@ -262,10 +262,11 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
             .rows()
             .to_vec()
     };
+    let scans_before_baseline = column_scans();
     let rows_before = select_rows();
+    let scans_after_baseline = column_scans();
     let warmed = select_rows();
     let hits_before_rollback = cache_hits();
-    let scans_before = column_scans();
     let generation_before = cassie
         .midge
         .collection_generation(&collection)
@@ -317,11 +318,13 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .expect("explain column-batch rollback read")
         .rows()
         .to_vec();
+    let scans_before_eligible_read = column_scans();
     let column_rows_after_rollback = cassie
         .execute_sql(&session, eligible_column_query, Vec::new())
         .expect("read column batches after rollback")
         .rows()
         .to_vec();
+    let scans_after_eligible_read = column_scans();
     let projection_rows = cassie
         .execute_sql(
             &session,
@@ -348,8 +351,8 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
     assert_eq!(cached_after_rollback, rows_before);
     assert_eq!(hits_after_rollback, hits_before_rollback + 1);
     assert!(
-        scans_before > 0,
-        "the warm baseline must use column batches"
+        scans_after_baseline > scans_before_baseline,
+        "the exact baseline read must use column batches"
     );
     let [plan_row] = eligible_column_plan.as_slice() else {
         panic!("expected one column-batch plan row");
@@ -360,7 +363,7 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
     assert!(plan.contains("column_batch_index=copy_rollback_state_idx"));
     assert!(plan.contains("column_fallback_reason=none"));
     assert!(
-        column_scans() > scans_before,
+        scans_after_eligible_read > scans_before_eligible_read,
         "the eligible post-rollback read must use the preserved column batches"
     );
     assert_eq!(

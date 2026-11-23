@@ -34,9 +34,7 @@ impl Drop for ExpressionPreflightGuard {
     }
 }
 
-pub(super) fn enter_expression_preflight(
-    raw: &str,
-) -> Result<ExpressionPreflightGuard, SqlError> {
+pub(super) fn enter_expression_preflight(raw: &str) -> Result<ExpressionPreflightGuard, SqlError> {
     let top_level = EXPRESSION_PREFLIGHT_DEPTH.with(|depth| {
         let top_level = depth.get() == 0;
         depth.set(depth.get().saturating_add(1));

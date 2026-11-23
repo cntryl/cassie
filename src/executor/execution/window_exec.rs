@@ -286,25 +286,6 @@ fn partition_key(
     Ok(SemanticKey::from_semantic_values(keys))
 }
 
-fn evaluate_window_expr(
-    row: &BatchRow,
-    expression: &crate::sql::ast::Expr,
-    context: &WindowExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    if let Some(evaluators) = context.evaluate {
-        return (evaluators.ordinary)(row, expression);
-    }
-    filter::evaluate_expr_value(
-        row,
-        expression,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        context.session,
-        None,
-    )
-}
-
 fn evaluate_window_values(
     rows: &[BatchRow],
     function: &WindowFunctionCall,

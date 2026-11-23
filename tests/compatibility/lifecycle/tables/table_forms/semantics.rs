@@ -156,7 +156,7 @@ fn should_preserve_ctas_type_modifiers_without_materializing_rows() {
                     .query(
                         "SELECT a.attname, a.atttypid::INT, a.atttypmod, a.attnotnull \
                          FROM pg_attribute a \
-                         WHERE a.attrelid = 'compat_ctas_metadata' \
+                         WHERE a.attrelid = (SELECT c.oid FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'compat_ctas_metadata' AND n.nspname = 'public') \
                            AND a.attnum > 0 \
                          ORDER BY a.attnum",
                         &[],

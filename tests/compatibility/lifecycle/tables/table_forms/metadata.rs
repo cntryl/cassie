@@ -20,7 +20,7 @@ fn should_create_table_as_values_with_result_metadata() {
                     .query(
                         "SELECT a.attname, a.atttypid::INT, a.atttypmod, a.attnotnull \
                          FROM pg_attribute a \
-                         WHERE a.attrelid = 'compat_ctas_values_copy' \
+                         WHERE a.attrelid = (SELECT c.oid FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'compat_ctas_values_copy' AND n.nspname = 'public') \
                            AND a.attnum > 0 \
                          ORDER BY attnum",
                         &[],

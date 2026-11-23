@@ -39,9 +39,11 @@ async fn create_catalog_identity_fixture(client: &tokio_postgres::Client) {
 async fn assert_initial_materialized_view_catalog_rows(client: &tokio_postgres::Client) -> i64 {
     let relation = client
         .query_one(
-            "SELECT oid::BIGINT, relkind, relam::INT, relnamespace, \
-                    relnamespace_oid::BIGINT FROM pg_catalog.pg_class \
-             WHERE relname = 'compat_mv_catalog_identity'",
+            "SELECT c.oid::BIGINT, c.relkind, c.relam::INT, namespace.nspname, \
+                    c.relnamespace_oid::BIGINT FROM pg_catalog.pg_class c \
+             JOIN pg_catalog.pg_namespace namespace ON c.relnamespace = namespace.oid \
+             WHERE c.relname = 'compat_mv_catalog_identity' \
+               AND namespace.nspname = 'compat_mv_catalog'",
             &[],
         )
         .await

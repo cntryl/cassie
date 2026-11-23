@@ -344,7 +344,7 @@ fn should_report_constraints_in_catalogs_like_row_tables() {
         let pg_kinds = |mode: &str| {
             pair.run(&format!(
                 "SELECT c.contype::TEXT FROM pg_catalog.pg_constraint c \
-                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 JOIN pg_catalog.pg_class r ON r.oid = c.conrelid \
                  WHERE r.relname = 'cat_{mode}' ORDER BY 1"
             ))
         };

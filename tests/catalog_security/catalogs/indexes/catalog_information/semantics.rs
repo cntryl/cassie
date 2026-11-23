@@ -146,12 +146,15 @@ fn should_omit_cassie_internal_index_methods_from_postgresql_catalogs() {
         .expect("join emitted index relations to genuine access methods");
     let index_rows = fixture
         .execute(
-            "SELECT indexrelid FROM pg_catalog.pg_index \
-             WHERE indexrelid IN (\
+            "SELECT index_class.relname FROM pg_catalog.pg_index index_row \
+             JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+             JOIN pg_catalog.pg_namespace index_namespace ON index_class.relnamespace = index_namespace.oid \
+             WHERE index_class.relname IN (\
                  'issue_817_events_column_idx', \
                  'issue_817_events_timeseries_idx', \
                  'issue_817_events_btree_idx') \
-             ORDER BY indexrelid",
+               AND index_namespace.nspname = 'issue_817_internal_index_catalog' \
+             ORDER BY index_class.relname",
         )
         .expect("read selected pg_index rows");
     let index_views = fixture

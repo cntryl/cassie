@@ -429,10 +429,12 @@ fn should_recover_column_storage_metadata_after_restart() {
     let attributes = rows(
         &reopened,
         &session,
-        "SELECT attrelid, attname, attstorage::TEXT, attcompression::TEXT \
-         FROM pg_catalog.pg_attribute \
-         WHERE attrelid IN ('issue826_storage_source', 'issue826_storage_copy') \
-           AND attnum > 0 ORDER BY attrelid, attnum",
+        "SELECT c.relname AS attrelid, a.attname, a.attstorage::TEXT, a.attcompression::TEXT \
+         FROM pg_catalog.pg_attribute a \
+         JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+         WHERE c.relname IN ('issue826_storage_source', 'issue826_storage_copy') \
+           AND n.nspname = 'public' AND a.attnum > 0 ORDER BY c.relname, a.attnum",
     );
     let comment = rows(
         &reopened,

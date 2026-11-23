@@ -199,6 +199,133 @@ fn should_not_resume_autocommit_insert_in_a_replacement_transaction() {
 }
 
 #[test]
+fn should_wait_for_autocommit_insert_while_delete_owner_is_unresolved() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_delete_owner");
+    for sql in ["BEGIN", "DELETE FROM u WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage DELETE of unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_delete_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 1)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_commit.is_ok());
+    assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(2), Value::Int64(2)],
+            vec![Value::Int64(3), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
+fn should_wait_for_autocommit_insert_while_merge_updates_unique_value() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_merge_update_owner");
+    for sql in [
+        "CREATE TABLE merge_source (id INT PRIMARY KEY, v INT)",
+        "INSERT INTO merge_source VALUES (1, 99)",
+        "BEGIN",
+        "MERGE INTO u AS target USING merge_source AS source ON target.id = source.id WHEN MATCHED THEN UPDATE SET v = source.v",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage MERGE unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_merge_update_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 99)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_commit.is_ok());
+    assert!(matches!(
+        result_event,
+        WaitEvent::Completed(Err(CassieError::UniqueViolation {
+            constraint,
+            ..
+        })) if constraint == "u_v_key"
+    ));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(99)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+}
+
+#[test]
+fn should_wait_for_autocommit_insert_while_merge_delete_owner_is_unresolved() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_merge_delete_owner");
+    for sql in [
+        "CREATE TABLE merge_source (id INT PRIMARY KEY)",
+        "INSERT INTO merge_source VALUES (1)",
+        "BEGIN",
+        "MERGE INTO u AS target USING merge_source AS source ON target.id = source.id WHEN MATCHED THEN DELETE",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage MERGE DELETE of unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_merge_delete_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 1)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_commit.is_ok());
+    assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(2), Value::Int64(2)],
+            vec![Value::Int64(3), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
 fn should_fail_explicit_waiter_insert_when_update_owner_commits() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_explicit_waiter");

@@ -75,10 +75,11 @@ fn should_make_waiting_insert_report_the_duplicate_after_update_owner_commits() 
     let (events, worker) =
         start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 99)");
     let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 
     // Act
     let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
-    let result_event = if matches!(&wait_event, WaitEvent::ReachedWait) {
+    let result_event = if reached_wait {
         receive_event(&events)
     } else {
         wait_event
@@ -87,7 +88,7 @@ fn should_make_waiting_insert_report_the_duplicate_after_update_owner_commits() 
 
     // Assert
     assert!(owner_commit.is_ok(), "UPDATE owner COMMIT must succeed");
-    assert!(matches!(wait_event, WaitEvent::ReachedWait));
+    assert!(reached_wait);
     assert!(matches!(
         result_event,
         WaitEvent::Completed(Err(CassieError::UniqueViolation { constraint, .. }))
@@ -115,10 +116,11 @@ fn should_allow_waiting_insert_after_update_owner_rolls_back() {
     let (events, worker) =
         start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 99)");
     let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 
     // Act
     let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
-    let result_event = if matches!(&wait_event, WaitEvent::ReachedWait) {
+    let result_event = if reached_wait {
         receive_event(&events)
     } else {
         wait_event
@@ -127,7 +129,7 @@ fn should_allow_waiting_insert_after_update_owner_rolls_back() {
 
     // Assert
     assert!(owner_rollback.is_ok());
-    assert!(matches!(wait_event, WaitEvent::ReachedWait));
+    assert!(reached_wait);
     assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
     assert_eq!(
         rows(&cassie, &owner),
@@ -158,10 +160,11 @@ fn should_fail_explicit_waiter_insert_when_update_owner_commits() {
         "INSERT INTO u VALUES (3, 99)",
     );
     let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 
     // Act
     let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
-    let result_event = if matches!(&wait_event, WaitEvent::ReachedWait) {
+    let result_event = if reached_wait {
         receive_event(&events)
     } else {
         wait_event
@@ -173,7 +176,7 @@ fn should_fail_explicit_waiter_insert_when_update_owner_commits() {
 
     // Assert
     assert!(owner_commit.is_ok());
-    assert!(matches!(wait_event, WaitEvent::ReachedWait));
+    assert!(reached_wait);
     assert!(matches!(
         result_event,
         WaitEvent::Completed(Err(CassieError::UniqueViolation { constraint, .. }))
@@ -236,11 +239,12 @@ fn should_detect_deadlock_when_insert_waits_for_update_owner() {
     let (events, worker) =
         start_observed_insert(cassie.clone(), waiter.clone(), "INSERT INTO u VALUES (4, 99)");
     let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 
     // Act
     let cycle = cassie.execute_sql(&owner, "INSERT INTO u VALUES (5, 50)", Vec::new());
     let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
-    let waiting_insert = if matches!(&wait_event, WaitEvent::ReachedWait) {
+    let waiting_insert = if reached_wait {
         receive_event(&events)
     } else {
         wait_event
@@ -257,7 +261,7 @@ fn should_detect_deadlock_when_insert_waits_for_update_owner() {
         })
     ));
     assert!(owner_rollback.is_ok());
-    assert!(matches!(wait_event, WaitEvent::ReachedWait));
+    assert!(reached_wait);
     assert!(matches!(waiting_insert, WaitEvent::Completed(Ok(_))));
     assert!(waiter_commit.is_ok());
 }

@@ -206,6 +206,10 @@ fn should_reject_float_remainder_overloads_with_operator_sqlstates() {
             "SELECT 7::BIGINT % 2.5::DOUBLE PRECISION",
             "operator does not exist: bigint % double precision",
         ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 2.5::DOUBLE PRECISION",
+            "operator does not exist: double precision % double precision",
+        ),
     ];
 
     // Act

@@ -147,6 +147,19 @@ fn should_reject_four_arguments_when_calling_pg_get_expr() {
 }
 
 #[test]
+fn should_reject_non_boolean_pretty_flag_when_calling_pg_get_expr() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-expr-wrong-flag", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_expr('7', 0, 'true')");
+
+    // Assert
+    assert_eq!(result.expect_err("reject a text pretty flag").sql_state(), "42883");
+}
+
+#[test]
 fn should_return_default_expression_for_matching_catalog_oid_and_schema() {
     // Arrange
     let fixture = sql_fixture(

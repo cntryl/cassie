@@ -287,6 +287,19 @@ fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
 }
 
 #[test]
+fn should_reject_non_boolean_pretty_flag_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-indexdef-wrong-flag", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(1, 0, 'true')");
+
+    // Assert
+    assert_eq!(result.expect_err("reject a text pretty flag").sql_state(), "42883");
+}
+
+#[test]
 fn should_join_supported_catalog_oid_fields_for_psql_describe_queries() {
     // Arrange
     let fixture = sql_fixture(

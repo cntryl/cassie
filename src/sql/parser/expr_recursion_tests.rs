@@ -50,6 +50,38 @@ fn should_reject_not_chain_at_one_beyond_depth_boundary() {
 }
 
 #[test]
+fn should_accept_boolean_chains_at_operand_boundary() {
+    // Arrange
+    let or_chain = vec!["true"; 128].join(" OR ");
+    let and_chain = vec!["true"; 128].join(" AND ");
+
+    // Act
+    let or_result = parse_statement(&format!("SELECT {or_chain}"));
+    let and_result = parse_statement(&format!("SELECT {and_chain}"));
+
+    // Assert
+    assert!(or_result.is_ok(), "128 OR operands are within the contract");
+    assert!(and_result.is_ok(), "128 AND operands are within the contract");
+}
+
+#[test]
+fn should_reject_boolean_chains_one_operand_over_boundary() {
+    // Arrange
+    let or_chain = vec!["true"; 129].join(" OR ");
+    let and_chain = vec!["true"; 129].join(" AND ");
+
+    // Act
+    let or_error = parse_statement(&format!("SELECT {or_chain}"))
+        .expect_err("129 OR operands exceed the contract");
+    let and_error = parse_statement(&format!("SELECT {and_chain}"))
+        .expect_err("129 AND operands exceed the contract");
+
+    // Assert
+    assert_eq!(or_error.kind(), SqlErrorKind::ResourceLimit);
+    assert_eq!(and_error.kind(), SqlErrorKind::ResourceLimit);
+}
+
+#[test]
 fn should_reject_case_chain_before_parser_recursion_exceeds_bound() {
     // Arrange
     let sql = format!(

@@ -279,7 +279,7 @@ fn opening_delimiter_at(input: &str, index: usize) -> bool {
     input[index..]
         .chars()
         .next()
-        .is_some_and(|character| matches!(character, '(' | '[' | '\'' | '"'))
+        .is_some_and(|character| matches!(character, '(' | '[' | '\'' | '"' | '+' | '-'))
 }
 
 pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<usize> {

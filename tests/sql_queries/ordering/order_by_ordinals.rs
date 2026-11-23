@@ -165,19 +165,47 @@ fn should_sort_set_operation_output_by_ordinal_of_an_aliased_column() {
 }
 
 #[test]
-fn should_reject_ordinal_whose_output_name_is_another_items_alias() {
+fn should_sort_by_ordinal_even_when_another_output_has_its_name() {
     with_scores("order_by_ordinal_ambiguous", |cassie, session| {
         // Arrange
-        let sql = "SELECT g, v AS g FROM scores ORDER BY 1 DESC";
+        let sql = "SELECT 1 AS c, 2 AS c ORDER BY 1";
 
         // Act
-        let error = error_text(cassie, session, sql);
+        let rows = run(cassie, session, sql).rows().to_vec();
 
         // Assert
-        assert!(
-            error.contains("ORDER BY position 1 is ambiguous"),
-            "unexpected error: {error}"
-        );
+        assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(2)]]);
+    });
+}
+
+#[test]
+fn should_report_postgresql_ambiguity_for_a_duplicated_order_by_name() {
+    with_scores("order_by_duplicated_output_name", |cassie, session| {
+        // Arrange
+        let sql = "SELECT 1 AS c, 2 AS c ORDER BY c";
+
+        // Act
+        let error = cassie
+            .execute_sql(session, sql, vec![])
+            .expect_err("duplicate output names are ambiguous");
+
+        // Assert
+        assert_eq!(error.sql_state(), "42702");
+        assert_eq!(error.to_string(), "ORDER BY \"c\" is ambiguous");
+    });
+}
+
+#[test]
+fn should_keep_order_by_single_output_names_working() {
+    with_scores("order_by_single_output_name", |cassie, session| {
+        // Arrange
+        let sql = "SELECT 1 AS a, 2 AS b ORDER BY a";
+
+        // Act
+        let rows = run(cassie, session, sql).rows().to_vec();
+
+        // Assert
+        assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(2)]]);
     });
 }
 

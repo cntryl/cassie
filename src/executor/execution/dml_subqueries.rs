@@ -4,8 +4,8 @@
 //! references the target row is run for that row, with the row as its outer
 //! scope. Every subquery reads the data as it was when the statement began.
 use super::{
-    filter, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QuerySource, Value,
+    BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QuerySource, Value, filter,
 };
 
 pub(super) struct RowSubqueries<'a> {
@@ -109,7 +109,7 @@ impl RowSubqueries<'_> {
                 _ => {
                     return Err(QueryError::General(
                         "argument of WHERE must be type boolean".into(),
-                    ))
+                    ));
                 }
             }
         }
@@ -150,12 +150,63 @@ pub(super) fn resolve_statement_subqueries(
     }
     let (_read, _overlay) =
         crate::executor::execution::entrypoints::enter_statement_read(scope.controls);
-    crate::executor::execution::resolve_statement_exists(
+    match crate::executor::execution::resolve_statement_exists(
         scope.cassie,
         scope.session,
         expr,
         scope.user_functions,
         scope.params,
         scope.controls,
+    ) {
+        Ok(resolved) => Ok(resolved),
+        Err(error) if crate::executor::execution::subquery_eval::is_interruption(&error) => {
+            Err(error)
+        }
+        Err(_) => Ok(expr.clone()),
+    }
+}
+
+/// Evaluates a subquery expression against a joined DML row. The row already
+/// carries the target and source under their bound qualified names.
+pub(super) fn evaluate_joined(
+    scope: &super::dml_joined::ExecutionScope<'_>,
+    row: &BatchRow,
+    expr: &Expr,
+) -> Result<Value, QueryError> {
+    if !expr.contains_subquery() {
+        return filter::evaluate_expr_value(
+            row,
+            expr,
+            scope.params,
+            None,
+            scope.user_functions,
+            scope.session,
+            None,
+        );
+    }
+    let (_read, _overlay) =
+        crate::executor::execution::entrypoints::enter_statement_read(scope.controls);
+    let ctes = CteContext::new();
+    let context = super::ExistsResolutionContext {
+        cassie: scope.cassie,
+        session: scope.session,
+        cte_context: &ctes,
+        user_functions: scope.user_functions,
+        params: scope.params,
+        parameter_type_oids: &[],
+        controls: scope.controls,
+        outer_row: Some(row),
+    };
+    let resolve = |expr: &Expr| super::resolve_exists_expr(&context, expr);
+    filter::evaluate_resolving_exists(
+        row,
+        expr,
+        filter::ExistsValueContext {
+            params: scope.params,
+            search: None,
+            functions: scope.user_functions,
+            session: scope.session,
+            resolver: &resolve,
+        },
     )
 }

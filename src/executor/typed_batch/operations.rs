@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::capability::{self, Capability};
 use super::scalar::Environment;
-use super::{check_controls, invalid, owner_bytes, Cell, Column, QueryError, TypedBatch};
+use super::{Cell, Column, QueryError, TypedBatch, check_controls, invalid, owner_bytes};
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul, value_clone_bytes};
@@ -128,7 +128,9 @@ impl TypedBatch {
                 SelectItem::Expr { expr, alias } => {
                     let type_owner = env.result_type(self, expr)?;
                     scratch.try_grow(add(
-                        alias.as_deref().unwrap_or("expr").len(),
+                        alias
+                            .as_ref()
+                            .map_or_else(|| expr.implicit_output_name().len(), String::len),
                         data_type_clone_bytes(type_owner.get())?,
                     )?)?;
                     let mut memory =
@@ -150,14 +152,14 @@ impl TypedBatch {
                     }
                     columns.push(Column::from_values(controls, type_owner.get(), &values)?);
                     schema.push((
-                        alias.as_deref().unwrap_or("expr").to_owned(),
+                        alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                         type_owner.get().clone(),
                     ));
                 }
                 _ => {
                     return Err(invalid(
                         "projection uses an existing scalar operator boundary",
-                    ))
+                    ));
                 }
             }
         }

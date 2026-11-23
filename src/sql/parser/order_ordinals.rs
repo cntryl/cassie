@@ -16,10 +16,24 @@ pub(super) fn resolve_order_ordinals(
         .into_iter()
         .map(|item| {
             let Expr::IntegerLiteral(position) = item.expr else {
+                if let Expr::Column(name) = &item.expr {
+                    let matches = projection
+                        .iter()
+                        .filter(|output| output.output_name().eq_ignore_ascii_case(name))
+                        .count();
+                    if matches > 1 {
+                        return Err(SqlError::diagnostic(
+                            "42702",
+                            format!("ORDER BY \"{name}\" is ambiguous"),
+                        ));
+                    }
+                }
                 return Ok(item);
             };
             let expr = output_column_at(position, projection)?;
-            ensure_unambiguous(position, &expr, projection)?;
+            if !ordinal_survives_alias_capture(position, &expr, projection) {
+                return Ok(item);
+            }
             Ok(OrderExpr { expr, ..item })
         })
         .collect()
@@ -42,27 +56,23 @@ pub(super) fn validate_set_order_ordinals(
 /// ORDER BY column references resolve to the first select-list alias with
 /// that name, so a rewritten position must not be captured by a different
 /// item's alias (for example `SELECT g, v AS g ... ORDER BY 1`).
-fn ensure_unambiguous(
-    position: i64,
-    expr: &Expr,
-    projection: &[SelectItem],
-) -> Result<(), SqlError> {
+fn ordinal_survives_alias_capture(position: i64, expr: &Expr, projection: &[SelectItem]) -> bool {
     let Expr::Column(name) = expr else {
-        return Ok(());
+        return true;
     };
-    let captured_by = projection.iter().position(|item| {
-        alias_of(item).is_some_and(|alias| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(alias)
-                == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+    let captures = projection
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| {
+            alias_of(item).is_some_and(|alias| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(alias)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+            })
         })
-    });
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
     let target = usize::try_from(position - 1).ok();
-    match captured_by {
-        Some(index) if Some(index) != target => Err(SqlError::unsupported(format!(
-            "ORDER BY position {position} is ambiguous: output name \"{name}\" is used by more than one select-list item"
-        ))),
-        _ => Ok(()),
-    }
+    captures.is_empty() || captures.len() == 1 && Some(captures[0]) == target
 }
 
 fn alias_of(item: &SelectItem) -> Option<&str> {

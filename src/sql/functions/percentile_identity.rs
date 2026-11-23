@@ -1,7 +1,7 @@
+use crate::sql::ColumnIdentifierPath;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
-use crate::sql::ColumnIdentifierPath;
 
 use super::FunctionId;
 
@@ -111,7 +111,9 @@ fn projection_output_name(item: &SelectItem) -> Option<String> {
         SelectItem::Function { function, alias } => {
             Some(alias.clone().unwrap_or_else(|| function.name.clone()))
         }
-        SelectItem::Expr { alias, .. } => Some(alias.clone().unwrap_or_else(|| "expr".into())),
+        SelectItem::Expr { expr, alias } => {
+            Some(alias.clone().unwrap_or_else(|| expr.implicit_output_name()))
+        }
         SelectItem::WindowFunction { function, alias } => {
             Some(alias.clone().unwrap_or_else(|| function.name.clone()))
         }

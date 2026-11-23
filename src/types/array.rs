@@ -113,6 +113,17 @@ pub(crate) fn parse_text_array_with_dimensions(
     let dimensions = if explicit_dimensions.is_empty() {
         parsed_dimensions
     } else {
+        let declared_elements = explicit_dimensions.iter().try_fold(1usize, |total, item| {
+            usize::try_from(item.length)
+                .ok()
+                .and_then(|length| total.checked_mul(length))
+                .ok_or_else(|| TextArrayError::Invalid("array dimension exceeds size limit".into()))
+        })?;
+        if flat_elements.len() != declared_elements {
+            return Err(TextArrayError::Invalid(
+                "array dimensions do not match array contents".to_string(),
+            ));
+        }
         if !parsed_dimensions.is_empty()
             && (parsed_dimensions.len() != explicit_dimensions.len()
                 || parsed_dimensions

@@ -365,9 +365,8 @@ async fn execute_prepared_portal(
     }
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {
-        Some(cancellation.suspend())
+        Some(cancellation.handle())
     } else {
-        drop(cancellation);
         None
     };
 

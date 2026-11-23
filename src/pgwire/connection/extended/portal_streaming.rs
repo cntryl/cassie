@@ -310,9 +310,8 @@ async fn execute_offset_portal_page(
     let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
     let remains_suspended = result.row_count() > window.page_rows();
     let suspended_cancellation = if remains_suspended {
-        Some(cancellation.suspend())
+        Some(cancellation.handle())
     } else {
-        drop(cancellation);
         None
     };
     let rows_emitted = request.rows_emitted;
@@ -399,9 +398,8 @@ async fn execute_cursor_portal_page(
     };
     cassie.runtime.record_query_peak_memory(peak_bytes);
     let suspended_cancellation = if remains_suspended {
-        Some(cancellation.suspend())
+        Some(cancellation.handle())
     } else {
-        drop(cancellation);
         None
     };
     let portal_name = request.portal_name.to_string();

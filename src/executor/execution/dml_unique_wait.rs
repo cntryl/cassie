@@ -49,7 +49,10 @@ pub(super) fn execute_atomic_dml(
             let batch = cassie
                 .new_statement_batch(session)
                 .map_err(QueryError::from)?;
-            batch.session().set_defer_unique_wait_duplicate(true);
+            // The new owner paths use READ COMMITTED arbitration. Repeatable
+            // read mutations retain their row-conflict check at native commit.
+            let arbitrate = !include_preimages || !batch.session().is_repeatable_read_write();
+            batch.session().set_defer_unique_wait_duplicate(arbitrate);
             let statement_controls = super::super::entrypoints::working_statement_read_controls(
                 cassie,
                 session,
@@ -69,6 +72,10 @@ pub(super) fn execute_atomic_dml(
                 return Err(QueryError::from(crate::app::CassieError::Execution(
                     "session transaction changed while DML was executing".to_owned(),
                 )));
+            }
+            if !arbitrate {
+                cassie.publish_statement_batch(Some(original), batch, controls)?;
+                return Ok(AtomicDmlAttempt::Published(result));
             }
             let owner = if batch.has_enclosing_transaction() {
                 batch.unique_owner_id()

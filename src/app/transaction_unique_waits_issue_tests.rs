@@ -299,6 +299,7 @@ fn should_not_resume_autocommit_insert_in_a_replacement_transaction() {
     };
     worker.join().expect("waiting INSERT worker");
     let visible_rows = rows(&cassie, &waiter);
+    let replacement_status = waiter.transaction_status();
     let replacement_rollback = cassie.execute_sql(&waiter, "ROLLBACK", Vec::new());
 
     // Assert
@@ -310,7 +311,7 @@ fn should_not_resume_autocommit_insert_in_a_replacement_transaction() {
         result_event,
         WaitEvent::Completed(Err(CassieError::Execution(_)))
     ));
-    assert_eq!(waiter.transaction_status(), "in_transaction");
+    assert_eq!(replacement_status, "in_transaction");
     assert_eq!(
         visible_rows,
         vec![

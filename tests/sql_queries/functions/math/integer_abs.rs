@@ -80,7 +80,7 @@ fn should_preserve_abs_result_width_for_int4_boundary_value() {
 
     // Assert
     let result = result.expect("non-minimum int4 absolute value");
-    assert_eq!(result.rows(), &[vec![Value::Int64(2147483647)]]);
+    assert_eq!(result.rows(), &[vec![Value::Int64(2_147_483_647)]]);
     assert_eq!(result.columns()[0].type_oid, 23);
 }
 
@@ -191,11 +191,9 @@ fn should_not_evaluate_abs_for_empty_int4_input() {
     let result = fixture.execute("SELECT abs(v) FROM abs_empty_minimum WHERE false");
 
     // Assert
-    assert!(
-        result
-            .expect("empty input does not evaluate ABS")
-            .rows()
-            .is_empty()
+    assert_eq!(
+        result.expect("empty input does not evaluate ABS").rows(),
+        &[] as &[Vec<Value>]
     );
 }
 
@@ -236,6 +234,6 @@ fn should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine() {
         matches!(builtin_result, Err(cassie::app::CassieError::Execution(message)) if message == "integer out of range")
     );
     let result = result.expect("qualified user routine bypasses builtin ABS lowering");
-    assert_eq!(result.rows(), &[vec![Value::Int64(2147483648)]]);
+    assert_eq!(result.rows(), &[vec![Value::Int64(2_147_483_648)]]);
     assert_eq!(result.columns()[0].type_oid, 20);
 }

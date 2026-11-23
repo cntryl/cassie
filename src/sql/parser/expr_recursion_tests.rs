@@ -87,7 +87,7 @@ fn should_reject_boolean_chains_one_operand_over_boundary() {
 #[test]
 fn should_count_mixed_logical_operators_through_grouped_expressions() {
     // Arrange
-    let grouped_path = |outer_operands, inner_operands| {
+    let grouped_path = |outer_operands: usize, inner_operands: usize| {
         format!(
             "SELECT {} OR ({})",
             vec!["true"; outer_operands - 1].join(" OR "),

@@ -92,7 +92,7 @@ fn active_query_fixture(
         parsed: Some(parsed),
         parameter_count: 0,
         parameter_types: Vec::new(),
-        described: false,
+        described: true,
     };
     state.portals.insert(
         "retained".to_owned(),
@@ -103,7 +103,7 @@ fn active_query_fixture(
             params: Vec::new(),
             parameter_memory: Vec::new(),
             result_formats: Vec::new(),
-            described: false,
+            described: true,
             suspended: None,
             completed_command: None,
         },

@@ -278,9 +278,11 @@ fn should_recover_persisted_materialized_view_after_restart() {
     let attribute_rows = rows(
         &reopened,
         &session,
-        "SELECT attrelid_oid::BIGINT, attname, attnum \
-         FROM pg_catalog.pg_attribute \
-         WHERE attrelid = 'issue826_restart_view' ORDER BY attnum",
+        "SELECT a.attrelid_oid::BIGINT, a.attname, a.attnum \
+         FROM pg_catalog.pg_attribute a \
+         JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+         WHERE c.relname = 'issue826_restart_view' AND n.nspname = 'public' ORDER BY a.attnum",
     );
     let regclass_oid = rows(
         &reopened,

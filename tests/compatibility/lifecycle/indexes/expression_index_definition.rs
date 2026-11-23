@@ -27,7 +27,10 @@ fn should_render_supported_expression_index_definitions() {
             .query_one(
                 "SELECT pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = 'compat_expression_index_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_expression_index_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await
@@ -38,7 +41,10 @@ fn should_render_supported_expression_index_definitions() {
             .query_one(
                 "SELECT pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = 'compat_case_expression_index_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_case_expression_index_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

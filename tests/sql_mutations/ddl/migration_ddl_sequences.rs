@@ -102,7 +102,7 @@ fn restart_and_collect_sequence_state(path: &Path) -> SequenceRestartState {
         attrdefs: query_rows(
             &restarted,
             &session,
-            "SELECT adrelid, adnum, adsrc FROM pg_catalog.pg_attrdef WHERE adrelid = 'migration_orders' ORDER BY adnum",
+            "SELECT c.relname, d.adnum, d.adsrc FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'migration_orders' AND n.nspname = 'public' ORDER BY d.adnum",
         ),
         sequences: query_rows(
             &restarted,

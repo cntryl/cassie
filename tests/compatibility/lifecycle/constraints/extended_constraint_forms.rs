@@ -301,12 +301,21 @@ fn should_use_index_name_for_an_unnamed_unique_constraint() {
             .expect("attach the index without an explicit constraint name");
         let catalog_rows = client
             .query(
-                "SELECT constraint_row.conname, constraint_row.conindid, \
-                        index_row.indexrelid \
+                "SELECT constraint_row.conname, backing_index.relname, \
+                        index_class.relname \
                  FROM pg_catalog.pg_constraint AS constraint_row \
+                 JOIN pg_catalog.pg_class AS table_class \
+                   ON constraint_row.conrelid = table_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace \
+                   ON table_class.relnamespace = namespace.oid \
                  LEFT JOIN pg_catalog.pg_index AS index_row \
                    ON index_row.indexrelid = constraint_row.conindid \
-                 WHERE constraint_row.conrelid = 'compat_unnamed_attach_rows' \
+                 LEFT JOIN pg_catalog.pg_class AS backing_index \
+                   ON constraint_row.conindid = backing_index.oid \
+                 LEFT JOIN pg_catalog.pg_class AS index_class \
+                   ON index_row.indexrelid = index_class.oid \
+                 WHERE table_class.relname = 'compat_unnamed_attach_rows' \
+                   AND namespace.nspname = 'public' \
                    AND constraint_row.contype = 'u'",
                 &[],
             )
@@ -454,8 +463,11 @@ fn should_preserve_nulls_not_distinct_when_adopting_unique_index() {
         // Act
         let reported_policy: bool = client
             .query_one(
-                "SELECT indnullsnotdistinct FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'compat_attach_nulls_key'",
+                "SELECT index_row.indnullsnotdistinct FROM pg_catalog.pg_index index_row \
+                 JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_attach_nulls_key' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

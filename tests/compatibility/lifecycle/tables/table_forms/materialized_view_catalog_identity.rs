@@ -87,9 +87,11 @@ async fn assert_materialized_view_attribute_rows(
 ) {
     let attributes = client
         .query(
-            "SELECT attrelid_oid::BIGINT, attname, attnum, atttypid::INT \
-             FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'compat_mv_catalog_identity' ORDER BY attnum",
+            "SELECT a.attrelid_oid::BIGINT, a.attname, a.attnum, a.atttypid::INT \
+             FROM pg_catalog.pg_attribute a \
+             JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_mv_catalog_identity' AND n.nspname = 'public' ORDER BY a.attnum",
             &[],
         )
         .await
@@ -236,8 +238,10 @@ async fn assert_drop_removes_materialized_view_catalog_rows(client: &tokio_postg
         .get(0);
     let dropped_attributes: bool = client
         .query_one(
-            "SELECT count(*) = 0 FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'compat_mv_catalog_renamed'",
+            "SELECT count(*) = 0 FROM pg_catalog.pg_attribute a \
+             JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_mv_catalog_renamed' AND n.nspname = 'public'",
             &[],
         )
         .await

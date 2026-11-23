@@ -132,8 +132,11 @@ fn should_enforce_composite_unique_nulls_not_distinct_constraint() {
             .expect_err("a repeated composite key containing NULL must conflict");
         let metadata = client
             .query_one(
-                "SELECT indnullsnotdistinct FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'compat_composite_unique_nulls_not_distinct_key'",
+                "SELECT index_row.indnullsnotdistinct FROM pg_catalog.pg_index index_row \
+                 JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_composite_unique_nulls_not_distinct_key' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

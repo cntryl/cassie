@@ -232,3 +232,36 @@ fn should_reject_incompatible_catalog_comparison_operands() {
     assert_eq!(result.expect_err("reject a text and boolean comparison").sql_state(), "42601");
 }
 
+#[test]
+fn should_describe_selected_standard_catalog_object_ids_as_oid() {
+    // Arrange
+    let fixture = sql_fixture("issue-1489-standard-oid-descriptors", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT c.relnamespace, c.reltoastrelid, a.attrelid, d.adrelid, \
+                    i.indexrelid, i.indrelid, con.conrelid, con.conindid, \
+                    con.confrelid, pr.prrelid \
+             FROM pg_catalog.pg_class c \
+             LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid \
+             LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = c.oid \
+             LEFT JOIN pg_catalog.pg_index i ON i.indrelid = c.oid \
+             LEFT JOIN pg_catalog.pg_constraint con ON con.conrelid = c.oid \
+             LEFT JOIN pg_catalog.pg_publication_rel pr ON pr.prrelid = c.oid \
+             LIMIT 0",
+        )
+        .expect("describe selected standard catalog OID fields");
+
+    // Assert
+    assert_eq!(
+        selected
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![26; 10]
+    );
+}
+

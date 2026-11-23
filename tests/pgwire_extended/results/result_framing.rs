@@ -7,6 +7,7 @@ use super::support_pgwire as support;
 const ANSWER_LIMIT: Duration = Duration::from_secs(10);
 const OID_BOOL: i32 = 16;
 const OID_NAME: i32 = 19;
+const OID_OID: i32 = 26;
 const OID_TEXT: i32 = 25;
 
 const INDEX_PREDICATE_SETUP: &[&str] = &[
@@ -15,10 +16,13 @@ const INDEX_PREDICATE_SETUP: &[&str] = &[
     "CREATE INDEX mvp_catalog_rows_partial_idx ON mvp_catalog_rows (payload) WHERE payload <> ''",
 ];
 
-const INDEX_PREDICATE_QUERY: &str = "SELECT indexrelid, indisunique, indisprimary, indpred \
-    FROM pg_catalog.pg_index \
-    WHERE indrelid = 'mvp_catalog_rows' \
-    ORDER BY indexrelid";
+const INDEX_PREDICATE_QUERY: &str = "SELECT index_class.relname AS indexrelid, i.indisunique, i.indisprimary, i.indpred \
+    FROM pg_catalog.pg_index i \
+    JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid \
+    JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid \
+    JOIN pg_catalog.pg_namespace namespace ON table_class.relnamespace = namespace.oid \
+    WHERE table_class.relname = 'mvp_catalog_rows' AND namespace.nspname = 'public' \
+    ORDER BY index_class.relname";
 
 type Frames = Vec<(u8, Vec<u8>)>;
 
@@ -620,7 +624,7 @@ fn should_describe_pg_index_columns_given_empty_binary_result() {
             .map(|field| (field.name.as_str(), field.type_oid, field.format_code))
             .collect::<Vec<_>>(),
         vec![
-            ("indexrelid", OID_TEXT, 1),
+            ("indexrelid", OID_OID, 1),
             ("indisunique", OID_BOOL, 1),
             ("indisprimary", OID_BOOL, 1),
             ("indpred", OID_TEXT, 1),

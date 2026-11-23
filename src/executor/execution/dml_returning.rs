@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use super::super::projection_handoff::ProjectionOutputMemory;
 use super::super::{
-    check_timeout, exists_projection, scan, source, Batch, CteContext, QuerySource,
+    Batch, CteContext, QuerySource, check_timeout, exists_projection, scan, source,
 };
 use super::{
-    dml_returning_columns, BatchRow, CollectionSchema, DataType, DmlResultContext, QueryError,
-    QueryResult, Value,
+    BatchRow, CollectionSchema, DataType, DmlResultContext, QueryError, QueryResult, Value,
+    dml_returning_columns,
 };
 use crate::executor::batch::OperatorMemory;
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};

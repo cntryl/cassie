@@ -2,14 +2,14 @@
 mod wait_inputs;
 use super::dml_returning;
 use super::{
-    apply_update_value, build_dml_result, check_timeout, dml_referential_actions, execute_plan,
-    filter, inserted_row_to_batch_row, integral_json_number, json_to_value,
-    value_to_json_for_field, BatchRow, Cassie, CassieSession, CollectionSchema, CteContext,
-    DataType, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan,
-    QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, CteContext, DataType, DmlResultContext,
+    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, Value, apply_update_value, build_dml_result,
+    check_timeout, dml_referential_actions, execute_plan, filter, inserted_row_to_batch_row,
+    integral_json_number, json_to_value, value_to_json_for_field,
 };
 pub(in crate::executor::execution) use wait_inputs::{
-    execute_prepared_insert, prepare_waiting_insert, WaitingInsert,
+    WaitingInsert, execute_prepared_insert, prepare_waiting_insert,
 };
 
 #[path = "insert_cells.rs"]

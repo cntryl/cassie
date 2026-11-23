@@ -9,9 +9,9 @@
 use std::collections::HashMap as StdHashMap;
 
 use super::{
-    batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, scan, BatchRow, Cassie,
-    CassieSession, CollectionSchema, CteContext, Expr, FieldMeta, FunctionMeta, HashMap,
-    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, CteContext, Expr, FieldMeta, FunctionMeta,
+    HashMap, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value, batch,
+    check_timeout, ensure_query_memory_budget, execute_plan, filter, scan,
 };
 use crate::sql::ast::{MutationSource, MutationSourceField, ReturningAliases, SelectStatement};
 use crate::types::row_identity::ROW_IDENTITY_COLUMN;

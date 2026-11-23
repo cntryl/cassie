@@ -1,6 +1,6 @@
 //! The result-row cap bounds the rows a query returns, so rows skipped by OFFSET do not count
 //! against it.
-use super::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
+use super::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
 use cassie::types::Value;
 
 fn fixture_with_result_cap(label: &str, scan_workers: usize, max_result_rows: usize) -> SqlFixture {
@@ -150,9 +150,8 @@ fn should_aggregate_a_joined_subquery_larger_than_the_result_cap() {
     let fixture = capped_fixture("joined-subquery-cap", 2);
 
     // Act
-    let rows = fixture.rows(
-        "SELECT count(*) FROM capped a JOIN (SELECT n FROM capped) b ON a.n = b.n",
-    );
+    let rows =
+        fixture.rows("SELECT count(*) FROM capped a JOIN (SELECT n FROM capped) b ON a.n = b.n");
 
     // Assert
     assert_eq!(rows, vec![vec![Value::Int64(20)]]);
@@ -189,9 +188,8 @@ fn should_update_every_matching_row_from_a_derived_source_larger_than_the_result
         .expect("seed target");
 
     // Act
-    let result = fixture.execute(
-        "UPDATE updated SET hit = 1 FROM (SELECT n FROM capped) s WHERE updated.n = s.n",
-    );
+    let result = fixture
+        .execute("UPDATE updated SET hit = 1 FROM (SELECT n FROM capped) s WHERE updated.n = s.n");
 
     // Assert
     assert!(result.is_ok(), "all source rows fit the memory budget");
@@ -213,11 +211,13 @@ fn should_update_every_matching_row_from_a_direct_source_larger_than_the_result_
         .expect("seed target");
 
     // Act
-    let result =
-        fixture.execute("UPDATE updated SET hit = 1 FROM capped s WHERE updated.n = s.n");
+    let result = fixture.execute("UPDATE updated SET hit = 1 FROM capped s WHERE updated.n = s.n");
 
     // Assert
-    assert!(result.is_ok(), "all direct source rows fit the memory budget");
+    assert!(
+        result.is_ok(),
+        "all direct source rows fit the memory budget"
+    );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM updated WHERE hit = 1"),
         vec![vec![Value::Int64(20)]]
@@ -239,7 +239,10 @@ fn should_delete_every_matching_row_from_a_direct_source_larger_than_the_result_
     let result = fixture.execute("DELETE FROM deleted USING capped s WHERE deleted.n = s.n");
 
     // Assert
-    assert!(result.is_ok(), "all direct source rows fit the memory budget");
+    assert!(
+        result.is_ok(),
+        "all direct source rows fit the memory budget"
+    );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM deleted"),
         vec![vec![Value::Int64(0)]]
@@ -263,7 +266,10 @@ fn should_merge_every_matching_row_from_a_direct_source_larger_than_the_result_c
     );
 
     // Assert
-    assert!(result.is_ok(), "all direct source rows fit the memory budget");
+    assert!(
+        result.is_ok(),
+        "all direct source rows fit the memory budget"
+    );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM merged WHERE hit = 1"),
         vec![vec![Value::Int64(20)]]
@@ -376,13 +382,15 @@ fn should_reject_over_cap_returning_before_publishing_inserted_rows() {
         .expect("create target");
 
     // Act
-    let error = fixture.error(
-        "INSERT INTO returned SELECT n FROM capped WHERE n < 12 RETURNING n",
-    );
+    let error = fixture.error("INSERT INTO returned SELECT n FROM capped WHERE n < 12 RETURNING n");
 
     // Assert
     assert_eq!(error.sql_state(), "54000");
-    assert!(error.to_string().contains("query result row limit exceeded"));
+    assert!(
+        error
+            .to_string()
+            .contains("query result row limit exceeded")
+    );
     assert_eq!(
         fixture.rows("SELECT count(*) FROM returned"),
         vec![vec![Value::Int64(0)]],

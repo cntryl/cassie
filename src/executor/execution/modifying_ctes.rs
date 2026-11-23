@@ -12,13 +12,13 @@
 use std::mem::size_of;
 
 use super::{
-    build_select_result, dml_command, execute_plan, Cassie, CassieSession, CommonTableExpression,
-    CteContext, CteQuery, Expr, FunctionMeta, HashMap, LogicalCommand, PhysicalPlan, QueryError,
-    QueryExecutionControls, QueryResult, QuerySource, QueryStatement, SelectItem, Value,
+    Cassie, CassieSession, CommonTableExpression, CteContext, CteQuery, Expr, FunctionMeta,
+    HashMap, LogicalCommand, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
+    QuerySource, QueryStatement, SelectItem, Value, build_select_result, dml_command, execute_plan,
 };
 use crate::executor::retained_memory::{add, mul, value_clone_bytes};
-use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryMemoryReservation;
+use crate::runtime::accounted::AccountedVec;
 use crate::sql::ast::{InsertSource, OrderExpr, ParsedStatement, SelectStatement};
 use crate::sql::binder::cte_bodies::cte_is_modifying;
 
@@ -116,7 +116,12 @@ fn execute(
     match &plan.logical.command {
         None => {
             let mut logical = plan.logical.clone();
-            replace(&mut logical.ctes, &relations, &snapshot, &mut relation_memory)?;
+            replace(
+                &mut logical.ctes,
+                &relations,
+                &snapshot,
+                &mut relation_memory,
+            )?;
             let mut context = CteContext::new();
             let rows = execute_plan(
                 inputs.cassie,
@@ -258,17 +263,15 @@ fn relation_storage_bytes(
     let expression_count = if rows.is_empty() {
         columns.len().max(1)
     } else {
-        rows.iter().try_fold(0usize, |count, row| add(count, row.len()))?
+        rows.iter()
+            .try_fold(0usize, |count, row| add(count, row.len()))?
     };
     let mut bytes = add(
         add(
             size_of::<CommonTableExpression>(),
             size_of::<ParsedStatement>(),
         )?,
-        add(
-            size_of::<SelectStatement>(),
-            size_of::<QuerySource>(),
-        )?,
+        add(size_of::<SelectStatement>(), size_of::<QuerySource>())?,
     )?;
     bytes = add(bytes, mul(row_count, size_of::<Vec<Expr>>())?)?;
     bytes = add(bytes, mul(expression_count, size_of::<Expr>())?)?;
@@ -285,12 +288,15 @@ fn relation_storage_bytes(
             size_of::<String>(),
         )?,
     )?;
-    let column_name_bytes = columns.iter().try_fold(0usize, |total, column| {
-        add(total, column.name.capacity())
-    })?;
+    let column_name_bytes = columns
+        .iter()
+        .try_fold(0usize, |total, column| add(total, column.name.capacity()))?;
     bytes = add(
         bytes,
-        mul(column_name_bytes, if cte.aliases.is_empty() { 2 } else { 1 })?,
+        mul(
+            column_name_bytes,
+            if cte.aliases.is_empty() { 2 } else { 1 },
+        )?,
     )?;
     bytes = add(bytes, mul(cte.name.capacity(), 2)?)?;
     if !cte.aliases.is_empty() {
@@ -327,9 +333,18 @@ fn relation_clone_memory_bytes(cte: &CommonTableExpression) -> Result<usize, Que
         ));
     };
     bytes = add(bytes, size_of::<SelectStatement>())?;
-    bytes = add(bytes, mul(select.ctes.capacity(), size_of::<CommonTableExpression>())?)?;
-    bytes = add(bytes, mul(select.distinct_on.capacity(), size_of::<Expr>())?)?;
-    bytes = add(bytes, mul(select.projection.capacity(), size_of::<SelectItem>())?)?;
+    bytes = add(
+        bytes,
+        mul(select.ctes.capacity(), size_of::<CommonTableExpression>())?,
+    )?;
+    bytes = add(
+        bytes,
+        mul(select.distinct_on.capacity(), size_of::<Expr>())?,
+    )?;
+    bytes = add(
+        bytes,
+        mul(select.projection.capacity(), size_of::<SelectItem>())?,
+    )?;
     bytes = add(bytes, mul(select.group_by.capacity(), size_of::<Expr>())?)?;
     bytes = add(bytes, mul(select.order.capacity(), size_of::<OrderExpr>())?)?;
     let QuerySource::Aliased {
@@ -370,7 +385,8 @@ fn replace(
 ) -> Result<(), QueryError> {
     for cte in ctes {
         if let Some(relation) = relations.iter().find(|relation| relation.name == cte.name) {
-            let reservation = controls.reserve_query_memory(relation_clone_memory_bytes(relation)?)?;
+            let reservation =
+                controls.reserve_query_memory(relation_clone_memory_bytes(relation)?)?;
             relation_memory.try_push_with(0, || reservation)?;
             controls.check_interruption()?;
             *cte = relation.clone();
@@ -586,17 +602,15 @@ mod retained_relation_tests {
         let mut ctes = vec![cte.clone(), cte];
 
         // Act
-        let result = replace(
-            &mut ctes,
-            &[relation],
-            &controls,
-            &mut clone_memory,
-        );
+        let result = replace(&mut ctes, &[relation], &controls, &mut clone_memory);
 
         // Assert
         assert!(result.is_err(), "the second relation clone must be denied");
         assert_eq!(ctes[0].aliases, ["payload"]);
-        assert!(ctes[1].aliases.is_empty(), "denial precedes the second clone");
+        assert!(
+            ctes[1].aliases.is_empty(),
+            "denial precedes the second clone"
+        );
         drop(clone_memory);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

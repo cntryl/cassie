@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use super::dispatch::build_exists_logical_plan;
 use super::{
-    execute_plan_with_outer_row, plan_execution_env_with_parameter_oids, resolve_exists_expr,
-    ExistsResolutionContext, Expr, LogicalPlan, QueryError,
+    ExistsResolutionContext, Expr, LogicalPlan, QueryError, execute_plan_with_outer_row,
+    plan_execution_env_with_parameter_oids, resolve_exists_expr,
 };
 use crate::sql::ast::{SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows};
 

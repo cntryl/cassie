@@ -164,6 +164,74 @@ fn should_cancel_copy_before_partial_commit() {
 }
 
 #[test]
+fn should_cancel_copy_after_the_first_row_is_staged() {
+    // Arrange
+    let path = data_dir("copy-cancel-after-first-staged-row");
+    let cassie = std::sync::Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
+    cassie.startup().expect("startup");
+    let staged = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let resume = std::sync::Arc::new(std::sync::Barrier::new(2));
+    cassie::app::set_copy_row_staged_barriers(
+        Some(std::sync::Arc::clone(&staged)),
+        Some(std::sync::Arc::clone(&resume)),
+    );
+    let cancellation = QueryCancellationHandle::new();
+    let worker_cancellation = cancellation.clone();
+    let worker_cassie = std::sync::Arc::clone(&cassie);
+    let worker = std::thread::spawn(move || {
+        let session = worker_cassie.create_session("copy-midstream-cancel", None);
+        worker_cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE copy_midstream_cancel (id INT PRIMARY KEY, title TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        worker_cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin transaction");
+        let result = worker_cassie.copy_from_csv_stdin_with_cancellation(
+            &session,
+            &CopyStatement {
+                table: "copy_midstream_cancel".to_string(),
+                columns: vec!["id".to_string(), "title".to_string()],
+                format: CopyFormat::Csv,
+                header: false,
+            },
+            b"1,first\n2,second\n",
+            &worker_cancellation,
+        );
+        worker_cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .expect("rollback canceled COPY");
+        let rows = worker_cassie
+            .execute_sql(
+                &session,
+                "SELECT title FROM copy_midstream_cancel ORDER BY id",
+                vec![],
+            )
+            .expect("read after rollback")
+            .rows()
+            .to_vec();
+        (result, rows)
+    });
+    staged.wait();
+
+    // Act
+    cancellation.cancel();
+    resume.wait();
+    let (result, rows) = worker.join().expect("COPY worker completes");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::QueryCanceled)
+    ));
+    assert_eq!(rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_rollback_transactional_copy_without_publishing_rows() {
     // Arrange
     with_copy_table("copy-transaction-rollback", |cassie, session| {

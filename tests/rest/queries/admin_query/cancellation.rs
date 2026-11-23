@@ -110,7 +110,16 @@ fn should_acknowledge_admin_query_cancellation_before_returning() {
                 .await
                 .expect("query response")
         });
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if cassie::rest::is_active_for_test(operation_id) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("query operation must register");
         let cancellation = client
             .delete(format!(
                 "{base_url}/api/v1/admin/query-operations/{operation_id}"

@@ -85,6 +85,15 @@ pub(crate) fn register(
     })
 }
 
+#[doc(hidden)]
+pub fn is_active_for_test(id: Uuid) -> bool {
+    REGISTRY
+        .lock()
+        .expect("query operation registry")
+        .active
+        .contains_key(&id)
+}
+
 pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(), CancelError> {
     let (operation, completed) = {
         let registry = REGISTRY.lock().expect("query operation registry");

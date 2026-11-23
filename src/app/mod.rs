@@ -120,6 +120,8 @@ mod auth;
 pub(crate) use auth::AuthenticatedPrincipal;
 mod auth_rate_limit;
 mod bulk_ingest;
+#[doc(hidden)]
+pub use bulk_ingest::set_copy_row_staged_barriers;
 pub(crate) use bulk_ingest::{copy_columns, CopyColumn, CopyCsvOptions, CopyIngestOptions};
 mod consistency;
 mod database_images;

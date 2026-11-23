@@ -1,6 +1,6 @@
-use super::{catalog, refresh_table_cardinality_stats, Cassie, FieldSchema, QueryError};
+use super::{catalog, refresh_table_cardinality_stats, Cassie, QueryError};
 use crate::app::{CassieError, CassieSession};
-use crate::types::DataType;
+use crate::types::{DataType, FieldSchema};
 
 /// The column of an `ALTER TABLE ... ADD COLUMN`.
 pub(super) struct NewColumn<'a> {

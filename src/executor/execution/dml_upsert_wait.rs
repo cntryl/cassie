@@ -227,6 +227,7 @@ fn publish_prepared_upsert(
         params,
         functions,
         controls: _,
+        arbiter: _,
     } = request;
     let result = super::dml::execute_prepared_insert(
         working_cassie,

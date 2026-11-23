@@ -218,7 +218,7 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .get_materialized_projection("copy_rollback_projection")
         .expect("projection metadata")
         .collection;
-    let query = "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY id";
+    let query = "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
     let select_rows = || {
         cassie
             .execute_sql(&session, query, Vec::new())

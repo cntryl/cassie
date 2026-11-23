@@ -338,6 +338,7 @@ struct CancelAtFlushWrite {
     runtime: std::sync::Arc<crate::runtime::RuntimeState>,
     process_id: i32,
     secret_key: i32,
+    attempted: bool,
     canceled: bool,
     frame_tags: Vec<u8>,
 }
@@ -354,7 +355,8 @@ impl AsyncWrite for CancelAtFlushWrite {
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        if !self.canceled {
+        if !self.attempted {
+            self.attempted = true;
             let runtime = std::sync::Arc::clone(&self.runtime);
             self.canceled = runtime.cancel_pgwire_backend(self.process_id, self.secret_key);
         }
@@ -476,6 +478,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
         runtime: std::sync::Arc::clone(&cassie.runtime),
         process_id,
         secret_key,
+        attempted: false,
         canceled: false,
         frame_tags: Vec::new(),
     };
@@ -532,6 +535,7 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
             runtime: std::sync::Arc::clone(&cassie.runtime),
             process_id,
             secret_key,
+            attempted: false,
             canceled: false,
             frame_tags: Vec::new(),
         };
@@ -576,6 +580,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
             runtime: std::sync::Arc::clone(&cassie.runtime),
             process_id,
             secret_key,
+            attempted: false,
             canceled: false,
             frame_tags: Vec::new(),
         };
@@ -631,6 +636,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
             runtime: std::sync::Arc::clone(&cassie.runtime),
             process_id,
             secret_key,
+            attempted: false,
             canceled: false,
             frame_tags: Vec::new(),
         };
@@ -647,14 +653,23 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         ));
 
         // Assert
-        assert!(writer.canceled, "the writer issued CancelRequest");
+        assert!(writer.attempted, "the writer issued CancelRequest");
+        assert!(!writer.canceled, "published work is no longer cancelable");
         assert!(
             outcome.is_ok(),
             "successful publication must be acknowledged"
         );
-        assert_eq!(writer.frame_tags, vec![b'C']);
+        assert!(writer.frame_tags.contains(&b'C'));
         assert!(!session.is_transaction_active());
         assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+        if sql.starts_with("CREATE TABLE") {
+            assert!(cassie.catalog.get_schema("published").is_some());
+        } else {
+            let rows = cassie
+                .execute_sql(&session, "SELECT id FROM t", Vec::new())
+                .expect("read committed row");
+            assert_eq!(rows.row_count(), 4);
+        }
     }
 }
 

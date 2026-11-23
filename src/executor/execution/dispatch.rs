@@ -676,6 +676,61 @@ pub(super) fn resolve_exists_expr<'a>(
     }
 }
 
+pub(super) fn resolve_exists_expr_with_local_args(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    local_args: Option<&HashMap<String, Value>>,
+) -> ExprResolution<'_> {
+    let Some(local_args) = local_args else {
+        return resolve_exists_expr(context, expr);
+    };
+    context.controls.check_interruption()?;
+    let (entries_bytes, names_bytes, values_bytes) = local_args.iter().try_fold(
+        (0_usize, 0_usize, 0_usize),
+        |(entries, names, values), (name, value)| {
+            Ok::<_, QueryError>((
+                crate::executor::retained_memory::add(
+                    entries,
+                    std::mem::size_of::<(String, Value)>(),
+                )?,
+                crate::executor::retained_memory::add(names, name.capacity())?,
+                crate::executor::retained_memory::add(
+                    values,
+                    crate::executor::retained_memory::value_clone_bytes(value)?,
+                )?,
+            ))
+        },
+    )?;
+    let memory_bytes = crate::executor::retained_memory::add(
+        crate::executor::retained_memory::add(
+            std::mem::size_of::<BatchRow>(),
+            crate::executor::retained_memory::add(
+                entries_bytes,
+                crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(
+                    local_args.len(),
+                )?,
+            )?,
+        )?,
+        crate::executor::retained_memory::add(
+            crate::executor::retained_memory::mul(names_bytes, 2)?,
+            values_bytes,
+        )?,
+    )?;
+    let memory = std::sync::Arc::new(context.controls.reserve_query_memory(memory_bytes)?);
+    let row = BatchRow::new(
+        local_args
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
+    )
+    .with_query_memory(Some(memory));
+    let scoped = ExistsResolutionContext {
+        outer_row: Some(&row),
+        ..*context
+    };
+    resolve_exists_expr(&scoped, expr)
+}
+
 fn resolve_subscript_exists_expr<'a>(
     context: &'a ExistsResolutionContext<'a>,
     array: &'a Expr,

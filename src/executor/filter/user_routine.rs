@@ -1,7 +1,7 @@
 //! SQL routine argument and body evaluation under the invoking expression context.
 use super::{
-    cast_scalar, eval_scalar, execution_controls, merge_local_args, scalar_from_value, EvalContext,
-    HashMap, HashSet, QueryError, RowAccess, Value,
+    cast_scalar, execution_controls, scalar_from_value, EvalContext, HashMap, HashSet, QueryError,
+    RowAccess, Value,
 };
 use crate::executor::filter::EvaluationMemory;
 use std::cell::Cell;
@@ -165,16 +165,18 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
                 &arg.data_type,
                 execution_controls(context),
             )?;
-            Ok((arg.name.to_ascii_lowercase(), value.to_value()))
+            Ok((
+                crate::sql::ColumnIdentifierPath::reference_field_key(&arg.name),
+                value.to_value(),
+            ))
         })
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
-    let merged_args = merge_local_args(context.local_args, locals);
     if context.memory.is_some() {
         let result = super::super::evaluate_expr_value_with_context(
             row,
             &body,
             EvalContext {
-                local_args: Some(&merged_args),
+                local_args: Some(&locals),
                 ..context
             },
         )
@@ -193,14 +195,13 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         }
         return result;
     }
-    let result = eval_scalar(
+    let result = super::super::evaluate_expr_value_with_context(
         row,
         &body,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        Some(&merged_args),
-        context.session,
+        EvalContext {
+            local_args: Some(&locals),
+            ..context
+        },
     )
     .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
     .map(|value| value.to_value());

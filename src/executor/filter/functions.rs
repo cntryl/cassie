@@ -848,21 +848,6 @@ fn evaluate_hybrid_score(args: &[Value]) -> Result<Value, QueryError> {
     )))
 }
 
-fn merge_local_args(
-    outer: Option<&HashMap<String, Value>>,
-    locals: HashMap<String, Value>,
-) -> HashMap<String, Value> {
-    if let Some(outer) = outer {
-        let mut merged = outer.clone();
-        for (name, value) in locals {
-            merged.insert(name, value);
-        }
-        merged
-    } else {
-        locals
-    }
-}
-
 fn parse_f64_to_i64(value: f64) -> Option<i64> {
     if !value.is_finite() || value.fract() != 0.0 {
         return None;

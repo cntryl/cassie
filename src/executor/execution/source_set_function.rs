@@ -229,7 +229,9 @@ pub(super) fn argument_value(
         controls: env.controls,
         outer_row: Some(row),
     };
-    let resolver = |expr: &Expr| super::resolve_exists_expr(&context, expr);
+    let resolver = |expr: &Expr, local_args| {
+        super::resolve_exists_expr_with_local_args(&context, expr, local_args)
+    };
     super::filter::evaluate_source_argument_resolving(
         row,
         expression,

@@ -393,7 +393,7 @@ fn should_keep_a_resolved_source_argument_deletion_in_its_existing_owner() {
     let row = typed_json_row(serde_json::json!({"drop":1,"keep":2}));
     let expression = crate::sql::parser::parse_expression("doc - 'drop'").expect("expression");
     let functions = HashMap::new();
-    let resolver = |expr: &Expr| Ok(expr.clone());
+    let resolver = |expr: &Expr, _| Ok(expr.clone());
     let context = ExistsValueContext {
         params: &[],
         search: None,

@@ -76,7 +76,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
 
 fn resolve(expr: &Expr, context: EvalContext<'_>) -> Result<Expr, QueryError> {
     let resolve = context.exists.ok_or_else(unresolved)?;
-    let resolved = resolve(expr)?;
+    let resolved = resolve(expr, context.local_args)?;
     match &resolved {
         Expr::Subquery(subquery) if subquery.outcome.is_some() => Ok(resolved),
         _ => Err(unresolved()),

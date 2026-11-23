@@ -9,7 +9,7 @@ fn should_skip_unselected_exists_callbacks() {
     let row = BatchRow::new(vec![]);
     let functions = HashMap::new();
     let calls = Cell::new(0);
-    let resolver = |_: &Expr| {
+    let resolver = |_: &Expr, _| {
         calls.set(calls.get() + 1);
         Ok(Expr::BoolLiteral(true))
     };
@@ -51,7 +51,7 @@ fn should_invoke_reached_exists_callbacks_once() {
     let row = BatchRow::new(vec![]);
     let functions = HashMap::new();
     let calls = Cell::new(0);
-    let resolver = |_: &Expr| {
+    let resolver = |_: &Expr, _| {
         calls.set(calls.get() + 1);
         Ok(Expr::BoolLiteral(true))
     };
@@ -86,7 +86,7 @@ fn should_retain_selected_coalesce_parameter_carrier() {
     let row = BatchRow::new(vec![]);
     let functions = HashMap::new();
     let calls = Cell::new(0);
-    let resolver = |_: &Expr| {
+    let resolver = |_: &Expr, _| {
         calls.set(calls.get() + 1);
         Ok(Expr::BoolLiteral(true))
     };
@@ -131,7 +131,7 @@ fn should_resolve_selected_function_arguments_once() {
         },
     )]);
     let calls = Cell::new(0);
-    let resolver = |_: &Expr| {
+    let resolver = |_: &Expr, _| {
         calls.set(calls.get() + 1);
         Ok(Expr::BoolLiteral(true))
     };
@@ -160,7 +160,7 @@ fn should_resolve_selected_function_arguments_once() {
 }
 
 #[test]
-fn should_preserve_unclassified_function_body_errors() {
+fn should_resolve_function_body_exists_with_the_callers_resolver() {
     // Arrange
     let row = BatchRow::new(vec![]);
     let functions = HashMap::from([(
@@ -175,7 +175,7 @@ fn should_preserve_unclassified_function_body_errors() {
         },
     )]);
     let calls = Cell::new(0);
-    let resolver = |_: &Expr| {
+    let resolver = |_: &Expr, _| {
         calls.set(calls.get() + 1);
         Ok(Expr::BoolLiteral(true))
     };
@@ -196,7 +196,6 @@ fn should_preserve_unclassified_function_body_errors() {
     );
 
     // Assert
-    assert!(matches!(result, Err(QueryError::General(ref message))
-        if message == "EXISTS predicate was not resolved before filtering"));
-    assert_eq!(calls.get(), 0);
+    assert_eq!(result.expect("routine body EXISTS"), Value::Bool(true));
+    assert_eq!(calls.get(), 1);
 }

@@ -235,6 +235,50 @@ fn should_preserve_rewritten_view_function_scope_after_restart() {
     cassie.shutdown();
 }
 
+struct NamespaceMetadataFailureGuard;
+
+impl Drop for NamespaceMetadataFailureGuard {
+    fn drop(&mut self) {
+        cassie::midge::adapter::set_namespace_metadata_rename_failure_point(false);
+    }
+}
+
+#[test]
+fn should_rollback_namespace_function_and_view_metadata_on_publication_failure() {
+    // Arrange
+    let fixture = sql_fixture(
+        "schema-rename-metadata-publication-failure",
+        &[
+            "CREATE SCHEMA failure_source",
+            "CREATE FUNCTION failure_source.same_name() RETURNS INT AS '61'",
+            "SET search_path = failure_source, public",
+            "CREATE VIEW failure_view AS SELECT same_name() AS result",
+        ],
+    );
+    cassie::midge::adapter::set_namespace_metadata_rename_failure_point(true);
+    let _guard = NamespaceMetadataFailureGuard;
+
+    // Act
+    let error = fixture.error("ALTER SCHEMA failure_source RENAME TO failure_next");
+    let rows = fixture.rows("SELECT result FROM failure_view");
+    let function_rows = fixture.rows("SELECT failure_source.same_name()");
+
+    // Assert
+    assert_eq!(error.sql_state(), "XX000");
+    assert_eq!(rows, vec![vec![Value::Int64(61)]]);
+    assert_eq!(function_rows, vec![vec![Value::Int64(61)]]);
+    assert!(fixture
+        .cassie
+        .catalog
+        .get_namespace("failure_source")
+        .is_some());
+    assert!(fixture
+        .cassie
+        .catalog
+        .get_namespace("failure_next")
+        .is_none());
+}
+
 #[test]
 fn should_preserve_literals_in_an_external_view_when_its_source_schema_is_renamed() {
     // Arrange

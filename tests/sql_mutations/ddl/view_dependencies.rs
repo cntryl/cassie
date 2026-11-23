@@ -430,6 +430,34 @@ fn should_preserve_nested_view_function_scope_during_exists_rebinding() {
     assert_eq!(value, vec![vec![Value::Bool(true)]]);
 }
 
+#[test]
+fn should_preserve_view_scope_for_scalar_derived_and_having_phases() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-function-phase-scope",
+        &[
+            "CREATE TABLE phase_source (id INT)",
+            "INSERT INTO phase_source VALUES (1), (2)",
+            "CREATE SCHEMA selected_phases",
+            "CREATE SCHEMA caller_phases",
+            "CREATE FUNCTION selected_phases.keep_value(x INT) RETURNS BOOL AS 'x = 2'",
+            "CREATE FUNCTION caller_phases.keep_value(x INT) RETURNS BOOL AS 'x = 1'",
+            "SET search_path = selected_phases, public",
+            "CREATE VIEW phase_scope_view AS \
+             SELECT id FROM (SELECT id FROM phase_source) AS derived \
+             WHERE (SELECT keep_value(MAX(id)) FROM phase_source) \
+             GROUP BY id HAVING keep_value(id)",
+            "SET search_path = caller_phases, public",
+        ],
+    );
+
+    // Act
+    let rows = fixture.rows("SELECT id FROM phase_scope_view");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(2)]]);
+}
+
 struct ViewFunctionDirectory(String);
 
 impl Drop for ViewFunctionDirectory {

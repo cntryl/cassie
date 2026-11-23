@@ -102,10 +102,12 @@ pub(super) fn execute(request: UpsertRequest<'_>) -> Result<QueryResult, QueryEr
                 key,
                 blocker,
                 owner,
+                wait_id,
             } => request.cassie.transaction_unique_waits.wait_for_key(
                 owner,
                 blocker,
                 &key,
+                wait_id,
                 request.controls,
             )?,
         }
@@ -175,11 +177,16 @@ impl PendingUpsert {
             .transaction_unique_waits
             .claim_keys(current_owner, keys)?
         {
-            UniqueKeyClaim::Wait { key, owner } => {
+            UniqueKeyClaim::Wait {
+                key,
+                owner,
+                wait_id,
+            } => {
                 return Ok(Attempt::Wait {
                     key,
                     blocker: owner,
                     owner: current_owner,
+                    wait_id,
                 })
             }
             UniqueKeyClaim::Claimed => {}
@@ -221,6 +228,7 @@ enum Attempt {
         key: UniqueTransactionKey,
         blocker: uuid::Uuid,
         owner: uuid::Uuid,
+        wait_id: uuid::Uuid,
     },
 }
 

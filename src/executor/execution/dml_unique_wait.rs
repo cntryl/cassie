@@ -121,11 +121,12 @@ pub(super) fn execute_atomic_dml(
                 pending,
                 key,
                 owner,
+                wait_id,
             } => {
                 let pending = *pending;
                 cassie
                     .transaction_unique_waits
-                    .wait_for_key(pending.owner, owner, &key, controls)
+                    .wait_for_key(pending.owner, owner, &key, wait_id, controls)
                     .map_err(QueryError::from)?;
                 pending_attempt = Some(pending);
             }
@@ -148,6 +149,7 @@ enum AtomicDmlAttempt {
         pending: Box<PendingUniqueDml>,
         key: crate::app::UniqueTransactionKey,
         owner: uuid::Uuid,
+        wait_id: uuid::Uuid,
     },
 }
 
@@ -165,12 +167,18 @@ fn attempt_unique_dml_publication(
         original.with_unique_statement_publication(&pending.batch, controls, |publish| {
             claim_unique_dml(cassie, &pending, wait_for_unique_owner, publish)
         })?;
-    if let crate::app::UniqueKeyClaim::Wait { key, owner } = claim {
+    if let crate::app::UniqueKeyClaim::Wait {
+        key,
+        owner,
+        wait_id,
+    } = claim
+    {
         pending.resolved_keys.insert(key.clone());
         return Ok(AtomicDmlAttempt::Wait {
             pending: Box::new(pending),
             key,
             owner,
+            wait_id,
         });
     }
     if !pending.batch.has_enclosing_transaction() {

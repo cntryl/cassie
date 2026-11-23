@@ -184,9 +184,9 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
         {
             crate::app::RowKeyClaim::Claimed => return Ok(()),
             claim @ crate::app::RowKeyClaim::Wait { .. } => {
-                let (collection, id, blocker) = claim.into_wait().expect("row wait claim");
+                let (collection, id, blocker, wait_id) = claim.into_wait().expect("row wait claim");
                 waits
-                    .wait_for_row(owner, blocker, &collection, &id, controls)
+                    .wait_for_row(owner, blocker, &collection, &id, wait_id, controls)
                     .map_err(QueryError::from)?;
             }
         }

@@ -490,13 +490,13 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
             "INSERT must register its unique wait before b=2 commits"
         );
         assert_eq!(sqlstate, "23505");
-        assert_eq!(
-            constraint.as_deref(),
-            Some("compat_unique_cte_rows_b_key")
-        );
+        assert_eq!(constraint.as_deref(), Some("compat_unique_cte_rows_b_key"));
         assert_eq!(detail.as_deref(), Some("Key (b)=(2) already exists."));
         assert_eq!(following_sqlstate.as_deref(), Some("25P02"));
         contender_commit.expect("COMMIT should finish the failed transaction as a rollback");
-        assert_eq!(marked_rows, 0, "failed outer INSERT must roll back its CTE write");
+        assert_eq!(
+            marked_rows, 0,
+            "failed outer INSERT must roll back its CTE write"
+        );
     });
 }

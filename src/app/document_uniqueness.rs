@@ -134,10 +134,8 @@ impl Cassie {
                         return false;
                     };
                     let backs_single_column_constraint = constraints.iter().any(|constraint| {
-                        let generated_primary_key_name = format!(
-                            "{}_pkey",
-                            crate::catalog::local_name(collection)
-                        );
+                        let generated_primary_key_name =
+                            format!("{}_pkey", crate::catalog::local_name(collection));
                         let generated_primary_key_matches = constraint.primary_key
                             && constraint.primary_key_name.is_none()
                             && crate::catalog::local_name(&index.name)

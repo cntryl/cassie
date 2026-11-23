@@ -56,7 +56,7 @@ state. Focused probes are in
 No extended COPY, distributed transactions, new isolation levels, or persistent
 transaction format is introduced.
 
-## Selected READ COMMITTED unique-owner wait slice (#819 and #1465)
+## Selected READ COMMITTED unique-owner wait slice (#819, #1465 and #1500)
 
 The scoped runtime increment for [#819](https://github.com/cntryl/cassie/issues/819)
 tracks non-null values from single-column PRIMARY KEY and UNIQUE constraints
@@ -79,9 +79,14 @@ slice. An `UPDATE`, `DELETE`, or `MERGE` that reaches a key owned by another
 live transaction returns retryable `40001` before publishing its prepared
 statement batch; Cassie does not replay a prepared non-`INSERT` batch or publish
 it without a key claim.
-Savepoint rollback releases keys acquired after that savepoint. Waits honor
-query cancellation and deadlines. Detected wait cycles return `40P01`; the
-victim's previously staged keys remain owned until transaction resolution.
+Savepoint rollback releases keys acquired after that savepoint and retires an
+outgoing wait registered by a statement from the discarded epoch. The stale
+statement exits before waiting on the former blocker, while retained keys remain
+owned by the restored transaction. Wait registrations are individually fenced so
+cleanup from that retired statement cannot clear a newer wait, including one for
+the same owner and blocker. Waits honor query cancellation and deadlines.
+Detected wait cycles return `40P01`; the victim's previously staged keys remain
+owned until transaction resolution.
 
 The next bounded increment extends this ownership protocol to explicit
 single-column PRIMARY KEY/UNIQUE `ON CONFLICT (field)` targets with stable

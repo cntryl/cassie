@@ -41,15 +41,7 @@ fn execute(
     context: &ExistsResolutionContext<'_>,
     subquery: &SubqueryExpr,
 ) -> Result<SubqueryOutcome, QueryError> {
-    let single_row = matches!(
-        subquery.kind,
-        SubqueryKind::Scalar | SubqueryKind::Row { .. }
-    );
-    let controls = if single_row {
-        context.controls.for_uncapped_input()
-    } else {
-        context.controls.clone()
-    };
+    let controls = context.controls.for_uncapped_input();
     let logical = build_exists_logical_plan(context, &subquery.query)?;
     let (logical, _bound_memory) =
         if crate::sql::pagination::plan_needs_resolution(&logical, &controls)? {
@@ -141,14 +133,6 @@ fn retain_rows_observing(
             return Err(subquery.width_error(fields.len()).into());
         }
         values.push(fields);
-    }
-    if single_row && values.len() > controls.max_result_rows {
-        return Err(crate::app::CassieError::ResourceLimit(format!(
-            "query result row limit exceeded: {} > {}",
-            values.len(),
-            controls.max_result_rows
-        ))
-        .into());
     }
     Ok(SubqueryRows {
         rows: values,

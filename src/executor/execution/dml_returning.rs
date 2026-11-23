@@ -263,6 +263,12 @@ pub(super) fn finish(
     rows: Vec<BatchRow>,
 ) -> Result<QueryResult, QueryError> {
     let controls = context.controls;
+    if rows.len() > controls.max_result_rows {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "query result row limit exceeded".to_owned(),
+        )
+        .into());
+    }
     let _parents = OperatorMemory::hold_rows(controls, &rows)?;
     let mut output = QueryResult::try_builder(controls)?;
     for column in columns {

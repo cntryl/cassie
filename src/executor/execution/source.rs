@@ -376,14 +376,15 @@ fn execute_subquery_source(
     // internal identity only under `_id`.
     let mut logical = logical;
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
-    let mut subquery_context = cte_context.copy(env.controls)?;
+    let controls = env.controls.for_uncapped_input();
+    let mut subquery_context = cte_context.copy(&controls)?;
     let plan_env = plan_execution_env_with_parameter_oids(
         env.cassie,
         env.session,
         env.user_functions,
         env.params,
         env.parameter_type_oids,
-        env.controls,
+        &controls,
     );
     let rows = execute_plan_with_outer_row(
         &plan_env,

@@ -375,7 +375,8 @@ fn insert_source_rows(
                 crate::executor::execution::entrypoints::statement_read_controls(
                     cassie, session, controls,
                 )?;
-            let controls = &statement_controls;
+            let uncapped_controls = statement_controls.for_uncapped_input();
+            let controls = &uncapped_controls;
             let (_read_scope, _overlay_scope) =
                 crate::executor::execution::entrypoints::enter_statement_read(controls);
             let logical = LogicalPlan {

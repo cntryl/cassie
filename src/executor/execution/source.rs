@@ -127,6 +127,7 @@ impl<'a> SourceExecutionEnv<'a> {
         PhaseExecutionEnv {
             cassie: self.cassie,
             session: self.session,
+            binding_context: self.binding_context,
             params: self.params,
             parameter_type_oids: self.parameter_type_oids,
             user_functions: self.user_functions,
@@ -444,14 +445,26 @@ fn execute_subquery_source(
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
     let controls = env.controls.for_uncapped_input();
     let mut subquery_context = cte_context.copy(&controls)?;
-    let plan_env = plan_execution_env_with_parameter_oids(
-        env.cassie,
-        env.session,
-        env.user_functions,
-        env.params,
-        env.parameter_type_oids,
-        &controls,
-    );
+    let plan_env = if let Some(binding_context) = env.binding_context {
+        super::plan_execution_env_with_binding_context(
+            env.cassie,
+            env.session,
+            binding_context,
+            env.user_functions,
+            env.params,
+            env.parameter_type_oids,
+            &controls,
+        )
+    } else {
+        plan_execution_env_with_parameter_oids(
+            env.cassie,
+            env.session,
+            env.user_functions,
+            env.params,
+            env.parameter_type_oids,
+            &controls,
+        )
+    };
     let rows = execute_plan_with_outer_row(
         &plan_env,
         &logical,
@@ -739,6 +752,7 @@ fn search_context_options(
 struct PhaseExecutionEnv<'a> {
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
+    binding_context: Option<&'a crate::sql::binder::BindingContext>,
     params: &'a [Value],
     parameter_type_oids: &'a [i32],
     user_functions: &'a HashMap<String, FunctionMeta>,
@@ -922,14 +936,26 @@ fn finalize_plan_rows(
         // The right branch is an input relation, not a result: the result-row
         // cap must not truncate it before EXCEPT/INTERSECT consult it.
         let right_controls = env.controls.for_uncapped_input();
-        let right_env = plan_execution_env_with_parameter_oids(
-            env.cassie,
-            env.session,
-            env.user_functions,
-            env.params,
-            env.parameter_type_oids,
-            &right_controls,
-        );
+        let right_env = if let Some(binding_context) = env.binding_context {
+            super::plan_execution_env_with_binding_context(
+                env.cassie,
+                env.session,
+                binding_context,
+                env.user_functions,
+                env.params,
+                env.parameter_type_oids,
+                &right_controls,
+            )
+        } else {
+            plan_execution_env_with_parameter_oids(
+                env.cassie,
+                env.session,
+                env.user_functions,
+                env.params,
+                env.parameter_type_oids,
+                &right_controls,
+            )
+        };
         // A lateral derived table's set-operation branches see the same outer row as the left.
         let right_rows =
             execute_plan_with_outer_row(&right_env, &right_plan, cte_context, outer_row)?;

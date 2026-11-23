@@ -8,12 +8,12 @@ mod descriptor;
 mod drop_collection;
 
 use super::{
+    check_collection_drop_failure_point, check_collection_rename_failure_point,
+    check_field_add_backfill_failure_point, check_field_add_failure_point,
+    check_field_drop_failure_point, check_field_rename_failure_point, collect_scan, key_encoding,
     CassieError, CollectionMeta, DocumentWriteBatchOptions, DocumentWriteOp, FieldConstraint,
     FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta, Query,
-    RetentionPolicyMeta, RowSchema, Schema, check_collection_drop_failure_point,
-    check_collection_rename_failure_point, check_field_add_backfill_failure_point,
-    check_field_add_failure_point, check_field_drop_failure_point,
-    check_field_rename_failure_point, collect_scan, key_encoding,
+    RetentionPolicyMeta, RowSchema, Schema,
 };
 
 #[path = "schema_ops_field_maintenance.rs"]
@@ -149,6 +149,21 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
+        self.rename_namespace_metadata(current_name, next_name, &[], &[])
+    }
+
+    /// Atomically publishes a schema rename and its routine/view metadata rewrites.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rename_namespace_metadata(
+        &self,
+        current_name: &str,
+        next_name: &str,
+        function_renames: &[(String, crate::catalog::FunctionMeta)],
+        view_renames: &[(String, crate::catalog::ViewMeta)],
+    ) -> Result<(), CassieError> {
         let current_canonical = self.canonical_namespace_name(current_name);
         let next_canonical = self.canonical_namespace_name(next_name);
         let mut tx = self.begin_namespace_rw_tx(&current_canonical)?;
@@ -210,7 +225,35 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
         Self::save_namespaces(&mut tx, &namespaces)?;
+        for (current, function) in function_renames {
+            let mut function = function.clone();
+            function.name = self.canonical_collection_name(&function.name);
+            tx.delete(Self::function_key(&self.canonical_collection_name(current)))
+                .map_err(CassieError::from)?;
+            tx.put(
+                Self::function_key(&function.name),
+                serde_json::to_vec(&function)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        for (current, view) in view_renames {
+            let mut view = view.clone();
+            crate::sql::definition_guard::view(&view)?;
+            self.require_definition_version(view.definition_semantics_version)?;
+            view.name = self.canonical_collection_name(&view.name);
+            tx.delete(Self::view_key(&self.canonical_collection_name(current)))
+                .map_err(CassieError::from)?;
+            tx.put(
+                Self::view_key(&view.name),
+                serde_json::to_vec(&view).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
 
+        super::check_namespace_metadata_rename_failure_point()?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())

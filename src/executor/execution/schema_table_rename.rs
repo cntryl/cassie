@@ -40,6 +40,15 @@ pub(super) fn validate_rewritten_view(
     view: &crate::catalog::ViewMeta,
     kind: &str,
 ) -> Result<(), QueryError> {
+    validate_rewritten_view_in_catalog(cassie, &cassie.catalog, view, kind)
+}
+
+pub(super) fn validate_rewritten_view_in_catalog(
+    cassie: &Cassie,
+    catalog: &crate::catalog::Catalog,
+    view: &crate::catalog::ViewMeta,
+    kind: &str,
+) -> Result<(), QueryError> {
     let parsed = super::super::domain_view_dependents::parse_view(cassie, &view.query, None)
         .ok_or_else(|| unsafe_dependent_view_error(&view.name, kind))?;
     let context = if view.function_dependency_database.is_empty() {
@@ -50,14 +59,13 @@ pub(super) fn validate_rewritten_view(
             view.function_dependency_search_path.clone(),
         )
     };
-    let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)
+    let bound = crate::sql::binder::bind_with_context(parsed, catalog, &context)
         .map_err(|_| unsafe_dependent_view_error(&view.name, kind))?;
     let crate::sql::ast::QueryStatement::Select(select) = &bound.statement.statement else {
         return Err(unsafe_dependent_view_error(&view.name, kind));
     };
-    let schema =
-        crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
-            .map_err(|_| unsafe_dependent_view_error(&view.name, kind))?;
+    let schema = crate::sql::binder::infer_select_schema_with_context(select, catalog, &context)
+        .map_err(|_| unsafe_dependent_view_error(&view.name, kind))?;
     if schema.fields.len() != view.schema.fields.len()
         || schema
             .fields

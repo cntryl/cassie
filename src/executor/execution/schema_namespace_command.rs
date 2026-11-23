@@ -405,16 +405,29 @@ pub(crate) fn alter_schema(
     }
 
     let view_renames = prepare_schema_view_renames(cassie, &target_schema, &next_schema)?;
+    let function_renames = prepare_schema_function_renames(cassie, &target_schema, &next_schema);
     let views_to_validate = view_renames
         .iter()
         .map(|(_, view)| view.clone())
         .collect::<Vec<_>>();
+    validate_schema_rewrites(
+        cassie,
+        &target_schema,
+        &next_schema,
+        &function_renames,
+        &view_renames,
+    )?;
     let output = empty_command("ALTER SCHEMA", controls)?;
     cassie
         .midge
-        .rename_namespace(&target_schema, &next_schema)
+        .rename_namespace_metadata(
+            &target_schema,
+            &next_schema,
+            &function_renames,
+            &view_renames,
+        )
         .map_err(|error| QueryError::General(error.to_string()))?;
-    rename_schema_descendants(cassie, session, &target_schema, &next_schema, view_renames)?;
+    rename_schema_descendants(cassie, session, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
     for view in &views_to_validate {
         super::schema_table_rename::validate_rewritten_view(cassie, view, "schema")?;
@@ -428,7 +441,6 @@ fn rename_schema_descendants(
     session: Option<&CassieSession>,
     current_schema: &str,
     next_schema: &str,
-    view_renames: Vec<(String, crate::catalog::ViewMeta)>,
 ) -> Result<(), QueryError> {
     let collection_renames = cassie
         .catalog
@@ -445,8 +457,6 @@ fn rename_schema_descendants(
     let relation_renames = relation_rename_map(&collection_renames);
 
     rename_schema_collections(cassie, session, &collection_renames)?;
-    rename_schema_functions(cassie, current_schema, next_schema)?;
-    publish_schema_view_renames(cassie, view_renames)?;
     schema_sequence_rename::rename_schema_sequences(
         cassie,
         current_schema,
@@ -466,11 +476,12 @@ fn rename_schema_descendants(
     Ok(())
 }
 
-fn rename_schema_functions(
+fn prepare_schema_function_renames(
     cassie: &Cassie,
     current_schema: &str,
     next_schema: &str,
-) -> Result<(), QueryError> {
+) -> Vec<(String, crate::catalog::FunctionMeta)> {
+    let mut rewrites = Vec::new();
     for mut function in cassie.catalog.list_functions() {
         if !object_in_schema(&function.name, current_schema) {
             continue;
@@ -478,10 +489,9 @@ fn rename_schema_functions(
         let current_name = function.name.clone();
         function.name =
             rewrite_relation_name_for_schema(&function.name, current_schema, next_schema);
-        cassie.midge.delete_function(&current_name)?;
-        cassie.midge.put_function(&function)?;
+        rewrites.push((current_name, function));
     }
-    Ok(())
+    rewrites
 }
 
 pub(crate) type RelationRenames = std::collections::HashMap<String, String>;
@@ -550,13 +560,37 @@ fn prepare_schema_view_renames(
     Ok(rewrites)
 }
 
-fn publish_schema_view_renames(
+fn validate_schema_rewrites(
     cassie: &Cassie,
-    rewrites: Vec<(String, crate::catalog::ViewMeta)>,
+    current_schema: &str,
+    next_schema: &str,
+    function_renames: &[(String, crate::catalog::FunctionMeta)],
+    view_renames: &[(String, crate::catalog::ViewMeta)],
 ) -> Result<(), QueryError> {
-    for (current_name, view) in rewrites {
-        cassie.midge.delete_view(&current_name)?;
-        cassie.midge.put_view(&view)?;
+    let catalog = cassie.catalog.detached_transaction_snapshot();
+    for collection in catalog
+        .list_collections_canonical()
+        .into_iter()
+        .filter(|collection| object_in_schema(&collection.name, current_schema))
+    {
+        let next = rewrite_relation_name_for_schema(&collection.name, current_schema, next_schema);
+        catalog
+            .rename_collection(&collection.name, &next)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+    catalog.rename_namespace(current_schema, next_schema);
+    for (current, function) in function_renames {
+        catalog.unregister_function(current);
+        catalog.register_function(function.clone());
+    }
+    for (current, view) in view_renames {
+        catalog.unregister_view(current);
+        catalog.register_view(view.clone());
+    }
+    for (_, view) in view_renames {
+        super::schema_table_rename::validate_rewritten_view_in_catalog(
+            cassie, &catalog, view, "schema",
+        )?;
     }
     Ok(())
 }

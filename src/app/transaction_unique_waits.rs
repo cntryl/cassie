@@ -629,19 +629,49 @@ pub(crate) fn validate_unique_key_candidate(
             let Some(payload) = payload.as_object() else {
                 continue;
             };
-            cassie.validate_uniques(
+            let validation = cassie.validate_uniques(
                 Some(session),
                 &collection,
                 payload,
                 &constraints,
                 Some(&id),
-            )?;
+            );
+            match validation {
+                Ok(()) => {}
+                Err(CassieError::UniqueViolation {
+                    column,
+                    constraint,
+                    ..
+                }) => {
+                    let value = payload.get(&column).ok_or_else(|| {
+                        CassieError::Execution(
+                            "unique-key wait lost its duplicate candidate value".to_owned(),
+                        )
+                    })?;
+                    return Err(crate::app::DiagnosticError::new(
+                        "23505",
+                        format!(
+                            "duplicate key value violates unique constraint \"{constraint}\""
+                        ),
+                    )
+                    .with_detail(unique_key_duplicate_detail(&column, value))
+                    .into());
+                }
+                Err(error) => return Err(error),
+            }
             return Ok(());
         }
     }
     Err(CassieError::Execution(
         "unique-key wait lost its staged INSERT candidate".to_owned(),
     ))
+}
+
+fn unique_key_duplicate_detail(field: &str, value: &serde_json::Value) -> String {
+    let value = value
+        .as_str()
+        .map_or_else(|| value.to_string(), str::to_owned);
+    format!("Key ({field})=({value}) already exists.")
 }
 
 fn collect_constraint_value(

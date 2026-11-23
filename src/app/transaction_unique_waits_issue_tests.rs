@@ -68,6 +68,24 @@ fn is_unique_violation_for(error: &CassieError, constraint: &str) -> bool {
 }
 
 #[test]
+fn should_classify_structured_unique_wait_diagnostics_as_unique_violations() {
+    // Arrange
+    let error = CassieError::from(
+        crate::app::DiagnosticError::new(
+            "23505",
+            "duplicate key value violates unique constraint \"u_v_key\"",
+        )
+        .with_detail("Key (v)=(99) already exists."),
+    );
+
+    // Act
+    let class = crate::runtime::error_class(&error);
+
+    // Assert
+    assert_eq!(class, "unique_violation");
+}
+
+#[test]
 fn should_make_waiting_insert_report_the_duplicate_after_update_owner_commits() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_commit_owner");

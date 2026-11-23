@@ -74,21 +74,12 @@ impl Midge {
             serde_json::to_vec(&projection)
                 .map_err(|error| CassieError::Parse(error.to_string()))?,
         );
-        self.require_constraint_definitions(constraints)?;
-        overlay.stage_untracked(
-            Self::constraints_key(&collection),
-            serde_json::to_vec(constraints)
-                .map_err(|error| CassieError::Parse(error.to_string()))?,
-        );
-        for sequence in sequences {
-            let mut sequence = sequence.clone();
-            sequence.name = self.canonical_collection_name(&sequence.name);
-            overlay.stage_untracked(
-                key_encoding::sequence_key(&sequence.name),
-                serde_json::to_vec(&sequence)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
-            );
-        }
+        self.stage_add_column_constraints_and_sequences(
+            &mut overlay,
+            &collection,
+            constraints,
+            sequences,
+        )?;
 
         let field_name = schema
             .fields
@@ -96,53 +87,10 @@ impl Midge {
             .expect("new field was appended")
             .name
             .clone();
-        let mut operations = Vec::new();
-        if let Some(default_value) = default_value.filter(|value| !value.is_null()) {
-            for batch in self.scan_documents_batched(&collection, 256)? {
-                for document in batch {
-                    let mut payload = document.payload;
-                    let object = payload.as_object_mut().ok_or_else(|| {
-                        CassieError::InvalidVector("document must be object".to_string())
-                    })?;
-                    if object.contains_key(&field_name) {
-                        continue;
-                    }
-                    object.insert(field_name.clone(), default_value.clone());
-                    operations.push(DocumentWriteOp::Put {
-                        id: document.id,
-                        payload,
-                    });
-                }
-            }
-        }
-        let no_document_changes = operations.is_empty();
-        let target_generation = if no_document_changes {
-            let target_generation = self.collection_generation(&collection)?.saturating_add(1);
-            overlay.stage_untracked(
-                Self::collection_generation_key(&collection),
-                target_generation.to_be_bytes().to_vec(),
-            );
-            Some(target_generation)
-        } else {
-            None
-        };
-        let mut writes = std::collections::BTreeMap::new();
-        writes.insert(collection.clone(), operations);
-        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
-        options.data_database = Some(database);
-        options.normalized_vector_collection = Some(collection.clone());
-        if let Some(target_generation) = target_generation {
-            let column_batch_debt =
-                Self::column_batch_maintenance_debt_write(&collection, target_generation)?;
-            let projection_hash_debt =
-                Self::projection_hash_maintenance_debt_write(&collection, target_generation)?;
-            options
-                .additional_data_writes
-                .push((column_batch_debt.0, Some(column_batch_debt.1)));
-            options
-                .additional_data_writes
-                .push((projection_hash_debt.0, Some(projection_hash_debt.1)));
-        }
+        let operations =
+            self.prepare_add_column_backfill_operations(&collection, &field_name, default_value)?;
+        let (writes, options, target_generation) =
+            self.prepare_add_column_write_batch(&collection, database, operations, &mut overlay)?;
         self.apply_document_write_batches_with_transactional_ddl_and_schema(
             &writes,
             &options,
@@ -156,6 +104,113 @@ impl Midge {
             let _ = self.complete_projection_hash_maintenance(&collection, target_generation, 0);
         }
         Ok(())
+    }
+
+    fn prepare_add_column_write_batch(
+        &self,
+        collection: &str,
+        database: String,
+        operations: Vec<DocumentWriteOp>,
+        overlay: &mut StorageOverlay,
+    ) -> Result<
+        (
+            std::collections::BTreeMap<String, Vec<DocumentWriteOp>>,
+            DocumentWriteBatchOptions,
+            Option<u64>,
+        ),
+        CassieError,
+    > {
+        let no_document_changes = operations.is_empty();
+        let target_generation = if no_document_changes {
+            let target_generation = self.collection_generation(collection)?.saturating_add(1);
+            overlay.stage_untracked(
+                Self::collection_generation_key(collection),
+                target_generation.to_be_bytes().to_vec(),
+            );
+            Some(target_generation)
+        } else {
+            None
+        };
+        let mut writes = std::collections::BTreeMap::new();
+        writes.insert(collection.to_string(), operations);
+        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        options.data_database = Some(database);
+        options.normalized_vector_collection = Some(collection.to_string());
+        Self::stage_add_column_maintenance_debts(&mut options, collection, target_generation)?;
+        Ok((writes, options, target_generation))
+    }
+
+    fn stage_add_column_maintenance_debts(
+        options: &mut DocumentWriteBatchOptions,
+        collection: &str,
+        target_generation: Option<u64>,
+    ) -> Result<(), CassieError> {
+        if let Some(target_generation) = target_generation {
+            let column_batch_debt =
+                Self::column_batch_maintenance_debt_write(collection, target_generation)?;
+            let projection_hash_debt =
+                Self::projection_hash_maintenance_debt_write(collection, target_generation)?;
+            options
+                .additional_data_writes
+                .push((column_batch_debt.0, Some(column_batch_debt.1)));
+            options
+                .additional_data_writes
+                .push((projection_hash_debt.0, Some(projection_hash_debt.1)));
+        }
+        Ok(())
+    }
+
+    fn stage_add_column_constraints_and_sequences(
+        &self,
+        overlay: &mut StorageOverlay,
+        collection: &str,
+        constraints: &[FieldConstraint],
+        sequences: &[crate::catalog::SequenceMeta],
+    ) -> Result<(), CassieError> {
+        self.require_constraint_definitions(constraints)?;
+        overlay.stage_untracked(
+            Self::constraints_key(collection),
+            serde_json::to_vec(constraints)
+                .map_err(|error| CassieError::Parse(error.to_string()))?,
+        );
+        for sequence in sequences {
+            let mut sequence = sequence.clone();
+            sequence.name = self.canonical_collection_name(&sequence.name);
+            overlay.stage_untracked(
+                key_encoding::sequence_key(&sequence.name),
+                serde_json::to_vec(&sequence)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+            );
+        }
+        Ok(())
+    }
+
+    fn prepare_add_column_backfill_operations(
+        &self,
+        collection: &str,
+        field_name: &str,
+        default_value: Option<serde_json::Value>,
+    ) -> Result<Vec<DocumentWriteOp>, CassieError> {
+        let mut operations = Vec::new();
+        if let Some(default_value) = default_value.filter(|value| !value.is_null()) {
+            for batch in self.scan_documents_batched(collection, 256)? {
+                for document in batch {
+                    let mut payload = document.payload;
+                    let object = payload.as_object_mut().ok_or_else(|| {
+                        CassieError::InvalidVector("document must be object".to_string())
+                    })?;
+                    if object.contains_key(field_name) {
+                        continue;
+                    }
+                    object.insert(field_name.to_string(), default_value.clone());
+                    operations.push(DocumentWriteOp::Put {
+                        id: document.id,
+                        payload,
+                    });
+                }
+            }
+        }
+        Ok(operations)
     }
 
     pub(crate) fn resume_pending_field_add_matching(

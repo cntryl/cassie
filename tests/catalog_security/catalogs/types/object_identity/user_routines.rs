@@ -470,3 +470,203 @@ fn should_accept_array_types_after_multiword_routine_types() {
     // Assert
     assert!(fixture.execute("SELECT identity_array(ARRAY[1.5])").is_ok());
 }
+
+#[test]
+fn should_evaluate_a_scalar_subquery_in_a_function_in_the_select_list() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_select_list",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT peek()");
+
+    // Assert
+    assert_eq!(result, vec![vec![text("123")]]);
+}
+
+#[test]
+fn should_evaluate_a_scalar_subquery_in_a_function_in_order_by() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_order_by",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT peek() FROM generate_series(1, 1) g ORDER BY 1");
+
+    // Assert
+    assert_eq!(result, vec![vec![text("123")]]);
+}
+
+#[test]
+fn should_evaluate_a_scalar_subquery_in_a_function_in_aggregate_filter() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_aggregate_filter",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT count(*) FILTER (WHERE peek() IS NOT NULL) \
+         FROM generate_series(1, 2) g",
+    );
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_evaluate_a_scalar_subquery_in_a_function_in_case() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_case",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT CASE WHEN TRUE THEN peek() END");
+
+    // Assert
+    assert_eq!(result, vec![vec![text("123")]]);
+}
+
+#[test]
+fn should_evaluate_a_scalar_subquery_in_a_function_in_lateral() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_lateral",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT l.p FROM LATERAL (SELECT peek() AS p) AS l");
+
+    // Assert
+    assert_eq!(result, vec![vec![text("123")]]);
+}
+
+#[test]
+fn should_return_null_when_a_function_scalar_subquery_returns_no_rows() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_empty",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT peek()");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_report_cardinality_violation_when_a_function_scalar_subquery_returns_many_rows() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_many_rows",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123'), ('456')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret)'",
+        ],
+    );
+
+    // Act
+    let error = fixture.error("SELECT peek()");
+
+    // Assert
+    assert_eq!(error.sql_state(), "21000");
+    assert!(error
+        .to_string()
+        .contains("more than one row returned by a subquery used as an expression"));
+}
+
+#[test]
+fn should_reject_an_unknown_name_in_a_function_body_at_creation() {
+    // Arrange
+    let fixture = sql_fixture("routine_unknown_body_name", &[]);
+
+    // Act
+    let error = fixture.error("CREATE FUNCTION g(x int) RETURNS int AS 'x + a'");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42703");
+    assert!(error.to_string().contains("column \"a\" does not exist"));
+}
+
+#[test]
+fn should_accept_function_body_references_to_declared_parameters() {
+    // Arrange
+    let fixture = sql_fixture("routine_declared_body_parameter", &[]);
+
+    // Act
+    fixture
+        .execute("CREATE FUNCTION h(x int) RETURNS int AS 'x + 1'")
+        .expect("create a function whose body references its argument");
+    let result = fixture.rows("SELECT h(1)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_resolve_function_body_parameter_names_case_insensitively() {
+    // Arrange
+    let fixture = sql_fixture("routine_body_parameter_case", &[]);
+
+    // Act
+    fixture
+        .execute("CREATE FUNCTION h(x int) RETURNS int AS 'X + 1'")
+        .expect("resolve a differently cased parameter reference");
+    let result = fixture.rows("SELECT h(1)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_resolve_a_function_parameter_before_a_caller_column_with_the_same_name() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_body_parameter_shadows_caller_column",
+        &[
+            "CREATE TABLE t (x int)",
+            "INSERT INTO t VALUES (100)",
+            "CREATE FUNCTION k(x int) RETURNS int AS 'x + 1'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT k(1) FROM t");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(2)]]);
+}

@@ -255,15 +255,16 @@ fn should_return_unknown_for_non_boolean_jsonpath_match_operator_results() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-operator-unknown", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles(
+        "issue-1467-jsonpath-match-operator-unknown",
+        &[],
+        vec![cycle],
+    )
+    .remove(0);
 
     // Assert
     fixture::assert_success(&frames);
-    assert_eq!(
-        wire::data_rows(&frames),
-        vec![vec![None, None, None]]
-    );
+    assert_eq!(wire::data_rows(&frames), vec![vec![None, None, None]]);
 }
 
 #[test]
@@ -277,8 +278,12 @@ fn should_return_true_for_boolean_jsonpath_match_operator_result() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-operator-boolean", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles(
+        "issue-1467-jsonpath-match-operator-boolean",
+        &[],
+        vec![cycle],
+    )
+    .remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -296,8 +301,7 @@ fn should_preserve_true_jsonpath_match_result() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-true", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-true", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -315,8 +319,7 @@ fn should_preserve_false_jsonpath_match_result() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-false", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-false", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -326,16 +329,11 @@ fn should_preserve_false_jsonpath_match_result() {
 #[test]
 fn should_propagate_null_jsonb_input_through_match_operator() {
     // Arrange
-    let cycle = fixture::execute_cycle(
-        "SELECT NULL::JSONB @@ '$.a'::JSONPATH",
-        None,
-        0,
-        true,
-    );
+    let cycle = fixture::execute_cycle("SELECT NULL::JSONB @@ '$.a'::JSONPATH", None, 0, true);
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-operator-null-input", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-operator-null-input", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -353,8 +351,8 @@ fn should_propagate_null_jsonb_input_through_match_function() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-null-input", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-match-null-input", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -372,8 +370,8 @@ fn should_preserve_jsonpath_question_mark_exists_semantics() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-question-exists", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-question-exists", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -391,8 +389,8 @@ fn should_preserve_jsonpath_exists_function_semantics() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-exists-function", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-exists-function", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -410,8 +408,8 @@ fn should_return_null_for_jsonpath_match_on_json_null() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-json-null", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-match-json-null", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -429,8 +427,8 @@ fn should_return_null_for_timezone_aware_jsonpath_match_on_json_null() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-tz-json-null", &[], vec![cycle])
-        .remove(0);
+    let frames =
+        fixture::run_cycles("issue-1467-jsonpath-match-tz-json-null", &[], vec![cycle]).remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -448,8 +446,12 @@ fn should_return_null_for_jsonpath_match_unknown_predicate() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-unknown-predicate", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles(
+        "issue-1467-jsonpath-match-unknown-predicate",
+        &[],
+        vec![cycle],
+    )
+    .remove(0);
 
     // Assert
     fixture::assert_success(&frames);
@@ -467,8 +469,12 @@ fn should_return_null_for_timezone_aware_match_unknown_predicate() {
     );
 
     // Act
-    let frames = fixture::run_cycles("issue-1467-jsonpath-match-tz-unknown-predicate", &[], vec![cycle])
-        .remove(0);
+    let frames = fixture::run_cycles(
+        "issue-1467-jsonpath-match-tz-unknown-predicate",
+        &[],
+        vec![cycle],
+    )
+    .remove(0);
 
     // Assert
     fixture::assert_success(&frames);

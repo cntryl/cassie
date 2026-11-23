@@ -37,7 +37,7 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
     metadata.expressions = vec!["malformed expression JSON".to_owned()];
     let index_key = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"cassie")
+        .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("scan index metadata")
         .into_iter()
         .find_map(|(key, value)| {
@@ -77,21 +77,39 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
     );
 
     // Assert
-    assert!(result.is_err(), "malformed scalar index metadata must abort DROP");
-    let schema = cassie.catalog.get_schema(table).expect("original table schema");
+    assert!(
+        result.is_err(),
+        "malformed scalar index metadata must abort DROP"
+    );
+    let schema = cassie
+        .catalog
+        .get_schema(table)
+        .expect("original table schema");
     assert!(schema.fields.iter().any(|field| field.name == "id"));
-    assert!(cassie.catalog.get_view("drop_column_metadata_view").is_some());
-    assert!(cassie
-        .catalog
-        .get_constraints("drop_column_metadata_child")
-        .iter()
-        .any(|constraint| constraint.foreign_key_name.is_some()));
-    assert!(cassie
-        .catalog
-        .list_indexes(table)
-        .iter()
-        .any(|index| index.name.ends_with(index_name)));
-    assert_eq!(stored_metadata.as_deref(), Some(malformed_metadata.as_slice()));
+    assert!(
+        cassie
+            .catalog
+            .get_view("drop_column_metadata_view")
+            .is_some()
+    );
+    assert!(
+        cassie
+            .catalog
+            .get_constraints("drop_column_metadata_child")
+            .iter()
+            .any(|constraint| constraint.foreign_key_name.is_some())
+    );
+    assert!(
+        cassie
+            .catalog
+            .list_indexes(table)
+            .iter()
+            .any(|index| index.name.ends_with(index_name))
+    );
+    assert_eq!(
+        stored_metadata.as_deref(),
+        Some(malformed_metadata.as_slice())
+    );
     assert_eq!(surviving_view.rows()[0][0].to_string(), "1");
     assert!(foreign_key_insert.is_err());
 }

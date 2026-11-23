@@ -646,9 +646,7 @@ fn alter_table_drop_column(
     cascade: bool,
 ) -> Result<(), QueryError> {
     super::property_graph_dependents::reject_column_change(cassie, table, field, cascade)?;
-    if cascade {
-        schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
-    } else {
+    if !cascade {
         schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     }
     let dependent_views = super::view_dependents::with_transitive_dependents(
@@ -658,10 +656,6 @@ fn alter_table_drop_column(
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("column", field, &dependent_views));
     }
-    for view in dependent_views {
-        drop_stored_view(cassie, &view)?;
-    }
-    schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
     let row_schema = cassie.midge.row_schema(table).map_err(QueryError::Cassie)?;
     let dropped_field_id = row_schema
         .fields
@@ -671,6 +665,19 @@ fn alter_table_drop_column(
                 && crate::sql::ColumnIdentifierPath::matches_stored_field(field, &stored.name)
         })
         .map(|stored| stored.field_id);
+    if dropped_field_id.is_some() {
+        cassie
+            .midge
+            .validate_drop_column_index_metadata(table, field)
+            .map_err(QueryError::Cassie)?;
+    }
+    if cascade {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
+    }
+    for view in dependent_views {
+        drop_stored_view(cassie, &view)?;
+    }
+    schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
     let database = crate::catalog::relation_database_name(table)
         .unwrap_or_else(|| cassie.default_database.clone());
     let object_oid = cassie

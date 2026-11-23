@@ -8,12 +8,12 @@ mod descriptor;
 mod drop_collection;
 
 use super::{
-    check_collection_drop_failure_point, check_collection_rename_failure_point,
-    check_field_add_backfill_failure_point, check_field_add_failure_point,
-    check_field_drop_failure_point, check_field_rename_failure_point, collect_scan, key_encoding,
     CassieError, CollectionMeta, DocumentWriteBatchOptions, DocumentWriteOp, FieldConstraint,
     FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta, Query,
-    RetentionPolicyMeta, RowSchema, Schema,
+    RetentionPolicyMeta, RowSchema, Schema, check_collection_drop_failure_point,
+    check_collection_rename_failure_point, check_field_add_backfill_failure_point,
+    check_field_add_failure_point, check_field_drop_failure_point,
+    check_field_rename_failure_point, collect_scan, key_encoding,
 };
 
 #[path = "schema_ops_field_maintenance.rs"]
@@ -46,6 +46,16 @@ struct PendingFieldRename {
 }
 
 impl Midge {
+    pub(crate) fn validate_drop_column_index_metadata(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(), CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
+        schema_ops_helpers::validate_drop_column_index_metadata(&tx, &canonical, field)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

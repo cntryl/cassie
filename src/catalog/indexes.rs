@@ -352,10 +352,19 @@ impl IndexMeta {
         self.include_fields.clone()
     }
 
-    /// Whether dropping `field` invalidates this index: a key or INCLUDE column,
-    /// a time-series partition column, or a vector index's embedding source.
+    /// Whether dropping `field` invalidates this index through its stored
+    /// columns, scalar expression or predicate, partition key, or vector source.
     #[must_use]
     pub fn references_field(&self, field: &str) -> bool {
+        self.references_field_checked(field).unwrap_or(true)
+    }
+
+    /// Checks stored expression definitions and reports malformed metadata so
+    /// DROP COLUMN can abort before publishing any schema changes.
+    pub(crate) fn references_field_checked(
+        &self,
+        field: &str,
+    ) -> Result<bool, crate::app::CassieError> {
         let partition_references_field = self.options.get("partition_by").is_some_and(|fields| {
             fields.split(',').map(str::trim).any(|candidate| {
                 crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
@@ -366,7 +375,7 @@ impl IndexMeta {
             crate::sql::ColumnIdentifierPath::stored_field_key(source)
                 == crate::sql::ColumnIdentifierPath::stored_field_key(field)
         });
-        partition_references_field
+        let column_references_field = partition_references_field
             || source_references_field
             || self
                 .normalized_fields()
@@ -375,7 +384,30 @@ impl IndexMeta {
                 .any(|candidate| {
                     crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
                         == crate::sql::ColumnIdentifierPath::stored_field_key(field)
-                })
+                });
+        if column_references_field || self.kind != IndexKind::Scalar {
+            return Ok(column_references_field);
+        }
+
+        let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(field);
+        for raw in self.expressions.iter().chain(self.predicate.iter()) {
+            let expression = serde_json::from_str::<crate::sql::ast::Expr>(raw).map_err(|error| {
+                crate::app::CassieError::Parse(format!(
+                    "invalid expression metadata for index '{}': {error}",
+                    self.name
+                ))
+            })?;
+            if expression.any_descendant_or_self(&mut |node| {
+                matches!(
+                    node,
+                    crate::sql::ast::Expr::Column(column)
+                        if crate::sql::ColumnIdentifierPath::reference_field_key(column) == field_key
+                )
+            }) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// The 23505 error for a duplicate key in this unique index, named as

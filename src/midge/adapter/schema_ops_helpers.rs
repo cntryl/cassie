@@ -88,10 +88,12 @@ pub(super) fn drop_referencing_indexes_in_tx(
     let mut dropped_vector_indexes = Vec::new();
 
     for (key, value) in indexes {
-        let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
-            continue;
-        };
-        let references_field = metadata.references_field(field);
+        let metadata = serde_json::from_slice::<IndexMeta>(&value).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid index metadata for collection '{collection}': {error}"
+            ))
+        })?;
+        let references_field = metadata.references_field_checked(field)?;
         if !references_field {
             continue;
         }

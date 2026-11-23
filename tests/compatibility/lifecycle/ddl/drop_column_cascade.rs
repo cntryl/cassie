@@ -678,7 +678,7 @@ fn should_keep_unrelated_indexes_when_dropping_column() {
 }
 
 #[test]
-fn should_continue_writes_and_indexed_reads_after_dependent_index_drops() {
+fn should_continue_writes_and_reads_after_dependent_index_drops() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

@@ -315,7 +315,7 @@ fn should_mark_a_source_materialized_projection_stale_after_transactional_copy()
                 .rows()
                 .to_vec()
         };
-        assert_eq!(state(), vec![vec![Value::String("fresh".into())]]);
+        assert_eq!(state(), vec![vec![Value::String("ready".into())]]);
 
         // Act
         cassie

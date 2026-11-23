@@ -25,24 +25,23 @@ pub(crate) fn resolve_collection(
         .list_collections_canonical()
         .into_iter()
         .filter(|collection| {
-            relation_database_name(&collection.name)
-                .is_some_and(|name| name.eq_ignore_ascii_case(database))
+            relation_database_name(&collection.name).is_some_and(|name| name == database)
         })
         .filter(|collection| match parts.as_slice() {
             [name] => {
-                local_name(&collection.name).eq_ignore_ascii_case(name)
-                    && search_path.iter().any(|schema| {
-                        relation_schema_name(&collection.name).eq_ignore_ascii_case(schema)
-                    })
+                local_name(&collection.name) == *name
+                    && search_path
+                        .iter()
+                        .any(|schema| relation_schema_name(&collection.name) == *schema)
             }
             [schema, name] => {
-                relation_schema_name(&collection.name).eq_ignore_ascii_case(schema)
-                    && local_name(&collection.name).eq_ignore_ascii_case(name)
+                relation_schema_name(&collection.name) == *schema
+                    && local_name(&collection.name) == *name
             }
             [requested_database, schema, name] => {
-                requested_database.eq_ignore_ascii_case(database)
-                    && relation_schema_name(&collection.name).eq_ignore_ascii_case(schema)
-                    && local_name(&collection.name).eq_ignore_ascii_case(name)
+                requested_database == database
+                    && relation_schema_name(&collection.name) == *schema
+                    && local_name(&collection.name) == *name
             }
             _ => false,
         })
@@ -82,7 +81,7 @@ pub(crate) fn list_collections(cassie: &Cassie, session: &CassieSession) -> Vec<
 mod tests {
     use super::resolve_collection;
     use crate::app::{Cassie, CassieError, CassieSession};
-    use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
+    use crate::catalog::{DEFAULT_SCHEMA, canonical_relation_name};
     use crate::types::{DataType, FieldSchema, Schema};
 
     fn cassie_with_collections(label: &str, names: &[&str]) -> Cassie {

@@ -7,8 +7,8 @@ use crate::executor::{batch, filter, scan};
 use crate::midge::adapter::RowDecode;
 use crate::runtime::{HybridRetrievalDiagnostics, QueryExecutionControls, QueryMemoryReservation};
 use crate::search::analyzer::AnalyzerConfig;
-use std::collections::HashMap;
-use std::collections::{BTreeSet, HashSet};
+use std::cmp::Ordering;
+use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 
 #[path = "hybrid/filtered.rs"]
 mod filtered;
@@ -411,7 +411,13 @@ fn controlled_vector_candidate_ids(
             }))
         }
         crate::embeddings::VectorIndexType::IvfFlat => {
-            controlled_ivfflat_candidate_ids(cassie, spec, limit, controls)
+            controlled_ivfflat_candidate_ids(
+                cassie,
+                spec,
+                index.metadata.metric,
+                limit,
+                controls,
+            )
         }
         crate::embeddings::VectorIndexType::BruteForce => Ok(None),
     }
@@ -420,6 +426,7 @@ fn controlled_vector_candidate_ids(
 fn controlled_ivfflat_candidate_ids(
     cassie: &Cassie,
     spec: &HybridTopKSpec,
+    metric: crate::embeddings::DistanceMetric,
     limit: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Option<ControlledVectorCandidateIds>, crate::app::CassieError> {
@@ -444,7 +451,16 @@ fn controlled_ivfflat_candidate_ids(
     }
     let normalized = crate::vector::normalize(&spec.vector_query)
         .map_or_else(|| spec.vector_query.clone(), |value| value.values);
-    let lists = crate::vector::ivfflat::probe_lists(&normalized, &training);
+    let lists = if metric == crate::embeddings::DistanceMetric::Dot {
+        crate::vector::ivfflat::probe_lists_by_inner_product(&spec.vector_query, &training)
+            .ok_or_else(|| {
+                crate::app::CassieError::Execution(
+                    "ivfflat fallback:missing-list-bounds".to_string(),
+                )
+            })?
+    } else {
+        crate::vector::ivfflat::probe_lists(&normalized, &training)
+    };
     let _list_memory =
         controls.reserve_query_memory(lists.len().saturating_mul(std::mem::size_of::<usize>()))?;
     let batch = cassie.midge.ivfflat_candidate_vectors_controlled(
@@ -463,10 +479,8 @@ fn controlled_ivfflat_candidate_ids(
             "ivfflat fallback:concurrent-source-change".to_string(),
         ));
     }
-    let (ids, memory) = collect_candidate_ids_controlled(
-        records.into_iter().take(limit).map(|record| record.id),
-        controls,
-    )?;
+    let (ids, memory) =
+        rank_ivfflat_candidate_ids(records, &spec.vector_query, metric, limit, controls)?;
     drop(candidate_memory);
     drop(manifest_memory);
     Ok(Some(ControlledVectorCandidateIds {
@@ -477,6 +491,130 @@ fn controlled_ivfflat_candidate_ids(
             .saturating_add(vector_reads),
         memory,
     }))
+}
+
+#[derive(Debug, PartialEq)]
+struct RankedIvfCandidate {
+    distance: f64,
+    id: String,
+}
+
+impl RankedIvfCandidate {
+    fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            .saturating_add(self.id.len())
+            .saturating_add(3usize.saturating_mul(std::mem::size_of::<usize>()))
+    }
+}
+
+impl Eq for RankedIvfCandidate {}
+
+impl PartialOrd for RankedIvfCandidate {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RankedIvfCandidate {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance
+            .total_cmp(&other.distance)
+            .then_with(|| self.id.cmp(&other.id))
+    }
+}
+
+fn rank_ivfflat_candidate_ids(
+    records: Vec<crate::embeddings::NormalizedVectorRecord>,
+    query: &[f32],
+    metric: crate::embeddings::DistanceMetric,
+    limit: usize,
+    controls: &QueryExecutionControls,
+) -> Result<(BTreeSet<String>, QueryMemoryReservation), crate::app::CassieError> {
+    let mut top = BinaryHeap::new();
+    let mut memory = controls.reserve_query_memory(0)?;
+    let normalized_query = crate::vector::normalize(query)
+        .ok_or_else(|| crate::app::CassieError::Execution("invalid vector query".to_string()))?;
+    for record in records {
+        controls.check_interruption()?;
+        let Some(distance) =
+            ivfflat_candidate_distance(query, &normalized_query.values, metric, &record)
+        else {
+            continue;
+        };
+        let candidate = RankedIvfCandidate {
+            distance,
+            id: record.id,
+        };
+        if top.len() < limit {
+            let previous = memory.bytes();
+            memory.try_grow(candidate.retained_bytes())?;
+            if let Err(error) = top.try_reserve_exact(1) {
+                memory.shrink_to(previous);
+                return Err(crate::app::CassieError::ResourceLimit(format!(
+                    "unable to retain hybrid IVFFlat candidate: {error}"
+                )));
+            }
+            top.push(candidate);
+        } else if top
+            .peek()
+            .is_some_and(|worst| candidate.cmp(worst).is_lt())
+        {
+            let previous = top
+                .peek()
+                .map_or(0, RankedIvfCandidate::retained_bytes);
+            let next = candidate.retained_bytes();
+            if next > previous {
+                memory.try_grow(next - previous)?;
+            }
+            top.pop();
+            top.push(candidate);
+            if next < previous {
+                memory.shrink_to(memory.bytes() - (previous - next));
+            }
+        }
+    }
+    Ok((top.into_iter().map(|candidate| candidate.id).collect(), memory))
+}
+
+fn ivfflat_candidate_distance(
+    query: &[f32],
+    normalized_query: &[f32],
+    metric: crate::embeddings::DistanceMetric,
+    record: &crate::embeddings::NormalizedVectorRecord,
+) -> Option<f64> {
+    if !record.payload_available
+        || record.metric != metric
+        || record.dimensions != query.len()
+        || record.values.len() != query.len()
+        || record.magnitude < 0.0
+        || !record.magnitude.is_finite()
+        || record.values.iter().any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    Some(match metric {
+        crate::embeddings::DistanceMetric::Cosine => {
+            crate::vector::cosine_distance_from_normalized_query(
+                normalized_query,
+                &record.values,
+            )
+        }
+        crate::embeddings::DistanceMetric::L2 => query
+            .iter()
+            .zip(&record.values)
+            .map(|(query_value, target)| {
+                (f64::from(*query_value) - f64::from(*target) * record.magnitude).powi(2)
+            })
+            .sum::<f64>()
+            .sqrt(),
+        crate::embeddings::DistanceMetric::Dot => {
+            crate::vector::dot_distance_from_normalized_target(
+                query,
+                &record.values,
+                record.magnitude,
+            )
+        }
+    })
 }
 
 fn collect_candidate_ids_controlled(
@@ -512,6 +650,130 @@ fn is_query_control_error(error: &crate::app::CassieError) -> bool {
             | crate::app::CassieError::DeadlineExceeded
             | crate::app::CassieError::ResourceLimit(_)
     )
+}
+
+#[cfg(test)]
+mod ivfflat_candidate_tests {
+    use std::time::Instant;
+
+    use super::rank_ivfflat_candidate_ids;
+    use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
+    use crate::runtime::{CassieRuntimeLimits, QueryExecutionControls};
+
+    fn controls(memory_budget_bytes: usize) -> QueryExecutionControls {
+        let mut limits = CassieRuntimeLimits::default();
+        limits.query_memory_budget_bytes = memory_budget_bytes;
+        QueryExecutionControls::from_limits(&limits, Instant::now())
+    }
+
+    fn record(id: &str, metric: DistanceMetric, values: &[f32]) -> NormalizedVectorRecord {
+        let normalized = crate::vector::normalize(values).expect("normalized record");
+        NormalizedVectorRecord {
+            collection: "items".to_string(),
+            field: "embedding".to_string(),
+            id: id.to_string(),
+            built_generation: 1,
+            dimensions: values.len(),
+            metric,
+            normalization_version:
+                NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
+            payload_available: true,
+            magnitude: normalized.magnitude,
+            values: normalized.values,
+        }
+    }
+
+    #[test]
+    fn should_rank_ivfflat_hybrid_candidates_before_applying_the_limit() {
+        // Arrange
+        let cases = [
+            (
+                DistanceMetric::L2,
+                vec![
+                    record("far-first", DistanceMetric::L2, &[10.0, 0.0]),
+                    record("near-late", DistanceMetric::L2, &[1.0, 0.0]),
+                ],
+            ),
+            (
+                DistanceMetric::Cosine,
+                vec![
+                    record("far-first", DistanceMetric::Cosine, &[-1.0, 0.0]),
+                    record("near-late", DistanceMetric::Cosine, &[1.0, 0.0]),
+                ],
+            ),
+            (
+                DistanceMetric::Dot,
+                vec![
+                    record("far-first", DistanceMetric::Dot, &[0.1, 0.0]),
+                    record("near-late", DistanceMetric::Dot, &[10.0, 0.0]),
+                ],
+            ),
+        ];
+
+        // Act
+        let selected = cases.map(|(metric, records)| {
+            rank_ivfflat_candidate_ids(records, &[1.0, 0.0], metric, 1, &controls(4096))
+                .expect("rank candidates")
+                .0
+        });
+
+        // Assert
+        for ids in selected {
+            assert_eq!(ids.iter().map(String::as_str).collect::<Vec<_>>(), ["near-late"]);
+        }
+    }
+
+    #[test]
+    fn should_keep_stable_ivfflat_ties_and_under_limit_candidates() {
+        // Arrange
+        let records = vec![
+            record("z-tie", DistanceMetric::L2, &[1.0, 0.0]),
+            record("a-tie", DistanceMetric::L2, &[1.0, 0.0]),
+        ];
+
+        // Act
+        let tied = rank_ivfflat_candidate_ids(
+            records.clone(),
+            &[1.0, 0.0],
+            DistanceMetric::L2,
+            1,
+            &controls(4096),
+        )
+        .expect("rank tied candidates")
+        .0;
+        let all = rank_ivfflat_candidate_ids(
+            records,
+            &[1.0, 0.0],
+            DistanceMetric::L2,
+            3,
+            &controls(4096),
+        )
+        .expect("keep under-limit candidates")
+        .0;
+
+        // Assert
+        assert_eq!(tied.iter().map(String::as_str).collect::<Vec<_>>(), ["a-tie"]);
+        assert_eq!(
+            all.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["a-tie", "z-tie"]
+        );
+    }
+
+    #[test]
+    fn should_reject_an_ivfflat_candidate_selection_over_the_memory_budget() {
+        // Arrange
+        let records = vec![record("one", DistanceMetric::L2, &[1.0, 0.0])];
+
+        // Act
+        let result =
+            rank_ivfflat_candidate_ids(records, &[1.0, 0.0], DistanceMetric::L2, 1, &controls(1));
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(crate::app::CassieError::ResourceLimit(_))
+        ));
+    }
 }
 
 struct HybridCandidateFetch<'a> {

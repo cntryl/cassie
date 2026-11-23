@@ -12,13 +12,13 @@
 use std::mem::size_of;
 
 use super::{
-    Cassie, CassieSession, CommonTableExpression, CteContext, CteQuery, Expr, FunctionMeta,
-    HashMap, LogicalCommand, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
-    QuerySource, QueryStatement, SelectItem, Value, build_select_result, dml_command, execute_plan,
+    build_select_result, dml_command, execute_plan, Cassie, CassieSession, CommonTableExpression,
+    CteContext, CteQuery, Expr, FunctionMeta, HashMap, LogicalCommand, PhysicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, QueryStatement, SelectItem, Value,
 };
 use crate::executor::retained_memory::{add, mul, value_clone_bytes};
-use crate::runtime::QueryMemoryReservation;
 use crate::runtime::accounted::AccountedVec;
+use crate::runtime::QueryMemoryReservation;
 use crate::sql::ast::{InsertSource, OrderExpr, ParsedStatement, SelectStatement};
 use crate::sql::binder::cte_bodies::cte_is_modifying;
 

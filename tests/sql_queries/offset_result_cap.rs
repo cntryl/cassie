@@ -1,6 +1,6 @@
 //! The result-row cap bounds the rows a query returns, so rows skipped by OFFSET do not count
 //! against it.
-use super::support_sql_fixture::{SqlFixture, sql_fixture_with_config};
+use super::support_sql_fixture::{sql_fixture_with_config, SqlFixture};
 use cassie::types::Value;
 
 fn fixture_with_result_cap(label: &str, scan_workers: usize, max_result_rows: usize) -> SqlFixture {
@@ -388,11 +388,9 @@ fn should_reject_over_cap_returning_before_publishing_inserted_rows() {
 
     // Assert
     assert_eq!(error.sql_state(), "54000");
-    assert!(
-        error
-            .to_string()
-            .contains("query result row limit exceeded")
-    );
+    assert!(error
+        .to_string()
+        .contains("query result row limit exceeded"));
     assert_eq!(
         fixture.rows("SELECT count(*) FROM returned"),
         vec![vec![Value::Int64(0)]],

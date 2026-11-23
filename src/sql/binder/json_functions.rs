@@ -6,7 +6,7 @@ use crate::sql::functions::{self, FunctionId, FunctionInputSignature};
 use crate::types::DataType;
 
 pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Result<(), CassieError> {
-    if matches!(function.name.as_str(), "json_object" | "jsonb_object") {
+    if functions::json::is_standard_object(&function.name) {
         let array_type = DataType::Array(Box::new(DataType::Text));
         for argument in &mut function.args {
             if matches!(argument, Expr::StringLiteral(_)) {

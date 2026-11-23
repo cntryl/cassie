@@ -43,10 +43,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
     };
     match kind {
         JsonFunction::BuildObject(binary) => {
-            if matches!(
-                function.name.to_ascii_lowercase().as_str(),
-                "json_object" | "jsonb_object"
-            ) {
+            if crate::sql::functions::json::is_standard_object(&function.name) {
                 Some(build_standard_object(function, row, args, context, binary))
             } else {
                 Some(build(function, row, args, context, binary, true))
@@ -124,7 +121,7 @@ fn build_standard_object(
     context: EvalContext<'_>,
     binary: bool,
 ) -> Result<Value, QueryError> {
-    if matches!(function.name.as_str(), "json_object" | "jsonb_object")
+    if crate::sql::functions::json::is_standard_object(&function.name)
         && args.iter().any(|argument| matches!(argument, Value::Null))
     {
         return Ok(Value::Null);

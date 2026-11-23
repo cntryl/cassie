@@ -245,6 +245,15 @@ fn should_publish_copy_through_warm_cache_and_column_batch_reads_after_commit() 
     let column_scans_after = cassie.metrics()["column_batches"]["scans"]
         .as_u64()
         .expect("column batch scan metric");
+    let count_after_copy = cassie
+        .execute_sql(
+            &session,
+            "SELECT COUNT(*) FROM copy_cache_parity",
+            Vec::new(),
+        )
+        .expect("count committed COPY rows")
+        .rows()
+        .to_vec();
 
     // Assert
     assert_eq!(first, vec![vec![Value::String("before".into())]]);
@@ -269,4 +278,65 @@ fn should_publish_copy_through_warm_cache_and_column_batch_reads_after_commit() 
         column_scans_after > column_scans_before,
         "the post-COPY read must refresh through the column-batch path"
     );
+    // Explicit transactions share INSERT's commit finishing; COPY's extra
+    // cardinality refresh belongs only to the direct autocommit COPY path.
+    // This count matches PostgreSQL's result for the same two-row input.
+    assert_eq!(count_after_copy, vec![vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_mark_a_source_materialized_projection_stale_after_transactional_copy() {
+    // Arrange
+    with_copy_table("copy-transaction-projection-stale", |cassie, session| {
+        cassie
+            .execute_sql(
+                session,
+                "CREATE MATERIALIZED PROJECTION copy_boundary_projection \
+                 AS SELECT id, title FROM copy_boundary_rows WHERE id > 0",
+                vec![],
+            )
+            .expect("create materialized source projection");
+        let projection_name = cassie
+            .catalog
+            .get_materialized_projection("copy_boundary_projection")
+            .expect("projection metadata")
+            .collection;
+        let state = || {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!(
+                        "SELECT state FROM pg_catalog.pg_materialized_projections \
+                         WHERE projection_name = '{projection_name}'"
+                    ),
+                    vec![],
+                )
+                .expect("read projection state through the public catalog")
+                .rows()
+                .to_vec()
+        };
+        assert_eq!(state(), vec![vec![Value::String("fresh".into())]]);
+
+        // Act
+        cassie
+            .execute_sql(session, "BEGIN", vec![])
+            .expect("begin COPY transaction");
+        cassie
+            .copy_from_csv_stdin(session, &copy_statement(), b"1,after\n")
+            .expect("stage COPY row");
+        cassie
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("commit COPY transaction");
+
+        // Assert
+        assert_eq!(state(), vec![vec![Value::String("stale".into())]]);
+        assert_eq!(
+            cassie
+                .execute_sql(session, "SELECT COUNT(*) FROM copy_boundary_rows", vec![])
+                .expect("count committed source rows")
+                .rows()
+                .to_vec(),
+            vec![vec![Value::Int64(1)]]
+        );
+    });
 }

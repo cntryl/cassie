@@ -7,9 +7,9 @@ use std::time::Instant;
 use tokio::io::AsyncWrite;
 
 use super::{
+    take_portal_execution, write_materialized_result, write_suspended_result,
     MaterializedPortalWriteRequest, Portal, PortalExecution, QueryResult, SessionState,
-    SuspendedPortalWriteRequest, take_portal_execution, write_materialized_result,
-    write_suspended_result,
+    SuspendedPortalWriteRequest,
 };
 use crate::config::CassieRuntimeLimits;
 use crate::executor::ColumnMeta;
@@ -609,7 +609,10 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
             "57014"
         );
         assert_eq!(writer.frame_tags, vec![b'D']);
-        assert!(state.portals["retained"].suspended.is_none());
+        assert!(state
+            .portals
+            .get("retained")
+            .is_none_or(|portal| portal.suspended.is_none()));
         assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
     }
 }

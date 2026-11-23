@@ -11,11 +11,11 @@ use prepared_state::{
 
 #[path = "extended/parse.rs"]
 mod parse;
-use parse::{ParseRequest, handle_parse};
+use parse::{handle_parse, ParseRequest};
 
 #[path = "extended/bind.rs"]
 mod bind;
-use bind::{BindRequest, handle_bind};
+use bind::{handle_bind, BindRequest};
 
 #[path = "extended/bind_planning.rs"]
 mod bind_planning;
@@ -55,7 +55,7 @@ use super::writers::{
     write_parse_complete, write_ready_for_query,
 };
 use super::{ConnectionStep, PgwireReader};
-use crate::app::{Cassie, CassieError, CassieSession, unsupported_sql_error};
+use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
 use crate::runtime::{ExecutionMode, RuntimeState};
@@ -72,14 +72,14 @@ mod record_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{
-    FreshPortalWriteRequest, PortalExecution, take_portal_execution, write_completed_portal,
-    write_fresh_result,
+    take_portal_execution, write_completed_portal, write_fresh_result, FreshPortalWriteRequest,
+    PortalExecution,
 };
 use portal_streaming::{
-    StreamingPortalPageRequest, SuspendedPortalRequest, execute_streaming_portal_page,
-    resume_suspended_portal, streamable_portal_query,
+    execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
+    StreamingPortalPageRequest, SuspendedPortalRequest,
 };
-use text_parameters::{DecodedTextParameter, decode_text_parameter};
+use text_parameters::{decode_text_parameter, DecodedTextParameter};
 
 const OID_UNKNOWN: i32 = 705;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;

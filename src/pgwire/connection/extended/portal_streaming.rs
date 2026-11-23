@@ -3,20 +3,20 @@ use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
 use super::portal_state::{
+    write_materialized_result, write_streaming_result, write_suspended_result,
     MaterializedPortalWriteRequest, PortalExecution, PortalFetchWindow, StreamingPortalResult,
-    SuspendedPortalWriteRequest, write_materialized_result, write_streaming_result,
-    write_suspended_result,
+    SuspendedPortalWriteRequest,
 };
 use super::{
-    Cassie, CassieError, CassieSession, ExecutionMode, ExtendedQueryError, PortalSuspended,
-    PreparedStatement, QueryResult, SessionState, describe_prepared, run_pgwire_blocking,
+    describe_prepared, run_pgwire_blocking, Cassie, CassieError, CassieSession, ExecutionMode,
+    ExtendedQueryError, PortalSuspended, PreparedStatement, QueryResult, SessionState,
 };
 use crate::app::PortalReadSpec;
 use crate::midge::adapter::RowDecode;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{QueryStatement, SelectItem};
+use crate::types::row_identity::{is_identity_reference, ROW_IDENTITY_COLUMN};
 use crate::types::Value;
-use crate::types::row_identity::{ROW_IDENTITY_COLUMN, is_identity_reference};
 
 pub(super) struct SuspendedPortalRequest<'a> {
     pub(super) state: &'a mut SessionState,

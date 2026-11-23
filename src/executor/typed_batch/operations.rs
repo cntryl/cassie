@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::capability::{self, Capability};
 use super::scalar::Environment;
-use super::{Cell, Column, QueryError, TypedBatch, check_controls, invalid, owner_bytes};
+use super::{check_controls, invalid, owner_bytes, Cell, Column, QueryError, TypedBatch};
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul, value_clone_bytes};

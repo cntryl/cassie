@@ -2,14 +2,14 @@
 //! mutation (including `MERGE ... THEN UPDATE`) applies.
 
 use super::dml_joined::{
-    ExecutionScope, JoinedTarget, SourceRows, combined_row, joined_returning_schema, match_rows,
-    payload_row, row_image_entries, source_rows, target_rows,
+    combined_row, joined_returning_schema, match_rows, payload_row, row_image_entries, source_rows,
+    target_rows, ExecutionScope, JoinedTarget, SourceRows,
 };
-use super::dml_update::{AssignmentTarget, updated_payload_from_row};
+use super::dml_update::{updated_payload_from_row, AssignmentTarget};
 use super::{
-    BatchRow, Cassie, CassieSession, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QueryResult, Value, build_dml_result, check_timeout,
-    dml_referential_actions, row_id_from_batch_row, update_assignment_to_json,
+    build_dml_result, check_timeout, dml_referential_actions, row_id_from_batch_row,
+    update_assignment_to_json, BatchRow, Cassie, CassieSession, DmlResultContext, Expr,
+    FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
 use crate::sql::ast::{DeleteStatement, RowSubqueryAssignment, UpdateStatement};
 

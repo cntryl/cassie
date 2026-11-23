@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CassieError, IndexMeta, Midge, Query, RowSchema, collect_scan, decode_row, key_encoding,
+    collect_scan, decode_row, key_encoding, CassieError, IndexMeta, Midge, Query, RowSchema,
 };
 use crate::search::analyzer::AnalyzerConfig;
 

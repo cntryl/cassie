@@ -782,6 +782,7 @@ fn resolve_filter_or_correlate(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,

@@ -246,9 +246,8 @@ pub(in super::super) fn execute(
     ctes: &crate::executor::execution::CteContext,
 ) -> SourceExecution {
     env.controls.check_interruption()?;
-    let arguments = super::super::super::source_table_function::evaluate_args(
-        env, function, outer_row, ctes,
-    )?;
+    let arguments =
+        super::super::super::source_table_function::evaluate_args(env, function, outer_row, ctes)?;
     let args = &arguments.0;
     let request = Request::parse(args)?;
     let resolved = resolve(env, &request)?;

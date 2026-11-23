@@ -343,10 +343,7 @@ fn filtered(
     if state.is_none() {
         *state = Some(
             if plan.filter.as_ref().is_some_and(|filter_expr| {
-                super::filter::expression_contains_routine_subquery(
-                    filter_expr,
-                    env.user_functions,
-                )
+                super::filter::expression_contains_routine_subquery(filter_expr, env.user_functions)
             }) {
                 Predicate::Correlated
             } else {

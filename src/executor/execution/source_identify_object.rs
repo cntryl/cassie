@@ -17,8 +17,7 @@ pub(super) fn execute(
 ) -> SourceExecution {
     // A scalar subquery argument such as `(SELECT oid FROM pg_class ...)` is
     // resolved the way every other FROM-source argument resolves one.
-    let arguments =
-        super::source_table_function::evaluate_args(env, function, outer_row, ctes)?;
+    let arguments = super::source_table_function::evaluate_args(env, function, outer_row, ctes)?;
     let [class_id, object_id, sub_id] = arguments.0.as_slice() else {
         return Err(wrong_argument_type());
     };

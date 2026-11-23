@@ -1,8 +1,8 @@
 use super::{
-    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
-    HashMap, QueryError, QueryExecutionControls, QueryResult, Value, apply_update_value,
-    build_dml_result, check_timeout, dml_referential_actions, filter, inserted_row_to_batch_row,
-    row_id_from_batch_row,
+    apply_update_value, build_dml_result, check_timeout, dml_referential_actions, filter,
+    inserted_row_to_batch_row, row_id_from_batch_row, BatchRow, Cassie, CassieSession,
+    CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QueryResult, Value,
 };
 
 struct PreparedUpdateRow {

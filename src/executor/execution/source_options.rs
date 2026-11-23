@@ -18,13 +18,8 @@ pub(super) fn execute(
         super::filter::cast_scratch_bytes(expression)?,
     )?)?;
     let evaluation_memory = super::filter::EvaluationMemory::new(env.controls)?;
-    let value = super::source_set_function::argument_value(
-        env,
-        expression,
-        row,
-        ctes,
-        &evaluation_memory,
-    )?;
+    let value =
+        super::source_set_function::argument_value(env, expression, row, ctes, &evaluation_memory)?;
     let Value::Array(array) = value else {
         return if matches!(value, Value::Null) {
             Ok(Vec::new())

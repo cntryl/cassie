@@ -1,7 +1,7 @@
 use super::{
-    BatchRow, Cassie, CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta,
-    HybridTopKSpec, QueryError, TokenizedHybridDocument, Value, json_search_term_stats_value,
-    value_to_vector, vector_prefilter_supported,
+    json_search_term_stats_value, value_to_vector, vector_prefilter_supported, BatchRow, Cassie,
+    CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta, HybridTopKSpec,
+    QueryError, TokenizedHybridDocument, Value,
 };
 use crate::executor::{batch, filter, scan};
 use crate::midge::adapter::RowDecode;

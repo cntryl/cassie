@@ -4,8 +4,8 @@
 //! references the target row is run for that row, with the row as its outer
 //! scope. Every subquery reads the data as it was when the statement began.
 use super::{
-    BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, QuerySource, Value, filter,
+    filter, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QuerySource, Value,
 };
 
 pub(super) struct RowSubqueries<'a> {
@@ -191,6 +191,7 @@ pub(super) fn evaluate_joined(
     let context = super::ExistsResolutionContext {
         cassie: scope.cassie,
         session: scope.session,
+        binding_context: None,
         cte_context: &ctes,
         user_functions: scope.user_functions,
         params: scope.params,

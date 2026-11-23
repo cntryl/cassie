@@ -1,6 +1,6 @@
 //! An unaliased cast of a column is named after the column (PostgreSQL 18.6),
 //! which also decides what `ORDER BY <name>` sorts.
-use crate::support_sql_fixture::{SqlFixture, sql_fixture};
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 use cassie::types::Value;
 
 fn fixture(label: &str) -> SqlFixture {

@@ -99,11 +99,10 @@ pub(super) fn bind_create_function(
         super::references::ReferenceScope::new(&scope, catalog, context),
     )
     .map_err(|error| match error {
-        CassieError::UndefinedColumn(column) => crate::app::DiagnosticError::new(
-            "42703",
-            format!("column \"{column}\" does not exist"),
-        )
-        .into(),
+        CassieError::UndefinedColumn(column) => {
+            crate::app::DiagnosticError::new("42703", format!("column \"{column}\" does not exist"))
+                .into()
+        }
         error => error,
     })?;
 

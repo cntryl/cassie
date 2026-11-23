@@ -41,9 +41,7 @@ pub(super) fn filter_rows_per_outer_row(
     let qualifier = outer_qualifier(source);
     let mut terms = Vec::new();
     crate::planner::lateral_filter::conjuncts(filter_expr, &mut terms);
-    terms.retain(|term| {
-        !contains_exists_or_routine_subquery(term, context.user_functions)
-    });
+    terms.retain(|term| !contains_exists_or_routine_subquery(term, context.user_functions));
     let mut kept = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(context.controls)?;

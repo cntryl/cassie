@@ -6,8 +6,8 @@ use hyper::{Method, Response, StatusCode};
 use crate::app::Cassie;
 
 use super::{
-    RestBody, RestBytes, RestRequestContext, json_response, map_error, run_rest_blocking_route,
-    run_rest_blocking_route_controlled,
+    json_response, map_error, run_rest_blocking_route, run_rest_blocking_route_controlled,
+    RestBody, RestBytes, RestRequestContext,
 };
 
 pub(super) async fn dispatch_collection_routes(

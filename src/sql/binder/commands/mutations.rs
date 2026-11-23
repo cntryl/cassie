@@ -6,14 +6,14 @@
 //! validated against the target joined to that source.
 
 use super::super::{
+    bind_select, coalesce_results::ResultTypes, resolve_relation_path, virtual_views, wildcard,
     BindingContext, CassieError, Catalog, CollectionSchema, CteScope, Expr, HashMap, HashSet,
-    SelectItem, bind_select, coalesce_results::ResultTypes, resolve_relation_path, virtual_views,
-    wildcard,
+    SelectItem,
 };
 use crate::sql::ast::{
-    CommonTableExpression, IdentifierPath, MERGE_ACTION_COLUMN, MergeAction, MergeStatement,
-    MutationSource, MutationSourceField, QuerySource, ReturningAliases, SelectStatement,
-    TruncateStatement,
+    CommonTableExpression, IdentifierPath, MergeAction, MergeStatement, MutationSource,
+    MutationSourceField, QuerySource, ReturningAliases, SelectStatement, TruncateStatement,
+    MERGE_ACTION_COLUMN,
 };
 use crate::types::{DataType, FieldSchema};
 

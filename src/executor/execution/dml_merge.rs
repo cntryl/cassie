@@ -11,18 +11,18 @@
 use std::collections::HashSet;
 
 use super::dml_joined::{
-    ExecutionScope, JoinedTarget, SourceRows, combined_row, joined_returning_schema, match_rows,
-    payload_row, row_image_entries, source_rows, target_rows,
+    combined_row, joined_returning_schema, match_rows, payload_row, row_image_entries, source_rows,
+    target_rows, ExecutionScope, JoinedTarget, SourceRows,
 };
 use super::dml_joined_update::{delete_target_row, update_target_row};
 use super::{
-    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
-    HashMap, QueryError, QueryExecutionControls, QueryResult, Value, build_dml_result,
-    check_timeout, filter, row_id_from_batch_row,
+    build_dml_result, check_timeout, filter, row_id_from_batch_row, BatchRow, Cassie,
+    CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
+    QueryExecutionControls, QueryResult, Value,
 };
 use crate::sql::ast::{
-    InsertSource, InsertStatement, MERGE_ACTION_COLUMN, MergeAction, MergeClause, MergeMatch,
-    MergeStatement,
+    InsertSource, InsertStatement, MergeAction, MergeClause, MergeMatch, MergeStatement,
+    MERGE_ACTION_COLUMN,
 };
 
 struct MergeRun<'a> {

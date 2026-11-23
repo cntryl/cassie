@@ -1,10 +1,10 @@
 //! `UPDATE ... FROM`, `DELETE ... USING`, tuple-subquery assignments and
 //! `RETURNING` row images bind against the target joined to its source.
 
-use super::super::{BindingContext, CassieError, Catalog, HashSet, coalesce_results::ResultTypes};
+use super::super::{coalesce_results::ResultTypes, BindingContext, CassieError, Catalog, HashSet};
 use super::mutations::{
-    JoinedScope, bind_assignments, bind_mutation_source, bind_predicate, bind_returning,
-    resolve_target, row_image_fields, target_qualifier,
+    bind_assignments, bind_mutation_source, bind_predicate, bind_returning, resolve_target,
+    row_image_fields, target_qualifier, JoinedScope,
 };
 use crate::sql::ast::{DeleteStatement, IdentifierPath, QuerySource, UpdateStatement};
 

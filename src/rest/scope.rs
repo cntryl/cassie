@@ -81,7 +81,7 @@ pub(crate) fn list_collections(cassie: &Cassie, session: &CassieSession) -> Vec<
 mod tests {
     use super::resolve_collection;
     use crate::app::{Cassie, CassieError, CassieSession};
-    use crate::catalog::{DEFAULT_SCHEMA, canonical_relation_name};
+    use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
     use crate::types::{DataType, FieldSchema, Schema};
 
     fn cassie_with_collections(label: &str, names: &[&str]) -> Cassie {

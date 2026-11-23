@@ -375,16 +375,12 @@ fn should_emit_hsts_only_for_secure_transport() {
     let plain_response = with_security_headers(response, false, false);
 
     // Assert
-    assert!(
-        secure_response
-            .headers()
-            .contains_key("strict-transport-security")
-    );
-    assert!(
-        !plain_response
-            .headers()
-            .contains_key("strict-transport-security")
-    );
+    assert!(secure_response
+        .headers()
+        .contains_key("strict-transport-security"));
+    assert!(!plain_response
+        .headers()
+        .contains_key("strict-transport-security"));
 }
 
 #[test]

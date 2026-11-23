@@ -1,7 +1,7 @@
 //! Field names and type evidence for ordinary SELECT outputs and set operands.
 use super::{
-    DataType, Expr, FieldSchema, HashMap, ProjectionMode, Schema, SelectItem, infer_expr_type,
-    infer_function_return_type, schema_field_type,
+    infer_expr_type, infer_function_return_type, schema_field_type, DataType, Expr, FieldSchema,
+    HashMap, ProjectionMode, Schema, SelectItem,
 };
 use crate::sql::binder::infer_window_return_type;
 

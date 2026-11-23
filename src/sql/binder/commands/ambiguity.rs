@@ -11,8 +11,8 @@ use super::super::{
     CassieError, Catalog, CollectionSchema, Expr, HashSet, ParsedStatement, QuerySource,
     QueryStatement, SelectItem,
 };
-use crate::sql::ColumnIdentifierPath;
 use crate::sql::ast::MutationSourceField;
+use crate::sql::ColumnIdentifierPath;
 
 /// Bare column names declared by both the target and a source relation.
 pub(super) fn ambiguous_columns(

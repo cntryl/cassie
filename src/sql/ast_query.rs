@@ -657,8 +657,8 @@ impl BinaryOp {
     /// The family operator this operator names, if it has one.
     #[must_use]
     pub const fn typed_operator(&self) -> Option<crate::types::extended::TypedOperator> {
-        use crate::types::IntegerOperation;
         use crate::types::extended::TypedOperator;
+        use crate::types::IntegerOperation;
         let operation = match self {
             Self::Typed { operator } => return Some(*operator),
             Self::Add => return Some(TypedOperator::Add),

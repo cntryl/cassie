@@ -1,8 +1,8 @@
 use super::{
-    CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
-    RetentionPolicyMeta, collect_scan,
+    collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
+    RetentionPolicyMeta,
 };
-use crate::catalog::{RelationId, canonical_relation_name, local_name};
+use crate::catalog::{canonical_relation_name, local_name, RelationId};
 
 #[cfg(test)]
 #[path = "schema_ops_identity_tests.rs"]

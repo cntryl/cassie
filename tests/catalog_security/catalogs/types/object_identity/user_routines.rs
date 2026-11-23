@@ -630,10 +630,7 @@ fn should_preserve_a_routine_scalar_subquery_in_a_window_aggregate() {
     );
 
     // Assert
-    assert_eq!(
-        result,
-        vec![vec![Value::Int64(2)], vec![Value::Int64(2)]]
-    );
+    assert_eq!(result, vec![vec![Value::Int64(2)], vec![Value::Int64(2)]]);
 }
 
 #[test]
@@ -656,10 +653,7 @@ fn should_resolve_routine_scalar_subqueries_in_window_partition_and_order() {
     );
 
     // Assert
-    assert_eq!(
-        result,
-        vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]
-    );
+    assert_eq!(result, vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]);
 }
 
 #[test]
@@ -927,9 +921,8 @@ fn should_reject_a_quoted_lowercase_function_argument_duplicate() {
     let fixture = sql_fixture("routine_quoted_argument_duplicate", &[]);
 
     // Act
-    let error = fixture.error(
-        r#"CREATE FUNCTION duplicate_arg(x INT, "x" INT) RETURNS INT AS '1'"#,
-    );
+    let error =
+        fixture.error(r#"CREATE FUNCTION duplicate_arg(x INT, "x" INT) RETURNS INT AS '1'"#);
 
     // Assert
     assert!(error.to_string().contains("duplicate argument"));

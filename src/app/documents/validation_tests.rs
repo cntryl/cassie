@@ -1,7 +1,7 @@
 //! Document ingress diagnostics use the corresponding PostgreSQL 18.6 SQLSTATE.
 
 use super::{Cassie, CassieError};
-use crate::catalog::{DEFAULT_SCHEMA, canonical_relation_name};
+use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
 use crate::config::CassieRuntimeConfig;
 use serde_json::json;
 

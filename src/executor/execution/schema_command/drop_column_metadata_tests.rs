@@ -86,26 +86,20 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
         .get_schema(table)
         .expect("original table schema");
     assert!(schema.fields.iter().any(|field| field.name == "id"));
-    assert!(
-        cassie
-            .catalog
-            .get_view("drop_column_metadata_view")
-            .is_some()
-    );
-    assert!(
-        cassie
-            .catalog
-            .get_constraints("drop_column_metadata_child")
-            .iter()
-            .any(|constraint| constraint.foreign_key_name.is_some())
-    );
-    assert!(
-        cassie
-            .catalog
-            .list_indexes(table)
-            .iter()
-            .any(|index| index.name.ends_with(index_name))
-    );
+    assert!(cassie
+        .catalog
+        .get_view("drop_column_metadata_view")
+        .is_some());
+    assert!(cassie
+        .catalog
+        .get_constraints("drop_column_metadata_child")
+        .iter()
+        .any(|constraint| constraint.foreign_key_name.is_some()));
+    assert!(cassie
+        .catalog
+        .list_indexes(table)
+        .iter()
+        .any(|index| index.name.ends_with(index_name)));
     assert_eq!(
         stored_metadata.as_deref(),
         Some(malformed_metadata.as_slice())

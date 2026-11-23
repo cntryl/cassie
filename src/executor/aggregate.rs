@@ -6,7 +6,7 @@ use crate::executor::ColumnMeta;
 use crate::sql::ast::{
     CommonTableExpression, Expr, FunctionCall, QuerySource, SelectItem, WindowFunctionCall,
 };
-use crate::types::row_identity::{LEGACY_ID_COLUMN, is_row_identity_column};
+use crate::types::row_identity::{is_row_identity_column, LEGACY_ID_COLUMN};
 use crate::types::{DataType, FieldSchema, Schema};
 
 #[must_use]

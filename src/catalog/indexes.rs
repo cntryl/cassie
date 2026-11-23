@@ -391,12 +391,13 @@ impl IndexMeta {
 
         let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(field);
         for raw in self.expressions.iter().chain(self.predicate.iter()) {
-            let expression = serde_json::from_str::<crate::sql::ast::Expr>(raw).map_err(|error| {
-                crate::app::CassieError::Parse(format!(
-                    "invalid expression metadata for index '{}': {error}",
-                    self.name
-                ))
-            })?;
+            let expression =
+                serde_json::from_str::<crate::sql::ast::Expr>(raw).map_err(|error| {
+                    crate::app::CassieError::Parse(format!(
+                        "invalid expression metadata for index '{}': {error}",
+                        self.name
+                    ))
+                })?;
             if expression.any_descendant_or_self(&mut |node| {
                 matches!(
                     node,

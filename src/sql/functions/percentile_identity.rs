@@ -1,7 +1,7 @@
-use crate::sql::ColumnIdentifierPath;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
+use crate::sql::ColumnIdentifierPath;
 
 use super::FunctionId;
 

@@ -79,6 +79,33 @@ fn should_return_sql_null_for_whole_null_standard_object_arrays() {
 }
 
 #[test]
+fn should_resolve_case_insensitive_and_qualified_standard_object_names() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT JSON_OBJECT('{a,b}'), jSoN_Object('{a,b}'), pg_catalog.JSON_OBJECT('{a,b}'), JSONB_OBJECT(NULL::TEXT[]), pg_catalog.JSONB_OBJECT(NULL::TEXT[])",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-1468-object-name-resolution", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some(r#"{"a" : "b"}"#.to_owned()),
+            Some(r#"{"a" : "b"}"#.to_owned()),
+            Some(r#"{"a" : "b"}"#.to_owned()),
+            None,
+            None,
+        ]]
+    );
+}
+
+#[test]
 fn should_report_json_object_array_shape_sqlstates() {
     // Arrange
     let odd = fixture::execute_cycle("SELECT json_object('{a}')", None, 0, true);

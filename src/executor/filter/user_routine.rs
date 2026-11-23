@@ -1,12 +1,63 @@
 //! SQL routine argument and body evaluation under the invoking expression context.
 use super::{
-    cast_scalar, eval_scalar, execution_controls, merge_local_args, scalar_from_value, EvalContext,
-    HashMap, QueryError, RowAccess, Value,
+    cast_scalar, execution_controls, scalar_from_value, EvalContext, HashMap, HashSet, QueryError,
+    RowAccess, Value,
 };
 use crate::executor::filter::EvaluationMemory;
 use std::cell::Cell;
 
 const MAX_USER_FUNCTION_DEPTH: usize = 64;
+
+pub(crate) fn expression_contains_routine_subquery(
+    expression: &crate::sql::ast::Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    contains_routine_subquery(expression, user_functions, &mut HashSet::new())
+}
+
+pub(crate) fn function_contains_routine_subquery(
+    function: &crate::sql::ast::FunctionCall,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    expression_contains_routine_subquery(
+        &crate::sql::ast::Expr::Function(Box::new(function.clone())),
+        user_functions,
+    )
+}
+
+fn contains_routine_subquery(
+    expression: &crate::sql::ast::Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    routine_stack: &mut HashSet<String>,
+) -> bool {
+    if expression.is_subquery_node() {
+        return true;
+    }
+    if let crate::sql::ast::Expr::Function(function) = expression {
+        let name = function.name.to_ascii_lowercase();
+        if let Some(metadata) = user_functions
+            .get(&function.name)
+            .or_else(|| user_functions.get(&name))
+        {
+            let name = metadata.name.to_ascii_lowercase();
+            if routine_stack.insert(name.clone()) {
+                let contains =
+                    crate::sql::parser::parse_expression(&metadata.body).is_ok_and(|body| {
+                        contains_routine_subquery(&body, user_functions, routine_stack)
+                    });
+                routine_stack.remove(&name);
+                if contains {
+                    return true;
+                }
+            }
+        }
+    }
+    let mut contains = false;
+    expression.for_each_child(|child| {
+        contains |= contains_routine_subquery(child, user_functions, routine_stack);
+    });
+    contains
+}
 
 thread_local! {
     static USER_FUNCTION_DEPTH: Cell<usize> = const { Cell::new(0) };
@@ -114,16 +165,18 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
                 &arg.data_type,
                 execution_controls(context),
             )?;
-            Ok((arg.name.to_ascii_lowercase(), value.to_value()))
+            Ok((
+                crate::sql::ColumnIdentifierPath::reference_field_key(&arg.name),
+                value.to_value(),
+            ))
         })
         .collect::<Result<HashMap<String, Value>, QueryError>>()?;
-    let merged_args = merge_local_args(context.local_args, locals);
     if context.memory.is_some() {
         let result = super::super::evaluate_expr_value_with_context(
             row,
             &body,
             EvalContext {
-                local_args: Some(&merged_args),
+                local_args: Some(&locals),
                 ..context
             },
         )
@@ -142,14 +195,13 @@ pub(super) fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         }
         return result;
     }
-    let result = eval_scalar(
+    let result = super::super::evaluate_expr_value_with_context(
         row,
         &body,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        Some(&merged_args),
-        context.session,
+        EvalContext {
+            local_args: Some(&locals),
+            ..context
+        },
     )
     .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
     .map(|value| value.to_value());

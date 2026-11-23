@@ -51,7 +51,7 @@ pub(super) fn bind_create_function(
                 "function argument name cannot be empty".into(),
             ));
         }
-        let key = arg_name.to_ascii_lowercase();
+        let key = crate::sql::ColumnIdentifierPath::reference_field_key(&arg_name);
         if !seen.insert(key) {
             return Err(CassieError::Planner(format!(
                 "function '{name}' has duplicate argument '{arg_name}'"
@@ -84,6 +84,28 @@ pub(super) fn bind_create_function(
     })?;
 
     crate::sql::definition_guard::legacy_expression(&parsed_body)?;
+
+    let argument_names = statement
+        .args
+        .iter()
+        .map(|arg| crate::sql::ColumnIdentifierPath::reference_field_key(&arg.name))
+        .collect::<HashSet<_>>();
+    let scope = super::CteScope::new(None, &[]);
+    super::validate_expression_in_scope(
+        &parsed_body,
+        &argument_names,
+        &HashSet::new(),
+        false,
+        super::references::ReferenceScope::new(&scope, catalog, context),
+    )
+    .map_err(|error| match error {
+        CassieError::UndefinedColumn(column) => crate::app::DiagnosticError::new(
+            "42703",
+            format!("column \"{column}\" does not exist"),
+        )
+        .into(),
+        error => error,
+    })?;
 
     if function_body_references(&parsed_body, &name, context) {
         return Err(CassieError::Planner(format!(

@@ -22,6 +22,30 @@ pub(super) fn contains(projection: &[SelectItem]) -> bool {
     })
 }
 
+pub(super) fn contains_routine_subquery(
+    projection: &[SelectItem],
+    user_functions: &std::collections::HashMap<String, super::FunctionMeta>,
+) -> bool {
+    projection.iter().any(|item| match item {
+        SelectItem::Expr { expr, .. } => {
+            super::exists_correlated::contains_exists_or_routine_subquery(expr, user_functions)
+        }
+        SelectItem::Function { function, .. } => {
+            super::filter::function_contains_routine_subquery(function, user_functions)
+        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(|expr| {
+                super::exists_correlated::contains_exists_or_routine_subquery(expr, user_functions)
+            }),
+        _ => false,
+    })
+}
+
 pub(super) fn reserve_clone(
     value: &impl serde::Serialize,
     context: &ExistsResolutionContext<'_>,

@@ -6,11 +6,14 @@
 //! folded when independent or deferred to its actual row/group phase. The `WHERE`
 //! filter is resolved separately by `source::resolve_plan_filter`.
 
-use super::{ExistsResolutionContext, Expr, LogicalPlan, QueryError};
+use super::{ExistsResolutionContext, Expr, FunctionMeta, LogicalPlan, QueryError};
 use crate::sql::ast::{QuerySource, SelectItem};
 
-fn contains_exists(expr: &Expr) -> bool {
-    expr.contains_subquery()
+fn contains_exists(
+    expr: &Expr,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+) -> bool {
+    super::exists_correlated::contains_exists_or_routine_subquery(expr, user_functions)
 }
 
 fn item_exprs(item: &SelectItem) -> Vec<&Expr> {
@@ -28,26 +31,51 @@ fn item_exprs(item: &SelectItem) -> Vec<&Expr> {
     }
 }
 
-fn source_has_exists(source: &QuerySource) -> bool {
+fn source_has_exists(
+    source: &QuerySource,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+) -> bool {
     match source {
         QuerySource::Join {
             left, right, on, ..
-        } => contains_exists(on) || source_has_exists(left) || source_has_exists(right),
+        } => {
+            contains_exists(on, user_functions)
+                || source_has_exists(left, user_functions)
+                || source_has_exists(right, user_functions)
+        }
         _ => false,
     }
 }
 
 /// Returns whether `plan` has an `EXISTS` outside its `WHERE` filter.
-pub(super) fn plan_has_unresolved_exists(plan: &LogicalPlan) -> bool {
-    plan.limit.iter().chain(&plan.offset).any(contains_exists)
-        || plan.having.as_ref().is_some_and(contains_exists)
+pub(super) fn plan_has_unresolved_exists(
+    plan: &LogicalPlan,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+) -> bool {
+    plan.limit
+        .iter()
+        .chain(&plan.offset)
+        .any(|expr| contains_exists(expr, user_functions))
+        || plan
+            .having
+            .as_ref()
+            .is_some_and(|expr| contains_exists(expr, user_functions))
         || plan
             .projection
             .iter()
             .flat_map(item_exprs)
-            .any(contains_exists)
-        || plan.order.iter().any(|order| contains_exists(&order.expr))
-        || source_has_exists(&plan.source)
+            .any(|expr| contains_exists(expr, user_functions))
+        || plan.projection.iter().any(|item| match item {
+            SelectItem::Function { function, .. } => {
+                super::filter::function_contains_routine_subquery(function, user_functions)
+            }
+            _ => false,
+        })
+        || plan
+            .order
+            .iter()
+            .any(|order| contains_exists(&order.expr, user_functions))
+        || source_has_exists(&plan.source, user_functions)
 }
 
 /// Classifies `EXISTS` outside `WHERE`, preserving reached correlated nodes.

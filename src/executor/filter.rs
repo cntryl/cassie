@@ -29,7 +29,8 @@ pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
 mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 /// Resolves a reached `EXISTS` or sublink node to its executed form.
-pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
+pub(crate) type ExistsResolver<'a> =
+    dyn Fn(&Expr, Option<&HashMap<String, Value>>) -> Result<Expr, QueryError> + 'a;
 #[path = "filter/json_concat.rs"]
 mod json_concat;
 #[path = "filter/json_containment.rs"]
@@ -114,6 +115,9 @@ pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
+pub(crate) use functions::{
+    expression_contains_routine_subquery, function_contains_routine_subquery,
+};
 #[path = "filter/like.rs"]
 mod like;
 #[path = "filter/number_format.rs"]
@@ -512,7 +516,7 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             None => Err(QueryError::General(
                 "EXISTS predicate was not resolved before filtering".to_string(),
             )),
-            Some(resolve) => match resolve(expr)? {
+            Some(resolve) => match resolve(expr, context.local_args)? {
                 Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(value)),
                 _ => Err(QueryError::General(
                     "EXISTS resolver did not return BOOLEAN".into(),

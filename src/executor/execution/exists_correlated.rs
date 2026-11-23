@@ -8,8 +8,7 @@
 //! inner column with this outer row's value.
 
 use super::{
-    batch, filter, resolve_exists_expr, Batch, BatchRow, ExistsResolutionContext, Expr, QueryError,
-    QuerySource,
+    batch, filter, Batch, BatchRow, ExistsResolutionContext, Expr, QueryError, QuerySource,
 };
 
 use super::LogicalPlan;
@@ -17,6 +16,13 @@ use super::LogicalPlan;
 /// Returns whether `expr` contains an `EXISTS` or other subquery.
 pub(super) fn contains_exists(expr: &Expr) -> bool {
     expr.contains_subquery()
+}
+
+pub(super) fn contains_exists_or_routine_subquery(
+    expr: &Expr,
+    user_functions: &std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    contains_exists(expr) || filter::expression_contains_routine_subquery(expr, user_functions)
 }
 
 /// Keeps the rows of `batches` for which `filter_expr` holds, evaluating each
@@ -35,7 +41,9 @@ pub(super) fn filter_rows_per_outer_row(
     let qualifier = outer_qualifier(source);
     let mut terms = Vec::new();
     crate::planner::lateral_filter::conjuncts(filter_expr, &mut terms);
-    terms.retain(|term| !term.contains_subquery());
+    terms.retain(|term| {
+        !contains_exists_or_routine_subquery(term, context.user_functions)
+    });
     let mut kept = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(context.controls)?;
@@ -47,15 +55,29 @@ pub(super) fn filter_rows_per_outer_row(
             outer_row: Some(&outer),
             ..*context
         };
-        let resolved = resolve_exists_expr(&row_context, filter_expr)?;
-        kept.extend(filter::filter_rows(
-            vec![row],
-            &resolved,
-            context.params,
-            search_context,
-            context.user_functions,
-            context.session,
-        )?);
+        let resolve = |expr: &Expr, local_args| {
+            super::resolve_exists_expr_with_local_args(&row_context, expr, local_args)
+        };
+        let value = filter::evaluate_resolving_exists(
+            &row,
+            filter_expr,
+            filter::ExistsValueContext {
+                params: context.params,
+                search: search_context,
+                functions: context.user_functions,
+                session: context.session,
+                resolver: &resolve,
+            },
+        )?;
+        match value {
+            crate::types::Value::Bool(true) => kept.push(row),
+            crate::types::Value::Bool(false) | crate::types::Value::Null => {}
+            _ => {
+                return Err(QueryError::General(
+                    "Boolean expression requires BOOLEAN or SQL NULL".into(),
+                ));
+            }
+        }
     }
     Ok(batch::chunk_rows(kept, batch::DEFAULT_BATCH_SIZE))
 }

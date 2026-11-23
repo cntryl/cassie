@@ -190,7 +190,7 @@ impl<'a> Cursor<'a> {
             memory.absorb(reservation);
         }
         if plan.limit_value() != Some(0)
-            && super::super::exists_plan::plan_has_unresolved_exists(&plan)
+            && super::super::exists_plan::plan_has_unresolved_exists(&plan, env.user_functions)
         {
             let (resolved, reservation) = super::super::exists_plan::resolve_plan_exists(
                 &super::ExistsResolutionContext {
@@ -341,25 +341,38 @@ fn filtered(
     }
     if state.is_none() {
         *state = Some(
-            match super::resolve_plan_filter(&env.plan_env(), plan, ctes) {
-                Ok(expression) => {
-                    let bytes = expression.as_ref().map_or(Ok(0), |expr| {
-                        crate::sql::parse_analysis::expression_clone_bytes(expr, 0, env.controls)
-                    })?;
-                    Predicate::Ready {
-                        expression,
-                        _memory: env.controls.reserve_query_memory(bytes)?,
+            if plan.filter.as_ref().is_some_and(|filter_expr| {
+                super::filter::expression_contains_routine_subquery(
+                    filter_expr,
+                    env.user_functions,
+                )
+            }) {
+                Predicate::Correlated
+            } else {
+                match super::resolve_plan_filter(&env.plan_env(), plan, ctes) {
+                    Ok(expression) => {
+                        let bytes = expression.as_ref().map_or(Ok(0), |expr| {
+                            crate::sql::parse_analysis::expression_clone_bytes(
+                                expr,
+                                0,
+                                env.controls,
+                            )
+                        })?;
+                        Predicate::Ready {
+                            expression,
+                            _memory: env.controls.reserve_query_memory(bytes)?,
+                        }
                     }
-                }
-                Err(error) => {
-                    if !plan
-                        .filter
-                        .as_ref()
-                        .is_some_and(super::super::exists_correlated::contains_exists)
-                    {
-                        return Err(error);
+                    Err(error) => {
+                        if !plan
+                            .filter
+                            .as_ref()
+                            .is_some_and(super::super::exists_correlated::contains_exists)
+                        {
+                            return Err(error);
+                        }
+                        Predicate::Correlated
                     }
-                    Predicate::Correlated
                 }
             },
         );
@@ -388,7 +401,10 @@ fn projected(
     ctes: &mut CteContext,
     batches: Vec<super::Batch>,
 ) -> Result<super::projection::OwnedExpanded, QueryError> {
-    if super::super::exists_projection::contains(&plan.projection) {
+    if super::super::exists_projection::contains_routine_subquery(
+        &plan.projection,
+        env.user_functions,
+    ) {
         super::exists_projection_phase::apply(env, batches, plan, ctes, None)
             .map(super::projection::OwnedExpanded::untracked)
     } else {

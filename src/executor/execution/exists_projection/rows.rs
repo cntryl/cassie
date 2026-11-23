@@ -35,7 +35,9 @@ pub(in crate::executor::execution) fn project(
                 controls: env.controls,
                 outer_row: Some(&outer),
             };
-            let resolve = |expr: &Expr| super::super::resolve_exists_expr(&context, expr);
+            let resolve = |expr: &Expr, local_args| {
+                super::super::resolve_exists_expr_with_local_args(&context, expr, local_args)
+            };
             let result = crate::executor::projection::project_batches_resolving_exists(
                 vec![vec![row]],
                 projection,

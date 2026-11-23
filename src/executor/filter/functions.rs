@@ -593,6 +593,20 @@ fn evaluate_cast_function(
 mod routine;
 use routine::evaluate_user_defined_function;
 
+pub(crate) fn expression_contains_routine_subquery(
+    expression: &Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::expression_contains_routine_subquery(expression, user_functions)
+}
+
+pub(crate) fn function_contains_routine_subquery(
+    function: &FunctionCall,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::function_contains_routine_subquery(function, user_functions)
+}
+
 pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
@@ -832,21 +846,6 @@ fn evaluate_hybrid_score(args: &[Value]) -> Result<Value, QueryError> {
         scalar_to_f64(&args[1]),
         None,
     )))
-}
-
-fn merge_local_args(
-    outer: Option<&HashMap<String, Value>>,
-    locals: HashMap<String, Value>,
-) -> HashMap<String, Value> {
-    if let Some(outer) = outer {
-        let mut merged = outer.clone();
-        for (name, value) in locals {
-            merged.insert(name, value);
-        }
-        merged
-    } else {
-        locals
-    }
 }
 
 fn parse_f64_to_i64(value: f64) -> Option<i64> {

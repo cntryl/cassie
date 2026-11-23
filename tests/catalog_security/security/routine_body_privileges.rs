@@ -127,6 +127,22 @@ fn should_deny_a_forbidden_function_body_inside_a_lateral_subquery() {
 }
 
 #[test]
+fn should_deny_a_forbidden_function_body_in_a_generated_source_argument() {
+    // Arrange
+    let (cassie, _root, alice) = fixture(&[PEEK]);
+
+    // Act
+    let refused = denied(
+        &cassie,
+        &alice,
+        "SELECT n FROM generate_series(length(peek()), 1) AS s(n)",
+    );
+
+    // Assert
+    assert!(refused);
+}
+
+#[test]
 fn should_deny_a_forbidden_function_body_reached_through_a_nested_call() {
     // Arrange
     let (cassie, _root, alice) = fixture(&[

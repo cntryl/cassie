@@ -72,8 +72,8 @@ mod record_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{
-    FreshPortalWriteRequest, PortalExecution, PortalFetchWindow, take_portal_execution,
-    write_completed_portal, write_fresh_result,
+    FreshPortalWriteRequest, PortalExecution, take_portal_execution, write_completed_portal,
+    write_fresh_result,
 };
 use portal_streaming::{
     StreamingPortalPageRequest, SuspendedPortalRequest, execute_streaming_portal_page,
@@ -325,6 +325,15 @@ async fn execute_prepared_portal(
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
+    let standalone_publication = standalone && session.is_implicit_transaction();
+    let explicit_commit = matches!(
+        &parsed.statement,
+        crate::sql::ast::QueryStatement::Transaction(transaction)
+            if matches!(
+                &transaction.action,
+                crate::sql::ast::TransactionAction::Commit
+            )
+    );
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
     let bound_read = state.portal_reads.get(portal_name);
     let result = run_pgwire_blocking(
@@ -344,7 +353,7 @@ async fn execute_prepared_portal(
     )
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    if standalone && session.is_implicit_transaction() {
+    if standalone_publication {
         let transaction_session = session.clone();
         if let Err(error) = run_pgwire_blocking(
             Arc::clone(&cassie),
@@ -363,7 +372,11 @@ async fn execute_prepared_portal(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     }
-    let active_cancellation = Some(cancellation.handle());
+    let acknowledgement_cancellation = if standalone_publication || explicit_commit {
+        None
+    } else {
+        Some(cancellation.handle())
+    };
 
     write_fresh_result(
         write_half,
@@ -373,7 +386,7 @@ async fn execute_prepared_portal(
             portal,
             prepared,
             result,
-            cancellation: active_cancellation,
+            cancellation: acknowledgement_cancellation,
             max_rows,
             result_cap,
         },

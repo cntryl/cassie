@@ -307,8 +307,6 @@ async fn execute_offset_portal_page(
             return Err(ExtendedQueryError::cassie(&error));
         }
     };
-    let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
-    let remains_suspended = result.row_count() > window.page_rows();
     let active_cancellation = Some(cancellation.handle());
     let rows_emitted = request.rows_emitted;
     let row_description_sent = request.portal.described || request.prepared.described;

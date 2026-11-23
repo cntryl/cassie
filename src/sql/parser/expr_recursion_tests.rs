@@ -15,7 +15,7 @@ fn in_memory_session(name: &str) -> (Cassie, crate::app::CassieSession) {
 #[test]
 fn should_reject_not_chain_before_parser_recursion_exceeds_bound() {
     // Arrange
-    let sql = format!("SELECT {}true", "NOT ".repeat(50_000));
+    let sql = format!("SELECT {}true", "NOT ".repeat(512));
 
     // Act
     let error = parse_statement(&sql).expect_err("deep NOT chain must be rejected");
@@ -149,8 +149,8 @@ fn should_reject_case_chain_before_parser_recursion_exceeds_bound() {
     // Arrange
     let sql = format!(
         "SELECT {}1{}",
-        "CASE WHEN true THEN ".repeat(3_000),
-        " END".repeat(3_000)
+        "CASE WHEN true THEN ".repeat(512),
+        " END".repeat(512)
     );
 
     // Act

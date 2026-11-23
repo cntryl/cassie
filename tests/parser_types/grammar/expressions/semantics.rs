@@ -772,11 +772,8 @@ fn should_bound_combined_cast_depth_given_parenthesized_chains_when_parsing_an_e
     let inner = format!("1{}", "::INT8".repeat(64));
     let admitted_sql = format!("SELECT ({inner}){}", "::INT8".repeat(64));
     let rejected_sql = format!("SELECT ({inner}){}", "::INT8".repeat(65));
-    let mut adversarial = "1".to_owned();
     let chain = "::INT8".repeat(128);
-    for _ in 0..128 {
-        adversarial = format!("({adversarial}){chain}");
-    }
+    let adversarial = format!("{}1{}", "(".repeat(128), format!("){chain}").repeat(128));
 
     // Act
     let admitted = parse_statement(&admitted_sql);

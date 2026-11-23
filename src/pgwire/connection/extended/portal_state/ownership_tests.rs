@@ -7,9 +7,9 @@ use std::time::Instant;
 use tokio::io::AsyncWrite;
 
 use super::{
-    take_portal_execution, write_materialized_result, write_suspended_result,
     MaterializedPortalWriteRequest, Portal, PortalExecution, QueryResult, SessionState,
-    SuspendedPortalWriteRequest,
+    SuspendedPortalWriteRequest, take_portal_execution, write_materialized_result,
+    write_suspended_result,
 };
 use crate::config::CassieRuntimeLimits;
 use crate::executor::ColumnMeta;
@@ -55,6 +55,61 @@ fn state(limits: &CassieRuntimeLimits) -> (SessionState, PortalExecution) {
     );
     let portal = PortalExecution::from(state.portals.get("retained").expect("portal"));
     (state, portal)
+}
+
+fn active_query_fixture(
+    sql: &str,
+) -> (
+    std::sync::Arc<crate::app::Cassie>,
+    crate::app::CassieSession,
+    SessionState,
+    crate::pgwire::protocol::PreparedStatement,
+    PortalExecution,
+) {
+    let cassie =
+        std::sync::Arc::new(
+            crate::app::Cassie::new_in_memory_with_config(
+                crate::config::CassieRuntimeConfig::default(),
+            )
+            .expect("memory fixture"),
+        );
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(&session, "CREATE TABLE t (id INT)", Vec::new())
+        .expect("table");
+    cassie
+        .execute_sql(&session, "INSERT INTO t VALUES (1), (2), (3)", Vec::new())
+        .expect("rows");
+    let mut state = SessionState::new(&cassie.runtime.limits());
+    state.backend_registration = Some(cassie.runtime.register_pgwire_backend());
+    let parsed = crate::sql::parse_statement(sql).expect("statement");
+    let prepared = crate::pgwire::protocol::PreparedStatement {
+        id: 1,
+        name: "source".to_owned(),
+        query: sql.to_owned(),
+        sql_fingerprint: crate::runtime::sql_fingerprint(&parsed),
+        parsed: Some(parsed),
+        parameter_count: 0,
+        parameter_types: Vec::new(),
+        described: false,
+    };
+    state.portals.insert(
+        "retained".to_owned(),
+        Portal {
+            name: "retained".to_owned(),
+            statement_name: "source".to_owned(),
+            prepared_id: 1,
+            params: Vec::new(),
+            parameter_memory: Vec::new(),
+            result_formats: Vec::new(),
+            described: false,
+            suspended: None,
+            completed_command: None,
+        },
+    );
+    let portal = PortalExecution::from(state.portals.get("retained").expect("portal"));
+    (cassie, session, state, prepared, portal)
 }
 
 #[test]
@@ -369,7 +424,10 @@ fn should_ignore_cancellation_from_a_prior_portal_execution_when_resuming() {
     ));
 
     // Assert
-    assert!(resumed.is_ok(), "a prior generation must not cancel this Execute");
+    assert!(
+        resumed.is_ok(),
+        "a prior generation must not cancel this Execute"
+    );
     assert!(state.portals["retained"].suspended.is_some());
     drop(state.remove_portal("retained"));
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
@@ -438,7 +496,10 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     ));
 
     // Assert
-    assert!(writer.canceled, "resumed Execute is registered while writing");
+    assert!(
+        writer.canceled,
+        "resumed Execute is registered while writing"
+    );
     assert_eq!(
         error.expect_err("active page cancellation").pg_error.code,
         "57014"
@@ -446,6 +507,95 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     assert_eq!(writer.frame_tags, vec![b'D']);
     assert!(state.portals["retained"].suspended.is_none());
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+    assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+}
+
+#[test]
+fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written() {
+    // Arrange
+    for sql in [
+        "SELECT id FROM t ORDER BY id",
+        "WITH selected AS (SELECT id FROM t) SELECT id FROM selected ORDER BY id",
+    ] {
+        let (cassie, session, mut state, prepared, portal) = active_query_fixture(sql);
+        let backend = state.backend_registration.as_ref().expect("backend");
+        let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
+        let mut writer = CancelAtFlushWrite {
+            runtime: std::sync::Arc::clone(&cassie.runtime),
+            process_id,
+            secret_key,
+            canceled: false,
+            frame_tags: Vec::new(),
+        };
+
+        // Act
+        let error = runtime().block_on(super::super::execute_streaming_portal_page(
+            std::sync::Arc::clone(&cassie),
+            &mut writer,
+            super::super::StreamingPortalPageRequest {
+                state: &mut state,
+                session: &session,
+                portal_name: "retained",
+                portal: &portal,
+                prepared: &prepared,
+                max_rows: 1,
+                rows_emitted: 0,
+                cancellation: None,
+            },
+        ));
+
+        // Assert
+        assert!(writer.canceled, "active page cancellation must be accepted");
+        assert_eq!(
+            error.expect_err("active page cancellation").pg_error.code,
+            "57014"
+        );
+        assert_eq!(writer.frame_tags, vec![b'D']);
+        assert!(state.portals["retained"].suspended.is_none());
+        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+    }
+}
+
+#[test]
+fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written() {
+    // Arrange
+    let sql = "SELECT id FROM t ORDER BY id";
+    let (cassie, session, mut state, prepared, portal) = active_query_fixture(sql);
+    let backend = state.backend_registration.as_ref().expect("backend");
+    let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
+    let mut writer = CancelAtFlushWrite {
+        runtime: std::sync::Arc::clone(&cassie.runtime),
+        process_id,
+        secret_key,
+        canceled: false,
+        frame_tags: Vec::new(),
+    };
+
+    // Act
+    let error = runtime().block_on(super::super::execute_prepared_portal(
+        std::sync::Arc::clone(&cassie),
+        &cassie.runtime,
+        &mut writer,
+        &mut state,
+        &session,
+        super::super::PreparedPortalRequest {
+            portal_name: "retained",
+            portal: &portal,
+            prepared: &prepared,
+            parsed: prepared.parsed.clone().expect("parsed statement"),
+            max_rows: 1,
+            standalone: false,
+        },
+    ));
+
+    // Assert
+    assert!(writer.canceled, "active page cancellation must be accepted");
+    assert_eq!(
+        error.expect_err("active page cancellation").pg_error.code,
+        "57014"
+    );
+    assert_eq!(writer.frame_tags, vec![b'D']);
+    assert!(state.portals["retained"].suspended.is_none());
     assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
 }
 

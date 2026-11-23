@@ -4,6 +4,10 @@ use super::{
     check_timeout, Cassie, CassieSession, QueryError, QueryExecutionControls, QueryResult,
 };
 
+#[cfg(test)]
+#[path = "dml_unique_wait_tests.rs"]
+mod tests;
+
 pub(super) fn execute_atomic_dml(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -142,6 +146,8 @@ fn attempt_unique_dml_publication(
     mut pending: PendingUniqueDml,
     wait_for_unique_owner: bool,
 ) -> Result<AtomicDmlAttempt, QueryError> {
+    #[cfg(test)]
+    tests::before_unique_publication();
     let waits = &cassie.transaction_unique_waits;
     let catalog = pending
         .batch

@@ -107,6 +107,8 @@ pub(super) fn alter_table_add_column(
         merged_constraints: &merged_constraints,
         default_value,
     };
+    #[cfg(test)]
+    tests::observe_before_add_column_gate();
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
@@ -344,3 +346,7 @@ fn add_column_to_storage(
         .add_collection_field(table, field_schema.name, field_schema.data_type);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "add_column_tests.rs"]
+mod tests;

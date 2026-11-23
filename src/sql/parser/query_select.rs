@@ -540,13 +540,16 @@ fn parse_projection_items(
     select_part: &str,
     named_windows: &NamedWindows,
 ) -> Result<Vec<super::SelectItem>, SqlError> {
-    let projection_tokens: Vec<&str> = split_csv(select_part);
+    let projection_tokens = super::super::expr::split_csv_spans(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
-    for token in projection_tokens {
-        projection.push(parse_projection_item_with_named_windows(
-            crate::sql::parser::lexical::trim_separators(token),
-            named_windows,
-        )?);
+    for (offset, token) in projection_tokens {
+        projection.push(
+            parse_projection_item_with_named_windows(
+                crate::sql::parser::lexical::trim_separators(token),
+                named_windows,
+            )
+            .map_err(|error| error.offset_position(offset))?,
+        );
     }
     Ok(projection)
 }

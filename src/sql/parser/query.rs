@@ -247,18 +247,22 @@ fn unexpected_projection_token(raw: &str) -> Option<SqlError> {
 
 fn next_token_span(raw: &str) -> Option<(&str, usize, usize)> {
     let leading = super::lexical::separator_end(raw, 0);
-    let token = raw[leading..]
-        .split_whitespace()
-        .next()
-        .filter(|token| !token.is_empty())?;
-    Some((token, leading, leading + token.len()))
+    let rest = raw.get(leading..)?;
+    let end = if let Some(end) = super::lexical::quoted_end(rest, 0) {
+        end
+    } else {
+        rest.find(char::is_whitespace).unwrap_or(rest.len())
+    };
+    (end > 0).then(|| (&rest[..end], leading, leading + end))
 }
 
 fn unexpected_alias_token(token: &str) -> Option<SqlError> {
     let (_, alias_start) = super::clauses::find_top_level_keyword_span(token, 0, " as ")?;
     let alias = &token[alias_start..];
     let (first, _, after_first) = next_token_span(alias)?;
-    if !(bare_sql_identifier(first) || first.starts_with('"')) {
+    if !(bare_sql_identifier(first)
+        || super::lexical::quoted_end(first, 0).is_some_and(|end| end == first.len()))
+    {
         return None;
     }
     let (unexpected, unexpected_start, _) = next_token_span(&alias[after_first..])?;

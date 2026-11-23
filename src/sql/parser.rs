@@ -688,3 +688,43 @@ mod cte_materialization;
 #[cfg(test)]
 #[path = "parser/statistical_window_tests.rs"]
 mod statistical_window_tests;
+
+#[cfg(test)]
+mod projection_diagnostic_tests {
+    use super::parse_statement;
+    use crate::sql::ast::SelectItem;
+
+    #[test]
+    fn should_preserve_quoted_projection_alias_with_whitespace() {
+        // Arrange
+        let sql = r#"SELECT 1 AS "Amount Value""#;
+
+        // Act
+        let parsed = parse_statement(sql).expect("quoted projection alias");
+
+        // Assert
+        let crate::sql::QueryStatement::Select(select) = parsed.statement else {
+            panic!("expected SELECT");
+        };
+        assert!(matches!(
+            select.projection.as_slice(),
+            [SelectItem::Expr {
+                alias: Some(alias),
+                ..
+            }] if alias == "Amount Value"
+        ));
+    }
+
+    #[test]
+    fn should_report_later_projection_item_at_original_position() {
+        // Arrange
+        let sql = "SELECT 1, 2 AS x y";
+
+        // Act
+        let error = parse_statement(sql).expect_err("extra alias token");
+
+        // Assert
+        assert_eq!(error.position(), Some(18));
+        assert_eq!(error.message(), "syntax error at or near \"y\"");
+    }
+}

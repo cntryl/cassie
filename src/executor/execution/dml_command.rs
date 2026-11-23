@@ -532,6 +532,15 @@ fn execute_drop_function_command(
         if statement.if_exists && cassie.catalog.get_function(&statement.name).is_none() {
             return super::command_output::empty("DROP FUNCTION", controls);
         }
+        if statement.cascade {
+            return Err(QueryError::Cassie(
+                crate::app::DiagnosticError::new("0A000", "DROP FUNCTION CASCADE is not supported")
+                    .into(),
+            ));
+        }
+        if let Some(function) = cassie.catalog.get_function(&statement.name) {
+            super::view_dependents::reject_function_view_dependents(cassie, &function)?;
+        }
 
         let output = super::command_output::empty("DROP FUNCTION", controls)?;
         cassie

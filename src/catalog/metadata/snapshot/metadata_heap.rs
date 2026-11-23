@@ -701,6 +701,9 @@ metadata_heap!(crate::catalog::programs::ViewMeta {
     schema,
     object_id,
     extension_dependency_ids,
+    function_dependency_ids,
+    function_dependency_database,
+    function_dependency_search_path,
 });
 
 unit_enum_heap!(crate::catalog::programs::Volatility {

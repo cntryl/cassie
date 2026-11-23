@@ -91,12 +91,21 @@ fn create_view_gated(
         ));
     };
 
-    let schema =
+    let mut schema =
         crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
             .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::sql::binder::validate_and_rename_view_schema(&mut schema, &statement.column_names)
+        .map_err(QueryError::Cassie)?;
     let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
     metadata.extension_dependency_ids = selected_extension_dependency_ids(cassie, select, &context);
+    metadata.function_dependency_ids = selected_function_dependency_ids(cassie, select, &context);
+    metadata
+        .function_dependency_database
+        .clone_from(&context.database);
+    metadata
+        .function_dependency_search_path
+        .clone_from(&context.search_path);
 
     metadata.definition_semantics_version = 1;
     cassie
@@ -115,6 +124,29 @@ fn create_view_gated(
     cassie.catalog.register_view(metadata);
 
     Ok(output)
+}
+
+fn selected_function_dependency_ids(
+    cassie: &Cassie,
+    select: &crate::sql::ast::SelectStatement,
+    context: &crate::sql::binder::BindingContext,
+) -> Vec<u64> {
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &cassie.catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    let mut calls = Vec::new();
+    crate::sql::binder::collect_functions(select, &mut calls);
+    calls
+        .into_iter()
+        .filter_map(|call| user_functions.get(&call.name.to_ascii_lowercase()))
+        .filter(|function| function.object_id != 0)
+        .map(|function| function.object_id)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn selected_extension_dependency_ids(

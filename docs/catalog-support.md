@@ -283,6 +283,12 @@ not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
 `pg_is_other_temp_schema(oid)` returns false because Cassie does not create
 temporary schemas.
 
+Stored views record stable identities for user-defined functions resolved at
+view creation. `DROP FUNCTION` and `DROP FUNCTION IF EXISTS` return `2BP01`
+before removing the function when a direct or transitive view dependency uses
+that identity. `DROP FUNCTION ... CASCADE` is an explicit `0A000` limitation:
+Cassie does not remove dependent views as part of routine DDL.
+
 For scalar indexes, `pg_index.indpred` retains Cassie's TEXT
 (OID 25) descriptor. It returns SQL NULL when an index has no partial
 predicate and the stored predicate text for a partial index. This qualifies

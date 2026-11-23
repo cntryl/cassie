@@ -255,7 +255,22 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
 
     let as_pos = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError::new("CREATE VIEW requires AS clause".into()))?;
-    let name = rest[..as_pos].trim();
+    let target = rest[..as_pos].trim();
+    let (name, column_names) = if let Some(open) = target.find('(') {
+        let close = super::find_matching_paren(target, open)
+            .ok_or_else(|| SqlError::new("invalid CREATE VIEW column list".into()))?;
+        if !target[close + 1..].trim().is_empty() {
+            return Err(SqlError::new(
+                "unexpected tokens after CREATE VIEW column list".into(),
+            ));
+        }
+        (
+            target[..open].trim(),
+            super::schema_identifiers::parse_column_declaration_list(&target[open + 1..close])?,
+        )
+    } else {
+        (target, Vec::new())
+    };
     if name.is_empty() {
         return Err(SqlError::new("CREATE VIEW requires a name".into()));
     }
@@ -263,6 +278,17 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
         return Err(SqlError::new(
             "CREATE VIEW supports only one view name".into(),
         ));
+    }
+    if column_names.is_empty() && target.contains('(') {
+        return Err(SqlError::new(
+            "CREATE VIEW column list cannot be empty".into(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for column in &column_names {
+        if !seen.insert(crate::sql::ColumnIdentifierPath::stored_field_key(column)) {
+            return Err(SqlError::duplicate_column(column));
+        }
     }
 
     let body = rest[as_pos + 2..].trim();
@@ -274,6 +300,7 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateView(CreateViewStatement {
             name: name.to_string(),
+            column_names,
             if_not_exists,
             query: body.to_string(),
         }),
@@ -285,7 +312,13 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
     let rest = trimmed[14..].trim();
     let (if_exists, rest) = parse_if_exists(rest);
 
-    if rest.is_empty() {
+    let (name, cascade) =
+        if rest.len() > " cascade".len() && rest.to_ascii_lowercase().ends_with(" cascade") {
+            (&rest[..rest.len() - " cascade".len()], true)
+        } else {
+            (rest, false)
+        };
+    if name.trim().is_empty() {
         return Err(SqlError::new(
             "missing function name for DROP FUNCTION".into(),
         ));
@@ -294,8 +327,9 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropFunction(DropFunctionStatement {
-            name: rest.to_string(),
+            name: name.trim().to_string(),
             if_exists,
+            cascade,
         }),
     })
 }

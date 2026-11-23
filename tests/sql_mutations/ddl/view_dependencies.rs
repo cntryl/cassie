@@ -331,7 +331,7 @@ fn should_reject_dropping_a_function_used_by_a_view_chain() {
             error,
             cassie::app::CassieError::Diagnostic(ref diagnostic)
                 if diagnostic.detail.as_deref().is_some_and(
-                    |detail| detail.contains("view function_view depends on function view_increment")
+                    |detail| detail.contains("function_view depends on function view_increment")
                 )
         ),
         "the detail names the directly dependent view"
@@ -353,6 +353,33 @@ fn should_drop_a_function_without_dependent_views() {
 
     // Assert
     assert!(dropped.is_ok());
+}
+
+#[test]
+fn should_preserve_the_view_creation_search_path_for_function_dependencies() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-dep-function-search-path",
+        &[
+            "CREATE SCHEMA selected_functions",
+            "CREATE SCHEMA shadow_functions",
+            "CREATE FUNCTION selected_functions.same_name(x INT) RETURNS INT AS 'x + 1'",
+            "CREATE FUNCTION shadow_functions.same_name(x INT) RETURNS INT AS 'x + 2'",
+            "SET search_path = selected_functions, shadow_functions, public",
+            "CREATE VIEW search_path_view AS SELECT same_name(1) AS result",
+            "SET search_path = public",
+        ],
+    );
+
+    // Act
+    let unrelated_drop = fixture.execute("DROP FUNCTION shadow_functions.same_name");
+    let dependent_drop = fixture.error("DROP FUNCTION selected_functions.same_name");
+    let value = fixture.rows("SELECT result FROM search_path_view");
+
+    // Assert
+    assert!(unrelated_drop.is_ok());
+    assert_eq!(dependent_drop.sql_state(), "2BP01");
+    assert_eq!(value, vec![vec![Value::Int64(2)]]);
 }
 
 #[test]
@@ -388,11 +415,9 @@ fn should_reject_duplicate_create_view_output_names() {
 
     // Act
     let aliased = fixture.error("CREATE VIEW duplicate_alias AS SELECT 1 AS a, 2 AS a");
-    let projected = fixture.error(
-        "CREATE VIEW duplicate_projected AS SELECT a, a FROM duplicate_output_source",
-    );
-    let folded =
-        fixture.error("CREATE VIEW duplicate_folded AS SELECT 1 AS A, 2 AS a");
+    let projected = fixture
+        .error("CREATE VIEW duplicate_projected AS SELECT a, a FROM duplicate_output_source");
+    let folded = fixture.error("CREATE VIEW duplicate_folded AS SELECT 1 AS A, 2 AS a");
     let remaining = relation_count(
         &fixture,
         "'duplicate_alias', 'duplicate_projected', 'duplicate_folded'",
@@ -422,7 +447,10 @@ fn should_apply_a_create_view_column_list_in_order() {
     // Arrange
     let fixture = sql_fixture(
         "view-output-column-list",
-        &["CREATE TABLE column_list_source (a INT, b INT)", "INSERT INTO column_list_source VALUES (1, 2)"],
+        &[
+            "CREATE TABLE column_list_source (a INT, b INT)",
+            "INSERT INTO column_list_source VALUES (1, 2)",
+        ],
     );
 
     // Act
@@ -439,7 +467,10 @@ fn should_apply_a_create_view_column_list_in_order() {
     assert_eq!(values, vec![vec![Value::Int64(1), Value::Int64(2)]]);
     assert_eq!(
         names,
-        vec![vec![Value::String("p".into())], vec![Value::String("q".into())]]
+        vec![
+            vec![Value::String("p".into())],
+            vec![Value::String("q".into())]
+        ]
     );
 }
 
@@ -465,7 +496,10 @@ fn should_preserve_unlisted_create_view_output_names() {
     assert!(created.is_ok());
     assert_eq!(
         names,
-        vec![vec![Value::String("p".into())], vec![Value::String("b".into())]]
+        vec![
+            vec![Value::String("p".into())],
+            vec![Value::String("b".into())]
+        ]
     );
 }
 
@@ -475,8 +509,7 @@ fn should_honor_quoted_create_view_column_names() {
     let fixture = sql_fixture("view-quoted-output-column-list", &[]);
 
     // Act
-    let created =
-        fixture.execute("CREATE VIEW quoted_list_view(\"P\", q) AS SELECT 1, 2");
+    let created = fixture.execute("CREATE VIEW quoted_list_view(\"P\", q) AS SELECT 1, 2");
     let names = fixture.rows(
         "SELECT column_name FROM information_schema.columns \
          WHERE table_name = 'quoted_list_view' ORDER BY ordinal_position",
@@ -486,7 +519,10 @@ fn should_honor_quoted_create_view_column_names() {
     assert!(created.is_ok());
     assert_eq!(
         names,
-        vec![vec![Value::String("P".into())], vec![Value::String("q".into())]]
+        vec![
+            vec![Value::String("P".into())],
+            vec![Value::String("q".into())]
+        ]
     );
 }
 
@@ -496,18 +532,14 @@ fn should_reject_an_oversized_create_view_column_list() {
     let fixture = sql_fixture("view-oversized-output-column-list", &[]);
 
     // Act
-    let error = fixture.error(
-        "CREATE VIEW oversized_list_view(p, q, r) AS SELECT 1 AS a, 2 AS b",
-    );
+    let error = fixture.error("CREATE VIEW oversized_list_view(p, q, r) AS SELECT 1 AS a, 2 AS b");
     let remaining = relation_count(&fixture, "'oversized_list_view'");
 
     // Assert
     assert_eq!(error.sql_state(), "42601");
-    assert!(
-        error
-            .to_string()
-            .contains("CREATE VIEW specifies more column names than columns")
-    );
+    assert!(error
+        .to_string()
+        .contains("CREATE VIEW specifies more column names than columns"));
     assert_eq!(remaining, vec![vec![Value::Int64(0)]]);
 }
 

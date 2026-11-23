@@ -377,20 +377,24 @@ fn possible_table_reference(sql: &str, table: &str) -> bool {
     crate::executor::execution::sql_text_tokens::chains(sql, &tokens)
         .into_iter()
         .any(|chain| {
-            chain.parts.first().is_some_and(|first| {
-                let token = tokens[*first];
+            let name_matches = chain.parts.iter().any(|part| {
+                let token = tokens[*part];
                 token.identifier(sql).is_some_and(|identifier| {
                     if token.text(sql).starts_with('"') {
                         identifier == table
                     } else {
                         identifier.eq_ignore_ascii_case(table)
                     }
-                }) && (chain.parts.len() > 1
-                    || first.checked_sub(1).is_some_and(|previous| {
-                        tokens[previous].is_keyword(sql, "from")
-                            || tokens[previous].is_keyword(sql, "join")
+                })
+            });
+            name_matches
+                && (chain.parts.len() > 1
+                    || chain.parts.first().is_some_and(|first| {
+                        first.checked_sub(1).is_some_and(|previous| {
+                            tokens[previous].is_keyword(sql, "from")
+                                || tokens[previous].is_keyword(sql, "join")
+                        })
                     }))
-            })
         })
 }
 

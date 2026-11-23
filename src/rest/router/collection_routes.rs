@@ -193,8 +193,56 @@ fn scoped_collection(
     request_context: &RestRequestContext,
     requested: &str,
 ) -> Result<String, (StatusCode, String)> {
-    crate::rest::scope::resolve_collection(cassie, &request_context.session, requested)
+    let requested = decode_collection_segment(requested).map_err(|error| map_error(&error))?;
+    crate::rest::scope::resolve_collection(cassie, &request_context.session, &requested)
         .map_err(|error| map_error(&error))
+}
+
+pub(super) fn decode_collection_segment(
+    requested: &str,
+) -> Result<String, crate::app::CassieError> {
+    let raw = requested.as_bytes();
+    let mut decoded = Vec::with_capacity(raw.len());
+    let mut index = 0;
+    while index < raw.len() {
+        if raw[index] == b'%' {
+            let high = raw
+                .get(index + 1)
+                .and_then(|byte| ascii_hex_value(*byte))
+                .ok_or_else(|| invalid_encoded_collection(requested))?;
+            let low = raw
+                .get(index + 2)
+                .and_then(|byte| ascii_hex_value(*byte))
+                .ok_or_else(|| invalid_encoded_collection(requested))?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(raw[index]);
+            index += 1;
+        }
+    }
+    let decoded = String::from_utf8(decoded).map_err(|_| invalid_encoded_collection(requested))?;
+    if decoded
+        .chars()
+        .any(|character| matches!(character, '/' | '\\' | '\0'))
+        || matches!(decoded.as_str(), "." | "..")
+    {
+        return Err(invalid_encoded_collection(requested));
+    }
+    Ok(decoded)
+}
+
+fn ascii_hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn invalid_encoded_collection(requested: &str) -> crate::app::CassieError {
+    crate::app::CassieError::Parse(format!("invalid encoded REST collection name: {requested}"))
 }
 
 #[cfg(test)]

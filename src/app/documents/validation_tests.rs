@@ -156,3 +156,30 @@ fn should_report_a_document_name_length_error_as_string_too_long() {
         "{error}"
     );
 }
+
+#[test]
+fn should_report_malformed_temporal_document_strings_as_typed_input_errors() {
+    // Arrange
+    let cases = [
+        ("DATE", json!("2026-02-30"), "date"),
+        ("TIME", json!("25:61:00"), "time"),
+        ("TIMESTAMP", json!("2026-01-01T25:00:00"), "timestamp"),
+    ];
+
+    // Act
+    let errors = cases
+        .clone()
+        .map(|(column_type, value, _)| document_error(column_type, value));
+
+    // Assert
+    for (error, (column_type, _, type_name)) in errors.into_iter().zip(cases) {
+        assert_eq!(error.sql_state(), "22P02", "{column_type}: {error}");
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("invalid input syntax for type {type_name}")),
+            "{error}"
+        );
+        assert!(!error.to_string().contains("invalid vector"), "{error}");
+    }
+}

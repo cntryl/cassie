@@ -424,6 +424,9 @@ fn controlled_ivfflat_candidate_ids(
     limit: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Option<ControlledVectorCandidateIds>, crate::app::CassieError> {
+    if metric != crate::embeddings::DistanceMetric::L2 {
+        return Ok(None);
+    }
     let Some(training) = cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
         &spec.vector_field,
@@ -445,16 +448,7 @@ fn controlled_ivfflat_candidate_ids(
     }
     let normalized = crate::vector::normalize(&spec.vector_query)
         .map_or_else(|| spec.vector_query.clone(), |value| value.values);
-    let lists = if metric == crate::embeddings::DistanceMetric::Dot {
-        crate::vector::ivfflat::probe_lists_by_inner_product(&spec.vector_query, &training)
-            .ok_or_else(|| {
-                crate::app::CassieError::Execution(
-                    "ivfflat fallback:missing-list-bounds".to_string(),
-                )
-            })?
-    } else {
-        crate::vector::ivfflat::probe_lists(&normalized, &training)
-    };
+    let lists = crate::vector::ivfflat::probe_lists(&normalized, &training);
     let _list_memory =
         controls.reserve_query_memory(lists.len().saturating_mul(std::mem::size_of::<usize>()))?;
     let batch = cassie.midge.ivfflat_candidate_vectors_controlled(
@@ -473,8 +467,7 @@ fn controlled_ivfflat_candidate_ids(
             "ivfflat fallback:concurrent-source-change".to_string(),
         ));
     }
-    let (ids, memory) =
-        rank_ivfflat_candidate_ids(records, &spec.vector_query, metric, limit, controls)?;
+    let (ids, memory) = rank_ivfflat_candidate_ids(records, &spec.vector_query, limit, controls)?;
     drop(candidate_memory);
     drop(manifest_memory);
     Ok(Some(ControlledVectorCandidateIds {
@@ -520,19 +513,14 @@ impl Ord for RankedIvfCandidate {
 fn rank_ivfflat_candidate_ids(
     records: Vec<crate::embeddings::NormalizedVectorRecord>,
     query: &[f32],
-    metric: crate::embeddings::DistanceMetric,
     limit: usize,
     controls: &QueryExecutionControls,
 ) -> Result<(BTreeSet<String>, QueryMemoryReservation), crate::app::CassieError> {
     let mut top = BinaryHeap::new();
     let mut memory = controls.reserve_query_memory(0)?;
-    let normalized_query = crate::vector::normalize(query)
-        .ok_or_else(|| crate::app::CassieError::Execution("invalid vector query".to_string()))?;
     for record in records {
         controls.check_interruption()?;
-        let Some(distance) =
-            ivfflat_candidate_distance(query, &normalized_query.values, metric, &record)
-        else {
+        let Some(distance) = ivfflat_candidate_distance(query, &record) else {
             continue;
         };
         let candidate = RankedIvfCandidate {
@@ -570,12 +558,10 @@ fn rank_ivfflat_candidate_ids(
 
 fn ivfflat_candidate_distance(
     query: &[f32],
-    normalized_query: &[f32],
-    metric: crate::embeddings::DistanceMetric,
     record: &crate::embeddings::NormalizedVectorRecord,
 ) -> Option<f64> {
     if !record.payload_available
-        || record.metric != metric
+        || record.metric != crate::embeddings::DistanceMetric::L2
         || record.dimensions != query.len()
         || record.values.len() != query.len()
         || record.magnitude < 0.0
@@ -584,11 +570,8 @@ fn ivfflat_candidate_distance(
     {
         return None;
     }
-    Some(match metric {
-        crate::embeddings::DistanceMetric::Cosine => {
-            crate::vector::cosine_distance_from_normalized_query(normalized_query, &record.values)
-        }
-        crate::embeddings::DistanceMetric::L2 => query
+    Some(
+        query
             .iter()
             .zip(&record.values)
             .map(|(query_value, target)| {
@@ -596,14 +579,7 @@ fn ivfflat_candidate_distance(
             })
             .sum::<f64>()
             .sqrt(),
-        crate::embeddings::DistanceMetric::Dot => {
-            crate::vector::dot_distance_from_normalized_target(
-                query,
-                &record.values,
-                record.magnitude,
-            )
-        }
-    })
+    )
 }
 
 fn collect_candidate_ids_controlled(
@@ -674,44 +650,21 @@ mod ivfflat_candidate_tests {
     #[test]
     fn should_rank_ivfflat_hybrid_candidates_before_applying_the_limit() {
         // Arrange
-        let cases = [
-            (
-                DistanceMetric::L2,
-                vec![
-                    record("far-first", DistanceMetric::L2, &[10.0, 0.0]),
-                    record("near-late", DistanceMetric::L2, &[1.0, 0.0]),
-                ],
-            ),
-            (
-                DistanceMetric::Cosine,
-                vec![
-                    record("far-first", DistanceMetric::Cosine, &[-1.0, 0.0]),
-                    record("near-late", DistanceMetric::Cosine, &[1.0, 0.0]),
-                ],
-            ),
-            (
-                DistanceMetric::Dot,
-                vec![
-                    record("far-first", DistanceMetric::Dot, &[0.1, 0.0]),
-                    record("near-late", DistanceMetric::Dot, &[10.0, 0.0]),
-                ],
-            ),
+        let records = vec![
+            record("far-first", DistanceMetric::L2, &[10.0, 0.0]),
+            record("near-late", DistanceMetric::L2, &[1.0, 0.0]),
         ];
 
         // Act
-        let selected = cases.map(|(metric, records)| {
-            rank_ivfflat_candidate_ids(records, &[1.0, 0.0], metric, 1, &controls(4096))
-                .expect("rank candidates")
-                .0
-        });
+        let selected = rank_ivfflat_candidate_ids(records, &[1.0, 0.0], 1, &controls(4096))
+            .expect("rank candidates")
+            .0;
 
         // Assert
-        for ids in selected {
-            assert_eq!(
-                ids.iter().map(String::as_str).collect::<Vec<_>>(),
-                ["near-late"]
-            );
-        }
+        assert_eq!(
+            selected.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["near-late"]
+        );
     }
 
     #[test]
@@ -723,24 +676,12 @@ mod ivfflat_candidate_tests {
         ];
 
         // Act
-        let tied = rank_ivfflat_candidate_ids(
-            records.clone(),
-            &[1.0, 0.0],
-            DistanceMetric::L2,
-            1,
-            &controls(4096),
-        )
-        .expect("rank tied candidates")
-        .0;
-        let all = rank_ivfflat_candidate_ids(
-            records,
-            &[1.0, 0.0],
-            DistanceMetric::L2,
-            3,
-            &controls(4096),
-        )
-        .expect("keep under-limit candidates")
-        .0;
+        let tied = rank_ivfflat_candidate_ids(records.clone(), &[1.0, 0.0], 1, &controls(4096))
+            .expect("rank tied candidates")
+            .0;
+        let all = rank_ivfflat_candidate_ids(records, &[1.0, 0.0], 3, &controls(4096))
+            .expect("keep under-limit candidates")
+            .0;
 
         // Assert
         assert_eq!(
@@ -759,14 +700,67 @@ mod ivfflat_candidate_tests {
         let records = vec![record("one", DistanceMetric::L2, &[1.0, 0.0])];
 
         // Act
-        let result =
-            rank_ivfflat_candidate_ids(records, &[1.0, 0.0], DistanceMetric::L2, 1, &controls(1));
+        let result = rank_ivfflat_candidate_ids(records, &[1.0, 0.0], 1, &controls(1));
 
         // Assert
         assert!(matches!(
             result,
             Err(crate::app::CassieError::ResourceLimit(_))
         ));
+    }
+
+    #[test]
+    fn should_skip_non_l2_ivfflat_index_candidates_for_hybrid_exact_fallback() {
+        // Arrange
+        let cassie = crate::app::Cassie::new_in_memory_with_config(
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .expect("in-memory Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(&session, "CREATE EXTENSION vector", Vec::new())
+            .expect("install vector extension");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE metric_mismatch (id BIGINT PRIMARY KEY, body TEXT, embedding VECTOR(2))",
+                Vec::new(),
+            )
+            .expect("create mismatch table");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX metric_mismatch_embedding_idx ON metric_mismatch \
+                 USING vector (embedding) WITH (source_field = body, metric = dot, \
+                 index_type = ivfflat, lists = 1, probes = 1, \
+                 training_sample_size = 1, training_seed = 17)",
+                Vec::new(),
+            )
+            .expect("create mismatch index");
+        let spec = super::super::HybridTopKSpec {
+            collection: crate::catalog::canonical_relation_name(
+                &cassie.default_database,
+                crate::catalog::DEFAULT_SCHEMA,
+                "metric_mismatch",
+            ),
+            text_field: "body".to_string(),
+            query: "match".to_string(),
+            vector_field: "embedding".to_string(),
+            vector_query: vec![1.0, 0.0],
+            filter: None,
+            id_column: "id".to_string(),
+            score_column: "score".to_string(),
+            limit: 1,
+            offset: 0,
+        };
+
+        // Act
+        let selected = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &controls(4096))
+            .expect("non-L2 index selects exact fallback");
+
+        // Assert
+        assert!(selected.is_none());
     }
 }
 

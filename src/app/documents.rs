@@ -642,7 +642,18 @@ impl Cassie {
         expected: &crate::types::DataType,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        if value.is_string() {
+        let Some(text) = value.as_str() else {
+            return Self::invalid_type_input(expected.type_name(), value);
+        };
+        let valid = match expected {
+            crate::types::DataType::Date => crate::types::temporal::canonical_date(text).is_ok(),
+            crate::types::DataType::Time => crate::types::temporal::canonical_time(text).is_ok(),
+            crate::types::DataType::Timestamp => {
+                crate::types::temporal::canonical_timestamp(text).is_ok()
+            }
+            _ => true,
+        };
+        if valid {
             Ok(())
         } else {
             Self::invalid_type_input(expected.type_name(), value)

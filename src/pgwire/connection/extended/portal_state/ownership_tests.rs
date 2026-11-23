@@ -610,6 +610,55 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
 }
 
 #[test]
+fn should_acknowledge_success_after_a_transaction_publication() {
+    // Arrange
+    for sql in ["CREATE TABLE published (id INT)", "COMMIT"] {
+        let (cassie, session, mut state, prepared, _) = active_query_fixture(sql);
+        if sql == "COMMIT" {
+            cassie
+                .execute_sql(&session, "BEGIN", Vec::new())
+                .expect("begin transaction");
+            cassie
+                .execute_sql(&session, "INSERT INTO t VALUES (4)", Vec::new())
+                .expect("stage row");
+        }
+        state
+            .prepared_statements
+            .insert("source".to_owned(), prepared.clone());
+        let backend = state.backend_registration.as_ref().expect("backend");
+        let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
+        let mut writer = CancelAtFlushWrite {
+            runtime: std::sync::Arc::clone(&cassie.runtime),
+            process_id,
+            secret_key,
+            canceled: false,
+            frame_tags: Vec::new(),
+        };
+
+        // Act
+        let outcome = runtime().block_on(super::super::handle_execute(
+            std::sync::Arc::clone(&cassie),
+            &cassie.runtime,
+            &mut writer,
+            &mut state,
+            &session,
+            "retained".to_owned(),
+            0,
+        ));
+
+        // Assert
+        assert!(writer.canceled, "the writer issued CancelRequest");
+        assert!(
+            outcome.is_ok(),
+            "successful publication must be acknowledged"
+        );
+        assert_eq!(writer.frame_tags, vec![b'C']);
+        assert!(!session.is_transaction_active());
+        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+    }
+}
+
+#[test]
 fn should_release_retained_materialized_frames_when_a_resumed_wire_write_fails() {
     // Arrange
     let limits = CassieRuntimeLimits::default();

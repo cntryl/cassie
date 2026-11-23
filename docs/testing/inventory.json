@@ -311435,8 +311435,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/offset_result_cap.rs::should_reject_unaccounted_modifying_cte_returning_copies_before_publication",
-      "name": "should_reject_unaccounted_modifying_cte_returning_copies_before_publication",
+      "id": "tests/sql_queries/offset_result_cap.rs::should_rollback_modifying_cte_when_query_memory_budget_is_exceeded",
+      "name": "should_rollback_modifying_cte_when_query_memory_budget_is_exceeded",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "line": 302,
       "end_line": 324,
@@ -311447,7 +311447,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "offset_result_cap::should_reject_unaccounted_modifying_cte_returning_copies_before_publication"
+          "name": "offset_result_cap::should_rollback_modifying_cte_when_query_memory_budget_is_exceeded"
         }
       ],
       "attributes": [
@@ -311470,7 +311470,7 @@
       "name": "should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "line": 327,
-      "end_line": 343,
+      "end_line": 345,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -311500,8 +311500,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_allow_empty_result_at_zero_row_cap",
       "name": "should_allow_empty_result_at_zero_row_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 346,
-      "end_line": 355,
+      "line": 348,
+      "end_line": 357,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -311531,8 +311531,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_insert_every_generated_source_row_under_the_result_cap",
       "name": "should_insert_every_generated_source_row_under_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 358,
-      "end_line": 374,
+      "line": 360,
+      "end_line": 376,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -311562,8 +311562,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_reject_over_cap_returning_before_publishing_inserted_rows",
       "name": "should_reject_over_cap_returning_before_publishing_inserted_rows",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 377,
-      "end_line": 398,
+      "line": 379,
+      "end_line": 400,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -382364,8 +382364,8 @@
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 398,
-      "sha256": "dd5ddb73f350ada6c52ce637e189920412d74453f5e69b8470a6bae2d537ad92",
+      "lines": 400,
+      "sha256": "00cb1a4d9d574e6eb06eeb3f8a7656dbab92a26b30b0a4527f503a198efa562d",
       "test_declarations": 19,
       "registered_suites": [
         "sql_queries"

@@ -113,6 +113,7 @@ fn should_allow_waiting_insert_after_update_owner_rolls_back() {
             .expect("stage unique value in UPDATE");
     }
     let waiter = cassie.create_session("issue_1465_rollback_waiter", None);
+    let waiter_owner = waiter.transaction_unique_owner_id();
     let (events, worker) =
         start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 99)");
     let wait_event = receive_event(&events);
@@ -131,6 +132,10 @@ fn should_allow_waiting_insert_after_update_owner_rolls_back() {
     assert!(owner_rollback.is_ok());
     assert!(reached_wait);
     assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
+    assert!(cassie
+        .transaction_unique_waits
+        .snapshot_owner_keys(waiter_owner)
+        .is_empty());
     assert_eq!(
         rows(&cassie, &owner),
         vec![

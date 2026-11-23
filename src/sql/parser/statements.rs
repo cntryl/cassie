@@ -2,7 +2,7 @@
 mod explain_options;
 #[path = "statements/session_objects.rs"]
 mod session_objects;
-pub(super) use session_objects::{parse_session_object_statement, SESSION_OBJECT_KEYWORDS};
+pub(super) use session_objects::{SESSION_OBJECT_KEYWORDS, parse_session_object_statement};
 #[path = "statements/settings.rs"]
 mod settings;
 #[path = "statements/transaction.rs"]
@@ -17,10 +17,10 @@ use super::schema::{
     starts_with_keyword, tokenize_schema_field,
 };
 use super::{
-    find_top_level_keyword, parse_statement, CallProcedureStatement, CreateFunctionStatement,
-    CreateProcedureStatement, CreateViewStatement, DataType, DropFunctionStatement,
-    DropProcedureStatement, DropViewStatement, ExplainStatement, FunctionArg, ParsedStatement,
-    QueryStatement, SqlError, Value, Volatility,
+    CallProcedureStatement, CreateFunctionStatement, CreateProcedureStatement, CreateViewStatement,
+    DataType, DropFunctionStatement, DropProcedureStatement, DropViewStatement, ExplainStatement,
+    FunctionArg, ParsedStatement, QueryStatement, SqlError, Value, Volatility,
+    find_top_level_keyword, parse_statement,
 };
 
 pub(super) fn parse_explain_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -185,7 +185,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         .ok_or_else(|| SqlError::new("CREATE FUNCTION requires AS clause".into()))?;
     let (return_type, volatility) = parse_return_clause(return_type_raw)?;
 
-    let body = parse_quoted_or_raw_body(remaining)?;
+    let body = parse_function_body(remaining)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -430,7 +430,8 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
         }
         // A routine argument may be declared with a domain or enum type as
         // well as a built-in or composite one.
-        let data_type = super::domain_scope::parse_declared_data_type(parts[1].as_str())?;
+        let type_text = parts[1..].join(" ");
+        let data_type = super::domain_scope::parse_declared_data_type(&type_text)?;
 
         args.push(FunctionArg {
             name: name.to_string(),
@@ -449,53 +450,117 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
         ));
     }
 
-    let data_type = parse_data_type(tokens[0])?;
-    let volatility = if tokens.len() > 1 {
-        match tokens[1].to_lowercase().as_str() {
-            "immutable" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Immutable
+    let (type_tokens, volatility) = match tokens.last().map(|token| token.to_ascii_lowercase()) {
+        Some(last) if matches!(last.as_str(), "immutable" | "stable" | "volatile") => {
+            let type_tokens = &tokens[..tokens.len() - 1];
+            if type_tokens.is_empty() {
+                return Err(SqlError::new(
+                    "CREATE FUNCTION RETURNS clause is missing a type".into(),
+                ));
             }
-            "stable" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Stable
-            }
-            "volatile" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Volatile
-            }
-            _ => {
-                return Err(SqlError::new(format!(
-                    "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
-                    tokens[1]
-                )));
-            }
+            let volatility = match last.as_str() {
+                "immutable" => Volatility::Immutable,
+                "stable" => Volatility::Stable,
+                "volatile" => Volatility::Volatile,
+                _ => unreachable!("recognized function volatility"),
+            };
+            (type_tokens, volatility)
         }
-    } else {
-        // PostgreSQL routines are VOLATILE unless the declaration explicitly
-        // narrows their volatility to STABLE or IMMUTABLE.
-        Volatility::Volatile
+        _ => {
+            // PostgreSQL routines are VOLATILE unless explicitly narrowed.
+            if tokens.len() > 1 && parse_data_type(&tokens.join(" ")).is_err() {
+                if parse_data_type(tokens[0]).is_ok() {
+                    return Err(SqlError::new(format!(
+                        "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
+                        tokens[1]
+                    )));
+                }
+            }
+            (tokens.as_slice(), Volatility::Volatile)
+        }
     };
-
-    if tokens.len() > 2 {
-        return Err(SqlError::new(
-            "unexpected token after RETURNS clause".into(),
-        ));
-    }
+    let data_type = parse_data_type(&type_tokens.join(" "))?;
 
     Ok((data_type, volatility))
+}
+
+fn parse_function_body(raw: &str) -> Result<String, SqlError> {
+    let raw = raw.trim();
+    let (body, remainder) = if raw.starts_with('$') {
+        let delimiter_end = raw[1..]
+            .find('$')
+            .map(|index| index + 2)
+            .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
+        let delimiter = &raw[..delimiter_end];
+        let content_start = delimiter_end;
+        let content_end = raw[content_start..]
+            .find(delimiter)
+            .map(|index| content_start + index)
+            .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
+        (
+            raw[content_start..content_end].to_string(),
+            raw[content_end + delimiter.len()..].trim(),
+        )
+    } else if raw.starts_with('\'') {
+        let (body, remainder) = parse_single_quoted_body(raw)?;
+        (body, remainder.trim())
+    } else {
+        let (body, _) = parse_quoted_or_raw_body(raw)?;
+        return Ok(normalize_scalar_select_body(body));
+    };
+
+    if !remainder.is_empty() {
+        if !starts_with_keyword(remainder, "language") {
+            return Err(SqlError::new(
+                "unexpected clause after function body".into(),
+            ));
+        }
+        let language = remainder[8..].trim();
+        if !language.eq_ignore_ascii_case("sql") {
+            return Err(SqlError::new(
+                "only LANGUAGE sql is supported for functions".into(),
+            ));
+        }
+    }
+    if body.trim().is_empty() {
+        return Err(SqlError::new("empty function/procedure body".into()));
+    }
+    Ok(normalize_scalar_select_body(body))
+}
+
+fn normalize_scalar_select_body(body: String) -> String {
+    let body = body.trim();
+    if body
+        .get(..6)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("select"))
+        && body.as_bytes().get(6).is_some_and(u8::is_ascii_whitespace)
+    {
+        body[7..].trim_start().to_string()
+    } else {
+        body.to_string()
+    }
+}
+
+fn parse_single_quoted_body(raw: &str) -> Result<(String, &str), SqlError> {
+    let bytes = raw.as_bytes();
+    let mut body = String::new();
+    let mut index = 1;
+    while index < bytes.len() {
+        if bytes[index] == b'\'' {
+            if bytes.get(index + 1) == Some(&b'\'') {
+                body.push('\'');
+                index += 2;
+                continue;
+            }
+            return Ok((body, &raw[index + 1..]));
+        }
+        let character = raw[index..].chars().next().expect("valid UTF-8 boundary");
+        body.push(character);
+        index += character.len_utf8();
+    }
+    Err(SqlError::new(
+        "unterminated single-quoted function body".into(),
+    ))
 }
 
 pub(super) fn parse_quoted_or_raw_body(raw: &str) -> Result<String, SqlError> {

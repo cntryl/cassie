@@ -19,7 +19,7 @@ impl StorageOverlay {
 }
 
 impl Midge {
-    pub(crate) fn legacy_field_add_failure_injected(&self) -> bool {
+    pub(crate) fn legacy_field_add_failure_injected() -> bool {
         super::super::FIELD_ADD_FAILPOINT.get() || super::super::FIELD_ADD_BACKFILL_FAILPOINT.get()
     }
 

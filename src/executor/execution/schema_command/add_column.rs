@@ -67,7 +67,7 @@ pub(super) fn alter_table_add_column(
     )?;
 
     let atomic_storage = session.is_none_or(|session| session.transaction_status() == "idle")
-        && !cassie.midge.legacy_field_add_failure_injected();
+        && !crate::midge::Midge::legacy_field_add_failure_injected();
     let sequences = super::super::sequence_command::prepare_add_column_sequences(
         cassie,
         data_type,
@@ -146,10 +146,7 @@ fn reject_unverifiable_legacy_default(
     }) {
         return Err(CassieError::from(crate::app::DiagnosticError::new(
             "55000",
-            format!(
-                "column '{field}' is durable with a pending backfill; {}",
-                reason
-            ),
+            format!("column '{field}' is durable with a pending backfill; {reason}"),
         ))
         .into());
     }

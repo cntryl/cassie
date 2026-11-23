@@ -132,6 +132,7 @@ fn should_reject_json_comparison_signatures() {
         true,
     );
     let json_literal = fixture::execute_cycle("SELECT '{}'::JSON = '{}'", None, 0, true);
+    let json_text = fixture::execute_cycle("SELECT '{}'::JSON = '{}'::TEXT", None, 0, true);
     let json_distinct = fixture::execute_cycle(
         "SELECT '{}'::JSON IS DISTINCT FROM '{}'::JSON",
         None,
@@ -144,7 +145,7 @@ fn should_reject_json_comparison_signatures() {
     let batches = fixture::run_cycles(
         "issue-1469-json-comparison-signatures",
         &[],
-        vec![json_equality, json_literal, json_distinct, mixed],
+        vec![json_equality, json_literal, json_text, json_distinct, mixed],
     );
 
     // Assert
@@ -161,7 +162,18 @@ fn should_reject_json_comparison_signatures() {
         .expect("json = unknown error message");
     assert_eq!(message, "operator does not exist: json = unknown");
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
+    let message = batches[2]
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| {
+            wire::parse_error_fields(payload)
+                .into_iter()
+                .find_map(|(key, value)| (key == 'M').then_some(value))
+        })
+        .expect("json = text error message");
+    assert_eq!(message, "operator does not exist: json = text");
     assert_eq!(wire::error_code(&batches[3]).as_deref(), Some("42883"));
+    assert_eq!(wire::error_code(&batches[4]).as_deref(), Some("42883"));
 }
 
 #[test]

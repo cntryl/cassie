@@ -51,7 +51,7 @@ pub(super) fn bind_create_function(
                 "function argument name cannot be empty".into(),
             ));
         }
-        let key = arg_name.to_ascii_lowercase();
+        let key = crate::sql::ColumnIdentifierPath::reference_field_key(&arg_name);
         if !seen.insert(key) {
             return Err(CassieError::Planner(format!(
                 "function '{name}' has duplicate argument '{arg_name}'"

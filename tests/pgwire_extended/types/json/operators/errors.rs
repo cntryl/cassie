@@ -123,7 +123,7 @@ fn should_suppress_jsonpath_structural_errors_only_for_silent_forms() {
 }
 
 #[test]
-fn should_reject_json_equality_signatures_while_preserving_jsonb_comparison() {
+fn should_reject_json_comparison_signatures() {
     // Arrange
     let json_equality = fixture::execute_cycle(
         "SELECT '{}'::JSON = '{}'::JSON",
@@ -139,22 +139,42 @@ fn should_reject_json_equality_signatures_while_preserving_jsonb_comparison() {
         true,
     );
     let mixed = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSON", None, 0, true);
-    let jsonb = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSONB", None, 0, true);
 
     // Act
     let batches = fixture::run_cycles(
         "issue-1469-json-comparison-signatures",
         &[],
-        vec![json_equality, json_literal, json_distinct, mixed, jsonb],
+        vec![json_equality, json_literal, json_distinct, mixed],
     );
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
     assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
+    let message = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| {
+            wire::parse_error_fields(payload)
+                .into_iter()
+                .find_map(|(key, value)| (key == 'M').then_some(value))
+        })
+        .expect("json = unknown error message");
+    assert_eq!(message, "operator does not exist: json = unknown");
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
     assert_eq!(wire::error_code(&batches[3]).as_deref(), Some("42883"));
-    fixture::assert_success(&batches[4]);
-    assert_eq!(wire::data_rows(&batches[4]), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_keep_jsonb_equality_available() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSONB", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-1469-valid-jsonb-equality", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![Some("t".to_owned())]]);
 }
 
 #[test]

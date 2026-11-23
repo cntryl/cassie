@@ -193,6 +193,7 @@ impl PendingUpsert {
         }
         let result = publish_prepared_upsert(
             request,
+            controls,
             &working_cassie,
             batch,
             prepared,
@@ -211,6 +212,7 @@ impl PendingUpsert {
 
 fn publish_prepared_upsert(
     request: UpsertRequest<'_>,
+    controls: &QueryExecutionControls,
     working_cassie: &Cassie,
     batch: crate::app::StatementMutationBatch,
     prepared: &mut Option<super::dml::WaitingInsert>,
@@ -224,8 +226,7 @@ fn publish_prepared_upsert(
         statement,
         params,
         functions,
-        controls,
-        ..
+        controls: _,
     } = request;
     let result = super::dml::execute_prepared_insert(
         working_cassie,

@@ -17,7 +17,7 @@ impl Cassie {
     pub(crate) fn write_document_for_session(
         &self,
         session: Option<&CassieSession>,
-        collection: &str,
+        _collection: &str,
         id: Option<String>,
         payload: serde_json::Value,
         apply_defaults: bool,
@@ -402,24 +402,20 @@ impl Cassie {
     }
 
     fn validate_payload_schema(
-        collection: &str,
+        _collection: &str,
         schema: &crate::catalog::CollectionSchema,
         payload: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let object = payload.as_object().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
+        let object = payload
+            .as_object()
+            .ok_or_else(|| Self::type_input_error("document", payload))?;
 
         for (field, value) in object {
             let expected = schema
                 .fields
                 .iter()
                 .find(|entry| entry.name == *field)
-                .ok_or_else(|| {
-                    CassieError::InvalidVector(format!(
-                        "field '{field}' is not defined on collection '{collection}'"
-                    ))
-                })?
+                .ok_or_else(|| CassieError::UndefinedColumn(field.clone()))?
                 .data_type
                 .clone();
             Self::validate_value_against_data_type(field, &expected, value)?;
@@ -438,7 +434,7 @@ impl Cassie {
         }
 
         match expected {
-            crate::types::DataType::Null => Self::invalid_vector(field, "null"),
+            crate::types::DataType::Null => Self::invalid_type_input("null", value),
             crate::types::DataType::SmallInt => super::integer_range::validate_in_range(
                 field,
                 value,
@@ -455,7 +451,7 @@ impl Cassie {
             crate::types::DataType::Extended(kind) => kind
                 .from_json(value)
                 .map(|_| ())
-                .map_err(|error| CassieError::InvalidVector(format!("field '{field}': {error}"))),
+                .map_err(CassieError::TypeInput),
             crate::types::DataType::ObjectId(kind) => super::integer_range::validate_in_range(
                 field,
                 value,
@@ -472,7 +468,15 @@ impl Cassie {
                 {
                     Ok(())
                 } else {
-                    Self::invalid_vector(field, "name of at most 63 UTF-8 bytes")
+                    if value.is_string() {
+                        Err(crate::app::DiagnosticError::new(
+                            "22001",
+                            "value too long for type name",
+                        )
+                        .into())
+                    } else {
+                        Self::invalid_type_input("name", value)
+                    }
                 }
             }
             crate::types::DataType::Text | crate::types::DataType::Uuid => {
@@ -506,7 +510,7 @@ impl Cassie {
                 Self::validate_value_against_data_type(field, &descriptor.base, value)
             }
             crate::types::DataType::Enum(e) if e.has_storage_member(value) => Ok(()),
-            crate::types::DataType::Enum(_) => Self::invalid_vector(field, "an enum member"),
+            crate::types::DataType::Enum(_) => Self::invalid_type_input("enum", value),
         }
     }
 
@@ -519,35 +523,53 @@ impl Cassie {
         )))
     }
 
-    fn validate_float(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+    fn invalid_type_input<T>(type_name: &str, value: T) -> Result<(), CassieError>
+    where
+        T: std::fmt::Display,
+    {
+        Err(Self::type_input_error(type_name, value))
+    }
+
+    fn type_input_error<T>(type_name: &str, value: T) -> CassieError
+    where
+        T: std::fmt::Display,
+    {
+        crate::app::DiagnosticError::new(
+            "22P02",
+            format!("invalid input syntax for type {type_name}: {value}"),
+        )
+        .into()
+    }
+
+    fn validate_float(_field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
         if value.is_number() {
             Ok(())
         } else {
-            Self::invalid_vector(field, "float")
+            Self::invalid_type_input("double precision", value)
         }
     }
 
-    fn validate_boolean(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+    fn validate_boolean(_field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
         if value.is_boolean() {
             Ok(())
         } else {
-            Self::invalid_vector(field, "boolean")
+            Self::invalid_type_input("boolean", value)
         }
     }
 
     fn validate_text_or_uuid(
-        field: &str,
+        _field: &str,
         expected: &crate::types::DataType,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         if !value.is_string() {
-            return Self::invalid_vector(field, expected.type_name());
+            return Self::invalid_type_input(expected.type_name(), value);
         }
 
         if let crate::types::DataType::Uuid = expected {
             let value = value.as_str().unwrap_or_default();
             if Uuid::parse_str(value).is_err() {
-                return Self::invalid_vector(field, "UUID");
+                return Self::invalid_type_input("uuid", serde_json::json!(value));
             }
         }
 
@@ -555,13 +577,13 @@ impl Cassie {
     }
 
     fn validate_char(
-        field: &str,
+        _field: &str,
         length: Option<u32>,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         let value = value
             .as_str()
-            .ok_or_else(|| CassieError::InvalidVector(format!("field '{field}' expects char")))?;
+            .ok_or_else(|| Self::type_input_error("character", value))?;
 
         let max = length.unwrap_or(1) as usize;
         if value.chars().count() <= max {
@@ -576,13 +598,13 @@ impl Cassie {
     }
 
     fn validate_varchar(
-        field: &str,
+        _field: &str,
         length: Option<u32>,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let value = value.as_str().ok_or_else(|| {
-            CassieError::InvalidVector(format!("field '{field}' expects varchar"))
-        })?;
+        let value = value
+            .as_str()
+            .ok_or_else(|| Self::type_input_error("character varying", value))?;
 
         if let Some(length) = length {
             if value.chars().count() <= (length as usize) {
@@ -599,9 +621,9 @@ impl Cassie {
         }
     }
 
-    fn validate_bytea(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+    fn validate_bytea(_field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
         if !value.is_string() {
-            return Self::invalid_vector(field, "bytea");
+            return Self::invalid_type_input("bytea", value);
         }
 
         Self::decode_bytea(value.as_str().unwrap_or_default())?;
@@ -609,18 +631,18 @@ impl Cassie {
     }
 
     fn validate_string_only(
-        field: &str,
+        _field: &str,
         expected: &crate::types::DataType,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
         if value.is_string() {
             Ok(())
         } else {
-            Self::invalid_vector(field, expected.type_name())
+            Self::invalid_type_input(expected.type_name(), value)
         }
     }
 
-    fn validate_json(field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
+    fn validate_json(_field: &str, value: &serde_json::Value) -> Result<(), CassieError> {
         if value.is_object()
             || value.is_array()
             || value.is_string()
@@ -630,7 +652,7 @@ impl Cassie {
         {
             Ok(())
         } else {
-            Self::invalid_vector(field, "json")
+            Self::invalid_type_input("json", value)
         }
     }
 
@@ -666,13 +688,10 @@ impl Cassie {
             .and_then(|body| body.get("fields"))
             .and_then(serde_json::Value::as_array);
         let Some(stored) = stored else {
-            return Self::invalid_vector(field, "a composite record");
+            return Self::invalid_type_input("record", value);
         };
         if stored.len() != descriptor.physical_len() {
-            return Self::invalid_vector(
-                field,
-                format!("a composite record of {} fields", descriptor.physical_len()),
-            );
+            return Self::invalid_type_input("record", value);
         }
         for (declared, slot) in descriptor
             .fields
@@ -703,9 +722,10 @@ impl Cassie {
             .is_some_and(|object| object.contains_key("$cassie_array_v1"))
         {
             let array = crate::types::SqlArray::from_storage_json(value).map_err(|error| {
-                CassieError::InvalidVector(format!(
-                    "field '{field}' has invalid SQL array: {error}"
-                ))
+                crate::app::DiagnosticError::new(
+                    "22P02",
+                    format!("field '{field}' has invalid SQL array: {error}"),
+                )
             })?;
             let element_type = Self::array_element_type(inner);
             for element in array.elements_as_json() {
@@ -714,7 +734,7 @@ impl Cassie {
             return Ok(());
         }
         let Some(values) = value.as_array() else {
-            return Self::invalid_vector(field, "array");
+            return Self::invalid_type_input("array", value);
         };
 
         for value in values {
@@ -733,9 +753,11 @@ impl Cassie {
 
     fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
         if !value.starts_with("\\x") {
-            return Err(CassieError::InvalidVector(
-                "bytea expects hex format '\\x'".to_string(),
-            ));
+            return Err(crate::app::DiagnosticError::new(
+                "22P02",
+                "bytea expects hex format '\\x'",
+            )
+            .into());
         }
 
         if value.len() == 2 {
@@ -743,9 +765,11 @@ impl Cassie {
         }
 
         if (value.len() - 2).rem_euclid(2) != 0 {
-            return Err(CassieError::InvalidVector(
-                "bytea expects an even number of hex digits".to_string(),
-            ));
+            return Err(crate::app::DiagnosticError::new(
+                "22P02",
+                "bytea expects an even number of hex digits",
+            )
+            .into());
         }
 
         let raw = value.as_bytes();
@@ -753,9 +777,13 @@ impl Cassie {
         let mut index = 2;
         while index < value.len() {
             let high = Self::decode_hex_digit(raw[index])
-                .ok_or_else(|| CassieError::InvalidVector("invalid bytea hex digit".to_string()))?;
+                .ok_or_else(|| {
+                    crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
+                })?;
             let low = Self::decode_hex_digit(raw[index + 1])
-                .ok_or_else(|| CassieError::InvalidVector("invalid bytea hex digit".to_string()))?;
+                .ok_or_else(|| {
+                    crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
+                })?;
             out.push(high << 4 | low);
             index += 2;
         }
@@ -781,9 +809,9 @@ impl Cassie {
         exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
         self.validate_row_constraints(collection, payload, constraints)?;
-        let object = payload.as_object().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
+        let object = payload
+            .as_object()
+            .ok_or_else(|| Self::type_input_error("document", payload))?;
         self.validate_uniques(session, collection, object, constraints, exclude_id)
     }
 
@@ -793,9 +821,9 @@ impl Cassie {
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
-        let object = payload.as_object().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
+        let object = payload
+            .as_object()
+            .ok_or_else(|| Self::type_input_error("document", payload))?;
         let schema = self.catalog.get_schema(collection);
 
         crate::sql::definition_guard::constraints(constraints)?;

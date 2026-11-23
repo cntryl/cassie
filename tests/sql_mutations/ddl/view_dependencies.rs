@@ -418,8 +418,7 @@ impl Drop for ViewFunctionDirectory {
 fn should_preserve_view_function_resolution_after_restart() {
     // Arrange
     crate::support_sql::use_local_storage();
-    let directory =
-        ViewFunctionDirectory(crate::support_sql::data_dir("view-function-restart"));
+    let directory = ViewFunctionDirectory(crate::support_sql::data_dir("view-function-restart"));
     {
         let cassie = Cassie::new_with_data_dir(&directory.0).expect("create initial Cassie");
         cassie.startup().expect("initialize initial Cassie");
@@ -440,14 +439,12 @@ fn should_preserve_view_function_resolution_after_restart() {
     }
 
     let cassie = Cassie::new_with_data_dir(&directory.0).expect("reopen Cassie");
-    cassie.startup().expect("restore view function dependencies");
+    cassie
+        .startup()
+        .expect("restore view function dependencies");
     let session = cassie.create_session("tester", None);
     cassie
-        .execute_sql(
-            &session,
-            "SET search_path = restart_caller, public",
-            vec![],
-        )
+        .execute_sql(&session, "SET search_path = restart_caller, public", vec![])
         .expect("change caller function search path");
 
     // Act
@@ -610,19 +607,18 @@ fn should_ignore_parentheses_inside_quoted_create_view_identifiers() {
     let fixture = sql_fixture("view-quoted-parentheses", &[]);
 
     // Act
-    let created_view = fixture.execute(
-        "CREATE VIEW \"quoted(view)\"(\"left(part)\", q) AS SELECT 1, 2",
-    );
+    let created_view =
+        fixture.execute("CREATE VIEW \"quoted(view)\"(\"left(part)\", q) AS SELECT 1, 2");
+    let created_without_list = fixture.execute("CREATE VIEW \"plain(view)\" AS SELECT 3 AS value");
     let names = fixture.rows(
         "SELECT column_name FROM information_schema.columns \
          WHERE table_name = 'quoted(view)' ORDER BY ordinal_position",
     );
-    let values = fixture.rows(
-        "SELECT \"left(part)\", q FROM \"quoted(view)\"",
-    );
+    let values = fixture.rows("SELECT \"left(part)\", q FROM \"quoted(view)\"");
 
     // Assert
     assert!(created_view.is_ok());
+    assert!(created_without_list.is_ok());
     assert_eq!(
         names,
         vec![

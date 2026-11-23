@@ -42,13 +42,14 @@ use super::plan_inspection;
 #[cfg(test)]
 use super::reserve_projection_output_before_building;
 use super::{
-    aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
-    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_outer_row,
-    execute_plan_with_parameter_oids, filter, load_fulltext_index_options,
-    plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
-    sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
-    CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
-    LogicalPlan, PlanExecutionEnv, QueryError, QueryExecutionControls, QuerySource, Value,
+    aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_context,
+    build_logical_plan_in_session, catalog, check_timeout, deduce_text_fields,
+    ensure_query_memory_budget, execute_plan_with_outer_row, execute_plan_with_parameter_oids,
+    filter, load_fulltext_index_options, plan_execution_env_with_parameter_oids, projection,
+    resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig,
+    Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr,
+    FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, PlanExecutionEnv, QueryError,
+    QueryExecutionControls, QuerySource, Value,
 };
 pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
@@ -293,9 +294,41 @@ fn execute_view_source(
         .parse_statement_for_session(env.session, &view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
-    let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
+    let (logical, stored_functions) = if view.function_dependency_database.is_empty() {
+        (
+            build_logical_plan_in_session(env.cassie, env.session, &parsed)?,
+            None,
+        )
+    } else {
+        let context = crate::sql::binder::BindingContext::scoped(
+            view.function_dependency_database.clone(),
+            view.function_dependency_search_path.clone(),
+        );
+        let functions = crate::catalog::function_resolution::functions_for_scope(
+            &env.cassie.catalog.list_functions(),
+            &context.database,
+            &context.search_path,
+            context.scopes_database_objects(),
+        );
+        (
+            build_logical_plan_in_context(env.cassie, &context, &parsed)?,
+            Some(functions),
+        )
+    };
     let mut view_cte_context = CteContext::new();
-    let rows = execute_plan_with_parameter_oids(&env.plan_env(), &logical, &mut view_cte_context)?;
+    let rows = if let Some(functions) = &stored_functions {
+        let plan_env = plan_execution_env_with_parameter_oids(
+            env.cassie,
+            env.session,
+            functions,
+            env.params,
+            env.parameter_type_oids,
+            env.controls,
+        );
+        execute_plan_with_parameter_oids(&plan_env, &logical, &mut view_cte_context)?
+    } else {
+        execute_plan_with_parameter_oids(&env.plan_env(), &logical, &mut view_cte_context)?
+    };
     let rows = project_rows_to_schema(rows, &view.schema, name)?;
     let text_fields = schema_text_fields(&view.schema);
     finalize_source_batches(

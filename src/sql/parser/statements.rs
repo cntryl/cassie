@@ -256,7 +256,8 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
     let as_pos = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError::new("CREATE VIEW requires AS clause".into()))?;
     let target = rest[..as_pos].trim();
-    let (name, column_names) = if let Some(open) = target.find('(') {
+    let column_list = super::lexical::find_top_level_span(target, 0, "(");
+    let (name, column_names) = if let Some((open, _)) = column_list {
         let close = super::find_matching_paren(target, open)
             .ok_or_else(|| SqlError::new("invalid CREATE VIEW column list".into()))?;
         if !target[close + 1..].trim().is_empty() {
@@ -279,7 +280,7 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
             "CREATE VIEW supports only one view name".into(),
         ));
     }
-    if column_names.is_empty() && target.contains('(') {
+    if column_names.is_empty() && column_list.is_some() {
         return Err(SqlError::new(
             "CREATE VIEW column list cannot be empty".into(),
         ));

@@ -857,7 +857,15 @@ pub(super) fn build_logical_plan_in_session(
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
     let context = statement_binding_context(cassie, session);
-    let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, &context)
+    build_logical_plan_in_context(cassie, &context, statement)
+}
+
+pub(super) fn build_logical_plan_in_context(
+    cassie: &Cassie,
+    context: &crate::sql::binder::BindingContext,
+    statement: &crate::sql::ast::ParsedStatement,
+) -> Result<LogicalPlan, QueryError> {
+    let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, context)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let mut plan = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;

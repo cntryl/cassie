@@ -372,9 +372,11 @@ fn relation_clone_memory_bytes(cte: &CommonTableExpression) -> Result<usize, Que
     };
     bytes = add(bytes, size_of::<QuerySource>())?;
     bytes = add(bytes, mul(rows.capacity(), size_of::<Vec<Expr>>())?)?;
-    rows.iter().try_fold(bytes, |total, row| {
-        add(total, mul(row.capacity(), size_of::<Expr>())?)
-    })
+    rows.iter()
+        .try_fold(bytes, |total, row| {
+            add(total, mul(row.capacity(), size_of::<Expr>())?)
+        })
+        .map_err(Into::into)
 }
 
 fn replace(

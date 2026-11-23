@@ -24,6 +24,8 @@ fn cancel_after_value_once(handle: crate::runtime::QueryCancellationHandle) {
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     rows: &[Vec<Expr>],
+    ctes: &super::CteContext,
+    outer_row: Option<&BatchRow>,
     row_budget: Option<usize>,
 ) -> SourceExecution {
     check_timeout(env.controls)?;
@@ -50,13 +52,12 @@ pub(super) fn execute(
                 .controls
                 .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
             let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
-            let value = super::filter::evaluate_source_argument(
-                &BatchRow::from_projected_values(Vec::new()),
+            let empty = BatchRow::from_projected_values(Vec::new());
+            let value = super::source_set_function::argument_value(
+                env,
                 expression,
-                env.params,
-                env.user_functions,
-                env.session,
-                env.controls,
+                outer_row.unwrap_or(&empty),
+                ctes,
                 &evaluation,
             )?;
             #[cfg(test)]

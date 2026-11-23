@@ -341,25 +341,38 @@ fn filtered(
     }
     if state.is_none() {
         *state = Some(
-            match super::resolve_plan_filter(&env.plan_env(), plan, ctes) {
-                Ok(expression) => {
-                    let bytes = expression.as_ref().map_or(Ok(0), |expr| {
-                        crate::sql::parse_analysis::expression_clone_bytes(expr, 0, env.controls)
-                    })?;
-                    Predicate::Ready {
-                        expression,
-                        _memory: env.controls.reserve_query_memory(bytes)?,
+            if plan.filter.as_ref().is_some_and(|filter_expr| {
+                super::filter::expression_contains_routine_subquery(
+                    filter_expr,
+                    env.user_functions,
+                )
+            }) {
+                Predicate::Correlated
+            } else {
+                match super::resolve_plan_filter(&env.plan_env(), plan, ctes) {
+                    Ok(expression) => {
+                        let bytes = expression.as_ref().map_or(Ok(0), |expr| {
+                            crate::sql::parse_analysis::expression_clone_bytes(
+                                expr,
+                                0,
+                                env.controls,
+                            )
+                        })?;
+                        Predicate::Ready {
+                            expression,
+                            _memory: env.controls.reserve_query_memory(bytes)?,
+                        }
                     }
-                }
-                Err(error) => {
-                    if !plan
-                        .filter
-                        .as_ref()
-                        .is_some_and(super::super::exists_correlated::contains_exists)
-                    {
-                        return Err(error);
+                    Err(error) => {
+                        if !plan
+                            .filter
+                            .as_ref()
+                            .is_some_and(super::super::exists_correlated::contains_exists)
+                        {
+                            return Err(error);
+                        }
+                        Predicate::Correlated
                     }
-                    Predicate::Correlated
                 }
             },
         );

@@ -510,6 +510,63 @@ fn should_evaluate_a_scalar_subquery_in_a_function_in_order_by() {
 }
 
 #[test]
+fn should_resolve_a_routine_hidden_subquery_in_where() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_where",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT n FROM generate_series(1, 2) s(n) WHERE peek() = '123'");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]);
+}
+
+#[test]
+fn should_resolve_a_routine_hidden_subquery_in_values() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_values",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (9)",
+            "CREATE FUNCTION selected_value() RETURNS INT AS '(SELECT v FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("VALUES (selected_value())");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(9)]]);
+}
+
+#[test]
+fn should_resolve_a_routine_hidden_subquery_in_a_set_function_argument() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_set_function_argument",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (2)",
+            "CREATE FUNCTION start_at() RETURNS INT AS '(SELECT v FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT n FROM generate_series(start_at(), 3) s(n)");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]);
+}
+
+#[test]
 fn should_evaluate_a_function_body_subquery_in_a_true_order_by_expression() {
     // Arrange
     let fixture = sql_fixture(
@@ -580,6 +637,31 @@ fn should_preserve_a_routine_scalar_subquery_in_a_window_aggregate() {
 }
 
 #[test]
+fn should_resolve_routine_scalar_subqueries_in_window_partition_and_order() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_window_partition_order",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (7)",
+            "CREATE FUNCTION window_key() RETURNS INT AS '(SELECT v FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT count(*) OVER (PARTITION BY window_key() ORDER BY window_key()) \
+         FROM generate_series(1, 2) s(n)",
+    );
+
+    // Assert
+    assert_eq!(
+        result,
+        vec![vec![Value::Int64(2)], vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
 fn should_skip_a_routine_subquery_argument_when_aggregate_filter_is_false() {
     // Arrange
     let fixture = sql_fixture(
@@ -599,6 +681,52 @@ fn should_skip_a_routine_subquery_argument_when_aggregate_filter_is_false() {
 
     // Assert
     assert_eq!(result, vec![vec![Value::Null]]);
+}
+
+#[test]
+fn should_skip_a_routine_subquery_argument_in_a_having_aggregate_filter() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_having_filter_skips_subquery_argument",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (1), (2)",
+            "CREATE FUNCTION multivalued() RETURNS INT AS '(SELECT v FROM secret)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT count(*) \
+         FROM generate_series(1, 1) s(n) \
+         HAVING sum(multivalued()) FILTER (WHERE false) IS NULL",
+    );
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(1)]]);
+}
+
+#[test]
+fn should_skip_a_routine_subquery_argument_in_an_order_by_aggregate_filter() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_order_filter_skips_subquery_argument",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (1), (2)",
+            "CREATE FUNCTION multivalued() RETURNS INT AS '(SELECT v FROM secret)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT count(*) \
+         FROM generate_series(1, 1) s(n) \
+         ORDER BY sum(multivalued()) FILTER (WHERE false)",
+    );
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(1)]]);
 }
 
 #[test]

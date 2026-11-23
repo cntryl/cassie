@@ -21,6 +21,7 @@ pub(super) fn execute_weighted(
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
     qualify: bool,
+    ctes: &super::CteContext,
 ) -> SourceExecution {
-    graph_table::execute_weighted(env, name, function, outer_row, qualify)
+    graph_table::execute_weighted(env, name, function, outer_row, qualify, ctes)
 }

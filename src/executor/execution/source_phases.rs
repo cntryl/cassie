@@ -23,6 +23,8 @@ pub(super) fn window(
             .args
             .iter()
             .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
             .any(|expr| {
                 super::super::exists_correlated::contains_exists_or_routine_subquery(
                     expr,

@@ -55,6 +55,22 @@ pub(super) fn materialize(
             | SelectItem::Column { .. } => {}
         }
     }
+    if let Some(having) = &mut rewritten.having {
+        rewrite_filtered_aggregates(
+            having,
+            &mut filtered_aggregates,
+            &mut aggregate_index,
+            env.user_functions,
+        );
+    }
+    for order in &mut rewritten.order {
+        rewrite_filtered_aggregates(
+            &mut order.expr,
+            &mut filtered_aggregates,
+            &mut aggregate_index,
+            env.user_functions,
+        );
+    }
 
     let mut targets = Vec::new();
     for expr in &rewritten.group_by {

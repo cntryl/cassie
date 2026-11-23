@@ -153,9 +153,11 @@ pub(super) fn execute_query_source_with_traversal(
     let (mut batches, text_fields) = match source {
         QuerySource::Values { rows } if rows.iter().flatten().any(Expr::contains_subquery) => {
             let rows = super::subquery_values::resolve(env, cte_context, rows, outer_row)?;
-            source_values::execute(env, &rows, row_budget)
+            source_values::execute(env, &rows, cte_context, outer_row, row_budget)
         }
-        QuerySource::Values { rows } => source_values::execute(env, rows, row_budget),
+        QuerySource::Values { rows } => {
+            source_values::execute(env, rows, cte_context, outer_row, row_budget)
+        }
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) = execute_query_source_with_traversal(
                 env,
@@ -692,6 +694,27 @@ fn resolve_filter_or_correlate(
     batches: Vec<Batch>,
     search_context: Option<&filter::SearchContext>,
 ) -> Result<(Vec<Batch>, Option<Expr>), QueryError> {
+    if plan.filter.as_ref().is_some_and(|filter_expr| {
+        filter::expression_contains_routine_subquery(filter_expr, env.user_functions)
+    }) {
+        let batches = super::exists_correlated::filter_rows_per_outer_row(
+            &ExistsResolutionContext {
+                cassie: env.cassie,
+                session: env.session,
+                cte_context,
+                user_functions: env.user_functions,
+                params: env.params,
+                parameter_type_oids: env.parameter_type_oids,
+                controls: env.controls,
+                outer_row: None,
+            },
+            &plan.source,
+            plan.filter.as_ref().expect("routine filter was checked"),
+            batches,
+            search_context,
+        )?;
+        return Ok((batches, None));
+    }
     let error = match resolve_plan_filter(&env.plan_env(), plan, cte_context) {
         Ok(filter) => return Ok((batches, filter)),
         Err(error) => error,

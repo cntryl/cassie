@@ -208,7 +208,10 @@ pub(super) fn argument_value(
     ctes: &super::CteContext,
     memory: &super::filter::EvaluationMemory,
 ) -> Result<Value, QueryError> {
-    if !expression.contains_subquery() {
+    if !super::exists_correlated::contains_exists_or_routine_subquery(
+        expression,
+        env.user_functions,
+    ) {
         return super::filter::evaluate_source_argument(
             row,
             expression,

@@ -231,8 +231,43 @@ pub(super) fn without_comments(input: &str) -> Cow<'_, str> {
     })
 }
 
-pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, super::SqlError> {
+pub(super) struct DecodedSql<'a> {
+    original: &'a str,
+    text: Cow<'a, str>,
+    source_offsets: Option<Vec<usize>>,
+}
+
+impl std::ops::Deref for DecodedSql<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.text
+    }
+}
+
+impl DecodedSql<'_> {
+    pub(super) fn source_position(&self, decoded_byte: usize) -> usize {
+        let source_byte = self
+            .source_offsets
+            .as_ref()
+            .and_then(|offsets| offsets.get(decoded_byte).copied())
+            .unwrap_or(decoded_byte)
+            .min(self.original_len());
+        self.original[..source_byte].chars().count() + 1
+    }
+
+    fn original_len(&self) -> usize {
+        self.source_offsets
+            .as_ref()
+            .and_then(|offsets| offsets.last())
+            .copied()
+            .unwrap_or(self.text.len())
+    }
+}
+
+pub(super) fn decode_unicode_identifiers(input: &str) -> Result<DecodedSql<'_>, super::SqlError> {
     let mut output: Option<String> = None;
+    let mut source_offsets = None;
     let mut copied = 0;
     let mut index = 0;
     while index < input.len() {
@@ -245,11 +280,14 @@ pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, su
             .is_none_or(|value| !identifier_character(value));
         if unicode_prefix && boundary {
             let (identifier, consumed) = super::expr::unicode_identifier_prefix(&input[index..])?;
+            let rewritten = format!("\"{}\"", identifier.replace('"', "\"\""));
             let output = output.get_or_insert_with(String::new);
             output.push_str(&input[copied..index]);
-            output.push('"');
-            output.push_str(&identifier.replace('"', "\"\""));
-            output.push('"');
+            let offsets = source_offsets.get_or_insert_with(|| (0..=copied).collect::<Vec<_>>());
+            offsets.extend((copied + 1)..=index);
+            output.push_str(&rewritten);
+            offsets.extend(std::iter::repeat_n(index, rewritten.len() - 1));
+            offsets.push(index + consumed);
             index += consumed;
             copied = index;
         } else if let Some(end) = quoted_end(input, index).or_else(|| comment_end(input, index)) {
@@ -260,9 +298,19 @@ pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, su
     }
     if let Some(mut output) = output {
         output.push_str(&input[copied..]);
-        Ok(Cow::Owned(output))
+        let offsets = source_offsets.as_mut().expect("decoded output has offsets");
+        offsets.extend((copied + 1)..=input.len());
+        Ok(DecodedSql {
+            original: input,
+            text: Cow::Owned(output),
+            source_offsets,
+        })
     } else {
-        Ok(Cow::Borrowed(input))
+        Ok(DecodedSql {
+            original: input,
+            text: Cow::Borrowed(input),
+            source_offsets: None,
+        })
     }
 }
 

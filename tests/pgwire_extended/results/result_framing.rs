@@ -65,6 +65,29 @@ fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
 }
 
 #[test]
+fn should_preserve_original_position_after_unicode_escaped_identifier() {
+    // Arrange
+    let (simple_cassie, simple_path) = configured_cassie("issue-1488-unicode-simple", &[]);
+    let (parse_cassie, parse_path) = configured_cassie("issue-1488-unicode-parse", &[]);
+    let sql = r#"SELECT U&"caf\00E9" FORM t_probe;"#;
+
+    // Act
+    let simple = simple_round_trip(simple_cassie, simple_path, sql);
+    let parsed = binary_round_trip(parse_cassie, parse_path, sql);
+
+    // Assert
+    for frames in [&simple, &parsed] {
+        let error = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .expect("syntax ErrorResponse");
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
+        assert!(fields.contains(&('P', "27".to_owned())));
+    }
+}
+
+#[test]
 fn should_omit_position_given_runtime_division_by_zero() {
     // Arrange
     let (cassie, path) = configured_cassie("issue-1488-runtime-no-position", &[]);

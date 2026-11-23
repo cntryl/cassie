@@ -20,12 +20,25 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
     for sql in [
         "CREATE TABLE catalog_visible (id INTEGER)",
         "CREATE TABLE catalog_secret (token TEXT)",
+        "CREATE TABLE catalog_graph_visible (id INTEGER PRIMARY KEY)",
+        "CREATE TABLE catalog_graph_secret (id INTEGER PRIMARY KEY)",
         "CREATE VIEW catalog_visible_view AS SELECT id FROM catalog_visible",
         "CREATE VIEW catalog_secret_view AS SELECT token FROM catalog_secret",
+        "CREATE PROPERTY GRAPH catalog_graph VERTEX TABLES \
+         (catalog_graph_visible AS visible KEY (id) LABEL visible_node PROPERTIES (id), \
+          catalog_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id))",
+        "CREATE VIEW catalog_graph_direct_view AS \
+         SELECT direct.id FROM GRAPH_TABLE(catalog_graph \
+         MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \
+         JOIN catalog_graph_visible direct ON direct.id = graph_rows.id",
+        "CREATE VIEW catalog_graph_only_view AS \
+         SELECT id FROM GRAPH_TABLE(catalog_graph \
+         MATCH (secret IS secret_node) COLUMNS (secret.id AS id)) AS graph_rows",
         "CREATE ROLE catalog_reader LOGIN PASSWORD 'reader-secret'",
         "CREATE ROLE catalog_blocked LOGIN PASSWORD 'blocked-secret'",
         "GRANT USAGE ON SCHEMA public TO catalog_reader",
         "GRANT SELECT ON TABLE public.catalog_visible TO catalog_reader",
+        "GRANT SELECT ON TABLE public.catalog_graph_visible TO catalog_reader",
     ] {
         cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
     }
@@ -62,7 +75,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             &reader,
             "SELECT table_name, view_definition FROM information_schema.views \
              WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible_view', 'catalog_secret_view') \
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view', \
+                                  'catalog_graph_direct_view', 'catalog_graph_only_view') \
              ORDER BY table_name",
             Vec::new(),
         )
@@ -72,7 +86,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             &reader,
             "SELECT table_name, column_name FROM information_schema.columns \
              WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible_view', 'catalog_secret_view')",
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view', \
+                                  'catalog_graph_direct_view', 'catalog_graph_only_view')",
             Vec::new(),
         )
         .expect("read visible view columns");

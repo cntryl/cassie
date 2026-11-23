@@ -127,12 +127,26 @@ fn relation_readable_with_seen(
     let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
         return false;
     };
-    crate::sql::binder::select_referenced_relations(&select)
+    let mut graph_tables = Vec::new();
+    for name in crate::sql::binder::select_referenced_graphs(&select) {
+        let Ok(path) = crate::sql::ast::IdentifierPath::parse(&name) else {
+            return false;
+        };
+        let Ok(graph) = crate::sql::binder::resolve_graph(catalog, &context, &path) else {
+            return false;
+        };
+        graph_tables.extend(graph.mapped_tables().into_iter().map(str::to_owned));
+    }
+    let direct_readable = crate::sql::binder::select_referenced_relations(&select)
         .iter()
         .all(|name| {
             crate::sql::binder::normalize_relation_name(name, &context).is_ok_and(|name| {
                 relation_readable_with_seen(catalog, default_database, session, &name, seen)
             })
+        });
+    direct_readable
+        && graph_tables.iter().all(|table| {
+            relation_readable_with_seen(catalog, default_database, session, table, seen)
         })
 }
 

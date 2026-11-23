@@ -180,12 +180,15 @@ impl SqlError {
         self
     }
 
-    #[must_use]
-    pub(crate) fn source_position(mut self, sql: &str) -> Self {
-        self.position = self.position.map(|position| {
-            sql.get(..position)
-                .map_or(1, |prefix| prefix.chars().count() + 1)
-        });
+    pub(crate) fn map_source_position(
+        mut self,
+        decoded: &lexical::DecodedSql<'_>,
+        base: usize,
+        leading_chars: usize,
+    ) -> Self {
+        self.position = self
+            .position
+            .map(|position| decoded.source_position(base + position) + leading_chars);
         self
     }
 }
@@ -341,11 +344,9 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let raw_sql = sql.trim().trim_end_matches(';').trim();
     let decoded = lexical::decode_unicode_identifiers(raw_sql)?;
     let start = lexical::separator_end(&decoded, 0);
-    let parsed = parse_statement_body(&decoded[start..]).map_err(|error| {
-        error
-            .offset_position(sql.len() - sql.trim_start().len() + start)
-            .source_position(sql)
-    })?;
+    let leading_chars = sql[..sql.len() - sql.trim_start().len()].chars().count();
+    let parsed = parse_statement_body(&decoded[start..])
+        .map_err(|error| error.map_source_position(&decoded, start, leading_chars))?;
     Ok(ParsedStatement {
         raw_sql: raw_sql.to_string(),
         statement: parsed.statement,

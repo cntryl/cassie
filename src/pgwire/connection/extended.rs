@@ -11,11 +11,11 @@ use prepared_state::{
 
 #[path = "extended/parse.rs"]
 mod parse;
-use parse::{handle_parse, ParseRequest};
+use parse::{ParseRequest, handle_parse};
 
 #[path = "extended/bind.rs"]
 mod bind;
-use bind::{handle_bind, BindRequest};
+use bind::{BindRequest, handle_bind};
 
 #[path = "extended/bind_planning.rs"]
 mod bind_planning;
@@ -55,7 +55,7 @@ use super::writers::{
     write_parse_complete, write_ready_for_query,
 };
 use super::{ConnectionStep, PgwireReader};
-use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
+use crate::app::{Cassie, CassieError, CassieSession, unsupported_sql_error};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
 use crate::runtime::{ExecutionMode, RuntimeState};
@@ -72,14 +72,14 @@ mod record_parameters;
 #[path = "extended/text_parameters.rs"]
 mod text_parameters;
 use portal_state::{
-    take_portal_execution, write_completed_portal, write_fresh_result, FreshPortalWriteRequest,
-    PortalExecution, PortalFetchWindow,
+    FreshPortalWriteRequest, PortalExecution, PortalFetchWindow, take_portal_execution,
+    write_completed_portal, write_fresh_result,
 };
 use portal_streaming::{
-    execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
-    StreamingPortalPageRequest, SuspendedPortalRequest,
+    StreamingPortalPageRequest, SuspendedPortalRequest, execute_streaming_portal_page,
+    resume_suspended_portal, streamable_portal_query,
 };
-use text_parameters::{decode_text_parameter, DecodedTextParameter};
+use text_parameters::{DecodedTextParameter, decode_text_parameter};
 
 const OID_UNKNOWN: i32 = 705;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
@@ -363,12 +363,7 @@ async fn execute_prepared_portal(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     }
-    let window = PortalFetchWindow::new(result_cap, 0, max_rows);
-    let suspended_cancellation = if window.page_rows() < result.row_count() {
-        Some(cancellation.handle())
-    } else {
-        None
-    };
+    let active_cancellation = Some(cancellation.handle());
 
     write_fresh_result(
         write_half,
@@ -378,7 +373,7 @@ async fn execute_prepared_portal(
             portal,
             prepared,
             result,
-            cancellation: suspended_cancellation,
+            cancellation: active_cancellation,
             max_rows,
             result_cap,
         },

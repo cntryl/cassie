@@ -3,20 +3,20 @@ use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
 use super::portal_state::{
-    write_materialized_result, write_streaming_result, write_suspended_result,
     MaterializedPortalWriteRequest, PortalExecution, PortalFetchWindow, StreamingPortalResult,
-    SuspendedPortalWriteRequest,
+    SuspendedPortalWriteRequest, write_materialized_result, write_streaming_result,
+    write_suspended_result,
 };
 use super::{
-    describe_prepared, run_pgwire_blocking, Cassie, CassieError, CassieSession, ExecutionMode,
-    ExtendedQueryError, PortalSuspended, PreparedStatement, QueryResult, SessionState,
+    Cassie, CassieError, CassieSession, ExecutionMode, ExtendedQueryError, PortalSuspended,
+    PreparedStatement, QueryResult, SessionState, describe_prepared, run_pgwire_blocking,
 };
 use crate::app::PortalReadSpec;
 use crate::midge::adapter::RowDecode;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{QueryStatement, SelectItem};
-use crate::types::row_identity::{is_identity_reference, ROW_IDENTITY_COLUMN};
 use crate::types::Value;
+use crate::types::row_identity::{ROW_IDENTITY_COLUMN, is_identity_reference};
 
 pub(super) struct SuspendedPortalRequest<'a> {
     pub(super) state: &'a mut SessionState,
@@ -309,11 +309,7 @@ async fn execute_offset_portal_page(
     };
     let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
     let remains_suspended = result.row_count() > window.page_rows();
-    let suspended_cancellation = if remains_suspended {
-        Some(cancellation.handle())
-    } else {
-        None
-    };
+    let active_cancellation = Some(cancellation.handle());
     let rows_emitted = request.rows_emitted;
     let row_description_sent = request.portal.described || request.prepared.described;
     write_materialized_result(
@@ -323,7 +319,7 @@ async fn execute_offset_portal_page(
             portal_name: request.portal_name,
             portal: request.portal,
             result,
-            cancellation: suspended_cancellation,
+            cancellation: active_cancellation,
             max_rows: request.max_rows,
             result_cap,
             rows_emitted,
@@ -397,11 +393,7 @@ async fn execute_cursor_portal_page(
         }
     };
     cassie.runtime.record_query_peak_memory(peak_bytes);
-    let suspended_cancellation = if remains_suspended {
-        Some(cancellation.handle())
-    } else {
-        None
-    };
+    let active_cancellation = Some(cancellation.handle());
     let portal_name = request.portal_name.to_string();
     let remains_suspended = write_streaming_result(
         write_half,
@@ -410,7 +402,7 @@ async fn execute_cursor_portal_page(
         request.portal,
         StreamingPortalResult {
             result,
-            cancellation: suspended_cancellation,
+            cancellation: active_cancellation,
             has_more: remains_suspended,
             rows_emitted: request.rows_emitted,
             window,

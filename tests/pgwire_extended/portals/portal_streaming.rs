@@ -1,11 +1,31 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 
 use super::support_pgwire as support;
+
+fn seed_suspended_cancel_portal(cassie: &Cassie, session: &CassieSession) {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE portal_suspended_cancel (id TEXT, payload TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    for index in 0..5 {
+        cassie
+            .midge
+            .put_document(
+                "portal_suspended_cancel",
+                Some(format!("doc-{index:02}")),
+                serde_json::json!({"id": format!("doc-{index:02}"), "payload": "value"}),
+            )
+            .expect("seed row");
+    }
+}
 
 #[test]
 fn should_stop_portal_scan_after_requested_page_is_buffered() {
@@ -108,23 +128,7 @@ fn should_ignore_cancel_for_suspended_portal_before_resume() {
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE portal_suspended_cancel (id TEXT, payload TEXT)",
-                vec![],
-            )
-            .expect("create table");
-        for index in 0..5 {
-            cassie
-                .midge
-                .put_document(
-                    "portal_suspended_cancel",
-                    Some(format!("doc-{index:02}")),
-                    serde_json::json!({"id": format!("doc-{index:02}"), "payload": "value"}),
-                )
-                .expect("seed row");
-        }
+        seed_suspended_cancel_portal(&cassie, &session);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");

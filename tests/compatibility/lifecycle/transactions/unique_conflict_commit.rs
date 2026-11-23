@@ -402,11 +402,14 @@ fn should_rollback_modifying_cte_side_effect_when_resumed_insert_conflicts() {
                 "CREATE TABLE compat_unique_cte_rows \
                  (a INT, b INT, \
                   CONSTRAINT compat_unique_cte_rows_a_key UNIQUE (a), \
-                  CONSTRAINT compat_unique_cte_rows_b_key UNIQUE (b)); \
-                 CREATE TABLE compat_unique_cte_mark (id INT PRIMARY KEY)",
+                  CONSTRAINT compat_unique_cte_rows_b_key UNIQUE (b))",
             )
             .await
-            .expect("create the unique target and side-effect tables");
+            .expect("create the unique target table");
+        first_owner
+            .batch_execute("CREATE TABLE compat_unique_cte_mark (id INT PRIMARY KEY)")
+            .await
+            .expect("create the side-effect table");
         first_owner
             .batch_execute("BEGIN; INSERT INTO compat_unique_cte_rows VALUES (1, 100)")
             .await

@@ -617,8 +617,17 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
 #[test]
 fn should_acknowledge_success_after_a_transaction_publication() {
     // Arrange
-    for sql in ["CREATE TABLE published (id INT)", "COMMIT"] {
-        let (cassie, session, mut state, prepared, _) = active_query_fixture(sql);
+    for sql in [
+        "CREATE TABLE published (id INT)",
+        "CREATE DATABASE published_db",
+        "COMMIT",
+    ] {
+        let (cassie, initial_session, mut state, prepared, _) = active_query_fixture(sql);
+        let session = if sql == "CREATE DATABASE published_db" {
+            cassie.create_session("root", None)
+        } else {
+            initial_session
+        };
         if sql == "COMMIT" {
             cassie
                 .execute_sql(&session, "BEGIN", Vec::new())
@@ -664,6 +673,8 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
         if sql.starts_with("CREATE TABLE") {
             assert!(cassie.catalog.get_schema("published").is_some());
+        } else if sql.starts_with("CREATE DATABASE") {
+            assert!(cassie.catalog.get_database("published_db").is_some());
         } else {
             let rows = cassie
                 .execute_sql(&session, "SELECT id FROM t", Vec::new())

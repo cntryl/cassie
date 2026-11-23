@@ -375,6 +375,9 @@ fn controlled_vector_candidate_ids(
     else {
         return Ok(None);
     };
+    if index.metadata.metric != crate::embeddings::DistanceMetric::L2 {
+        return Ok(None);
+    }
     match index.metadata.index_type {
         crate::embeddings::VectorIndexType::Hnsw => {
             if index.metadata.hnsw.is_none() {
@@ -424,9 +427,6 @@ fn controlled_ivfflat_candidate_ids(
     limit: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Option<ControlledVectorCandidateIds>, crate::app::CassieError> {
-    if metric != crate::embeddings::DistanceMetric::L2 {
-        return Ok(None);
-    }
     let Some(training) = cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
         &spec.vector_field,
@@ -735,6 +735,59 @@ mod ivfflat_candidate_tests {
                  USING vector (embedding) WITH (source_field = body, metric = dot, \
                  index_type = ivfflat, lists = 1, probes = 1, \
                  training_sample_size = 1, training_seed = 17)",
+                Vec::new(),
+            )
+            .expect("create mismatch index");
+        let spec = super::super::HybridTopKSpec {
+            collection: crate::catalog::canonical_relation_name(
+                &cassie.default_database,
+                crate::catalog::DEFAULT_SCHEMA,
+                "metric_mismatch",
+            ),
+            text_field: "body".to_string(),
+            query: "match".to_string(),
+            vector_field: "embedding".to_string(),
+            vector_query: vec![1.0, 0.0],
+            filter: None,
+            id_column: "id".to_string(),
+            score_column: "score".to_string(),
+            limit: 1,
+            offset: 0,
+        };
+
+        // Act
+        let selected = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &controls(4096))
+            .expect("non-L2 index selects exact fallback");
+
+        // Assert
+        assert!(selected.is_none());
+    }
+
+    #[test]
+    fn should_skip_non_l2_hnsw_index_candidates_for_hybrid_exact_fallback() {
+        // Arrange
+        let cassie = crate::app::Cassie::new_in_memory_with_config(
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .expect("in-memory Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(&session, "CREATE EXTENSION vector", Vec::new())
+            .expect("install vector extension");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE metric_mismatch (id BIGINT PRIMARY KEY, body TEXT, embedding VECTOR(2))",
+                Vec::new(),
+            )
+            .expect("create mismatch table");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX metric_mismatch_embedding_idx ON metric_mismatch \
+                 USING vector (embedding) WITH (source_field = body, metric = dot, \
+                 index_type = hnsw, m = 4, ef_construction = 8, ef_search = 8)",
                 Vec::new(),
             )
             .expect("create mismatch index");

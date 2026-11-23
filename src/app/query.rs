@@ -432,7 +432,7 @@ impl Cassie {
         self.runtime.record_sql_parse();
         let parsed = self.parse_statement_for_session(Some(session), sql)?;
         let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
-        self.execute_parsed_statement_core_for_operation(
+        self.execute_parsed_statement_with_view_rename_transaction(
             session,
             parsed,
             sql_fingerprint,

@@ -513,9 +513,17 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
 #[test]
 fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written() {
     // Arrange
-    for sql in [
-        "SELECT id FROM t ORDER BY id",
-        "WITH selected AS (SELECT id FROM t) SELECT id FROM selected ORDER BY id",
+    for (sql, max_rows) in [
+        ("SELECT id FROM t ORDER BY id", 1),
+        ("SELECT id FROM t ORDER BY id", 3),
+        (
+            "WITH selected AS (SELECT id FROM t) SELECT id FROM selected ORDER BY id",
+            1,
+        ),
+        (
+            "WITH selected AS (SELECT id FROM t) SELECT id FROM selected ORDER BY id",
+            3,
+        ),
     ] {
         let (cassie, session, mut state, prepared, portal) = active_query_fixture(sql);
         let backend = state.backend_registration.as_ref().expect("backend");
@@ -538,7 +546,7 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
                 portal_name: "retained",
                 portal: &portal,
                 prepared: &prepared,
-                max_rows: 1,
+                max_rows,
                 rows_emitted: 0,
                 cancellation: None,
             },
@@ -559,44 +567,46 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
 #[test]
 fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written() {
     // Arrange
-    let sql = "SELECT id FROM t ORDER BY id";
-    let (cassie, session, mut state, prepared, portal) = active_query_fixture(sql);
-    let backend = state.backend_registration.as_ref().expect("backend");
-    let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
-    let mut writer = CancelAtFlushWrite {
-        runtime: std::sync::Arc::clone(&cassie.runtime),
-        process_id,
-        secret_key,
-        canceled: false,
-        frame_tags: Vec::new(),
-    };
+    for max_rows in [1, 3] {
+        let sql = "SELECT id FROM t ORDER BY id";
+        let (cassie, session, mut state, prepared, portal) = active_query_fixture(sql);
+        let backend = state.backend_registration.as_ref().expect("backend");
+        let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
+        let mut writer = CancelAtFlushWrite {
+            runtime: std::sync::Arc::clone(&cassie.runtime),
+            process_id,
+            secret_key,
+            canceled: false,
+            frame_tags: Vec::new(),
+        };
 
-    // Act
-    let error = runtime().block_on(super::super::execute_prepared_portal(
-        std::sync::Arc::clone(&cassie),
-        &cassie.runtime,
-        &mut writer,
-        &mut state,
-        &session,
-        super::super::PreparedPortalRequest {
-            portal_name: "retained",
-            portal: &portal,
-            prepared: &prepared,
-            parsed: prepared.parsed.clone().expect("parsed statement"),
-            max_rows: 1,
-            standalone: false,
-        },
-    ));
+        // Act
+        let error = runtime().block_on(super::super::execute_prepared_portal(
+            std::sync::Arc::clone(&cassie),
+            &cassie.runtime,
+            &mut writer,
+            &mut state,
+            &session,
+            super::super::PreparedPortalRequest {
+                portal_name: "retained",
+                portal: &portal,
+                prepared: &prepared,
+                parsed: prepared.parsed.clone().expect("parsed statement"),
+                max_rows,
+                standalone: false,
+            },
+        ));
 
-    // Assert
-    assert!(writer.canceled, "active page cancellation must be accepted");
-    assert_eq!(
-        error.expect_err("active page cancellation").pg_error.code,
-        "57014"
-    );
-    assert_eq!(writer.frame_tags, vec![b'D']);
-    assert!(state.portals["retained"].suspended.is_none());
-    assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+        // Assert
+        assert!(writer.canceled, "active page cancellation must be accepted");
+        assert_eq!(
+            error.expect_err("active page cancellation").pg_error.code,
+            "57014"
+        );
+        assert_eq!(writer.frame_tags, vec![b'D']);
+        assert!(state.portals["retained"].suspended.is_none());
+        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+    }
 }
 
 #[test]

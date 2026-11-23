@@ -159,9 +159,20 @@ fn should_reject_a_second_update_owner_before_publication() {
     cassie
         .execute_sql(&contender, "BEGIN", Vec::new())
         .expect("begin second UPDATE transaction");
+    cassie
+        .execute_sql(&contender, "UPDATE u SET v = 3 WHERE id = 2", Vec::new())
+        .expect("stage unrelated unique value in second transaction");
+    let contender_owner = contender.transaction_unique_owner_id();
+    let prior_keys = cassie
+        .transaction_unique_waits
+        .snapshot_owner_keys(contender_owner);
 
     // Act
     let conflict = cassie.execute_sql(&contender, "UPDATE u SET v = 99 WHERE id = 2", Vec::new());
+    let keys_after_conflict = cassie
+        .transaction_unique_waits
+        .snapshot_owner_keys(contender_owner);
+    let wait_count_after_conflict = cassie.transaction_unique_waits.waiting_count();
     let rollback_contender = cassie.execute_sql(&contender, "ROLLBACK", Vec::new());
     let rollback_owner = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
 
@@ -173,6 +184,8 @@ fn should_reject_a_second_update_owner_before_publication() {
             ..
         })
     ));
+    assert_eq!(keys_after_conflict, prior_keys);
+    assert_eq!(wait_count_after_conflict, 0);
     assert!(rollback_contender.is_ok());
     assert!(rollback_owner.is_ok());
     assert_eq!(

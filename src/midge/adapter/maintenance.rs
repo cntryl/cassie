@@ -80,6 +80,20 @@ impl Midge {
         )
     }
 
+    pub(super) fn column_batch_maintenance_debt_write(
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(Vec<u8>, Vec<u8>), CassieError> {
+        Self::maintenance_debt_write(collection, COLUMN_BATCH_ARTIFACT, target_generation)
+    }
+
+    pub(super) fn projection_hash_maintenance_debt_write(
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(Vec<u8>, Vec<u8>), CassieError> {
+        Self::maintenance_debt_write(collection, PROJECTION_HASH_ARTIFACT, target_generation)
+    }
+
     pub(super) fn record_rollup_maintenance_debt_in_tx(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         collection: &str,
@@ -135,6 +149,15 @@ impl Midge {
         artifact: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
+        let (key, value) = Self::maintenance_debt_write(collection, artifact, target_generation)?;
+        tx.put(key, value, None).map_err(CassieError::from)
+    }
+
+    fn maintenance_debt_write(
+        collection: &str,
+        artifact: &str,
+        target_generation: u64,
+    ) -> Result<(Vec<u8>, Vec<u8>), CassieError> {
         let debt = MaintenanceDebt {
             collection: collection.to_string(),
             artifact: artifact.to_string(),
@@ -142,12 +165,10 @@ impl Midge {
             retry_count: 0,
             last_error: None,
         };
-        tx.put(
+        Ok((
             Self::maintenance_debt_key(collection, artifact),
             serde_json::to_vec(&debt).map_err(|error| CassieError::Parse(error.to_string()))?,
-            None,
-        )
-        .map_err(CassieError::from)
+        ))
     }
 
     pub(super) fn complete_column_batch_maintenance(

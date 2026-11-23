@@ -33,6 +33,83 @@ fn should_decode_pending_field_add_without_default_from_legacy_record() {
 }
 
 #[test]
+fn should_recover_the_exact_recorded_legacy_timestamp_default() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!(
+        "cassie_recorded_field_add_default_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+    midge
+        .create_collection(
+            "recorded_field_add_default",
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "keep".to_owned(),
+                        data_type: crate::types::DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "added".to_owned(),
+                        data_type: crate::types::DataType::Text,
+                        nullable: true,
+                    },
+                ],
+            },
+        )
+        .expect("create durable schema");
+    let collection = midge.canonical_collection_name("recorded_field_add_default");
+    midge
+        .put_document(
+            &collection,
+            Some("row-1".to_owned()),
+            serde_json::json!({"keep": "alpha"}),
+        )
+        .expect("seed row before backfill");
+    let recorded_default = "2000-01-02T03:04:05.123456Z";
+    let pending = super::schema_ops::PendingFieldAdd {
+        collection: collection.clone(),
+        field: FieldSchema {
+            name: "added".to_owned(),
+            data_type: crate::types::DataType::Text,
+            nullable: true,
+        },
+        default_value: Some(serde_json::json!(recorded_default)),
+        target_generation: midge
+            .collection_generation(&collection)
+            .expect("read current generation")
+            .saturating_add(1),
+    };
+    let mut tx = midge
+        .begin_data_rw_tx_for(&collection)
+        .expect("open pending-record transaction");
+    tx.put(
+        Midge::field_add_operation_key(&collection, "added"),
+        serde_json::to_vec(&pending).expect("encode pending field add"),
+        None,
+    )
+    .expect("write legacy pending record");
+    tx.commit(midge.write_options_sync())
+        .expect("commit pending record");
+
+    // Act
+    let resumed = midge
+        .resume_pending_field_add(&collection, "added")
+        .expect("resume recorded field add");
+    let rows = midge
+        .scan_documents(&collection)
+        .expect("read backfilled row");
+
+    // Assert
+    assert!(resumed);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].payload["added"].as_str(), Some(recorded_default));
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_serialize_field_rename_with_collection_writes() {
     // Arrange
     let path =

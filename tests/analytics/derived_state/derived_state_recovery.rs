@@ -104,7 +104,7 @@ fn should_recover_column_batch_debt_without_serving_stale_rows() {
 }
 
 #[test]
-fn should_recover_add_column_column_batch_debt_after_restart() {
+fn should_recover_add_column_maintenance_debts_after_restart() {
     // Arrange
     use_local_storage();
     let path = data_dir("derived_state_add_column_batch_recovery");
@@ -120,11 +120,14 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
 
         // Act
         set_column_batch_maintenance_failure_point(true);
-        let alter_result = cassie.execute_sql(
-            &session,
-            "ALTER TABLE derived_state_add_column_batch_docs ADD COLUMN subtitle TEXT",
-            vec![],
-        );
+        set_projection_hash_maintenance_failure_point(true);
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE derived_state_add_column_batch_docs ADD COLUMN subtitle TEXT",
+                vec![],
+            )
+            .expect("committed schema change must succeed when maintenance fails");
         let schema_after_failure = cassie
             .midge
             .collection_schema(&collection)
@@ -133,6 +136,10 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
             .midge
             .has_column_batch_maintenance_debt(&collection)
             .expect("read durable debt");
+        let projection_hash_debt_after_failure = cassie
+            .midge
+            .has_projection_hash_maintenance_debt(&collection)
+            .expect("read durable projection hash debt");
         let artifact_read = stale_artifact_read(&cassie, &collection);
         let fallback_result = cassie
             .execute_sql(
@@ -146,12 +153,12 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
         let recovered = recover_add_column_batch(&path);
 
         // Assert
-        assert!(alter_result.is_err());
         assert!(schema_after_failure
             .fields
             .iter()
             .any(|field| field.name == "subtitle"));
         assert!(debt_after_failure);
+        assert!(projection_hash_debt_after_failure);
         assert!(matches!(
             artifact_read,
             ColumnBatchScanDecision::Fallback(reason)
@@ -181,6 +188,7 @@ fn should_recover_add_column_column_batch_debt_after_restart() {
             ColumnBatchScanDecision::Hit(_)
         ));
         assert!(!recovered.debt);
+        assert!(!recovered.projection_hash_debt);
         assert_eq!(recovered.built_generation, recovered.collection_generation);
     });
     let _ = std::fs::remove_dir_all(path);
@@ -286,6 +294,7 @@ struct RecoveredColumnBatch {
     rows: Vec<Vec<Value>>,
     artifact_read: ColumnBatchScanDecision,
     debt: bool,
+    projection_hash_debt: bool,
     built_generation: u64,
     collection_generation: u64,
 }
@@ -320,6 +329,10 @@ fn recover_add_column_batch(path: &str) -> RecoveredColumnBatch {
             .midge
             .has_column_batch_maintenance_debt(&collection)
             .expect("read recovered debt state"),
+        projection_hash_debt: restarted
+            .midge
+            .has_projection_hash_maintenance_debt(&collection)
+            .expect("read recovered projection hash debt state"),
         built_generation: metadata.built_generation,
         collection_generation: restarted
             .midge

@@ -382365,7 +382365,7 @@
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 400,
-      "sha256": "00cb1a4d9d574e6eb06eeb3f8a7656dbab92a26b30b0a4527f503a198efa562d",
+      "sha256": "c3a6f1ef631d2a79d45410dd7a70e3a8076c8fc4deda41e6452ad8461211641b",
       "test_declarations": 19,
       "registered_suites": [
         "sql_queries"

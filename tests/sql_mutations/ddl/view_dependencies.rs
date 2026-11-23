@@ -406,6 +406,30 @@ fn should_execute_a_view_with_its_persisted_function_search_path() {
     assert_eq!(value, vec![vec![Value::Int64(11)]]);
 }
 
+#[test]
+fn should_preserve_nested_view_function_scope_during_exists_rebinding() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-nested-function-exists-scope",
+        &[
+            "CREATE SCHEMA selected_nested",
+            "CREATE SCHEMA caller_nested",
+            "CREATE FUNCTION selected_nested.same_name(x INT) RETURNS BOOL AS 'x = 7'",
+            "CREATE FUNCTION caller_nested.same_name(x INT) RETURNS BOOL AS 'x = 9'",
+            "SET search_path = selected_nested, public",
+            "CREATE VIEW nested_function_view AS \
+             SELECT EXISTS (SELECT 1 WHERE same_name(7)) AS matched",
+            "SET search_path = caller_nested, public",
+        ],
+    );
+
+    // Act
+    let value = fixture.rows("SELECT matched FROM nested_function_view");
+
+    // Assert
+    assert_eq!(value, vec![vec![Value::Bool(true)]]);
+}
+
 struct ViewFunctionDirectory(String);
 
 impl Drop for ViewFunctionDirectory {

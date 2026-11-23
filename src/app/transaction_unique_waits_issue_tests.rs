@@ -147,6 +147,58 @@ fn should_allow_waiting_insert_after_update_owner_rolls_back() {
 }
 
 #[test]
+fn should_not_resume_autocommit_insert_in_a_replacement_transaction() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_replaced_waiter_transaction");
+    for sql in ["BEGIN", "UPDATE u SET v = 99 WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage unique value in UPDATE");
+    }
+    let waiter = cassie.create_session("issue_1465_replaced_waiter", None);
+    let initial_owner = waiter.transaction_unique_owner_id();
+    let (events, worker) = start_observed_insert(
+        cassie.clone(),
+        waiter.clone(),
+        "INSERT INTO u VALUES (3, 99)",
+    );
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let begin_replacement = cassie.execute_sql(&waiter, "BEGIN", Vec::new());
+    let replacement_owner = waiter.transaction_unique_owner_id();
+    let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+    let visible_rows = rows(&cassie, &waiter);
+    let replacement_rollback = cassie.execute_sql(&waiter, "ROLLBACK", Vec::new());
+
+    // Assert
+    assert!(reached_wait);
+    assert!(begin_replacement.is_ok());
+    assert_ne!(replacement_owner, initial_owner);
+    assert!(owner_rollback.is_ok());
+    assert!(matches!(
+        result_event,
+        WaitEvent::Completed(Err(CassieError::Execution(_)))
+    ));
+    assert_eq!(waiter.transaction_status(), "in_transaction");
+    assert_eq!(
+        visible_rows,
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+    assert!(replacement_rollback.is_ok());
+}
+
+#[test]
 fn should_fail_explicit_waiter_insert_when_update_owner_commits() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_explicit_waiter");

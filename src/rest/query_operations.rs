@@ -147,7 +147,7 @@ mod tests {
     use std::cell::RefCell;
     use std::time::Duration;
 
-    use super::{cancel, owner_fingerprint, register, CancelError, RegisterError, Registration};
+    use super::{CancelError, RegisterError, Registration, cancel, owner_fingerprint, register};
     use crate::runtime::QueryCancellationHandle;
 
     thread_local! {

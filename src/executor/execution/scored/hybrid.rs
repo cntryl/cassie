@@ -1,7 +1,7 @@
 use super::{
-    json_search_term_stats_value, value_to_vector, vector_prefilter_supported, BatchRow, Cassie,
-    CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta, HybridTopKSpec,
-    QueryError, TokenizedHybridDocument, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta,
+    HybridTopKSpec, QueryError, TokenizedHybridDocument, Value, json_search_term_stats_value,
+    value_to_vector, vector_prefilter_supported,
 };
 use crate::executor::{batch, filter, scan};
 use crate::midge::adapter::RowDecode;
@@ -411,13 +411,7 @@ fn controlled_vector_candidate_ids(
             }))
         }
         crate::embeddings::VectorIndexType::IvfFlat => {
-            controlled_ivfflat_candidate_ids(
-                cassie,
-                spec,
-                index.metadata.metric,
-                limit,
-                controls,
-            )
+            controlled_ivfflat_candidate_ids(cassie, spec, index.metadata.metric, limit, controls)
         }
         crate::embeddings::VectorIndexType::BruteForce => Ok(None),
     }
@@ -555,13 +549,8 @@ fn rank_ivfflat_candidate_ids(
                 )));
             }
             top.push(candidate);
-        } else if top
-            .peek()
-            .is_some_and(|worst| candidate.cmp(worst).is_lt())
-        {
-            let previous = top
-                .peek()
-                .map_or(0, RankedIvfCandidate::retained_bytes);
+        } else if top.peek().is_some_and(|worst| candidate.cmp(worst).is_lt()) {
+            let previous = top.peek().map_or(0, RankedIvfCandidate::retained_bytes);
             let next = candidate.retained_bytes();
             if next > previous {
                 memory.try_grow(next - previous)?;
@@ -573,7 +562,10 @@ fn rank_ivfflat_candidate_ids(
             }
         }
     }
-    Ok((top.into_iter().map(|candidate| candidate.id).collect(), memory))
+    Ok((
+        top.into_iter().map(|candidate| candidate.id).collect(),
+        memory,
+    ))
 }
 
 fn ivfflat_candidate_distance(
@@ -594,10 +586,7 @@ fn ivfflat_candidate_distance(
     }
     Some(match metric {
         crate::embeddings::DistanceMetric::Cosine => {
-            crate::vector::cosine_distance_from_normalized_query(
-                normalized_query,
-                &record.values,
-            )
+            crate::vector::cosine_distance_from_normalized_query(normalized_query, &record.values)
         }
         crate::embeddings::DistanceMetric::L2 => query
             .iter()
@@ -675,8 +664,7 @@ mod ivfflat_candidate_tests {
             built_generation: 1,
             dimensions: values.len(),
             metric,
-            normalization_version:
-                NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
+            normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
             payload_available: true,
             magnitude: normalized.magnitude,
             values: normalized.values,
@@ -719,7 +707,10 @@ mod ivfflat_candidate_tests {
 
         // Assert
         for ids in selected {
-            assert_eq!(ids.iter().map(String::as_str).collect::<Vec<_>>(), ["near-late"]);
+            assert_eq!(
+                ids.iter().map(String::as_str).collect::<Vec<_>>(),
+                ["near-late"]
+            );
         }
     }
 
@@ -752,7 +743,10 @@ mod ivfflat_candidate_tests {
         .0;
 
         // Assert
-        assert_eq!(tied.iter().map(String::as_str).collect::<Vec<_>>(), ["a-tie"]);
+        assert_eq!(
+            tied.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["a-tie"]
+        );
         assert_eq!(
             all.iter().map(String::as_str).collect::<Vec<_>>(),
             ["a-tie", "z-tie"]

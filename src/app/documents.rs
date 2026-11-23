@@ -17,7 +17,7 @@ impl Cassie {
     pub(crate) fn write_document_for_session(
         &self,
         session: Option<&CassieSession>,
-        _collection: &str,
+        collection: &str,
         id: Option<String>,
         payload: serde_json::Value,
         apply_defaults: bool,
@@ -402,7 +402,7 @@ impl Cassie {
     }
 
     fn validate_payload_schema(
-        _collection: &str,
+        collection: &str,
         schema: &crate::catalog::CollectionSchema,
         payload: &serde_json::Value,
     ) -> Result<(), CassieError> {
@@ -415,7 +415,12 @@ impl Cassie {
                 .fields
                 .iter()
                 .find(|entry| entry.name == *field)
-                .ok_or_else(|| CassieError::UndefinedColumn(field.clone()))?
+                .ok_or_else(|| {
+                    crate::app::DiagnosticError::new(
+                        "42703",
+                        format!("field '{field}' is not defined on collection '{collection}'"),
+                    )
+                })?
                 .data_type
                 .clone();
             Self::validate_value_against_data_type(field, &expected, value)?;
@@ -442,11 +447,13 @@ impl Cassie {
                 "smallint",
                 |number| i16::try_from(number).is_ok(),
             ),
-            crate::types::DataType::Int => {
-                super::integer_range::validate_in_range(field, value, "int", "integer", |number| {
-                    i32::try_from(number).is_ok()
-                })
-            }
+            crate::types::DataType::Int => super::integer_range::validate_in_range(
+                field,
+                value,
+                "integer",
+                "integer",
+                |number| i32::try_from(number).is_ok(),
+            ),
             crate::types::DataType::BigInt => super::integer_range::validate_bigint(field, value),
             crate::types::DataType::Extended(kind) => kind
                 .from_json(value)
@@ -776,14 +783,12 @@ impl Cassie {
         let mut out = Vec::with_capacity((value.len() - 2) / 2);
         let mut index = 2;
         while index < value.len() {
-            let high = Self::decode_hex_digit(raw[index])
-                .ok_or_else(|| {
-                    crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
-                })?;
-            let low = Self::decode_hex_digit(raw[index + 1])
-                .ok_or_else(|| {
-                    crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
-                })?;
+            let high = Self::decode_hex_digit(raw[index]).ok_or_else(|| {
+                crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
+            })?;
+            let low = Self::decode_hex_digit(raw[index + 1]).ok_or_else(|| {
+                crate::app::DiagnosticError::new("22P02", "invalid bytea hex digit")
+            })?;
             out.push(high << 4 | low);
             index += 2;
         }

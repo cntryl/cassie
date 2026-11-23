@@ -245,7 +245,9 @@ impl AnalyzerConfig {
             let end = start + character.len_utf8();
             let before = folded.len();
             if self.case_folding {
-                let produced = if character == '\u{130}' || character == '\u{3a3}' {
+                let produced = if character == '\u{3a3}'
+                    || (self.name == "simple" && character == '\u{130}')
+                {
                     1
                 } else {
                     character.to_lowercase().count()
@@ -348,11 +350,11 @@ impl AnalyzerConfig {
 
     fn fold_case(&self, input: &str) -> String {
         if self.case_folding {
-            input
-                .chars()
-                .map(|character| if character == '\u{130}' { 'i' } else { character })
-                .collect::<String>()
-                .to_lowercase()
+            if self.name == "simple" {
+                input.replace('\u{130}', "i").to_lowercase()
+            } else {
+                input.to_lowercase()
+            }
         } else {
             input.to_string()
         }
@@ -495,13 +497,29 @@ mod tests {
     #[test]
     fn should_keep_dotted_capital_i_word_whole() {
         // Arrange
-        let config = AnalyzerConfig::default();
+        let config = AnalyzerConfig {
+            name: "simple".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
 
         // Act
         let tokens = config.analyze("\u{130}stanbul");
 
         // Assert
         assert_eq!(tokens, vec!["istanbul"]);
+    }
+
+    #[test]
+    fn should_preserve_standard_analyzer_dotted_i_folding() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+
+        // Act
+        let tokens = config.analyze("\u{130}stanbul");
+
+        // Assert
+        assert_eq!(tokens, vec!["i\u{307}stanbul"]);
     }
 
     #[test]

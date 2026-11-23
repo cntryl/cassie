@@ -1,7 +1,7 @@
 //! Document ingress diagnostics use the corresponding PostgreSQL 18.6 SQLSTATE.
 
 use super::{Cassie, CassieError};
-use crate::catalog::{canonical_relation_name, DEFAULT_SCHEMA};
+use crate::catalog::{DEFAULT_SCHEMA, canonical_relation_name};
 use crate::config::CassieRuntimeConfig;
 use serde_json::json;
 
@@ -107,4 +107,52 @@ fn should_keep_the_vector_error_for_a_wrong_length_document_vector() {
     // Assert
     assert_eq!(error.sql_state(), "22000", "{error}");
     assert!(error.to_string().contains("invalid vector"), "{error}");
+}
+
+#[test]
+fn should_report_reachable_non_vector_document_shape_errors_without_vector_diagnostics() {
+    // Arrange
+    let cases = [
+        ("SMALLINT", json!("not-an-integer")),
+        ("INTEGER", json!("not-an-integer")),
+        ("BIGINT", json!("not-an-integer")),
+        ("OID", json!("not-an-oid")),
+        ("NAME", json!(4)),
+        ("TEXT", json!(4)),
+        ("UUID", json!("not-a-uuid")),
+        ("CHAR(1)", json!(4)),
+        ("VARCHAR(3)", json!(4)),
+        ("BYTEA", json!(4)),
+        ("DATE", json!(4)),
+        ("TIME", json!(4)),
+        ("TIMESTAMP", json!(4)),
+        ("INTEGER[]", json!(4)),
+    ];
+
+    // Act
+    let errors = cases
+        .clone()
+        .map(|(column_type, value)| document_error(column_type, value));
+
+    // Assert
+    for (error, (column_type, _)) in errors.into_iter().zip(cases) {
+        assert_eq!(error.sql_state(), "22P02", "{column_type}: {error}");
+        assert!(!error.to_string().contains("invalid vector"), "{error}");
+    }
+}
+
+#[test]
+fn should_report_a_document_name_length_error_as_string_too_long() {
+    // Arrange
+    let too_long = json!("x".repeat(64));
+
+    // Act
+    let error = document_error("NAME", too_long);
+
+    // Assert
+    assert_eq!(error.sql_state(), "22001", "{error}");
+    assert!(
+        error.to_string().contains("value too long for type name"),
+        "{error}"
+    );
 }

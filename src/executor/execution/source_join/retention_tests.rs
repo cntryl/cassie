@@ -76,6 +76,7 @@ fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieErr
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

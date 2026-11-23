@@ -36,6 +36,7 @@ fn fixture(run: impl FnOnce(&SourceExecutionEnv<'_>)) {
     run(&SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

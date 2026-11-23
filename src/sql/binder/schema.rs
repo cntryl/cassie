@@ -5,7 +5,7 @@ use super::{
     AlterIndexStatement, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
     AlterTableStatement, BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema,
     CreateViewStatement, DistanceMetric, DropIndexStatement, DropSchemaStatement,
-    DropViewStatement, Expr, HashSet, QueryStatement, ReindexStatement, ReindexTarget,
+    DropViewStatement, Expr, HashSet, QueryStatement, ReindexStatement, ReindexTarget, Schema,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -73,11 +73,46 @@ pub(super) fn bind_create_view(
         ));
     }
 
-    let _schema = infer_select_schema_with_context(&bound, catalog, context)?;
+    let mut schema = infer_select_schema_with_context(&bound, catalog, context)?;
+    validate_and_rename_view_schema(&mut schema, &statement.column_names)?;
 
     statement.name = name;
     statement.query = body;
     Ok(statement)
+}
+
+pub(crate) fn validate_and_rename_view_schema(
+    schema: &mut Schema,
+    column_names: &[String],
+) -> Result<(), CassieError> {
+    if column_names.len() > schema.fields.len() {
+        return Err(crate::app::DiagnosticError::new(
+            "42601",
+            "CREATE VIEW specifies more column names than columns",
+        )
+        .into());
+    }
+    for (field, name) in schema.fields.iter_mut().zip(column_names) {
+        field.name.clone_from(name);
+    }
+    validate_unique_output_column_names(schema.fields.iter().map(|field| &field.name))
+}
+
+pub(crate) fn validate_unique_output_column_names<'a>(
+    names: impl IntoIterator<Item = &'a String>,
+) -> Result<(), CassieError> {
+    let mut seen = HashSet::new();
+    for name in names {
+        let key = crate::sql::ColumnIdentifierPath::stored_field_key(name);
+        if !seen.insert(key) {
+            return Err(crate::app::DiagnosticError::new(
+                "42701",
+                format!("column \"{name}\" specified more than once"),
+            )
+            .into());
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn bind_drop_view(

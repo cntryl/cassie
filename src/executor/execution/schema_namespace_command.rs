@@ -404,13 +404,34 @@ pub(crate) fn alter_schema(
         )));
     }
 
+    let view_renames = prepare_schema_view_renames(cassie, &target_schema, &next_schema)?;
+    let function_renames = prepare_schema_function_renames(cassie, &target_schema, &next_schema);
+    let views_to_validate = view_renames
+        .iter()
+        .map(|(_, view)| view.clone())
+        .collect::<Vec<_>>();
+    validate_schema_rewrites(
+        cassie,
+        &target_schema,
+        &next_schema,
+        &function_renames,
+        &view_renames,
+    )?;
     let output = empty_command("ALTER SCHEMA", controls)?;
     cassie
         .midge
-        .rename_namespace(&target_schema, &next_schema)
+        .rename_namespace_metadata(
+            &target_schema,
+            &next_schema,
+            &function_renames,
+            &view_renames,
+        )
         .map_err(|error| QueryError::General(error.to_string()))?;
     rename_schema_descendants(cassie, session, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
+    for view in &views_to_validate {
+        super::schema_table_rename::validate_rewritten_view(cassie, view, "schema")?;
+    }
 
     Ok(output)
 }
@@ -436,7 +457,6 @@ fn rename_schema_descendants(
     let relation_renames = relation_rename_map(&collection_renames);
 
     rename_schema_collections(cassie, session, &collection_renames)?;
-    rename_schema_views(cassie, current_schema, next_schema)?;
     schema_sequence_rename::rename_schema_sequences(
         cassie,
         current_schema,
@@ -454,6 +474,24 @@ fn rename_schema_descendants(
     rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
 
     Ok(())
+}
+
+fn prepare_schema_function_renames(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+) -> Vec<(String, crate::catalog::FunctionMeta)> {
+    let mut rewrites = Vec::new();
+    for mut function in cassie.catalog.list_functions() {
+        if !object_in_schema(&function.name, current_schema) {
+            continue;
+        }
+        let current_name = function.name.clone();
+        function.name =
+            rewrite_relation_name_for_schema(&function.name, current_schema, next_schema);
+        rewrites.push((current_name, function));
+    }
+    rewrites
 }
 
 pub(crate) type RelationRenames = std::collections::HashMap<String, String>;
@@ -478,29 +516,112 @@ fn rename_schema_collections(
     Ok(())
 }
 
-fn rename_schema_views(
+fn prepare_schema_view_renames(
     cassie: &Cassie,
     current_schema: &str,
     next_schema: &str,
-) -> Result<(), QueryError> {
-    for mut view in cassie
-        .catalog
-        .list_views()
-        .into_iter()
-        .filter(|view| object_in_schema(&view.name, current_schema))
-    {
+) -> Result<Vec<(String, crate::catalog::ViewMeta)>, QueryError> {
+    let current_local = crate::catalog::local_name(current_schema);
+    let next_local = crate::catalog::local_name(next_schema);
+    let mut rewrites = Vec::new();
+    for mut view in cassie.catalog.list_views() {
         let current_name = view.name.clone();
-        view.name = rewrite_relation_name_for_schema(&view.name, current_schema, next_schema);
-        view.query = rewrite_schema_qualified_sql(
-            cassie,
-            &view.query,
-            &crate::catalog::local_name(current_schema),
-            &crate::catalog::local_name(next_schema),
-        );
-        cassie.midge.delete_view(&current_name)?;
-        cassie.midge.put_view(&view)?;
+        let current_query = view.query.clone();
+        let current_function_search_path = view.function_dependency_search_path.clone();
+        let parsed = super::super::domain_view_dependents::parse_view(cassie, &view.query, None);
+        if parsed.is_none() && has_schema_qualified_name(&view.query, &current_local) {
+            return Err(unsafe_view_rename_error(&view.name));
+        }
+        let rewritten =
+            rewrite_schema_qualified_sql(cassie, &view.query, &current_local, &next_local);
+        if parsed.is_some() && rewritten != view.query {
+            let reparsed =
+                super::super::domain_view_dependents::parse_view(cassie, &rewritten, None);
+            if reparsed.is_none() {
+                return Err(unsafe_view_rename_error(&view.name));
+            }
+            view.query = rewritten;
+        }
+        if object_in_schema(&view.name, current_schema) {
+            view.name = rewrite_relation_name_for_schema(&view.name, current_schema, next_schema);
+        }
+        for schema in &mut view.function_dependency_search_path {
+            if schema.eq_ignore_ascii_case(&current_local) {
+                schema.clone_from(&next_local);
+            }
+        }
+        if view.name != current_name
+            || view.query != current_query
+            || view.function_dependency_search_path != current_function_search_path
+        {
+            rewrites.push((current_name, view));
+        }
+    }
+    Ok(rewrites)
+}
+
+fn validate_schema_rewrites(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+    function_renames: &[(String, crate::catalog::FunctionMeta)],
+    view_renames: &[(String, crate::catalog::ViewMeta)],
+) -> Result<(), QueryError> {
+    let catalog = cassie.catalog.detached_transaction_snapshot();
+    for collection in catalog
+        .list_collections_canonical()
+        .into_iter()
+        .filter(|collection| object_in_schema(&collection.name, current_schema))
+    {
+        let next = rewrite_relation_name_for_schema(&collection.name, current_schema, next_schema);
+        catalog
+            .rename_collection(&collection.name, &next)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+    }
+    catalog.rename_namespace(current_schema, next_schema);
+    for (current, function) in function_renames {
+        catalog.unregister_function(current);
+        catalog.register_function(function.clone());
+    }
+    for (current, view) in view_renames {
+        catalog.unregister_view(current);
+        catalog.register_view(view.clone());
+    }
+    for (_, view) in view_renames {
+        super::schema_table_rename::validate_rewritten_view_in_catalog(
+            cassie, &catalog, view, "schema",
+        )?;
     }
     Ok(())
+}
+
+fn has_schema_qualified_name(sql: &str, schema: &str) -> bool {
+    let tokens = crate::executor::execution::sql_text_tokens::tokenize(sql);
+    crate::executor::execution::sql_text_tokens::chains(sql, &tokens)
+        .into_iter()
+        .any(|chain| {
+            (0..chain.parts.len().saturating_sub(1)).any(|part| {
+                let token = tokens[chain.parts[part]];
+                token.identifier(sql).is_some_and(|identifier| {
+                    if token.text(sql).starts_with('"') {
+                        identifier == schema
+                    } else {
+                        identifier.eq_ignore_ascii_case(schema)
+                    }
+                })
+            })
+        })
+}
+
+fn unsafe_view_rename_error(view: &str) -> QueryError {
+    QueryError::Cassie(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            "cannot rename schema because a dependent view cannot be safely rewritten",
+        )
+        .with_detail(format!("dependent object: view {view}"))
+        .into(),
+    )
 }
 
 fn rename_schema_rollups(

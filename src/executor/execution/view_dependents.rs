@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 
 use super::domain_view_dependents::parse_view;
 use super::{Cassie, QueryError};
-use crate::catalog::ViewMeta;
+use crate::catalog::{ParsedName, ViewMeta};
 use crate::sql::ast::{
     CteQuery, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
@@ -68,6 +68,100 @@ pub(super) fn with_transitive_dependents(cassie: &Cassie, seeds: Vec<ViewMeta>) 
         }
     }
     all
+}
+
+/// Views whose parsed definition resolves a call to `function`.
+pub(super) fn views_calling_function(
+    cassie: &Cassie,
+    function: &crate::catalog::FunctionMeta,
+) -> Vec<ViewMeta> {
+    let Ok(ParsedName::DatabaseQualified {
+        database,
+        schema,
+        name,
+    }) = crate::catalog::parse_name(&function.name)
+    else {
+        return Vec::new();
+    };
+    cassie
+        .catalog
+        .list_views()
+        .into_iter()
+        .filter(|view| {
+            if !view.function_dependency_database.is_empty() {
+                return view
+                    .function_dependency_ids
+                    .iter()
+                    .any(|object_id| *object_id == function.object_id);
+            }
+            parsed_select(cassie, view).is_some_and(|select| {
+                let mut calls = Vec::new();
+                crate::sql::binder::collect_functions(&select, &mut calls);
+                calls.into_iter().any(|call| {
+                    call_resolves_legacy_function(
+                        &call.name,
+                        (&database, &schema, &name),
+                        crate::catalog::relation_database_name(&view.name)
+                            .unwrap_or_else(|| cassie.default_database.clone()),
+                        &database,
+                    )
+                })
+            })
+        })
+        .collect()
+}
+
+fn call_resolves_legacy_function(
+    written: &str,
+    target: (&str, &str, &str),
+    view_database: String,
+    function_database: &str,
+) -> bool {
+    if !view_database.eq_ignore_ascii_case(function_database) {
+        return false;
+    }
+    let (database, schema, name) = target;
+    match crate::catalog::parse_name(written) {
+        Ok(ParsedName::Unqualified(written)) => written.eq_ignore_ascii_case(name),
+        Ok(ParsedName::SchemaQualified {
+            schema: written_schema,
+            name: written,
+        }) => written.eq_ignore_ascii_case(name) && written_schema.eq_ignore_ascii_case(schema),
+        Ok(ParsedName::DatabaseQualified {
+            database: written_database,
+            schema: written_schema,
+            name: written,
+        }) => {
+            written.eq_ignore_ascii_case(name)
+                && written_schema.eq_ignore_ascii_case(schema)
+                && written_database.eq_ignore_ascii_case(database)
+        }
+        Err(_) => false,
+    }
+}
+
+pub(super) fn reject_function_view_dependents(
+    cassie: &Cassie,
+    function: &crate::catalog::FunctionMeta,
+) -> Result<(), QueryError> {
+    let direct = views_calling_function(cassie, function);
+    let views = with_transitive_dependents(cassie, direct);
+    let Some(dependent) = views.first() else {
+        return Ok(());
+    };
+    let display_name = crate::catalog::local_name(&function.name);
+    Err(QueryError::Cassie(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            format!("cannot drop function {display_name} because other objects depend on it"),
+        )
+        .with_detail(format!(
+            "view {} depends on function {display_name}",
+            dependent.name
+        ))
+        .with_hint("Use DROP FUNCTION ... CASCADE to drop the dependent objects too")
+        .into(),
+    ))
 }
 
 /// Views whose definition uses `column` of `table`.

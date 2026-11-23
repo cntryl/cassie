@@ -163,6 +163,7 @@ fn probe_phase_admission(selected: Path, phase: JoinRetentionPhase) -> Result<us
     let env = SourceExecutionEnv {
         cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

@@ -15,6 +15,7 @@ pub(super) fn resolve(
     let context = ExistsResolutionContext {
         cassie: env.cassie,
         session: env.session,
+        binding_context: env.binding_context,
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,

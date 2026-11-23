@@ -12,8 +12,9 @@ use std::sync::Arc;
 
 use super::dispatch::build_exists_logical_plan;
 use super::{
-    execute_plan_with_outer_row, plan_execution_env_with_parameter_oids, resolve_exists_expr,
-    ExistsResolutionContext, Expr, LogicalPlan, QueryError,
+    execute_plan_with_outer_row, plan_execution_env_with_binding_context,
+    plan_execution_env_with_parameter_oids, resolve_exists_expr, ExistsResolutionContext, Expr,
+    LogicalPlan, QueryError,
 };
 use crate::sql::ast::{SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows};
 
@@ -71,14 +72,26 @@ fn run(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<SubqueryRows, QueryError> {
     let mut subquery_context = context.cte_context.copy(controls)?;
-    let env = plan_execution_env_with_parameter_oids(
-        context.cassie,
-        context.session,
-        context.user_functions,
-        context.params,
-        context.parameter_type_oids,
-        controls,
-    );
+    let env = if let Some(binding_context) = context.binding_context {
+        plan_execution_env_with_binding_context(
+            context.cassie,
+            context.session,
+            binding_context,
+            context.user_functions,
+            context.params,
+            context.parameter_type_oids,
+            controls,
+        )
+    } else {
+        plan_execution_env_with_parameter_oids(
+            context.cassie,
+            context.session,
+            context.user_functions,
+            context.params,
+            context.parameter_type_oids,
+            controls,
+        )
+    };
     let rows = execute_plan_with_outer_row(&env, logical, &mut subquery_context, outer_row)?;
     retain_rows_observing(rows, subquery, context.controls, |_, _| {})
 }

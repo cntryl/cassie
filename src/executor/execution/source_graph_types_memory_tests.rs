@@ -64,6 +64,7 @@ fn assert_source_ownership(local: &str, admission: bool) {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &params,
         parameter_type_oids: &[],
@@ -179,6 +180,7 @@ fn should_use_the_outer_query_owner_for_a_nested_reference_constructor_scan() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &params,
         parameter_type_oids: &[],
@@ -237,6 +239,7 @@ fn should_admit_the_complete_live_numeric_prefix_workspace() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

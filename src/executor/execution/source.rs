@@ -42,13 +42,14 @@ use super::plan_inspection;
 #[cfg(test)]
 use super::reserve_projection_output_before_building;
 use super::{
-    aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
-    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_outer_row,
-    execute_plan_with_parameter_oids, filter, load_fulltext_index_options,
-    plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
-    sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
-    CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
-    LogicalPlan, PlanExecutionEnv, QueryError, QueryExecutionControls, QuerySource, Value,
+    aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_context,
+    build_logical_plan_in_session, catalog, check_timeout, deduce_text_fields,
+    ensure_query_memory_budget, execute_plan_with_outer_row, execute_plan_with_parameter_oids,
+    filter, load_fulltext_index_options, plan_execution_env_with_parameter_oids, projection,
+    resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig,
+    Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr,
+    FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, PlanExecutionEnv, QueryError,
+    QueryExecutionControls, QuerySource, Value,
 };
 pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
@@ -85,6 +86,7 @@ type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 pub(super) struct SourceExecutionEnv<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) parameter_type_oids: &'a [i32],
@@ -93,14 +95,26 @@ pub(super) struct SourceExecutionEnv<'a> {
 
 impl<'a> SourceExecutionEnv<'a> {
     pub(super) fn plan_env(&self) -> PlanExecutionEnv<'a> {
-        plan_execution_env_with_parameter_oids(
-            self.cassie,
-            self.session,
-            self.user_functions,
-            self.params,
-            self.parameter_type_oids,
-            self.controls,
-        )
+        if let Some(context) = self.binding_context {
+            super::plan_execution_env_with_binding_context(
+                self.cassie,
+                self.session,
+                context,
+                self.user_functions,
+                self.params,
+                self.parameter_type_oids,
+                self.controls,
+            )
+        } else {
+            plan_execution_env_with_parameter_oids(
+                self.cassie,
+                self.session,
+                self.user_functions,
+                self.params,
+                self.parameter_type_oids,
+                self.controls,
+            )
+        }
     }
 
     fn phase_env<'phase>(
@@ -113,6 +127,7 @@ impl<'a> SourceExecutionEnv<'a> {
         PhaseExecutionEnv {
             cassie: self.cassie,
             session: self.session,
+            binding_context: self.binding_context,
             params: self.params,
             parameter_type_oids: self.parameter_type_oids,
             user_functions: self.user_functions,
@@ -295,9 +310,61 @@ fn execute_view_source(
         .parse_statement_for_session(env.session, &view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
-    let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
+    let (logical, stored_functions) = if view.function_dependency_database.is_empty() {
+        (
+            build_logical_plan_in_session(env.cassie, env.session, &parsed)?,
+            None,
+        )
+    } else {
+        let context = crate::sql::binder::BindingContext::scoped(
+            view.function_dependency_database.clone(),
+            view.function_dependency_search_path.clone(),
+        );
+        let all_functions = env.cassie.catalog.list_functions();
+        let mut functions = crate::catalog::function_resolution::functions_for_scope(
+            &all_functions,
+            &context.database,
+            &context.search_path,
+            context.scopes_database_objects(),
+        );
+        let mut calls = Vec::new();
+        if let crate::sql::ast::QueryStatement::Select(select) = &parsed.statement {
+            crate::sql::binder::collect_functions(select, &mut calls);
+        }
+        for call in calls {
+            let selected = all_functions.iter().find(|candidate| {
+                view.function_dependency_ids.contains(&candidate.object_id)
+                    && crate::catalog::local_name(&candidate.name)
+                        .eq_ignore_ascii_case(&crate::catalog::local_name(&call.name))
+            });
+            if let Some(selected) = selected {
+                functions.insert(call.name.to_ascii_lowercase(), selected.clone());
+            }
+        }
+        (
+            build_logical_plan_in_context(env.cassie, &context, &parsed)?,
+            Some(functions),
+        )
+    };
     let mut view_cte_context = CteContext::new();
-    let rows = execute_plan_with_parameter_oids(&env.plan_env(), &logical, &mut view_cte_context)?;
+    let rows = if let Some(functions) = &stored_functions {
+        let context = crate::sql::binder::BindingContext::scoped(
+            view.function_dependency_database.clone(),
+            view.function_dependency_search_path.clone(),
+        );
+        let plan_env = super::plan_execution_env_with_binding_context(
+            env.cassie,
+            env.session,
+            &context,
+            functions,
+            env.params,
+            env.parameter_type_oids,
+            env.controls,
+        );
+        execute_plan_with_parameter_oids(&plan_env, &logical, &mut view_cte_context)?
+    } else {
+        execute_plan_with_parameter_oids(&env.plan_env(), &logical, &mut view_cte_context)?
+    };
     let rows = project_rows_to_schema(rows, &view.schema, name)?;
     let text_fields = schema_text_fields(&view.schema);
     finalize_source_batches(
@@ -380,14 +447,26 @@ fn execute_subquery_source(
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
     let controls = env.controls.for_uncapped_input();
     let mut subquery_context = cte_context.copy(&controls)?;
-    let plan_env = plan_execution_env_with_parameter_oids(
-        env.cassie,
-        env.session,
-        env.user_functions,
-        env.params,
-        env.parameter_type_oids,
-        &controls,
-    );
+    let plan_env = if let Some(binding_context) = env.binding_context {
+        super::plan_execution_env_with_binding_context(
+            env.cassie,
+            env.session,
+            binding_context,
+            env.user_functions,
+            env.params,
+            env.parameter_type_oids,
+            &controls,
+        )
+    } else {
+        plan_execution_env_with_parameter_oids(
+            env.cassie,
+            env.session,
+            env.user_functions,
+            env.params,
+            env.parameter_type_oids,
+            &controls,
+        )
+    };
     let rows = execute_plan_with_outer_row(
         &plan_env,
         &logical,
@@ -567,6 +646,7 @@ pub(super) fn source_execution_env_with_parameter_oids<'a>(
     SourceExecutionEnv {
         cassie,
         session,
+        binding_context: None,
         user_functions,
         params,
         parameter_type_oids,
@@ -677,6 +757,7 @@ fn search_context_options(
 struct PhaseExecutionEnv<'a> {
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
+    binding_context: Option<&'a crate::sql::binder::BindingContext>,
     params: &'a [Value],
     parameter_type_oids: &'a [i32],
     user_functions: &'a HashMap<String, FunctionMeta>,
@@ -730,6 +811,7 @@ fn resolve_filter_or_correlate(
         &ExistsResolutionContext {
             cassie: env.cassie,
             session: env.session,
+            binding_context: env.binding_context,
             cte_context,
             user_functions: env.user_functions,
             params: env.params,
@@ -755,6 +837,7 @@ fn resolve_plan_filter(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,
@@ -809,6 +892,7 @@ fn apply_aggregate_phase(
         &SourceExecutionEnv {
             cassie: env.cassie,
             session: env.session,
+            binding_context: env.binding_context,
             user_functions: env.user_functions,
             params: env.params,
             parameter_type_oids: env.parameter_type_oids,
@@ -878,14 +962,26 @@ fn finalize_plan_rows(
         // The right branch is an input relation, not a result: the result-row
         // cap must not truncate it before EXCEPT/INTERSECT consult it.
         let right_controls = env.controls.for_uncapped_input();
-        let right_env = plan_execution_env_with_parameter_oids(
-            env.cassie,
-            env.session,
-            env.user_functions,
-            env.params,
-            env.parameter_type_oids,
-            &right_controls,
-        );
+        let right_env = if let Some(binding_context) = env.binding_context {
+            super::plan_execution_env_with_binding_context(
+                env.cassie,
+                env.session,
+                binding_context,
+                env.user_functions,
+                env.params,
+                env.parameter_type_oids,
+                &right_controls,
+            )
+        } else {
+            plan_execution_env_with_parameter_oids(
+                env.cassie,
+                env.session,
+                env.user_functions,
+                env.params,
+                env.parameter_type_oids,
+                &right_controls,
+            )
+        };
         // A lateral derived table's set-operation branches see the same outer row as the left.
         let right_rows =
             execute_plan_with_outer_row(&right_env, &right_plan, cte_context, outer_row)?;

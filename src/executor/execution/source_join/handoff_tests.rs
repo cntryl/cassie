@@ -23,6 +23,7 @@ fn should_keep_join_source_output_charged_after_returning_to_the_consumer() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],
@@ -67,6 +68,7 @@ fn should_allocate_only_actual_row_slots_for_a_small_join_chunk() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],
@@ -137,6 +139,7 @@ fn should_keep_collection_source_body_charged_after_returning_to_a_loaded_join()
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],
@@ -198,6 +201,7 @@ fn should_admit_owned_cte_left_inputs_before_reading_the_right_source() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

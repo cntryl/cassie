@@ -92,6 +92,7 @@ pub(super) fn project(
     let env = source::SourceExecutionEnv {
         cassie: context.cassie,
         session: context.session,
+        binding_context: context.binding_context,
         user_functions: context.user_functions,
         params: context.params,
         parameter_type_oids: &[],

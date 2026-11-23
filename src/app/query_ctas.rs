@@ -135,6 +135,11 @@ impl Cassie {
             .iter()
             .map(|column| column.name.clone())
             .collect::<Vec<_>>();
+        if as_query.column_names.is_empty() {
+            crate::sql::binder::validate_unique_output_column_names(&output_names)?;
+        } else {
+            crate::sql::binder::validate_unique_output_column_names(&as_query.column_names)?;
+        }
         let domains = self.ctas_output_domains(&as_query.query.statement, &output_names);
         let fields = columns
             .iter()

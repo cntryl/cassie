@@ -63,6 +63,7 @@ impl RowSubqueries<'_> {
         let env = crate::executor::execution::source::SourceExecutionEnv {
             cassie: self.cassie,
             session: self.session,
+            binding_context: None,
             user_functions: self.user_functions,
             params: self.params,
             parameter_type_oids: &[],

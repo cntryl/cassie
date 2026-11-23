@@ -1,8 +1,8 @@
 use super::{
-    collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
-    RetentionPolicyMeta,
+    CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
+    RetentionPolicyMeta, collect_scan,
 };
-use crate::catalog::{canonical_relation_name, local_name, RelationId};
+use crate::catalog::{RelationId, canonical_relation_name, local_name};
 
 #[cfg(test)]
 #[path = "schema_ops_identity_tests.rs"]
@@ -88,10 +88,12 @@ pub(super) fn drop_referencing_indexes_in_tx(
     let mut dropped_vector_indexes = Vec::new();
 
     for (key, value) in indexes {
-        let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
-            continue;
-        };
-        let references_field = metadata.references_field(field);
+        let metadata = serde_json::from_slice::<IndexMeta>(&value).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid index metadata for collection '{collection}': {error}"
+            ))
+        })?;
+        let references_field = metadata.references_field_checked(field)?;
         if !references_field {
             continue;
         }
@@ -175,6 +177,27 @@ pub(super) fn drop_referencing_indexes_in_tx(
         fulltext_storage_ids,
         vectors: dropped_vector_indexes,
     })
+}
+
+pub(super) fn validate_drop_column_index_metadata(
+    tx: &super::DataReadTransaction,
+    collection: &str,
+    field: &str,
+) -> Result<(), CassieError> {
+    let index_prefix = Midge::index_collection_prefix(collection);
+    let indexes = collect_scan(
+        tx.scan(&Query::new().prefix(index_prefix.into()))
+            .map_err(CassieError::from)?,
+    )?;
+    for (_key, value) in indexes {
+        let metadata = serde_json::from_slice::<IndexMeta>(&value).map_err(|error| {
+            CassieError::Parse(format!(
+                "invalid index metadata for collection '{collection}': {error}"
+            ))
+        })?;
+        metadata.references_field_checked(field)?;
+    }
+    Ok(())
 }
 
 pub(super) fn delete_dropped_field_data(

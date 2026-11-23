@@ -49,6 +49,7 @@ fn should_release_denied_joined_qualifier_name_cross_product_scope() {
     let context = ExistsResolutionContext {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],

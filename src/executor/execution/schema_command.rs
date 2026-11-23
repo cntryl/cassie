@@ -7,6 +7,10 @@ use crate::sql::ast::{
     DropViewStatement,
 };
 
+#[cfg(test)]
+#[path = "schema_command/drop_column_metadata_tests.rs"]
+mod drop_column_metadata_tests;
+
 #[path = "comment_cleanup.rs"]
 mod comment_cleanup;
 pub(in crate::executor::execution) use comment_cleanup::{
@@ -87,12 +91,21 @@ fn create_view_gated(
         ));
     };
 
-    let schema =
+    let mut schema =
         crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
             .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::sql::binder::validate_and_rename_view_schema(&mut schema, &statement.column_names)
+        .map_err(QueryError::Cassie)?;
     let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
     metadata.extension_dependency_ids = selected_extension_dependency_ids(cassie, select, &context);
+    metadata.function_dependency_ids = selected_function_dependency_ids(cassie, select, &context);
+    metadata
+        .function_dependency_database
+        .clone_from(&context.database);
+    metadata
+        .function_dependency_search_path
+        .clone_from(&context.search_path);
 
     metadata.definition_semantics_version = 1;
     cassie
@@ -111,6 +124,29 @@ fn create_view_gated(
     cassie.catalog.register_view(metadata);
 
     Ok(output)
+}
+
+fn selected_function_dependency_ids(
+    cassie: &Cassie,
+    select: &crate::sql::ast::SelectStatement,
+    context: &crate::sql::binder::BindingContext,
+) -> Vec<u64> {
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &cassie.catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    let mut calls = Vec::new();
+    crate::sql::binder::collect_functions(select, &mut calls);
+    calls
+        .into_iter()
+        .filter_map(|call| user_functions.get(&call.name.to_ascii_lowercase()))
+        .filter(|function| function.object_id != 0)
+        .map(|function| function.object_id)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn selected_extension_dependency_ids(
@@ -642,9 +678,7 @@ fn alter_table_drop_column(
     cascade: bool,
 ) -> Result<(), QueryError> {
     super::property_graph_dependents::reject_column_change(cassie, table, field, cascade)?;
-    if cascade {
-        schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
-    } else {
+    if !cascade {
         schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     }
     let dependent_views = super::view_dependents::with_transitive_dependents(
@@ -654,10 +688,6 @@ fn alter_table_drop_column(
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("column", field, &dependent_views));
     }
-    for view in dependent_views {
-        drop_stored_view(cassie, &view)?;
-    }
-    schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
     let row_schema = cassie.midge.row_schema(table).map_err(QueryError::Cassie)?;
     let dropped_field_id = row_schema
         .fields
@@ -667,6 +697,19 @@ fn alter_table_drop_column(
                 && crate::sql::ColumnIdentifierPath::matches_stored_field(field, &stored.name)
         })
         .map(|stored| stored.field_id);
+    if dropped_field_id.is_some() {
+        cassie
+            .midge
+            .validate_drop_column_index_metadata(table, field)
+            .map_err(QueryError::Cassie)?;
+    }
+    if cascade {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
+    }
+    for view in dependent_views {
+        drop_stored_view(cassie, &view)?;
+    }
+    schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
     let database = crate::catalog::relation_database_name(table)
         .unwrap_or_else(|| cassie.default_database.clone());
     let object_oid = cassie

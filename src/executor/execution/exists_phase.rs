@@ -18,6 +18,7 @@ pub(super) fn evaluate(
     let context = ExistsResolutionContext {
         cassie: env.cassie,
         session: env.session,
+        binding_context: env.binding_context,
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,
@@ -72,6 +73,7 @@ pub(super) fn evaluate_with_owner(
     let context = ExistsResolutionContext {
         cassie: env.cassie,
         session: env.session,
+        binding_context: env.binding_context,
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,

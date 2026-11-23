@@ -644,20 +644,21 @@ fn should_resolve_routine_scalar_subqueries_in_window_partition_and_order() {
         &[
             "CREATE TABLE secret (v INT)",
             "INSERT INTO secret VALUES (7)",
-            "CREATE FUNCTION window_key() RETURNS INT AS '(SELECT v FROM secret LIMIT 1)'",
+            "CREATE FUNCTION window_key(x INT) RETURNS INT \
+             AS '((SELECT v FROM secret LIMIT 1) + x)'",
         ],
     );
 
     // Act
     let result = fixture.rows(
-        "SELECT count(*) OVER (PARTITION BY window_key() ORDER BY window_key()) \
+        "SELECT count(*) OVER (PARTITION BY window_key(n - n) ORDER BY window_key(-n)) \
          FROM generate_series(1, 2) s(n)",
     );
 
     // Assert
     assert_eq!(
         result,
-        vec![vec![Value::Int64(2)], vec![Value::Int64(2)]]
+        vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]
     );
 }
 

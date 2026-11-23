@@ -1,6 +1,6 @@
 use super::{
-    filter, BatchRow, CmpOrdering, NullsOrder, QueryError, SemanticKey, SemanticValue,
-    SortDirection, WindowExecutionContext,
+    BatchRow, CmpOrdering, NullsOrder, QueryError, SemanticKey, SemanticValue, SortDirection,
+    WindowExecutionContext,
 };
 
 pub(super) struct WindowPeerKey {
@@ -110,15 +110,7 @@ fn key_part(
     order: &crate::sql::ast::OrderExpr,
     context: &WindowExecutionContext<'_>,
 ) -> Result<(SemanticValue, crate::runtime::QueryMemoryReservation), QueryError> {
-    let value = filter::evaluate_expr_value(
-        row,
-        &order.expr,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        context.session,
-        None,
-    )?;
+    let value = super::evaluate_window_expr(row, &order.expr, context)?;
     let data_type =
         crate::executor::array_order::expression_type(row, &order.expr, context.user_functions);
     let scalar = matches!(

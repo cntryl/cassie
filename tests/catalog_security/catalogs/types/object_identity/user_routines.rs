@@ -555,6 +555,28 @@ fn should_evaluate_a_scalar_subquery_in_a_function_in_aggregate_filter() {
 }
 
 #[test]
+fn should_skip_a_routine_subquery_argument_when_aggregate_filter_is_false() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_aggregate_filter_skips_subquery_argument",
+        &[
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (1), (2)",
+            "CREATE FUNCTION multivalued() RETURNS INT AS '(SELECT v FROM secret)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT sum(multivalued()) FILTER (WHERE false) \
+         FROM generate_series(1, 1) s(n)",
+    );
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Null]]);
+}
+
+#[test]
 fn should_evaluate_a_scalar_subquery_in_a_function_in_case() {
     // Arrange
     let fixture = sql_fixture(

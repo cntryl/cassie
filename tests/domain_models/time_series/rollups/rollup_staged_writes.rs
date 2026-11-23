@@ -40,7 +40,7 @@ fn first_total(fixture: &SqlFixture) -> Value {
 }
 
 #[test]
-fn should_count_rows_staged_by_copy_in_a_transaction() {
+fn should_keep_rollup_fresh_while_counting_rows_staged_by_copy_in_a_transaction() {
     // Arrange
     let fixture = fresh_rollup("rollup-copy-staged");
     let state_sql = "SELECT state FROM pg_catalog.pg_rollups";
@@ -53,7 +53,7 @@ fn should_count_rows_staged_by_copy_in_a_transaction() {
 
     // Assert
     assert_eq!(state_before_copy, vec![vec![Value::String("ready".into())]]);
-    assert_eq!(state_after_copy, vec![vec![Value::String("stale".into())]]);
+    assert_eq!(state_after_copy, vec![vec![Value::String("ready".into())]]);
     assert_eq!(total, Value::Int64(3));
 }
 

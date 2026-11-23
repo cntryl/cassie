@@ -708,7 +708,6 @@ fn execute_insert_command(
                 },
             )?
         };
-        apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
 }
@@ -749,7 +748,6 @@ fn execute_update_command(
                 )
             },
         )?;
-        apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
 }
@@ -782,7 +780,6 @@ fn execute_delete_command(
                 )
             },
         )?;
-        apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
 }
@@ -815,20 +812,6 @@ fn execute_merge_command(
                 )
             },
         )?;
-        apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
-}
-
-fn apply_write_side_effects(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    _user_functions: &HashMap<String, FunctionMeta>,
-    _controls: &QueryExecutionControls,
-) -> Result<(), QueryError> {
-    if session.is_some_and(CassieSession::is_transaction_active) {
-        super::rollups::mark_source_rollups_stale(cassie, table)?;
-    }
-    Ok(())
 }

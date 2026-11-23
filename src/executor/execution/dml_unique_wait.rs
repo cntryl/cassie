@@ -207,14 +207,16 @@ fn claim_unique_dml(
         .session()
         .transaction_catalog_overlay()
         .unwrap_or_else(|| cassie.catalog.clone());
-    for key in &pending.resolved_keys {
-        crate::app::validate_unique_key_candidate(
-            cassie,
-            &catalog,
-            &cassie.midge,
-            pending.batch.session(),
-            key,
-        )?;
+    if !pending.resolved_keys.is_empty() {
+        for key in &pending.candidate_keys {
+            crate::app::validate_unique_key_candidate(
+                cassie,
+                &catalog,
+                &cassie.midge,
+                pending.batch.session(),
+                key,
+            )?;
+        }
     }
 
     let previous_keys = waits.snapshot_owner_keys(pending.owner);

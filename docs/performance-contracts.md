@@ -15,14 +15,6 @@ Every performance-sensitive query family must prove:
 
 Missing access-path evidence is a failed contract, not permission to infer the intended path from latency.
 
-## SQL Boolean Expression Limit
-
-The parser admits up to 128 operands along a logical expression path. OR and
-AND operators share this limit, including operators nested through parentheses;
-the parser rejects the next operand with SQLSTATE `54000` before constructing
-the deeper expression tree. The bound protects parser recursion and does not
-change boolean precedence or evaluation short-circuit behavior.
-
 The selected #808 source consumer has a counted Tier2 owner,
 `tier2_subsystem_generated_sources`, with 2k and 100k logical generator
 cardinalities. Both scenarios consume the same filtered LIMIT16 query under
@@ -153,6 +145,11 @@ publication and cleanup boundaries rather than a universal cancellation latency.
 Streaming scan, filter, projection, limit, scoring, and eligible aggregation paths must keep memory proportional to batch size or the requested result window. Blocking operators may materialize only accounted state. Result-row limits are enforced while producing rows. Embedded APIs may materialize the final bounded result; pgwire portals retain resumable execution state. A portal's result-row limit is cumulative across resumes, and retained portal memory is charged cumulatively across all live portals on the connection. A resume or bind that would exceed either limit fails with `54000` without publishing a partial page; close, rollback, and disconnect release the retained state.
 
 SQL parsing rejects text over 1 MiB, more than 100,000 lexical tokens, nesting deeper than 128, nested block comments deeper than 128, and pgwire simple-query batches over 256 statements. These failures are HTTP `400` or SQLSTATE `54000`. REST request bodies are collected through an 8 MiB limiter. Once a body crosses the bound, Cassie discards subsequent frames through end-of-stream before returning HTTP `413`; excess bytes are never retained, and a well-formed HTTP/1 connection remains reusable. Body idle and complete-request deadlines continue to bound that drain. Pgwire emits row descriptions, rows, and command completion incrementally, caps each backend frame at 16 MiB, and retains the generic 16 MiB frontend-frame cap for non-SQL bind and COPY data. Admin UI files retain their 8 MiB cap and stream in chunks no larger than 64 KiB.
+
+The parser admits up to 128 operands along a logical expression path. OR and
+AND share this limit across parentheses. A deeper expression returns SQLSTATE
+`54000` before the parser constructs its tree. Boolean precedence and
+short-circuit evaluation keep their existing semantics.
 
 ## Relational Access Paths
 

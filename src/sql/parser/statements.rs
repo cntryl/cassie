@@ -486,7 +486,7 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
 
 fn parse_function_body(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
-    let (body, remainder) = if raw.starts_with('$') {
+    let (body, remainder, normalize_without_language) = if raw.starts_with('$') {
         let delimiter_end = raw[1..]
             .find('$')
             .map(|index| index + 2)
@@ -500,16 +500,17 @@ fn parse_function_body(raw: &str) -> Result<String, SqlError> {
         (
             raw[content_start..content_end].to_string(),
             raw[content_end + delimiter.len()..].trim(),
+            true,
         )
     } else if raw.starts_with('\'') {
         let (body, remainder) = parse_single_quoted_body(raw)?;
-        (body, remainder.trim())
+        (body, remainder.trim(), false)
     } else {
-        let (body, _) = parse_quoted_or_raw_body(raw)?;
-        return Ok(normalize_scalar_select_body(body));
+        return parse_quoted_or_raw_body(raw);
     };
 
-    if !remainder.is_empty() {
+    let has_language_clause = !remainder.is_empty();
+    if has_language_clause {
         if !starts_with_keyword(remainder, "language") {
             return Err(SqlError::new(
                 "unexpected clause after function body".into(),
@@ -525,7 +526,11 @@ fn parse_function_body(raw: &str) -> Result<String, SqlError> {
     if body.trim().is_empty() {
         return Err(SqlError::new("empty function/procedure body".into()));
     }
-    Ok(normalize_scalar_select_body(body))
+    if normalize_without_language || has_language_clause {
+        Ok(normalize_scalar_select_body(body))
+    } else {
+        Ok(body)
+    }
 }
 
 fn normalize_scalar_select_body(body: String) -> String {

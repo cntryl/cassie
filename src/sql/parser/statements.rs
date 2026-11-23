@@ -165,13 +165,11 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         return Err(SqlError::new("CREATE FUNCTION requires a name".into()));
     }
 
-    let rest = &rest[name_end + 1..];
-    let close = rest
-        .find(')')
+    let close = super::lexical::matching_paren(rest, name_end)
         .ok_or_else(|| SqlError::new("CREATE FUNCTION argument list is missing ')'".into()))?;
-    let args_raw = rest[..close].trim();
+    let args_raw = rest[(name_end + 1)..close].trim();
 
-    let args = parse_function_args(args_raw)?;
+    let args = parse_function_args_for_function(args_raw)?;
 
     let mut remaining = rest[(close + 1)..].trim_start();
     if !starts_with_keyword(remaining, "returns") {
@@ -442,6 +440,16 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
     Ok(args)
 }
 
+fn parse_function_args_for_function(raw: &str) -> Result<Vec<FunctionArg>, SqlError> {
+    let mut args = parse_function_args(raw)?;
+    for argument in &mut args {
+        if matches!(&argument.data_type, DataType::Varchar { length: Some(_) }) {
+            argument.data_type = DataType::Varchar { length: None };
+        }
+    }
+    Ok(args)
+}
+
 pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), SqlError> {
     let tokens = raw.split_whitespace().collect::<Vec<_>>();
     if tokens.is_empty() {
@@ -487,21 +495,12 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
 fn parse_function_body(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();
     let (body, remainder, normalize_without_language) = if raw.starts_with('$') {
-        let delimiter_end = raw[1..]
-            .find('$')
-            .map(|index| index + 2)
+        let token_end = super::lexical::dollar_quoted_end(raw, 0)
             .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
-        let delimiter = &raw[..delimiter_end];
-        let content_start = delimiter_end;
-        let content_end = raw[content_start..]
-            .find(delimiter)
-            .map(|index| content_start + index)
+        let token = &raw[..token_end];
+        let body = super::lexical::dollar_quoted_content(token)
             .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
-        (
-            raw[content_start..content_end].to_string(),
-            raw[content_end + delimiter.len()..].trim(),
-            true,
-        )
+        (body.to_string(), raw[token_end..].trim(), true)
     } else if raw.starts_with('\'') {
         let (body, remainder) = parse_single_quoted_body(raw)?;
         (body, remainder.trim(), false)

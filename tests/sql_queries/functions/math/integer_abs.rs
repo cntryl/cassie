@@ -223,10 +223,18 @@ fn should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine() {
             r#"CREATE FUNCTION abs_shadow.abs(x INT) RETURNS BIGINT IMMUTABLE AS "2147483648::bigint""#,
         )
         .unwrap();
+    fixture
+        .execute("SET search_path TO abs_shadow, pg_catalog, public")
+        .unwrap();
+
     // Act
+    let builtin_result = fixture.execute("SELECT abs((-2147483648)::integer)");
     let result = fixture.execute("SELECT abs_shadow.abs(-1::integer)");
 
     // Assert
+    assert!(
+        matches!(builtin_result, Err(cassie::app::CassieError::Execution(message)) if message == "integer out of range")
+    );
     let result = result.expect("qualified user routine bypasses builtin ABS lowering");
     assert_eq!(result.rows(), &[vec![Value::Int64(2147483648)]]);
     assert_eq!(result.columns()[0].type_oid, 20);

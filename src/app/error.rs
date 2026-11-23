@@ -742,7 +742,14 @@ impl From<std::string::FromUtf8Error> for CassieError {
 impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
-            crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
+            crate::sql::SqlErrorKind::Syntax => value.position().map_or_else(
+                || CassieError::InvalidQuery(value.to_string()),
+                |position| {
+                    DiagnosticError::new("42601", value.to_string())
+                        .with_position(position)
+                        .into()
+                },
+            ),
             crate::sql::SqlErrorKind::NumericRange
             | crate::sql::SqlErrorKind::DuplicateColumn
             | crate::sql::SqlErrorKind::UndefinedFunction => {

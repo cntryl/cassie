@@ -325,6 +325,7 @@ pub enum FunctionArity {
     Exact(usize),
     AtLeast(usize),
     Range { min: usize, max: usize },
+    OneOf(&'static [usize]),
 }
 
 impl FunctionArity {
@@ -334,6 +335,7 @@ impl FunctionArity {
             FunctionArity::Exact(expected) => actual == expected,
             FunctionArity::AtLeast(min) => actual >= min,
             FunctionArity::Range { min, max } => (min..=max).contains(&actual),
+            FunctionArity::OneOf(values) => values.contains(&actual),
         }
     }
 
@@ -343,6 +345,14 @@ impl FunctionArity {
             FunctionArity::Exact(expected) => format!("{expected} args"),
             FunctionArity::AtLeast(min) => format!("at least {min} args"),
             FunctionArity::Range { min, max } => format!("{min} to {max} args"),
+            FunctionArity::OneOf(values) => {
+                values
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+                    + " args"
+            }
         }
     }
 }

@@ -281,7 +281,9 @@ fn information_schema_rows_for(
             current_database,
             session,
         )),
-        "information_schema.views" => Some(information_schema_views(catalog, current_database)),
+        "information_schema.views" => {
+            Some(information_schema_views(catalog, current_database, session))
+        }
         "information_schema.schemata" => {
             Some(information_schema_schemata(catalog, current_database))
         }
@@ -684,6 +686,14 @@ fn information_schema_tables(
             .filter(|view| {
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+                    && session.is_none_or(|session| {
+                        crate::app::relation_readable(
+                            catalog,
+                            current_database.unwrap_or("postgres"),
+                            session,
+                            &view.name,
+                        )
+                    })
             })
             .map(|view| {
                 vec![
@@ -739,6 +749,16 @@ fn information_schema_columns(
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&view.name, database))
         {
+            continue;
+        }
+        if session.is_some_and(|session| {
+            !crate::app::relation_readable(
+                catalog,
+                current_database.unwrap_or("postgres"),
+                session,
+                &view.name,
+            )
+        }) {
             continue;
         }
         for (index, field) in view.schema.fields.iter().enumerate() {
@@ -897,13 +917,25 @@ fn datetime_precision(data_type: &DataType) -> Option<i64> {
     }
 }
 
-fn information_schema_views(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+fn information_schema_views(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+    session: Option<&CassieSession>,
+) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_views()
         .into_iter()
         .filter(|view| {
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+                && session.is_none_or(|session| {
+                    crate::app::relation_readable(
+                        catalog,
+                        current_database.unwrap_or("postgres"),
+                        session,
+                        &view.name,
+                    )
+                })
         })
         .map(|view| {
             vec![

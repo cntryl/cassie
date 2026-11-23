@@ -317,6 +317,8 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
         for sql in [
             "CREATE TABLE rest_schema_visible (id INTEGER)",
             "CREATE TABLE rest_schema_secret (token TEXT)",
+            "CREATE VIEW rest_schema_secret_view AS SELECT token FROM rest_schema_secret",
+            "CREATE INDEX rest_schema_secret_idx ON rest_schema_secret (token)",
             "CREATE ROLE rest_schema_reader LOGIN PASSWORD 'reader-secret'",
             "GRANT CONNECT ON DATABASE postgres TO rest_schema_reader",
         ] {
@@ -347,6 +349,8 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
             section_items(&payload, "tables"),
             &canonical_relation_name("postgres", "public", "rest_schema_visible")
         ));
+        assert!(section_items(&payload, "views").is_empty());
+        assert!(section_items(&payload, "indexes").is_empty());
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

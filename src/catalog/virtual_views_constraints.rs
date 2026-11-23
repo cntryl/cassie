@@ -483,11 +483,11 @@ fn pg_constraint_row(
             if matches!(constraint_type, "p" | "u") {
                 catalog
                     .get_index(collection, constraint_name)
-                    .map_or(Value::Null, |index| {
+                    .map_or(Value::Int64(0), |index| {
                         Value::Int64(super::virtual_views_pg::index_oid(index))
                     })
             } else {
-                Value::Null
+                Value::Int64(0)
             },
         ),
         (
@@ -495,11 +495,11 @@ fn pg_constraint_row(
             if matches!(constraint_type, "p" | "u") {
                 catalog
                     .get_index(collection, constraint_name)
-                    .map_or(Value::Null, |index| {
+                    .map_or(Value::Int64(0), |index| {
                         Value::Int64(super::virtual_views_pg::index_oid(index))
                     })
             } else {
-                Value::Null
+                Value::Int64(0)
             },
         ),
         int_value(

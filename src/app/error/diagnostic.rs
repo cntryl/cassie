@@ -7,6 +7,7 @@ pub struct DiagnosticError {
     pub message: String,
     pub detail: Option<String>,
     pub hint: Option<String>,
+    pub position: Option<usize>,
 }
 
 impl DiagnosticError {
@@ -17,6 +18,7 @@ impl DiagnosticError {
             message: message.into(),
             detail: None,
             hint: None,
+            position: None,
         }
     }
 
@@ -29,6 +31,12 @@ impl DiagnosticError {
     #[must_use]
     pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
         self.hint = Some(hint.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_position(mut self, position: usize) -> Self {
+        self.position = Some(position);
         self
     }
 }

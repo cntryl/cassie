@@ -103,3 +103,27 @@ fn should_report_created_table_constraint_identities() {
         ]
     );
 }
+
+#[test]
+fn should_emit_typed_zero_when_constraint_has_no_backing_index() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-constraint-missing-index-oid",
+        &["CREATE TABLE constraint_oid_probe (amount INTEGER CHECK (amount > 0))"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT conindid, conindid::text FROM pg_constraint \
+             WHERE conrelid = 'constraint_oid_probe'::regclass",
+        )
+        .expect("read absent backing index OID");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::Int64(0), Value::String("0".to_owned())]]
+    );
+}

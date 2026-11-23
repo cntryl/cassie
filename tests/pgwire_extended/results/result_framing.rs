@@ -60,8 +60,8 @@ fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
         .find(|(tag, _)| *tag == b'E')
         .expect("Parse ErrorResponse");
     let fields = support::parse_error_fields(&error.1);
-    assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
-    assert!(fields.contains(&('P', "25".to_owned())));
+    assert!(fields.contains(&('M', "syntax error at or near \"FORM\"".to_owned())));
+    assert!(fields.contains(&('P', "20".to_owned())));
 }
 
 #[test]
@@ -79,6 +79,24 @@ fn should_omit_position_given_runtime_division_by_zero() {
         .expect("runtime ErrorResponse");
     let fields = support::parse_error_fields(&error.1);
     assert!(fields.contains(&('C', "22012".to_owned())));
+    assert!(!fields.iter().any(|(tag, _)| *tag == 'P'));
+}
+
+#[test]
+fn should_omit_unlocated_position_for_other_syntax_errors() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-unlocated-syntax", &[]);
+
+    // Act
+    let frames = simple_round_trip(cassie, path, "SELECT");
+
+    // Assert
+    let error = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("syntax ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&('C', "42601".to_owned())));
     assert!(!fields.iter().any(|(tag, _)| *tag == 'P'));
 }
 

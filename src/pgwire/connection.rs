@@ -64,7 +64,7 @@ pub(crate) mod worker_lease;
 mod writers;
 
 use blocking::run_pgwire_blocking;
-use errors::{cassie_pg_error, cassie_pg_error_with_sql, PgWireError, PgWireSeverity};
+use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
 #[cfg(test)]
 use readers::read_frontend_message_after_tag;
 use readers::{
@@ -563,10 +563,8 @@ async fn handle_simple_query(
     let statements = match simple_query::split_simple_query(&sql) {
         Ok(statements) => statements,
         Err(error) => {
-            return write_simple_query_split_error(
-                runtime, write_half, state, &session, error, &sql,
-            )
-            .await;
+            return write_simple_query_split_error(runtime, write_half, state, &session, error)
+                .await;
         }
     };
 
@@ -633,7 +631,6 @@ async fn write_simple_query_split_error(
     state: &mut SessionState,
     session: &CassieSession,
     error: simple_query::SplitError,
-    sql: &str,
 ) -> ConnectionStep {
     let (sqlstate, message, protocol_error) = match error {
         simple_query::SplitError::Syntax(message) => ("42601", message, true),
@@ -647,8 +644,7 @@ async fn write_simple_query_split_error(
     if protocol_error {
         runtime.record_pgwire_protocol_error();
     }
-    let mut error = PgWireError::new(PgWireSeverity::Error, sqlstate, message);
-    error.add_syntax_position(sql);
+    let error = PgWireError::new(PgWireSeverity::Error, sqlstate, message);
     write_simple_query_error(runtime, write_half, state, session, error).await
 }
 
@@ -687,7 +683,6 @@ async fn execute_simple_statement(
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let execution_session = session.clone();
-    let raw_sql = query.0.clone();
     session.note_operation_worker_started();
     let query_result =
         run_pgwire_blocking(Arc::clone(&cassie), "pgwire_simple_query", move |cassie| {
@@ -749,7 +744,7 @@ async fn execute_simple_statement(
         }
         Err(error) => {
             runtime.record_pgwire_protocol_error();
-            let pg_error = cassie_pg_error_with_sql(&error, &raw_sql);
+            let pg_error = cassie_pg_error(&error);
             write_error_response(write_half, &pg_error)
                 .await
                 .map(|()| false)

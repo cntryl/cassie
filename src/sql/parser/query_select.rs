@@ -54,7 +54,8 @@ pub(super) fn parse_select_statement(
         .map(parse_named_windows)
         .transpose()?
         .unwrap_or_default();
-    let projection = parse_projection_items(&select_part, &named_windows)?;
+    let projection = parse_projection_items(&select_part, &named_windows)
+        .map_err(|error| error.offset_position(trimmed.find(&select_part).unwrap_or(0)))?;
     let filter = parsed_clauses
         .where_sql
         .as_deref()

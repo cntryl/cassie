@@ -56,9 +56,7 @@ pub(super) async fn handle_parse(
     }
 
     runtime.record_sql_parse();
-    let parsed = cassie
-        .parse_statement_for_session(Some(session), &query)
-        .map_err(|error| ExtendedQueryError::cassie_with_sql(&error, &query))?;
+    let parsed = cassie.parse_statement_for_session(Some(session), &query)?;
     session
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;

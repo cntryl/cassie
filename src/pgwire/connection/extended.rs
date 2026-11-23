@@ -877,15 +877,6 @@ impl ExtendedQueryError {
         }
     }
 
-    pub(super) fn cassie_with_sql(error: &CassieError, sql: &str) -> Self {
-        let mut pg_error = PgWireError::from_cassie_error(PgWireSeverity::Error, error);
-        pg_error.add_syntax_position(sql);
-        Self {
-            pg_error: Box::new(pg_error),
-            record_protocol_error: false,
-        }
-    }
-
     fn admitted_parameter_error(error: Result<PgWireError, CassieError>) -> Self {
         match error {
             Ok(error) => Self {

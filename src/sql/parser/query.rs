@@ -103,11 +103,16 @@ pub(super) fn parse_projection_items_with_named_windows(
     }
 
     let mut projection = Vec::new();
+    let mut cursor = 0;
     for token in split_csv(raw) {
-        projection.push(parse_projection_item_with_named_windows(
-            token,
-            named_windows,
-        )?);
+        let offset = raw[cursor..]
+            .find(token)
+            .map_or(cursor, |position| cursor + position);
+        projection.push(
+            parse_projection_item_with_named_windows(token, named_windows)
+                .map_err(|error| error.offset_position(offset))?,
+        );
+        cursor = offset + token.len();
     }
 
     Ok(projection)
@@ -136,6 +141,12 @@ pub(super) fn parse_projection_item_with_named_windows(
     if expr_raw.trim().is_empty() {
         return Err(SqlError::new("invalid projection item".into()));
     }
+    if let Some(error) = alias
+        .as_deref()
+        .and_then(|alias| unexpected_alias_token(token, alias))
+    {
+        return Err(error);
+    }
 
     if let Some(function) = parse_window_function_with_named_windows(expr_raw, named_windows)? {
         let alias = alias.or_else(|| {
@@ -155,6 +166,9 @@ pub(super) fn parse_projection_item_with_named_windows(
         // `expr label` names the output column without `AS`. It is tried only when the item
         // is not an expression by itself, so no accepted spelling changes meaning.
         Err(error) => {
+            if let Some(error) = unexpected_projection_token(expr_raw) {
+                return Err(error);
+            }
             let split = if alias.is_none() {
                 split_bare_alias(expr_raw)
             } else {
@@ -204,6 +218,71 @@ pub(super) fn parse_projection_item_with_named_windows(
         },
         Expr::Column(name) => SelectItem::Column { name, alias },
     })
+}
+
+fn unexpected_projection_token(raw: &str) -> Option<SqlError> {
+    let bytes = raw.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if let Some(end) = super::lexical::quoted_end(raw, index)
+            .or_else(|| super::lexical::comment_end(raw, index))
+        {
+            index = end;
+            continue;
+        }
+        let character = raw[index..].chars().next()?;
+        if character.is_whitespace() {
+            let remainder_start = super::lexical::separator_end(raw, index);
+            let remainder = &raw[remainder_start..];
+            let mut tokens = remainder.split_whitespace();
+            let alias = tokens.next()?;
+            let token = tokens.next()?;
+            if bare_sql_identifier(alias)
+                && parse_expression(raw[..index].trim()).is_ok()
+                && bare_sql_identifier(token)
+            {
+                let token_offset = remainder_start + remainder.find(token)?;
+                return Some(
+                    SqlError::syntax(format!("syntax error at or near \"{token}\""))
+                        .with_position(token_offset),
+                );
+            }
+        }
+        index += character.len_utf8();
+    }
+    None
+}
+
+fn bare_sql_identifier(raw: &str) -> bool {
+    let mut characters = raw.chars();
+    characters
+        .next()
+        .is_some_and(|first| first.is_alphabetic() || first == '_')
+        && characters.all(|character| character.is_alphanumeric() || matches!(character, '_' | '$'))
+}
+
+fn unexpected_alias_token(token: &str, alias: &str) -> Option<SqlError> {
+    if token_alias_identifier(alias) {
+        return None;
+    }
+    let alias_start = token.find(alias)?;
+    let mut words = alias.split_whitespace();
+    let first = words.next()?;
+    if !token_alias_identifier(first) {
+        return None;
+    }
+    let unexpected = words.next()?;
+    let position = alias_start + alias.find(unexpected)?;
+    Some(
+        SqlError::syntax(format!("syntax error at or near \"{unexpected}\""))
+            .with_position(position),
+    )
+}
+
+fn token_alias_identifier(raw: &str) -> bool {
+    bare_sql_identifier(raw)
+        || raw.starts_with('"')
+            && super::lexical::quoted_end(raw, 0).is_some_and(|end| end == raw.len())
 }
 
 /// Splits `expr label` at its last top-level token when that token is an identifier.

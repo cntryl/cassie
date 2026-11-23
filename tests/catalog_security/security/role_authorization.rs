@@ -20,6 +20,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
     for sql in [
         "CREATE TABLE catalog_visible (id INTEGER)",
         "CREATE TABLE catalog_secret (token TEXT)",
+        "CREATE VIEW catalog_visible_view AS SELECT id FROM catalog_visible",
+        "CREATE VIEW catalog_secret_view AS SELECT token FROM catalog_secret",
         "CREATE ROLE catalog_reader LOGIN PASSWORD 'reader-secret'",
         "CREATE ROLE catalog_blocked LOGIN PASSWORD 'blocked-secret'",
         "GRANT USAGE ON SCHEMA public TO catalog_reader",
@@ -55,6 +57,25 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             Vec::new(),
         )
         .expect("read visible columns");
+    let views = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, view_definition FROM information_schema.views \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read visible view definitions");
+    let view_columns = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view')",
+            Vec::new(),
+        )
+        .expect("read visible view columns");
     let blocked_tables = cassie
         .execute_sql(
             &blocked,
@@ -86,6 +107,20 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
         columns.rows(),
         vec![vec![
             cassie::types::Value::String("catalog_visible".to_owned()),
+            cassie::types::Value::String("id".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        views.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible_view".to_owned()),
+            cassie::types::Value::String("SELECT id FROM catalog_visible".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        view_columns.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible_view".to_owned()),
             cassie::types::Value::String("id".to_owned()),
         ]]
     );

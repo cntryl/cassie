@@ -39,22 +39,6 @@ fn resolved_table_privilege(
         return Ok(());
     }
 
-    pub(crate) fn relation_readable(
-        catalog: &crate::catalog::Catalog,
-        default_database: &str,
-        session: &CassieSession,
-        relation: &str,
-    ) -> bool {
-        !session_is_unprivileged(catalog, session)
-            || resolved_table_privilege(
-                catalog,
-                default_database,
-                session,
-                relation,
-                RoleObjectPrivilege::Select,
-            )
-            .is_ok()
-    }
     let Some(collection) = catalog.get_collection(&resolved) else {
         return Err(CassieError::InsufficientPrivilege);
     };
@@ -91,6 +75,65 @@ fn resolved_table_privilege(
     } else {
         Err(CassieError::InsufficientPrivilege)
     }
+}
+
+pub(crate) fn relation_readable(
+    catalog: &crate::catalog::Catalog,
+    default_database: &str,
+    session: &CassieSession,
+    relation: &str,
+) -> bool {
+    if !session_is_unprivileged(catalog, session) {
+        return true;
+    }
+    relation_readable_with_seen(
+        catalog,
+        default_database,
+        session,
+        relation,
+        &mut std::collections::HashSet::new(),
+    )
+}
+
+fn relation_readable_with_seen(
+    catalog: &crate::catalog::Catalog,
+    default_database: &str,
+    session: &CassieSession,
+    relation: &str,
+    seen: &mut std::collections::HashSet<String>,
+) -> bool {
+    if !seen.insert(relation.to_ascii_lowercase()) {
+        return true;
+    }
+    if catalog.get_collection(relation).is_some() {
+        return resolved_table_privilege(
+            catalog,
+            default_database,
+            session,
+            relation,
+            RoleObjectPrivilege::Select,
+        )
+        .is_ok();
+    }
+    let Some(view) = catalog.get_view(relation) else {
+        return false;
+    };
+    let Some((_, context)) = session.object_lookup_context() else {
+        return false;
+    };
+    let Ok(parsed) = crate::sql::parse_statement_in_catalog(catalog, &context, &view.query) else {
+        return false;
+    };
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        return false;
+    };
+    crate::sql::binder::select_referenced_relations(&select)
+        .iter()
+        .all(|name| {
+            crate::sql::binder::normalize_relation_name(name, &context).is_ok_and(|name| {
+                relation_readable_with_seen(catalog, default_database, session, &name, seen)
+            })
+        })
 }
 
 /// Read authority of `session` on `table` for a function that looks a row up

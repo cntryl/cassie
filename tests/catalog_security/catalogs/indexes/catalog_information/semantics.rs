@@ -388,3 +388,19 @@ fn should_join_supported_catalog_oid_fields_for_psql_describe_queries() {
         ]]
     );
 }
+
+#[test]
+fn should_reject_two_arguments_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-indexdef-two-arguments", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(0, 0)");
+
+    // Assert
+    assert_eq!(
+        result.expect_err("reject two arguments").sql_state(),
+        "42883"
+    );
+}

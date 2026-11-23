@@ -50,13 +50,18 @@ pub enum SqlErrorKind {
 pub struct SqlError {
     kind: SqlErrorKind,
     message: String,
+    position: Option<usize>,
 }
 
 impl SqlError {
     #[must_use]
     pub fn new(message: String) -> Self {
         let kind = infer_sql_error_kind(&message);
-        Self { kind, message }
+        Self {
+            kind,
+            message,
+            position: None,
+        }
     }
 
     #[must_use]
@@ -64,6 +69,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Syntax,
             message,
+            position: None,
         }
     }
 
@@ -72,6 +78,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Unsupported,
             message,
+            position: None,
         }
     }
 
@@ -80,6 +87,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::UndefinedFunction,
             message,
+            position: None,
         }
     }
 
@@ -88,6 +96,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::UndefinedObject,
             message,
+            position: None,
         }
     }
 
@@ -96,6 +105,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::InvalidParameterValue,
             message,
+            position: None,
         }
     }
 
@@ -104,6 +114,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::DatatypeMismatch,
             message,
+            position: None,
         }
     }
 
@@ -112,6 +123,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Diagnostic(sql_state),
             message,
+            position: None,
         }
     }
 
@@ -120,6 +132,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::NumericRange,
             message,
+            position: None,
         }
     }
 
@@ -127,6 +140,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::DuplicateColumn,
             message: format!("column \"{name}\" specified more than once"),
+            position: None,
         }
     }
 
@@ -135,6 +149,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::ResourceLimit,
             message,
+            position: None,
         }
     }
 
@@ -146,6 +161,32 @@ impl SqlError {
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    #[must_use]
+    pub const fn position(&self) -> Option<usize> {
+        self.position
+    }
+
+    #[must_use]
+    pub(crate) fn with_position(mut self, position: usize) -> Self {
+        self.position = Some(position);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn offset_position(mut self, offset: usize) -> Self {
+        self.position = self.position.map(|position| position + offset);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn source_position(mut self, sql: &str) -> Self {
+        self.position = self.position.map(|position| {
+            sql.get(..position)
+                .map_or(1, |prefix| prefix.chars().count() + 1)
+        });
+        self
     }
 }
 
@@ -300,7 +341,11 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let raw_sql = sql.trim().trim_end_matches(';').trim();
     let decoded = lexical::decode_unicode_identifiers(raw_sql)?;
     let start = lexical::separator_end(&decoded, 0);
-    let parsed = parse_statement_body(&decoded[start..])?;
+    let parsed = parse_statement_body(&decoded[start..]).map_err(|error| {
+        error
+            .offset_position(sql.len() - sql.trim_start().len() + start)
+            .source_position(sql)
+    })?;
     Ok(ParsedStatement {
         raw_sql: raw_sql.to_string(),
         statement: parsed.statement,

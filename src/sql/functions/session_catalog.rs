@@ -246,7 +246,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::PgGetIndexDef,
         name: "pg_get_indexdef",
-        arity: FunctionArity::Range { min: 1, max: 3 },
+        arity: FunctionArity::OneOf(&[1, 3]),
         return_type: FunctionReturnType::Text,
         is_aggregate: false,
         bypass_arity_validation: false,
@@ -254,7 +254,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::PgGetIndexDef,
         name: "pg_catalog.pg_get_indexdef",
-        arity: FunctionArity::Range { min: 1, max: 3 },
+        arity: FunctionArity::OneOf(&[1, 3]),
         return_type: FunctionReturnType::Text,
         is_aggregate: false,
         bypass_arity_validation: false,

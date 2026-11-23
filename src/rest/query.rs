@@ -266,8 +266,12 @@ fn schema_for_database(
     Ok(QuerySchemaResponse {
         sections: vec![
             section("tables", "Tables", table_items(cassie, session, database)?),
-            section("views", "Views", view_items(cassie, database)?),
-            section("indexes", "Indexes", index_items(cassie, database)?),
+            section("views", "Views", view_items(cassie, session, database)?),
+            section(
+                "indexes",
+                "Indexes",
+                index_items(cassie, session, database)?,
+            ),
             section("udfs", "UDFs", function_items(cassie, database)?),
             section(
                 "procedures",
@@ -342,11 +346,20 @@ fn table_items(
     Ok(items)
 }
 
-fn view_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
+fn view_items(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    database: &str,
+) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_views()
         .into_iter()
+        .filter(|view| {
+            session.is_none_or(|session| {
+                crate::app::relation_readable(&cassie.catalog, database, session, &view.name)
+            })
+        })
         .map(|view| {
             let relation = canonical_relation(&view.name)?;
             let columns = view
@@ -378,9 +391,18 @@ fn view_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, C
     Ok(items)
 }
 
-fn index_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
+fn index_items(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    database: &str,
+) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items = Vec::new();
     for collection in cassie.catalog.list_collections_canonical() {
+        if session.is_some_and(|session| {
+            !crate::app::relation_readable(&cassie.catalog, database, session, &collection.name)
+        }) {
+            continue;
+        }
         for index in cassie.catalog.list_indexes(collection.name.as_str()) {
             let relation = canonical_relation(&index.collection)?;
             let fields = if index.normalized_fields().is_empty() {

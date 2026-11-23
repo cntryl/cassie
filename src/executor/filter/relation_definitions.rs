@@ -9,7 +9,9 @@ pub(super) fn evaluate_pg_get_indexdef(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
-    require_arg_count_range(name, args, 1..=3)?;
+    if !matches!(args.len(), 1 | 3) {
+        return Err(super::invalid_function_signature(name));
+    }
     if args.iter().any(|value| matches!(value, Value::Null)) {
         return Ok(Value::Null);
     }

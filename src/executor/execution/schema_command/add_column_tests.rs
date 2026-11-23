@@ -1,4 +1,3 @@
-use super::*;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
 use std::sync::mpsc;

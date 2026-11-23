@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1913,
-    "rust_files": 1869,
-    "rust_test_declarations": 11555,
+    "files": 1914,
+    "rust_files": 1870,
+    "rust_test_declarations": 11560,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11580,
+    "registered_rust_instances": 11585,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -2650,11 +2650,11 @@
       }
     },
     {
-      "id": "tests/analytics/derived_state/derived_state_recovery.rs::should_recover_add_column_column_batch_debt_after_restart",
-      "name": "should_recover_add_column_column_batch_debt_after_restart",
+      "id": "tests/analytics/derived_state/derived_state_recovery.rs::should_recover_add_column_maintenance_debts_after_restart",
+      "name": "should_recover_add_column_maintenance_debts_after_restart",
       "current_file": "tests/analytics/derived_state/derived_state_recovery.rs",
       "line": 107,
-      "end_line": 187,
+      "end_line": 195,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -2662,7 +2662,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "derived_state_recovery::should_recover_add_column_column_batch_debt_after_restart"
+          "name": "derived_state_recovery::should_recover_add_column_maintenance_debts_after_restart"
         }
       ],
       "attributes": [
@@ -2684,8 +2684,8 @@
       "id": "tests/analytics/derived_state/derived_state_recovery.rs::should_recover_add_column_projection_hash_debt_after_restart",
       "name": "should_recover_add_column_projection_hash_debt_after_restart",
       "current_file": "tests/analytics/derived_state/derived_state_recovery.rs",
-      "line": 190,
-      "end_line": 258,
+      "line": 198,
+      "end_line": 266,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20580,11 +20580,11 @@
       }
     },
     {
-      "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_add_column_derived_state_after_schema_commit_interruption",
-      "name": "should_replay_add_column_derived_state_after_schema_commit_interruption",
-      "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 38,
-      "end_line": 143,
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_rollback_failed_add_column_backfill_through_local_restart",
+      "name": "should_rollback_failed_add_column_backfill_through_local_restart",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 4,
+      "end_line": 111,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20592,7 +20592,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "schema_operation_recovery::should_replay_add_column_derived_state_after_schema_commit_interruption"
+          "name": "schema_operation_recovery::add_column::should_rollback_failed_add_column_backfill_through_local_restart"
         }
       ],
       "attributes": [
@@ -20602,20 +20602,20 @@
       "execution_status": "not_assessed",
       "placement": {
         "suite": "catalog_security",
-        "category": "ddl",
-        "directory": "tests/catalog_security/ddl",
-        "file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
-      "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_resume_add_column_default_backfill_after_batch_interruption",
-      "name": "should_resume_add_column_default_backfill_after_batch_interruption",
-      "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 146,
-      "end_line": 205,
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_resume_only_the_recorded_add_column_definition_on_retry",
+      "name": "should_resume_only_the_recorded_add_column_definition_on_retry",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 114,
+      "end_line": 185,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20623,7 +20623,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "schema_operation_recovery::should_resume_add_column_default_backfill_after_batch_interruption"
+          "name": "schema_operation_recovery::add_column::should_resume_only_the_recorded_add_column_definition_on_retry"
         }
       ],
       "attributes": [
@@ -20633,20 +20633,175 @@
       "execution_status": "not_assessed",
       "placement": {
         "suite": "catalog_security",
-        "category": "ddl",
-        "directory": "tests/catalog_security/ddl",
-        "file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_require_recorded_recovery_for_legacy_volatile_default_retry",
+      "name": "should_require_recorded_recovery_for_legacy_volatile_default_retry",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 188,
+      "end_line": 290,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_operation_recovery::add_column::should_require_recorded_recovery_for_legacy_volatile_default_retry"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_require_reapplying_unrecorded_shared_sequence_default_after_legacy_recovery",
+      "name": "should_require_reapplying_unrecorded_shared_sequence_default_after_legacy_recovery",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 293,
+      "end_line": 385,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_operation_recovery::add_column::should_require_reapplying_unrecorded_shared_sequence_default_after_legacy_recovery"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_publish_sequence_metadata_after_matching_legacy_add_column_retry",
+      "name": "should_publish_sequence_metadata_after_matching_legacy_add_column_retry",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 388,
+      "end_line": 439,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_operation_recovery::add_column::should_publish_sequence_metadata_after_matching_legacy_add_column_retry"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_replay_add_column_derived_state_after_schema_commit_interruption",
+      "name": "should_replay_add_column_derived_state_after_schema_commit_interruption",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 442,
+      "end_line": 547,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_operation_recovery::add_column::should_replay_add_column_derived_state_after_schema_commit_interruption"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs::should_resume_add_column_default_backfill_after_batch_interruption",
+      "name": "should_resume_add_column_default_backfill_after_batch_interruption",
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "line": 550,
+      "end_line": 609,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_operation_recovery::add_column::should_resume_add_column_default_backfill_after_batch_interruption"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/ddl",
+        "directory": "tests/catalog_security/catalogs/ddl",
+        "file": "tests/catalog_security/catalogs/ddl/add_column.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_discard_rejected_collection_rename_intent_on_restart",
       "name": "should_discard_rejected_collection_rename_intent_on_restart",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 208,
-      "end_line": 272,
+      "line": 41,
+      "end_line": 105,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20676,8 +20831,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_drop_collection_cleanup_after_schema_commit",
       "name": "should_replay_drop_collection_cleanup_after_schema_commit",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 275,
-      "end_line": 342,
+      "line": 108,
+      "end_line": 175,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20707,8 +20862,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_drop_index_cleanup_after_metadata_interrupt",
       "name": "should_replay_drop_index_cleanup_after_metadata_interrupt",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 345,
-      "end_line": 444,
+      "line": 178,
+      "end_line": 277,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20738,8 +20893,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_collection_rename_data_after_schema_commit_interruption",
       "name": "should_replay_collection_rename_data_after_schema_commit_interruption",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 447,
-      "end_line": 494,
+      "line": 280,
+      "end_line": 327,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20769,8 +20924,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_preserve_destination_write_when_collection_rename_replays",
       "name": "should_preserve_destination_write_when_collection_rename_replays",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 497,
-      "end_line": 558,
+      "line": 330,
+      "end_line": 391,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20800,8 +20955,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_field_rename_data_after_schema_commit_interruption",
       "name": "should_replay_field_rename_data_after_schema_commit_interruption",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 561,
-      "end_line": 605,
+      "line": 394,
+      "end_line": 438,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20831,8 +20986,8 @@
       "id": "tests/catalog_security/ddl/schema_operation_recovery.rs::should_replay_field_drop_data_after_schema_commit_interruption",
       "name": "should_replay_field_drop_data_after_schema_commit_interruption",
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
-      "line": 608,
-      "end_line": 659,
+      "line": 441,
+      "end_line": 492,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359427,8 +359582,8 @@
       "current_file": "tests/analytics/derived_state/derived_state_recovery.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 346,
-      "sha256": "b0f9182a6730b0c6dd2f4349c58f8c685015398048fecab9c671ee948a1e6065",
+      "lines": 359,
+      "sha256": "7a2a295fb2429bd57275d07b2591a5185e0476d400eeef6f50da5a6b1754a48b",
       "test_declarations": 3,
       "registered_suites": [
         "analytics"
@@ -359683,7 +359838,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 406,
-      "sha256": "3884ef74512d99bb1dc3b90023ff7d0b9004e5b3784a42f69471e02ceee425c7",
+      "sha256": "cfc82b55c723c27a0f803a8da24240d293568015520304e6502603ef45fe10f7",
       "test_declarations": 6,
       "registered_suites": [
         "analytics"
@@ -361188,12 +361343,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/ddl/schema_operation_recovery/add_column.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 609,
+      "sha256": "ec7d5062a988b43185598ae7fa3e761bef4c0090247deb3d9246db2a4a34cd29",
+      "test_declarations": 7,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/ddl/add_column.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/ddl/schema_operation_recovery.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 659,
-      "sha256": "6a00c3fc0e9bee63886b5bd20f3feffb0ef7293167c5fae0085be65b3721495e",
-      "test_declarations": 9,
+      "lines": 492,
+      "sha256": "acd40c58c14c7079f340276e594921050d5c479a686ebbe1874853af067ef16b",
+      "test_declarations": 7,
       "registered_suites": [
         "catalog_security"
       ],

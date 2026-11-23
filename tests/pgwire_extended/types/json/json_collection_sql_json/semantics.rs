@@ -30,3 +30,54 @@ fn should_build_text_array_json_objects_with_jsonb_identity() {
         ]]
     );
 }
+
+#[test]
+fn should_keep_sql_null_values_as_json_null_in_object_arrays() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT json_object('{a,b}', '{1,NULL}'), jsonb_object('{a,NULL}'), json_object('{a}', '{NULL}')",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-1468-null-json-object-values", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![
+            Some(r#"{"a" : "1", "b" : null}"#.to_owned()),
+            Some(r#"{"a": null}"#.to_owned()),
+            Some(r#"{"a" : null}"#.to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_report_json_object_array_shape_and_null_key_sqlstates() {
+    // Arrange
+    let odd = fixture::execute_cycle("SELECT json_object('{a}')", None, 0, true);
+    let mismatch = fixture::execute_cycle(
+        "SELECT jsonb_object('{a,b}', '{1}')",
+        None,
+        0,
+        true,
+    );
+    let null_key = fixture::execute_cycle("SELECT json_object('{NULL}', '{1}')", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-1470-json-object-array-errors",
+        &[],
+        vec![odd, mismatch, null_key],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("2202E"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("2202E"));
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22004"));
+}

@@ -121,3 +121,49 @@ fn should_suppress_jsonpath_structural_errors_only_for_silent_forms() {
         vec![vec![Some("42".to_owned())]]
     );
 }
+
+#[test]
+fn should_reject_json_equality_signatures_while_preserving_jsonb_comparison() {
+    // Arrange
+    let json_equality = fixture::execute_cycle(
+        "SELECT '{}'::JSON = '{}'::JSON",
+        None,
+        0,
+        true,
+    );
+    let json_literal = fixture::execute_cycle("SELECT '{}'::JSON = '{}'", None, 0, true);
+    let mixed = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSON", None, 0, true);
+    let jsonb = fixture::execute_cycle("SELECT '{}'::JSONB = '{}'::JSONB", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-1469-json-comparison-signatures",
+        &[],
+        vec![json_equality, json_literal, mixed, jsonb],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
+    fixture::assert_success(&batches[3]);
+    assert_eq!(wire::data_rows(&batches[3]), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_report_invalid_jsonb_comparison_literals_with_json_input_sqlstate() {
+    // Arrange
+    let invalid_left = fixture::execute_cycle("SELECT 'bad' = '{}'::JSONB", None, 0, true);
+    let invalid_right = fixture::execute_cycle("SELECT '{}'::JSONB = 'bad'", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-1471-invalid-jsonb-comparison-literals",
+        &[],
+        vec![invalid_left, invalid_right],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22P02"));
+}

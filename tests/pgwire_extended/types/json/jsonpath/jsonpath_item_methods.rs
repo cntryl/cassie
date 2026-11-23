@@ -210,6 +210,326 @@ fn should_convert_numeric_item_with_jsonpath_number_method() {
     assert_jsonpath_match_true(&frames);
 }
 
+#[test]
+fn should_reject_invalid_jsonpath_match_result_shape() {
+    // Arrange
+    let cases = [
+        "SELECT jsonb_path_match('{\"a\":1}'::JSONB, '$.a'::JSONPATH)",
+        "SELECT jsonb_path_match('[1,2]'::JSONB, '$[*]'::JSONPATH)",
+        "SELECT jsonb_path_match('[true,false]'::JSONB, '$[*]'::JSONPATH)",
+        "SELECT jsonb_path_match('{\"a\":1}'::JSONB, '$.missing'::JSONPATH)",
+    ];
+    let cycles = cases
+        .iter()
+        .map(|sql| fixture::execute_cycle(sql, None, 0, true))
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-1467-jsonpath-match-cardinality", &[], cycles);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len());
+    for (sql, frames) in cases.iter().zip(&batches) {
+        assert_eq!(wire::error_code(frames).as_deref(), Some("22038"), "{sql}");
+        let message = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload))
+            .expect("JSONPath match error fields")
+            .into_iter()
+            .find_map(|(code, message)| (code == 'M').then_some(message))
+            .expect("JSONPath match error message");
+        assert_eq!(message, "single boolean result is expected", "{sql}");
+        assert!(wire::data_rows(frames).is_empty(), "{sql}");
+    }
+}
+
+#[test]
+fn should_return_unknown_for_non_boolean_jsonpath_match_operator_results() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{\"a\":1}'::JSONB @@ '$.a'::JSONPATH, '{\"a\":1}'::JSONB @@ '$.missing'::JSONPATH, '[1,2]'::JSONB @@ '$[*]'::JSONPATH",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-operator-unknown", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(
+        wire::data_rows(&frames),
+        vec![vec![None, None, None]]
+    );
+}
+
+#[test]
+fn should_return_true_for_boolean_jsonpath_match_operator_result() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{\"a\":true}'::JSONB @@ '$.a'::JSONPATH",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-operator-boolean", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_preserve_true_jsonpath_match_result() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match('{\"a\":true}'::JSONB, '$.a'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-true", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_preserve_false_jsonpath_match_result() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match('{\"a\":false}'::JSONB, '$.a'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-false", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![Some("f".to_owned())]]);
+}
+
+#[test]
+fn should_propagate_null_jsonb_input_through_match_operator() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT NULL::JSONB @@ '$.a'::JSONPATH",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-operator-null-input", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_propagate_null_jsonb_input_through_match_function() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match(NULL::JSONB, '$.a'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-null-input", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_preserve_jsonpath_question_mark_exists_semantics() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{\"a\":1}'::JSONB @? '$.a'::JSONPATH",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-question-exists", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_preserve_jsonpath_exists_function_semantics() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_exists('{\"a\":1}'::JSONB, '$.a'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-exists-function", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![Some("t".to_owned())]]);
+}
+
+#[test]
+fn should_return_null_for_jsonpath_match_on_json_null() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match('null'::JSONB, '$'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-json-null", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_return_null_for_timezone_aware_jsonpath_match_on_json_null() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match_tz('null'::JSONB, '$'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-tz-json-null", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_return_null_for_jsonpath_match_unknown_predicate() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match('{\"a\":\"x\"}'::JSONB, '$.a > 1'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-unknown-predicate", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_return_null_for_timezone_aware_match_unknown_predicate() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match_tz('{\"a\":\"x\"}'::JSONB, '$.a > 1'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-tz-unknown-predicate", &[], vec![cycle])
+        .remove(0);
+
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(wire::data_rows(&frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_reject_non_boolean_timezone_aware_jsonpath_match_results() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_match_tz('{\"a\":1}'::JSONB, '$.a'::JSONPATH)",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let frames = fixture::run_cycles("issue-1467-jsonpath-match-tz", &[], vec![cycle]).remove(0);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames).as_deref(), Some("22038"));
+    let message = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| {
+            wire::parse_error_fields(payload)
+                .into_iter()
+                .find(|(kind, _)| *kind == 'M')
+                .map(|(_, message)| message)
+        });
+    assert_eq!(
+        message.as_deref(),
+        Some("single boolean result is expected")
+    );
+}
+
+#[test]
+fn should_return_null_when_timezone_aware_match_silently_suppresses_errors() {
+    // Arrange
+    let cases = [
+        "SELECT jsonb_path_match_tz('{\"a\":1}'::JSONB, '$.a'::JSONPATH, '{}'::JSONB, true)",
+        "SELECT jsonb_path_match_tz('{\"a\":1}'::JSONB, '$.missing'::JSONPATH, '{}'::JSONB, true)",
+        "SELECT jsonb_path_match_tz('[true,false]'::JSONB, '$[*]'::JSONPATH, '{}'::JSONB, true)",
+        "SELECT jsonb_path_match_tz('{\"a\":1}'::JSONB, 'strict $.missing'::JSONPATH, '{}'::JSONB, true)",
+    ];
+    let cycles = cases
+        .iter()
+        .map(|sql| fixture::execute_cycle(sql, None, 0, true))
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-1467-jsonpath-match-tz-silent", &[], cycles);
+
+    // Assert
+    assert_eq!(batches.len(), cases.len());
+    for (sql, frames) in cases.iter().zip(&batches) {
+        fixture::assert_success(frames);
+        assert_eq!(wire::data_rows(frames), vec![vec![None]], "{sql}");
+    }
+}
+
 fn run_jsonpath_match(test_name: &str, document: &str, path: &str) -> fixture::Frames {
     let sql = format!("SELECT jsonb_path_match({document}, '{path}'::JSONPATH)");
     let cycle = fixture::execute_cycle(&sql, None, 0, true);

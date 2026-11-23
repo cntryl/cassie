@@ -15,6 +15,14 @@ Every performance-sensitive query family must prove:
 
 Missing access-path evidence is a failed contract, not permission to infer the intended path from latency.
 
+## SQL Boolean Expression Limit
+
+The parser admits up to 128 operands along a logical expression path. OR and
+AND operators share this limit, including operators nested through parentheses;
+the parser rejects the next operand with SQLSTATE `54000` before constructing
+the deeper expression tree. The bound protects parser recursion and does not
+change boolean precedence or evaluation short-circuit behavior.
+
 The selected #808 source consumer has a counted Tier2 owner,
 `tier2_subsystem_generated_sources`, with 2k and 100k logical generator
 cardinalities. Both scenarios consume the same filtered LIMIT16 query under

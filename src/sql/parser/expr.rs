@@ -70,6 +70,7 @@ pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
 
 pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = split_top_level(raw, " or ") {
+        let _depth = depth::enter_logical_parse_depth()?;
         return Ok(Expr::Binary {
             left: Box::new(parse_or_expression(left)?),
             right: Box::new(parse_or_expression(right)?),
@@ -82,6 +83,7 @@ pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
 
 pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = split_top_level_conjunction(raw) {
+        let _depth = depth::enter_logical_parse_depth()?;
         return Ok(Expr::Binary {
             left: Box::new(parse_and_expression(left)?),
             right: Box::new(parse_and_expression(right)?),

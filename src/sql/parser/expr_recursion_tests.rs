@@ -61,7 +61,10 @@ fn should_accept_boolean_chains_at_operand_boundary() {
 
     // Assert
     assert!(or_result.is_ok(), "128 OR operands are within the contract");
-    assert!(and_result.is_ok(), "128 AND operands are within the contract");
+    assert!(
+        and_result.is_ok(),
+        "128 AND operands are within the contract"
+    );
 }
 
 #[test]
@@ -79,6 +82,43 @@ fn should_reject_boolean_chains_one_operand_over_boundary() {
     // Assert
     assert_eq!(or_error.kind(), SqlErrorKind::ResourceLimit);
     assert_eq!(and_error.kind(), SqlErrorKind::ResourceLimit);
+}
+
+#[test]
+fn should_count_mixed_logical_operators_through_grouped_expressions() {
+    // Arrange
+    let sql = "SELECT true OR (true AND (false OR (true AND true)))";
+
+    // Act
+    let result = parse_statement(sql);
+
+    // Assert
+    assert!(
+        result.is_ok(),
+        "ordinary grouped boolean logic remains supported"
+    );
+}
+
+#[test]
+fn should_keep_session_usable_after_logical_chain_limit_rejection() {
+    // Arrange
+    let (cassie, session) = in_memory_session("logical_chain_probe");
+    let over_limit = format!("SELECT {}", vec!["true"; 129].join(" OR "));
+
+    // Act
+    let error = cassie
+        .execute_sql(&session, &over_limit, vec![])
+        .expect_err("over-limit OR chain must fail as a query error");
+    let follow_up = cassie.execute_sql(&session, "SELECT 1", vec![]);
+
+    // Assert
+    assert_eq!(error.sql_state(), "54000");
+    assert_eq!(
+        follow_up
+            .expect("same session survives parser rejection")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
 }
 
 #[test]

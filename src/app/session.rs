@@ -198,6 +198,7 @@ struct SessionSavepoint {
     storage_overlay: StorageOverlay,
     session_state: SessionStateSnapshot,
     unique_keys: BTreeSet<super::UniqueTransactionKey>,
+    row_keys: BTreeSet<super::RowTransactionKey>,
     session_writes: setting_writes::SessionWrites,
 }
 

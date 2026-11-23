@@ -551,6 +551,18 @@ impl Cassie {
         if super::query_virtual_catalog::logical_plan_uses_virtual_catalog(&physical.logical) {
             return Some("virtual_catalog");
         }
+        if crate::executor::plan_uses_volatile_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
+            return Some("volatile_builtin");
+        }
+        if crate::executor::plan_uses_clock_dependent_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
+            return Some("clock_dependent_builtin");
+        }
         if ["set_config", "pg_catalog.set_config"].iter().any(|name| {
             crate::executor::plan_uses_function_including_views(
                 &physical.logical,
@@ -591,14 +603,16 @@ impl Cassie {
         {
             return Some("sequence_function");
         }
-        if crate::executor::plan_needs_user_functions(&physical.logical) {
-            let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
-                metadata.volatility != crate::catalog::Volatility::Immutable
-                    && crate::executor::plan_uses_function(&physical.logical, &metadata.name)
-            });
-            if has_non_immutable {
-                return Some("non_immutable_function");
-            }
+        let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
+            metadata.volatility != crate::catalog::Volatility::Immutable
+                && crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    &metadata.name,
+                    &self.catalog,
+                )
+        });
+        if has_non_immutable {
+            return Some("non_immutable_function");
         }
         None
     }
@@ -949,3 +963,7 @@ mod query_test_fixture;
 #[cfg(test)]
 #[path = "query_datum_tests.rs"]
 mod datum_tests;
+
+#[cfg(test)]
+#[path = "query_volatile_cache_tests.rs"]
+mod volatile_cache_tests;

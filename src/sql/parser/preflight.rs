@@ -135,7 +135,7 @@ fn scan_normal_byte(
             *state = ScanState::BlockComment(1);
             *index += 1;
         }
-        (b'(', _) => {
+        (b'(' | b'[', _) => {
             finish_word(in_word, tokens)?;
             count_token(tokens)?;
             *nesting = nesting.saturating_add(1);
@@ -145,7 +145,7 @@ fn scan_normal_byte(
                 )));
             }
         }
-        (b')', _) => {
+        (b']' | b')', _) => {
             finish_word(in_word, tokens)?;
             count_token(tokens)?;
             *nesting = nesting.saturating_sub(1);
@@ -289,6 +289,26 @@ mod tests {
             (
                 format!("{}x{}", "/*".repeat(128), "*/".repeat(128)),
                 format!("{}x{}", "/*".repeat(129), "*/".repeat(129)),
+            ),
+            (
+                format!("{}1{}", "[".repeat(128), "]".repeat(128)),
+                format!("{}1{}", "[".repeat(129), "]".repeat(129)),
+            ),
+            (
+                format!(
+                    "{}{}1{}{}",
+                    "(".repeat(64),
+                    "[".repeat(64),
+                    "]".repeat(64),
+                    ")".repeat(64)
+                ),
+                format!(
+                    "{}{}1{}{}",
+                    "(".repeat(64),
+                    "[".repeat(65),
+                    "]".repeat(65),
+                    ")".repeat(64)
+                ),
             ),
         ];
         // Act

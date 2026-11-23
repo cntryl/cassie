@@ -1,5 +1,6 @@
 //! Controlled, unpublished expansion of explicit nonvolatile NOT MATERIALIZED CTEs.
 mod eligibility;
+pub(crate) use eligibility::{volatile_builtin, volatile_builtin_name};
 mod input;
 use crate::planner::logical::plan_clone_bytes;
 mod producer;

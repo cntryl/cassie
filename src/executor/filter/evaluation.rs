@@ -33,6 +33,9 @@ impl EvaluationMemory {
     pub(crate) fn bytes(&self) -> usize {
         self.0.borrow().bytes()
     }
+    pub(crate) fn shrink_to(&self, bytes: usize) {
+        self.0.borrow_mut().shrink_to(bytes);
+    }
     pub(crate) fn into_reservation(self) -> QueryMemoryReservation {
         self.0.into_inner()
     }

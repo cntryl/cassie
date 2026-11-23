@@ -45,6 +45,11 @@ impl CassieSession {
             .map_or_else(BTreeSet::new, |waits| {
                 waits.snapshot_owner_keys(transaction.unique_owner_id)
             });
+        let row_keys = self
+            .transaction_unique_waits()
+            .map_or_else(BTreeSet::new, |waits| {
+                waits.snapshot_owner_rows(transaction.unique_owner_id)
+            });
         let catalog_views = transaction.catalog_views.clone();
         let session_writes = transaction.session_writes.clone();
         transaction.savepoints.push(SessionSavepoint {
@@ -61,6 +66,7 @@ impl CassieSession {
             session_state: self.session_state_snapshot(),
             session_writes,
             unique_keys,
+            row_keys,
         });
         Ok(())
     }
@@ -166,6 +172,7 @@ impl CassieSession {
         #[cfg(test)]
         let restored_epoch = transaction.rollback_epoch;
         let unique_keys = transaction.savepoints[index].unique_keys.clone();
+        let row_keys = transaction.savepoints[index].row_keys.clone();
         transaction.conflict_intents = conflict_intents;
         transaction.catalog_overlay = catalog_overlay;
         transaction.catalog_base_version = catalog_base_version;
@@ -187,6 +194,7 @@ impl CassieSession {
                 );
                 return Err(error);
             }
+            waits.restore_owner_rows(unique_owner_id, &row_keys)?;
         }
         self.restore_session_state(session_state);
         self.rollback_session_objects_to(object_mark);

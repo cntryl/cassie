@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-
+#[cfg(test)]
+use super::volatile_plan_inspection::plan_uses_volatile_builtin_including_views;
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{
     CommonTableExpression, CteQuery, Expr, FunctionCall, QuerySource, QueryStatement, SelectItem,
     SelectStatement,
 };
-
+use std::collections::HashSet;
 pub(super) fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
     let mut fields = HashSet::new();
 
@@ -130,7 +130,6 @@ fn cte_uses_view_function(
         }
     }
 }
-
 fn parsed_statement_uses_view_function(
     statement: &crate::sql::ast::ParsedStatement,
     function_name: &str,
@@ -901,6 +900,48 @@ mod tests {
         assert!(uses_filter);
         assert!(needs_routines);
         assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
+
+    #[test]
+    fn should_find_planner_volatile_builtins_in_result_cache_inputs() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT random(), setseed(0.5), clock_timestamp(), gen_random_uuid()",
+        )
+        .expect("volatile builtins");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let contains_volatile_builtin =
+            plan_uses_volatile_builtin_including_views(&plan, &crate::catalog::Catalog::new());
+
+        // Assert
+        assert!(contains_volatile_builtin);
+    }
+
+    #[test]
+    fn should_stop_view_volatility_walk_at_a_catalog_cycle() {
+        // Arrange
+        let catalog = crate::catalog::Catalog::new();
+        catalog.register_view(crate::catalog::ViewMeta::new(
+            "cycle",
+            "SELECT value FROM cycle",
+            crate::types::Schema { fields: Vec::new() },
+        ));
+        let parsed = crate::sql::parse_statement("SELECT value FROM cycle").expect("view query");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let contains_volatile_builtin = plan_uses_volatile_builtin_including_views(&plan, &catalog);
+
+        // Assert
+        assert!(!contains_volatile_builtin);
     }
 
     #[test]

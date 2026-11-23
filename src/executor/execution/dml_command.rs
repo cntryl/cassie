@@ -718,6 +718,14 @@ fn execute_update_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
+        super::dml::admit_read_committed_update_rows(
+            cassie,
+            session,
+            statement,
+            params,
+            user_functions,
+            controls,
+        )?;
         let result = execute_atomic_dml(
             cassie,
             session,

@@ -2,7 +2,6 @@
 //! only what the caller could read directly (#1435 follow-up review).
 
 use crate::sequence_state_privileges::{denied, fixture};
-use cassie::app::CassieError;
 use cassie::types::Value;
 
 const PEEK: &str = "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'";
@@ -174,14 +173,16 @@ fn should_allow_a_function_body_that_reads_only_a_readable_table() {
 }
 
 #[test]
-fn should_terminate_authorizing_a_self_referencing_function_body() {
+fn should_terminate_authorizing_mutually_recursive_function_bodies() {
     // Arrange
-    let (cassie, _root, alice) =
-        fixture(&["CREATE FUNCTION loopy(n INT) RETURNS INT AS \"(CASE WHEN n > 0 THEN loopy(n - 1) ELSE 0 END)\""]);
+    let (cassie, _root, alice) = fixture(&[
+        "CREATE FUNCTION loopy(n INT) RETURNS INT AS \"(CASE WHEN n > 0 THEN loopy_other(n - 1) ELSE 0 END)\"",
+        "CREATE FUNCTION loopy_other(n INT) RETURNS INT AS \"(CASE WHEN n > 0 THEN loopy(n - 1) ELSE 0 END)\"",
+    ]);
 
     // Act
     let result = cassie.execute_sql(&alice, "SELECT loopy(2)", vec![]);
 
     // Assert
-    assert!(!matches!(result, Err(CassieError::InsufficientPrivilege)));
+    assert!(result.is_ok_and(|result| result.rows() == vec![vec![Value::Int64(0)]]));
 }

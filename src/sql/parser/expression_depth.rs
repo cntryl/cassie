@@ -4,8 +4,84 @@ use crate::sql::ast::{
     CteQuery, Expr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
 use crate::sql::SqlError;
+use std::cell::Cell;
 
 pub(super) const MAX_POSTFIX_DEPTH: usize = 128;
+const MAX_RECURSIVE_EXPRESSION_DEPTH: usize = 128;
+
+thread_local! {
+    static NOT_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static CASE_PARSE_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static EXPRESSION_PREFLIGHT_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+pub(super) struct ParseDepthGuard {
+    kind: ParseDepthKind,
+    previous: usize,
+}
+
+#[derive(Clone, Copy)]
+enum ParseDepthKind {
+    Not,
+    Case,
+}
+
+pub(super) struct ExpressionPreflightGuard;
+
+impl Drop for ExpressionPreflightGuard {
+    fn drop(&mut self) {
+        EXPRESSION_PREFLIGHT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+pub(super) fn enter_expression_preflight(raw: &str) -> Result<ExpressionPreflightGuard, SqlError> {
+    let top_level = EXPRESSION_PREFLIGHT_DEPTH.with(|depth| {
+        let top_level = depth.get() == 0;
+        depth.set(depth.get().saturating_add(1));
+        top_level
+    });
+    if top_level {
+        if let Err(error) = super::super::preflight_sql(raw) {
+            EXPRESSION_PREFLIGHT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+            return Err(error);
+        }
+    }
+    Ok(ExpressionPreflightGuard)
+}
+
+impl Drop for ParseDepthGuard {
+    fn drop(&mut self) {
+        match self.kind {
+            ParseDepthKind::Not => NOT_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+            ParseDepthKind::Case => CASE_PARSE_DEPTH.with(|depth| depth.set(self.previous)),
+        }
+    }
+}
+
+pub(super) fn enter_not_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    enter_parse_depth(&NOT_PARSE_DEPTH, "NOT", ParseDepthKind::Not)
+}
+
+pub(super) fn enter_case_parse_depth() -> Result<ParseDepthGuard, SqlError> {
+    enter_parse_depth(&CASE_PARSE_DEPTH, "CASE", ParseDepthKind::Case)
+}
+
+fn enter_parse_depth(
+    depth: &'static std::thread::LocalKey<Cell<usize>>,
+    expression: &str,
+    kind: ParseDepthKind,
+) -> Result<ParseDepthGuard, SqlError> {
+    depth.with(|depth| {
+        let previous = depth.get();
+        if previous >= MAX_RECURSIVE_EXPRESSION_DEPTH {
+            return Err(SqlError::resource_limit(format!(
+                "{expression} nesting exceeds {MAX_RECURSIVE_EXPRESSION_DEPTH}"
+            )));
+        }
+        depth.set(previous + 1);
+        Ok(ParseDepthGuard { kind, previous })
+    })
+}
 
 pub(super) fn limit_error() -> SqlError {
     SqlError::resource_limit(format!(

@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1912 |
 | Rust files | 1868 |
-| Rust test declarations | 11512 |
+| Rust test declarations | 11513 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11537 |
+| Static Rust registration instances | 11538 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -55,7 +55,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_extended](inventory/pgwire_extended.md) | 988 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1241 | 8 |
 | [pgwire_types](inventory/pgwire_types.md) | 1225 | 0 |
-| [planner_controls](inventory/planner_controls.md) | 142 | 0 |
+| [planner_controls](inventory/planner_controls.md) | 143 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 56 | 3 |
 | [relational_qualification](inventory/relational_qualification.md) | 77 | 0 |
 | [rest](inventory/rest.md) | 101 | 0 |
@@ -151,6 +151,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | `tests/pgwire_extended/types/bit_bytea/casts_int8.rs` | 812 | 45 |
 | `tests/pgwire_extended/types/json/operator_overload/semantics.rs` | 810 | 30 |
 | `tests/pgwire_extended/types/temporal/binary.rs` | 897 | 13 |
+| `tests/planner_controls/planning/execution_result_cache.rs` | 813 | 19 |
 | `tests/sql_mutations/insert/insert_values.rs` | 839 | 20 |
 | `tests/sql_queries/aggregates/windows/aggregate_query/semantics.rs` | 875 | 24 |
 | `tests/sql_queries/functions/temporal/temporal_functions.rs` | 816 | 58 |

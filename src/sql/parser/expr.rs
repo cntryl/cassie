@@ -5,7 +5,6 @@ use super::{
     parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
     SortDirection, SqlError,
 };
-
 #[path = "array_subscript.rs"]
 mod array_subscript;
 #[path = "expr_case.rs"]
@@ -22,6 +21,9 @@ mod numeric_literals;
 mod qualified_operators;
 #[path = "record_syntax.rs"]
 mod record_syntax;
+#[cfg(test)]
+#[path = "expr_recursion_tests.rs"]
+mod recursion_tests;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 #[path = "string_literals.rs"]
@@ -55,6 +57,7 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
+    let _preflight = depth::enter_expression_preflight(raw)?;
     let raw = super::lexical::trim_separators(raw);
     if let Some((operand, collation)) = split_collation_suffix(raw)? {
         return Ok(Expr::Collate {
@@ -92,6 +95,7 @@ pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
 pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
     let raw = super::lexical::trim_separators(raw);
     if starts_with_keyword(raw, "not") {
+        let _depth = depth::enter_not_parse_depth()?;
         let rest = raw["not".len()..].trim();
         if rest.is_empty() {
             return Err(SqlError::new("NOT requires an expression".into()));

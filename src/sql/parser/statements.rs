@@ -484,7 +484,9 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
             }
         }
     } else {
-        Volatility::Immutable
+        // PostgreSQL routines are VOLATILE unless the declaration explicitly
+        // narrows their volatility to STABLE or IMMUTABLE.
+        Volatility::Volatile
     };
 
     if tokens.len() > 2 {

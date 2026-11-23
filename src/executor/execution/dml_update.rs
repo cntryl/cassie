@@ -130,6 +130,69 @@ pub(in crate::executor::execution) fn execute_update(
     )
 }
 
+/// Admit explicit READ COMMITTED UPDATE row ownership before the DML gate.
+/// The statement execution that follows rescans and evaluates against the
+/// current row after any owner wait completes.
+pub(in crate::executor::execution) fn admit_read_committed_update_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::UpdateStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    let Some(session) = session
+        .filter(|session| session.is_transaction_active() && !session.is_repeatable_read_write())
+    else {
+        return Ok(());
+    };
+    session
+        .attach_transaction_unique_waits(std::sync::Arc::clone(&cassie.transaction_unique_waits));
+    let Some(waits) = session.transaction_unique_waits() else {
+        return Ok(());
+    };
+    let subqueries = super::dml_subqueries::RowSubqueries {
+        cassie,
+        session: Some(session),
+        user_functions,
+        params,
+        controls,
+        table: &statement.table,
+        alias: statement.alias.as_deref(),
+    };
+    let rows = matched_dml_rows(
+        cassie,
+        Some(session),
+        &statement.table,
+        statement.filter.as_ref(),
+        &subqueries,
+        controls,
+    )?;
+    let ids = rows
+        .iter()
+        .map(row_id_from_batch_row)
+        .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let owner = session.transaction_unique_owner_id();
+    loop {
+        controls.check_interruption().map_err(QueryError::from)?;
+        match waits
+            .claim_row_keys(owner, &statement.table, &ids)
+            .map_err(QueryError::from)?
+        {
+            crate::app::RowKeyClaim::Claimed => return Ok(()),
+            claim @ crate::app::RowKeyClaim::Wait { .. } => {
+                let (collection, id, blocker) = claim.into_wait().expect("row wait claim");
+                waits
+                    .wait_for_row(owner, blocker, &collection, &id, controls)
+                    .map_err(QueryError::from)?;
+            }
+        }
+    }
+}
+
 fn matched_dml_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,

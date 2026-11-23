@@ -9,6 +9,7 @@ pub(super) fn bind_create_function(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateFunctionStatement, CassieError> {
+    let requested_name = statement.name.trim().to_owned();
     let name = super::normalize_new_relation_name(statement.name.trim(), context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
@@ -74,14 +75,19 @@ pub(super) fn bind_create_function(
         ));
     }
     let parsed_body = crate::sql::parser::parse_expression(&body).map_err(|error| {
-        CassieError::Planner(format!("invalid function body for '{name}': {error}"))
+        let message = format!("invalid function body for '{name}': {error}");
+        if error.kind() == crate::sql::SqlErrorKind::ResourceLimit {
+            CassieError::ResourceLimit(message)
+        } else {
+            CassieError::Planner(message)
+        }
     })?;
 
     crate::sql::definition_guard::legacy_expression(&parsed_body)?;
 
-    if function_body_references(&parsed_body, &name) {
+    if function_body_references(&parsed_body, &name, context) {
         return Err(CassieError::Planner(format!(
-            "function '{name}' cannot call itself"
+            "function '{requested_name}' cannot call itself"
         )));
     }
 
@@ -236,16 +242,22 @@ pub(super) fn bind_call_procedure(
     Ok(bound)
 }
 
-pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool {
+pub(super) fn function_body_references(
+    expr: &Expr,
+    function_name: &str,
+    context: &BindingContext,
+) -> bool {
     match expr {
         Expr::Function(function) => {
-            function.name.eq_ignore_ascii_case(function_name)
+            normalize_relation_name(&function.name, context)
+                .is_ok_and(|name| name.eq_ignore_ascii_case(function_name))
+                || function.name.eq_ignore_ascii_case(function_name)
                 || function
                     .args
                     .iter()
-                    .any(|arg| function_body_references(arg, function_name))
+                    .any(|arg| function_body_references(arg, function_name, context))
         }
         Expr::Exists(_) => false,
-        _ => expr.any_child(|child| function_body_references(child, function_name)),
+        _ => expr.any_child(|child| function_body_references(child, function_name, context)),
     }
 }

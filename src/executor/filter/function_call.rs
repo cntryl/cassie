@@ -16,6 +16,7 @@ use super::{
     evaluate_user_defined_function, json_builders, text_selection, EvalContext, FunctionCall,
     QueryError, RowAccess, Value,
 };
+use crate::executor::filter::EvaluationMemory;
 
 #[cfg(test)]
 thread_local! {
@@ -38,6 +39,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     row: &R,
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
+    let routine_memory_baseline = context.memory.map(EvaluationMemory::bytes);
     let name = function.name.to_ascii_lowercase();
     let local_name = name.rsplit('.').next().unwrap_or(&name);
     let argument_context = if context.memory.is_none()
@@ -63,36 +65,8 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     } else {
         None
     };
-    if name == crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION {
-        let [array] = function.args.as_slice() else {
-            return Err(crate::app::CassieError::Execution(
-                "invalid internal VARIADIC array argument".into(),
-            )
-            .into());
-        };
-        return super::super::evaluate_expr_value_with_context(row, array, context);
-    }
-    if crate::sql::functions::is_column_size(&name) {
-        return datum_size::evaluate(function, row, context);
-    }
-    if name == "coalesce" {
-        return evaluate_coalesce(function, row, context);
-    }
-
-    if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
+    if let Some(result) = evaluate_early_function(&name, function, row, context) {
         return result;
-    }
-    if let Some(result) = super::enum_functions::evaluate_expression(function, row, context) {
-        return result;
-    }
-    if let Some(result) = super::graph_functions::evaluate_expression(function, row, context) {
-        return result;
-    }
-    if let Some(result) = borrowed_object_keys_argument(&name, function, row, context) {
-        return result;
-    }
-    if matches!(name.as_str(), "cardinality" | "pg_catalog.cardinality") {
-        return cardinality::evaluate(function, row, context);
     }
 
     let args = evaluate_argument_values(function, row, argument_context, &name)?;
@@ -103,7 +77,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
             .get(&name)
             .is_some_and(|metadata| metadata.args.len() == function.args.len())
     {
-        return evaluate_user_defined_function(&name, row, context, args);
+        return evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline);
     }
 
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
@@ -134,8 +108,10 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return result;
     }
 
-    let result = evaluate_builtin_function(&name, function, row, &args, context)
-        .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))?;
+    let result =
+        evaluate_builtin_function(&name, function, row, &args, context).unwrap_or_else(|| {
+            evaluate_user_defined_function(&name, row, context, args, routine_memory_baseline)
+        })?;
     let retained_bytes = retained_result_bytes(&result, local_name);
     if retained_bytes > 0 {
         if let Some(scope) = argument_memory_scope.as_mut() {
@@ -143,6 +119,45 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         }
     }
     Ok(result)
+}
+
+fn evaluate_early_function<R: RowAccess + ?Sized>(
+    name: &str,
+    function: &FunctionCall,
+    row: &R,
+    context: EvalContext<'_>,
+) -> Option<Result<Value, QueryError>> {
+    if name == crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION {
+        let [array] = function.args.as_slice() else {
+            return Some(Err(crate::app::CassieError::Execution(
+                "invalid internal VARIADIC array argument".into(),
+            )
+            .into()));
+        };
+        return Some(super::super::evaluate_expr_value_with_context(
+            row, array, context,
+        ));
+    }
+    if crate::sql::functions::is_column_size(name) {
+        return Some(datum_size::evaluate(function, row, context));
+    }
+    if name == "coalesce" {
+        return Some(evaluate_coalesce(function, row, context));
+    }
+    if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = super::enum_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = super::graph_functions::evaluate_expression(function, row, context) {
+        return Some(result);
+    }
+    if let Some(result) = borrowed_object_keys_argument(name, function, row, context) {
+        return Some(result);
+    }
+    matches!(name, "cardinality" | "pg_catalog.cardinality")
+        .then(|| cardinality::evaluate(function, row, context))
 }
 
 fn retained_result_bytes(result: &Value, local_name: &str) -> usize {

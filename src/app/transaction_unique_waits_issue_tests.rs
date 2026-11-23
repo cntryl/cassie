@@ -161,9 +161,52 @@ fn should_reject_a_second_update_owner_before_publication() {
         .expect("begin second UPDATE transaction");
 
     // Act
+    let conflict = cassie.execute_sql(&contender, "UPDATE u SET v = 99 WHERE id = 2", Vec::new());
+    let rollback_contender = cassie.execute_sql(&contender, "ROLLBACK", Vec::new());
+    let rollback_owner = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+
+    // Assert
+    assert!(matches!(
+        conflict,
+        Err(CassieError::Transaction {
+            kind: TransactionErrorKind::SerializationFailure,
+            ..
+        })
+    ));
+    assert!(rollback_contender.is_ok());
+    assert!(rollback_owner.is_ok());
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+}
+
+#[test]
+fn should_reject_a_merge_owner_conflict_before_publication() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_merge_owner_conflict");
+    for sql in [
+        "CREATE TABLE merge_source (id INT PRIMARY KEY, v INT)",
+        "INSERT INTO merge_source VALUES (2, 99)",
+        "BEGIN",
+        "UPDATE u SET v = 99 WHERE id = 1",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("prepare MERGE owner conflict");
+    }
+    let contender = cassie.create_session("issue_1465_merge_contender", None);
+    cassie
+        .execute_sql(&contender, "BEGIN", Vec::new())
+        .expect("begin MERGE contender transaction");
+
+    // Act
     let conflict = cassie.execute_sql(
         &contender,
-        "UPDATE u SET v = 99 WHERE id = 2",
+        "MERGE INTO u AS target USING merge_source AS source ON target.id = source.id WHEN MATCHED THEN UPDATE SET v = source.v",
         Vec::new(),
     );
     let rollback_contender = cassie.execute_sql(&contender, "ROLLBACK", Vec::new());

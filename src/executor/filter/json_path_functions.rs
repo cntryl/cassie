@@ -282,17 +282,22 @@ fn evaluate_jsonpath_function(
         JsonFunction::PathQueryFirstTz => path
             .query_with_vars_tz(document, variables, timezone)
             .map(|items| PathResult::First(items.into_iter().next().map(json_item))),
-        JsonFunction::PathMatchTz => {
-            path.query_with_vars_tz(document, variables, timezone)
-                .map(|items| {
-                    let result = if let [value] = items.as_slice() {
-                        value.as_ref().as_bool()
-                    } else {
-                        None
-                    };
-                    PathResult::Match(result)
-                })
-        }
+        JsonFunction::PathMatchTz => path
+            .query_with_vars_tz(document, variables, timezone)
+            .map(|items| {
+                let [value] = items.as_slice() else {
+                    return Err(sql_json_path::EvalError::ExpectSingleBoolean);
+                };
+                let value = value.as_ref();
+                if value.is_null() {
+                    return Ok(PathResult::Match(None));
+                }
+                value
+                    .as_bool()
+                    .map(|value| PathResult::Match(Some(value)))
+                    .ok_or(sql_json_path::EvalError::ExpectSingleBoolean)
+            })
+            .and_then(|result| result),
         _ => unreachable!("path function dispatch selects a path function"),
     }
 }
@@ -304,7 +309,7 @@ fn silent_result(kind: JsonFunction) -> PathResult {
             PathResult::Array(Vec::new())
         }
         JsonFunction::PathQueryFirst | JsonFunction::PathQueryFirstTz => PathResult::First(None),
-        JsonFunction::PathMatchTz => PathResult::Match(Some(false)),
+        JsonFunction::PathMatchTz => PathResult::Match(None),
         _ => unreachable!("path function dispatch selects a path function"),
     }
 }
@@ -373,6 +378,13 @@ fn string_arg<'a>(value: &'a Value, type_name: &str) -> Result<&'a str, QueryErr
 }
 
 fn path_error(error: &sql_json_path::EvalError) -> QueryError {
+    if matches!(error, sql_json_path::EvalError::ExpectSingleBoolean) {
+        return CassieError::TypeInput(crate::types::extended::TypeInputError::new(
+            "22038",
+            error.to_string(),
+        ))
+        .into();
+    }
     CassieError::Execution(error.to_string()).into()
 }
 
@@ -490,11 +502,13 @@ fn evaluate_path(
         .query(document.get())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     match result.as_slice() {
-        [value] => Ok(value
+        [value] if value.as_ref().is_null() => Ok(ScalarValue::Null),
+        [value] => value
             .as_ref()
             .as_bool()
-            .map_or(ScalarValue::Null, ScalarValue::Bool)),
-        _ => Ok(ScalarValue::Null),
+            .map(ScalarValue::Bool)
+            .ok_or_else(|| path_error(&sql_json_path::EvalError::ExpectSingleBoolean)),
+        _ => Err(path_error(&sql_json_path::EvalError::ExpectSingleBoolean)),
     }
 }
 

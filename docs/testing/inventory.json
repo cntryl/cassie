@@ -180,11 +180,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1912,
-    "rust_files": 1868,
-    "rust_test_declarations": 11525,
+    "files": 1913,
+    "rust_files": 1869,
+    "rust_test_declarations": 11555,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11550,
+    "registered_rust_instances": 11580,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -214653,6 +214653,471 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_reject_invalid_jsonpath_match_result_shape",
+      "name": "should_reject_invalid_jsonpath_match_result_shape",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 214,
+      "end_line": 245,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_reject_invalid_jsonpath_match_result_shape"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_unknown_for_non_boolean_jsonpath_match_operator_results",
+      "name": "should_return_unknown_for_non_boolean_jsonpath_match_operator_results",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 248,
+      "end_line": 268,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_unknown_for_non_boolean_jsonpath_match_operator_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_true_for_boolean_jsonpath_match_operator_result",
+      "name": "should_return_true_for_boolean_jsonpath_match_operator_result",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 271,
+      "end_line": 291,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_true_for_boolean_jsonpath_match_operator_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_preserve_true_jsonpath_match_result",
+      "name": "should_preserve_true_jsonpath_match_result",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 294,
+      "end_line": 309,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_preserve_true_jsonpath_match_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_preserve_false_jsonpath_match_result",
+      "name": "should_preserve_false_jsonpath_match_result",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 312,
+      "end_line": 327,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_preserve_false_jsonpath_match_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_propagate_null_jsonb_input_through_match_operator",
+      "name": "should_propagate_null_jsonb_input_through_match_operator",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 330,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_propagate_null_jsonb_input_through_match_operator"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_propagate_null_jsonb_input_through_match_function",
+      "name": "should_propagate_null_jsonb_input_through_match_function",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 344,
+      "end_line": 360,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_propagate_null_jsonb_input_through_match_function"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_preserve_jsonpath_question_mark_exists_semantics",
+      "name": "should_preserve_jsonpath_question_mark_exists_semantics",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 363,
+      "end_line": 379,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_preserve_jsonpath_question_mark_exists_semantics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_preserve_jsonpath_exists_function_semantics",
+      "name": "should_preserve_jsonpath_exists_function_semantics",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 382,
+      "end_line": 398,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_preserve_jsonpath_exists_function_semantics"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_null_for_jsonpath_match_on_json_null",
+      "name": "should_return_null_for_jsonpath_match_on_json_null",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 401,
+      "end_line": 417,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_null_for_jsonpath_match_on_json_null"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_null_for_timezone_aware_jsonpath_match_on_json_null",
+      "name": "should_return_null_for_timezone_aware_jsonpath_match_on_json_null",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 420,
+      "end_line": 436,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_null_for_timezone_aware_jsonpath_match_on_json_null"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_null_for_jsonpath_match_unknown_predicate",
+      "name": "should_return_null_for_jsonpath_match_unknown_predicate",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 439,
+      "end_line": 459,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_null_for_jsonpath_match_unknown_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_null_for_timezone_aware_match_unknown_predicate",
+      "name": "should_return_null_for_timezone_aware_match_unknown_predicate",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 462,
+      "end_line": 482,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_null_for_timezone_aware_match_unknown_predicate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_reject_non_boolean_timezone_aware_jsonpath_match_results",
+      "name": "should_reject_non_boolean_timezone_aware_jsonpath_match_results",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 485,
+      "end_line": 512,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_reject_non_boolean_timezone_aware_jsonpath_match_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs::should_return_null_when_timezone_aware_match_silently_suppresses_errors",
+      "name": "should_return_null_when_timezone_aware_match_silently_suppresses_errors",
+      "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+      "line": 515,
+      "end_line": 537,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_json_scalar_documents::jsonpath_item_methods::should_return_null_when_timezone_aware_match_silently_suppresses_errors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/json/jsonpath",
+        "directory": "tests/pgwire_extended/types/json/jsonpath",
+        "file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/json/jsonpath/jsonpath_null_semantics.rs::should_report_jsonpath_null_path_truth_table",
       "name": "should_report_jsonpath_null_path_truth_table",
       "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_null_semantics.rs",
@@ -227655,6 +228120,37 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_numeric_compat::should_report_numeric_bind_input_errors_with_postgresql_sqlstates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/numeric",
+        "directory": "tests/pgwire_extended/types/numeric",
+        "file": "tests/pgwire_extended/types/numeric/errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/numeric/errors.rs::should_raise_integer_out_of_range_for_a_prepared_int4_abs_projection",
+      "name": "should_raise_integer_out_of_range_for_a_prepared_int4_abs_projection",
+      "current_file": "tests/pgwire_extended/types/numeric/errors.rs",
+      "line": 105,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_numeric_compat::should_raise_integer_out_of_range_for_a_prepared_int4_abs_projection"
         }
       ],
       "attributes": [
@@ -273804,8 +274300,8 @@
       "id": "tests/sql_queries/aggregates/grouping/math_functions.rs::should_calculate_the_prefix_cube_root_operator_for_negative_float8",
       "name": "should_calculate_the_prefix_cube_root_operator_for_negative_float8",
       "current_file": "tests/sql_queries/aggregates/grouping/math_functions.rs",
-      "line": 42,
-      "end_line": 53,
+      "line": 45,
+      "end_line": 56,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -273835,8 +274331,8 @@
       "id": "tests/sql_queries/aggregates/grouping/math_functions.rs::should_calculate_cube_roots_for_negative_float8_values",
       "name": "should_calculate_cube_roots_for_negative_float8_values",
       "current_file": "tests/sql_queries/aggregates/grouping/math_functions.rs",
-      "line": 56,
-      "end_line": 65,
+      "line": 59,
+      "end_line": 68,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -299959,6 +300455,440 @@
         "category": "types/numeric",
         "directory": "tests/sql_queries/types/numeric",
         "file": "tests/sql_queries/types/numeric/unary_numeric.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_raise_integer_out_of_range_when_abs_function_is_applied_to_int4_minimum",
+      "name": "should_raise_integer_out_of_range_when_abs_function_is_applied_to_int4_minimum",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 6,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_raise_integer_out_of_range_when_abs_function_is_applied_to_int4_minimum"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_reject_int4_abs_overflow_before_an_outer_bigint_cast",
+      "name": "should_reject_int4_abs_overflow_before_an_outer_bigint_cast",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 30,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_reject_int4_abs_overflow_before_an_outer_bigint_cast"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_raise_smallint_out_of_range_when_abs_function_is_applied_to_int2_minimum",
+      "name": "should_raise_smallint_out_of_range_when_abs_function_is_applied_to_int2_minimum",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 54,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_raise_smallint_out_of_range_when_abs_function_is_applied_to_int2_minimum"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_abs_result_width_for_int4_boundary_value",
+      "name": "should_preserve_abs_result_width_for_int4_boundary_value",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 74,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_abs_result_width_for_int4_boundary_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_abs_output_alias_for_int4_value",
+      "name": "should_preserve_abs_output_alias_for_int4_value",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 88,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_abs_output_alias_for_int4_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_null_result_for_int4_abs",
+      "name": "should_preserve_null_result_for_int4_abs",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 101,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_null_result_for_int4_abs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_declared_int4_width_for_null_abs_result",
+      "name": "should_preserve_declared_int4_width_for_null_abs_result",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 114,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_declared_int4_width_for_null_abs_result"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_raise_bigint_out_of_range_for_abs_minimum",
+      "name": "should_raise_bigint_out_of_range_for_abs_minimum",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 127,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_raise_bigint_out_of_range_for_abs_minimum"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_raise_integer_out_of_range_for_abs_int4_minimum",
+      "name": "should_raise_integer_out_of_range_for_abs_int4_minimum",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 141,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_raise_integer_out_of_range_for_abs_int4_minimum"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_int4_width_guard_for_at_prefix",
+      "name": "should_preserve_int4_width_guard_for_at_prefix",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 155,
+      "end_line": 166,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_int4_width_guard_for_at_prefix"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_int4_width_guard_for_unary_negation",
+      "name": "should_preserve_int4_width_guard_for_unary_negation",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 169,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_int4_width_guard_for_unary_negation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_not_evaluate_abs_for_empty_int4_input",
+      "name": "should_not_evaluate_abs_for_empty_int4_input",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 183,
+      "end_line": 198,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_not_evaluate_abs_for_empty_int4_input"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_preserve_abs_width_for_nonminimum_smallint_value",
+      "name": "should_preserve_abs_width_for_nonminimum_smallint_value",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 201,
+      "end_line": 212,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_preserve_abs_width_for_nonminimum_smallint_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/math/integer_abs.rs::should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine",
+      "name": "should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine",
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "line": 215,
+      "end_line": 239,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_math_functions::integer_abs::should_not_apply_the_builtin_abs_width_check_to_a_qualified_user_routine"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/math",
+        "directory": "tests/sql_queries/functions/math",
+        "file": "tests/sql_queries/functions/math/integer_abs.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -375233,9 +376163,9 @@
       "current_file": "tests/pgwire_extended/types/json/jsonpath/jsonpath_item_methods.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 235,
-      "sha256": "b7ee98ca8391d3a6cd6a4dafc38575dcfcf5141d18f2dceaa40898d1ba7991a8",
-      "test_declarations": 12,
+      "lines": 561,
+      "sha256": "778c4d652658215c25fb829a1e2018edabce1d3550cda62acaabdf56450404df",
+      "test_declarations": 27,
       "registered_suites": [
         "pgwire_types"
       ],
@@ -376275,9 +377205,9 @@
       "current_file": "tests/pgwire_extended/types/numeric/errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 102,
-      "sha256": "9cce59b6988a3278aaead2800c6d0037305a2875a75060cc555876c184c2e51a",
-      "test_declarations": 1,
+      "lines": 158,
+      "sha256": "c07f519e810a4532c1d0051a7bd40a055dbc79b3d7355685ad1ef3a4123b1e96",
+      "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -380487,8 +381417,8 @@
       "current_file": "tests/sql_queries/aggregates/grouping/math_functions.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 67,
-      "sha256": "7d8f228be0e6461a84061233f0b5b8e76de1fa0eed88c815bce8978d52be49eb",
+      "lines": 70,
+      "sha256": "a7e2348bf20232b8645f4e529d1926e7c7238d738b15bc08091d4b5a5e11ae92",
       "test_declarations": 2,
       "registered_suites": [
         "sql_queries"
@@ -381937,6 +382867,21 @@
       "destinations": [
         "tests/sql_queries/aggregates/numeric/unary_numeric.rs",
         "tests/sql_queries/types/numeric/unary_numeric.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/functions/math/integer_abs.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 239,
+      "sha256": "6578b01167c94f6cf8201489dc9fa1fa1c58c1af7738bf89fba19bf5f4a8e397",
+      "test_declarations": 14,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/functions/math/integer_abs.rs"
       ],
       "line_limit": 1000
     },

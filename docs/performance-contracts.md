@@ -146,6 +146,11 @@ Streaming scan, filter, projection, limit, scoring, and eligible aggregation pat
 
 SQL parsing rejects text over 1 MiB, more than 100,000 lexical tokens, nesting deeper than 128, nested block comments deeper than 128, and pgwire simple-query batches over 256 statements. These failures are HTTP `400` or SQLSTATE `54000`. REST request bodies are collected through an 8 MiB limiter. Once a body crosses the bound, Cassie discards subsequent frames through end-of-stream before returning HTTP `413`; excess bytes are never retained, and a well-formed HTTP/1 connection remains reusable. Body idle and complete-request deadlines continue to bound that drain. Pgwire emits row descriptions, rows, and command completion incrementally, caps each backend frame at 16 MiB, and retains the generic 16 MiB frontend-frame cap for non-SQL bind and COPY data. Admin UI files retain their 8 MiB cap and stream in chunks no larger than 64 KiB.
 
+The parser admits up to 128 operands along a logical expression path. OR and
+AND share this limit across parentheses. A deeper expression returns SQLSTATE
+`54000` before the parser constructs its tree. Boolean precedence and
+short-circuit evaluation keep their existing semantics.
+
 ## Relational Access Paths
 
 | Query pattern | Required path evidence | Bound |

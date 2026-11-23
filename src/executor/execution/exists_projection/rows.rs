@@ -28,6 +28,7 @@ pub(in crate::executor::execution) fn project(
             let context = ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context: context,
                 user_functions: env.user_functions,
                 params: env.params,

@@ -86,6 +86,7 @@ type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 pub(super) struct SourceExecutionEnv<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) parameter_type_oids: &'a [i32],
@@ -94,14 +95,26 @@ pub(super) struct SourceExecutionEnv<'a> {
 
 impl<'a> SourceExecutionEnv<'a> {
     pub(super) fn plan_env(&self) -> PlanExecutionEnv<'a> {
-        plan_execution_env_with_parameter_oids(
-            self.cassie,
-            self.session,
-            self.user_functions,
-            self.params,
-            self.parameter_type_oids,
-            self.controls,
-        )
+        if let Some(context) = self.binding_context {
+            super::plan_execution_env_with_binding_context(
+                self.cassie,
+                self.session,
+                context,
+                self.user_functions,
+                self.params,
+                self.parameter_type_oids,
+                self.controls,
+            )
+        } else {
+            plan_execution_env_with_parameter_oids(
+                self.cassie,
+                self.session,
+                self.user_functions,
+                self.params,
+                self.parameter_type_oids,
+                self.controls,
+            )
+        }
     }
 
     fn phase_env<'phase>(
@@ -304,12 +317,27 @@ fn execute_view_source(
             view.function_dependency_database.clone(),
             view.function_dependency_search_path.clone(),
         );
-        let functions = crate::catalog::function_resolution::functions_for_scope(
-            &env.cassie.catalog.list_functions(),
+        let all_functions = env.cassie.catalog.list_functions();
+        let mut functions = crate::catalog::function_resolution::functions_for_scope(
+            &all_functions,
             &context.database,
             &context.search_path,
             context.scopes_database_objects(),
         );
+        let mut calls = Vec::new();
+        if let crate::sql::ast::QueryStatement::Select(select) = &parsed.statement {
+            crate::sql::binder::collect_functions(select, &mut calls);
+        }
+        for call in calls {
+            let selected = all_functions.iter().find(|candidate| {
+                view.function_dependency_ids.contains(&candidate.object_id)
+                    && crate::catalog::local_name(&candidate.name)
+                        .eq_ignore_ascii_case(&crate::catalog::local_name(&call.name))
+            });
+            if let Some(selected) = selected {
+                functions.insert(call.name.to_ascii_lowercase(), selected.clone());
+            }
+        }
         (
             build_logical_plan_in_context(env.cassie, &context, &parsed)?,
             Some(functions),
@@ -317,9 +345,14 @@ fn execute_view_source(
     };
     let mut view_cte_context = CteContext::new();
     let rows = if let Some(functions) = &stored_functions {
-        let plan_env = plan_execution_env_with_parameter_oids(
+        let context = crate::sql::binder::BindingContext::scoped(
+            view.function_dependency_database.clone(),
+            view.function_dependency_search_path.clone(),
+        );
+        let plan_env = super::plan_execution_env_with_binding_context(
             env.cassie,
             env.session,
+            &context,
             functions,
             env.params,
             env.parameter_type_oids,
@@ -595,6 +628,7 @@ pub(super) fn source_execution_env_with_parameter_oids<'a>(
     SourceExecutionEnv {
         cassie,
         session,
+        binding_context: None,
         user_functions,
         params,
         parameter_type_oids,
@@ -737,6 +771,7 @@ fn resolve_filter_or_correlate(
         &ExistsResolutionContext {
             cassie: env.cassie,
             session: env.session,
+            binding_context: env.binding_context,
             cte_context,
             user_functions: env.user_functions,
             params: env.params,
@@ -762,6 +797,7 @@ fn resolve_plan_filter(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,
@@ -816,6 +852,7 @@ fn apply_aggregate_phase(
         &SourceExecutionEnv {
             cassie: env.cassie,
             session: env.session,
+            binding_context: env.binding_context,
             user_functions: env.user_functions,
             params: env.params,
             parameter_type_oids: env.parameter_type_oids,

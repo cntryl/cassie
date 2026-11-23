@@ -23,6 +23,7 @@ fn should_hold_values_deletion_output_through_source_row_ownership() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],
@@ -54,6 +55,7 @@ fn should_release_values_deletion_owner_when_canceled_before_output_transfer() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],
@@ -79,6 +81,7 @@ fn should_enforce_measured_values_deletion_overlap_budget() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

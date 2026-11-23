@@ -721,6 +721,7 @@ fn read_rollup_source_batches(
     let env = super::source::SourceExecutionEnv {
         cassie,
         session: None,
+        binding_context: None,
         user_functions,
         params: &[],
         parameter_type_oids: &[],

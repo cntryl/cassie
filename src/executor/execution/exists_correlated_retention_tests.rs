@@ -62,6 +62,7 @@ fn should_retain_enclosing_row_owners_for_exists_scope() {
     let context = ExistsResolutionContext {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],
@@ -177,6 +178,7 @@ fn scoped(
     let context = ExistsResolutionContext {
         cassie,
         session: None,
+        binding_context: None,
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],

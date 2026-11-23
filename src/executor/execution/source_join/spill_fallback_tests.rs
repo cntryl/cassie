@@ -30,6 +30,7 @@ fn should_record_spill_fallback_before_merge_retention_failure() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

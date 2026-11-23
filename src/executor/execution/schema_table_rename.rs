@@ -42,7 +42,14 @@ pub(super) fn validate_rewritten_view(
 ) -> Result<(), QueryError> {
     let parsed = super::super::domain_view_dependents::parse_view(cassie, &view.query, None)
         .ok_or_else(|| unsafe_dependent_view_error(&view.name, kind))?;
-    let context = cassie.binding_context_for_session(None);
+    let context = if view.function_dependency_database.is_empty() {
+        cassie.binding_context_for_session(None)
+    } else {
+        crate::sql::binder::BindingContext::scoped(
+            view.function_dependency_database.clone(),
+            view.function_dependency_search_path.clone(),
+        )
+    };
     let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)
         .map_err(|_| unsafe_dependent_view_error(&view.name, kind))?;
     let crate::sql::ast::QueryStatement::Select(select) = &bound.statement.statement else {

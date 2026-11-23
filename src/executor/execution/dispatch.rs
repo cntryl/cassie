@@ -38,6 +38,7 @@ struct AccessPathExecutor {
 pub(super) struct PlanExecutionEnv<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) parameter_type_oids: &'a [i32],
@@ -56,6 +57,7 @@ struct AccessPathContext<'a> {
 pub(super) struct ExistsResolutionContext<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) cte_context: &'a CteContext,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
@@ -171,6 +173,27 @@ pub(super) fn plan_execution_env_with_parameter_oids<'a>(
     PlanExecutionEnv {
         cassie,
         session,
+        binding_context: None,
+        user_functions,
+        params,
+        parameter_type_oids,
+        controls,
+    }
+}
+
+pub(super) fn plan_execution_env_with_binding_context<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    binding_context: &'a crate::sql::binder::BindingContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    parameter_type_oids: &'a [i32],
+    controls: &'a QueryExecutionControls,
+) -> PlanExecutionEnv<'a> {
+    PlanExecutionEnv {
+        cassie,
+        session,
+        binding_context: Some(binding_context),
         user_functions,
         params,
         parameter_type_oids,
@@ -252,6 +275,7 @@ fn execute_plan_with_physical(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,
@@ -296,6 +320,10 @@ fn execute_plan_with_physical(
         env.parameter_type_oids,
         relational_controls.as_ref().unwrap_or(env.controls),
     );
+    let source_env = source::SourceExecutionEnv {
+        binding_context: env.binding_context,
+        ..source_env
+    };
     source::execute_source_query_with_outer_row(&source_env, plan, cte_context, outer_row)
 }
 
@@ -560,6 +588,7 @@ pub(super) fn resolve_statement_exists(
         &ExistsResolutionContext {
             cassie,
             session,
+            binding_context: None,
             cte_context: &cte_context,
             user_functions,
             params,
@@ -828,7 +857,10 @@ fn statement_binding_context(
 fn exists_binding_context(
     context: &ExistsResolutionContext<'_>,
 ) -> crate::sql::binder::BindingContext {
-    statement_binding_context(context.cassie, context.session)
+    context.binding_context.map_or_else(
+        || statement_binding_context(context.cassie, context.session),
+        Clone::clone,
+    )
 }
 
 pub(super) fn build_logical_plan(

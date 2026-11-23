@@ -59,10 +59,9 @@ fn should_validate_table_and_column_rewrites_in_the_view_function_scope() {
     );
 
     // Act
-    let column_rename = fixture
-        .execute("ALTER TABLE validation_source RENAME COLUMN id TO next_id");
-    let table_rename =
-        fixture.execute("ALTER TABLE validation_source RENAME TO validation_next");
+    let column_rename =
+        fixture.execute("ALTER TABLE validation_source RENAME COLUMN id TO next_id");
+    let table_rename = fixture.execute("ALTER TABLE validation_source RENAME TO validation_next");
     let rows = fixture.rows("SELECT id_value FROM validation_view");
 
     // Assert

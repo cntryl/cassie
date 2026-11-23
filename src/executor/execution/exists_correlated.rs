@@ -113,6 +113,7 @@ fn qualified_outer_row(
         let env = super::source::SourceExecutionEnv {
             cassie: context.cassie,
             session: context.session,
+            binding_context: context.binding_context,
             user_functions: context.user_functions,
             params: context.params,
             parameter_type_oids: context.parameter_type_oids,

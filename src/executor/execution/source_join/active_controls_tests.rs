@@ -37,6 +37,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

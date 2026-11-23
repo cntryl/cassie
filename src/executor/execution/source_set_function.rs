@@ -222,6 +222,7 @@ pub(super) fn argument_value(
     let context = super::ExistsResolutionContext {
         cassie: env.cassie,
         session: env.session,
+        binding_context: env.binding_context,
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,

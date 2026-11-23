@@ -445,6 +445,7 @@ fn rename_schema_descendants(
     let relation_renames = relation_rename_map(&collection_renames);
 
     rename_schema_collections(cassie, session, &collection_renames)?;
+    rename_schema_functions(cassie, current_schema, next_schema)?;
     publish_schema_view_renames(cassie, view_renames)?;
     schema_sequence_rename::rename_schema_sequences(
         cassie,
@@ -462,6 +463,24 @@ fn rename_schema_descendants(
     rename_schema_retention_policies(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
 
+    Ok(())
+}
+
+fn rename_schema_functions(
+    cassie: &Cassie,
+    current_schema: &str,
+    next_schema: &str,
+) -> Result<(), QueryError> {
+    for mut function in cassie.catalog.list_functions() {
+        if !object_in_schema(&function.name, current_schema) {
+            continue;
+        }
+        let current_name = function.name.clone();
+        function.name =
+            rewrite_relation_name_for_schema(&function.name, current_schema, next_schema);
+        cassie.midge.delete_function(&current_name)?;
+        cassie.midge.put_function(&function)?;
+    }
     Ok(())
 }
 
@@ -498,6 +517,7 @@ fn prepare_schema_view_renames(
     for mut view in cassie.catalog.list_views() {
         let current_name = view.name.clone();
         let current_query = view.query.clone();
+        let current_function_search_path = view.function_dependency_search_path.clone();
         let parsed = super::super::domain_view_dependents::parse_view(cassie, &view.query, None);
         if parsed.is_none() && has_schema_qualified_name(&view.query, &current_local) {
             return Err(unsafe_view_rename_error(&view.name));
@@ -515,7 +535,15 @@ fn prepare_schema_view_renames(
         if object_in_schema(&view.name, current_schema) {
             view.name = rewrite_relation_name_for_schema(&view.name, current_schema, next_schema);
         }
-        if view.name != current_name || view.query != current_query {
+        for schema in &mut view.function_dependency_search_path {
+            if schema.eq_ignore_ascii_case(&current_local) {
+                schema.clone_from(&next_local);
+            }
+        }
+        if view.name != current_name
+            || view.query != current_query
+            || view.function_dependency_search_path != current_function_search_path
+        {
             rewrites.push((current_name, view));
         }
     }

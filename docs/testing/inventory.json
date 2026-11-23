@@ -311563,7 +311563,7 @@
       "name": "should_reject_over_cap_returning_before_publishing_inserted_rows",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "line": 379,
-      "end_line": 400,
+      "end_line": 398,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -382364,8 +382364,8 @@
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 400,
-      "sha256": "c3a6f1ef631d2a79d45410dd7a70e3a8076c8fc4deda41e6452ad8461211641b",
+      "lines": 398,
+      "sha256": "4c361d44c237fefb98bcc1eb2e606724fa348569e5a9d45d79120a54fe997914",
       "test_declarations": 19,
       "registered_suites": [
         "sql_queries"

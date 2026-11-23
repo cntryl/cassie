@@ -218,7 +218,23 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .get_materialized_projection("copy_rollback_projection")
         .expect("projection metadata")
         .collection;
+    let indexes_before = cassie.catalog.list_indexes("copy_rollback_state");
+    let index_name = &indexes_before
+        .iter()
+        .find(|index| index.kind == cassie::catalog::IndexKind::Column)
+        .expect("column index metadata")
+        .name;
     let query = "SELECT title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    let eligible_column_query =
+        "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
+    let explain = |sql: &str| {
+        cassie
+            .execute_sql(&session, &format!("EXPLAIN {sql}"), Vec::new())
+            .expect("explain column-batch read")
+            .rows()
+            .to_vec()
+    };
+    let eligible_column_plan_before = explain(eligible_column_query);
     let select_rows = || {
         cassie
             .execute_sql(&session, query, Vec::new())
@@ -307,17 +323,7 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         .expect("rollback transactional COPY");
     let cached_after_rollback = select_rows();
     let hits_after_rollback = cache_hits();
-    let eligible_column_query =
-        "SELECT tag, title FROM copy_rollback_state WHERE tag = 'kept' ORDER BY title";
-    let eligible_column_plan = cassie
-        .execute_sql(
-            &session,
-            &format!("EXPLAIN {eligible_column_query}"),
-            Vec::new(),
-        )
-        .expect("explain column-batch rollback read")
-        .rows()
-        .to_vec();
+    let eligible_column_plan = explain(eligible_column_query);
     let scans_before_eligible_read = column_scans();
     let column_rows_after_rollback = cassie
         .execute_sql(&session, eligible_column_query, Vec::new())
@@ -354,14 +360,34 @@ fn should_restore_warm_publication_state_after_transactional_copy_rollback() {
         scans_after_baseline > scans_before_baseline,
         "the exact baseline read must use column batches"
     );
+    let [plan_row_before] = eligible_column_plan_before.as_slice() else {
+        panic!("expected one pre-COPY column-batch plan row");
+    };
     let [plan_row] = eligible_column_plan.as_slice() else {
         panic!("expected one column-batch plan row");
+    };
+    let [Value::String(plan_before)] = plan_row_before.as_slice() else {
+        panic!("expected textual pre-COPY column-batch plan");
     };
     let [Value::String(plan)] = plan_row.as_slice() else {
         panic!("expected textual column-batch plan");
     };
-    assert!(plan.contains("column_batch_index=copy_rollback_state_idx"));
-    assert!(plan.contains("column_fallback_reason=none"));
+    let canonical_index = format!("column_batch_index={index_name}");
+    assert!(plan_before.contains(&canonical_index));
+    assert!(
+        plan.contains(&canonical_index),
+        "post-rollback plan: {plan}"
+    );
+    assert_eq!(plan, plan_before);
+    assert_eq!(
+        cassie.catalog.list_indexes("copy_rollback_state"),
+        indexes_before
+    );
+    assert_eq!(session.transaction_status(), "idle");
+    assert!(
+        plan.contains("column_fallback_reason=none"),
+        "post-rollback plan: {plan}"
+    );
     assert!(
         scans_after_eligible_read > scans_before_eligible_read,
         "the eligible post-rollback read must use the preserved column batches"

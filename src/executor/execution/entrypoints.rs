@@ -261,14 +261,6 @@ pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) 
     rollups::rewrite_name_for_plan(cassie, plan)
 }
 
-/// Marks the rollups of `source` stale for a transaction that staged writes to it.
-pub(crate) fn mark_source_rollups_stale_external(
-    cassie: &Cassie,
-    source: &str,
-) -> Result<(), QueryError> {
-    rollups::mark_source_rollups_stale(cassie, source)
-}
-
 fn user_functions_for_plan(
     cassie: &Cassie,
     session: Option<&CassieSession>,

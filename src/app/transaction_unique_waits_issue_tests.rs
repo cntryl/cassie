@@ -382,6 +382,85 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
 }
 
 #[test]
+fn should_recheck_all_three_keys_before_waiting_on_another_owner() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    cassie
+        .execute_sql(
+            &cassie.create_session("issue_1466_setup", None),
+            "CREATE TABLE three_key_waits \
+             (a INT CONSTRAINT three_key_waits_a_key UNIQUE, \
+              b INT CONSTRAINT three_key_waits_b_key UNIQUE, \
+              c INT CONSTRAINT three_key_waits_c_key UNIQUE)",
+            Vec::new(),
+        )
+        .expect("create the three-key fixture");
+    let first_owner = cassie.create_session("issue_1466_first_owner", None);
+    let second_owner = cassie.create_session("issue_1466_second_owner", None);
+    for (session, insert) in [
+        (
+            &first_owner,
+            "INSERT INTO three_key_waits VALUES (1, 10, 100)",
+        ),
+        (
+            &second_owner,
+            "INSERT INTO three_key_waits VALUES (20, 2, 200)",
+        ),
+    ] {
+        for sql in ["BEGIN", insert] {
+            cassie
+                .execute_sql(session, sql, Vec::new())
+                .expect("stage a unique owner");
+        }
+    }
+    let waiter = cassie.create_session("issue_1466_three_key_waiter", None);
+    let (events, worker) = start_observed_insert(
+        cassie.clone(),
+        waiter,
+        "INSERT INTO three_key_waits VALUES (1, 11, 101), (40, 2, 6)",
+    );
+    assert!(matches!(receive_event(&events), WaitEvent::ReachedWait));
+    cassie
+        .execute_sql(
+            &cassie.create_session("issue_1466_committer", None),
+            "INSERT INTO three_key_waits VALUES (30, 30, 6)",
+            Vec::new(),
+        )
+        .expect("commit a conflict on the third key while the INSERT waits");
+
+    // Act
+    cassie
+        .execute_sql(&first_owner, "ROLLBACK", Vec::new())
+        .expect("release the first waited key");
+    let result = receive_event(&events);
+    worker.join().expect("three-key INSERT worker");
+    cassie
+        .execute_sql(&second_owner, "ROLLBACK", Vec::new())
+        .expect("release the second potential waiter");
+
+    // Assert
+    assert!(matches!(
+        result,
+        WaitEvent::Completed(Err(ref error))
+            if is_unique_violation_for(error, "three_key_waits_c_key")
+    ));
+    assert_eq!(
+        cassie
+            .execute_sql(
+                &first_owner,
+                "SELECT a, b, c FROM three_key_waits ORDER BY a",
+                Vec::new(),
+            )
+            .expect("read committed three-key rows")
+            .rows()
+            .to_vec(),
+        vec![vec![Value::Int64(30), Value::Int64(30), Value::Int64(6)]]
+    );
+}
+
+#[test]
 fn should_wait_for_autocommit_insert_while_delete_owner_is_unresolved() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_delete_owner");

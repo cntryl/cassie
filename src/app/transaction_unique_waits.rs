@@ -774,6 +774,7 @@ mod tests {
     use super::*;
     use crate::config::CassieRuntimeLimits;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+    use std::sync::{mpsc, Arc};
     use std::time::Instant;
 
     fn unique_key() -> UniqueTransactionKey {
@@ -856,53 +857,66 @@ mod tests {
     }
 
     #[test]
-    fn should_not_clear_newer_wait_from_a_retired_attempt() {
+    fn should_not_clear_newer_wait_from_synchronized_obsolete_cleanup() {
         // Arrange
-        let waits = TransactionUniqueWaits::default();
+        let waits = Arc::new(TransactionUniqueWaits::default());
         let blocker = Uuid::new_v4();
         let waiter = Uuid::new_v4();
-        let first_key = unique_key();
-        let second_key = UniqueTransactionKey {
-            value: "\"second\"".to_owned(),
-            ..unique_key()
-        };
+        let key = unique_key();
         waits
-            .claim_keys(
-                blocker,
-                &BTreeSet::from([first_key.clone(), second_key.clone()]),
-            )
-            .expect("blocker claims both keys");
+            .claim_keys(blocker, &BTreeSet::from([key.clone()]))
+            .expect("blocker claims the key");
         let UniqueKeyClaim::Wait {
             wait_id: retired_wait_id,
             ..
         } = waits
-            .claim_keys(waiter, &BTreeSet::from([first_key.clone()]))
+            .claim_keys(waiter, &BTreeSet::from([key.clone()]))
             .expect("retired wait claim")
         else {
-            panic!("expected the first wait");
-        };
-        waits
-            .restore_owner_keys(waiter, &BTreeSet::new())
-            .expect("retire first wait");
-        let UniqueKeyClaim::Wait {
-            wait_id: newer_wait_id,
-            ..
-        } = waits
-            .claim_keys(waiter, &BTreeSet::from([second_key]))
-            .expect("newer wait claim")
-        else {
-            panic!("expected the newer wait");
+            panic!("expected the original wait");
         };
         let cancellation = QueryCancellationHandle::new();
-        cancellation.cancel();
         let controls = QueryExecutionControls::with_cancellation(
             &CassieRuntimeLimits::default(),
             Instant::now(),
-            cancellation,
+            cancellation.clone(),
         );
+        let (waiting_sender, waiting_receiver) = mpsc::channel();
+        let worker = {
+            let waits = Arc::clone(&waits);
+            let key = key.clone();
+            std::thread::spawn(move || {
+                let _observer = observe_next_unique_transaction_wait_for_test(move || {
+                    waiting_sender.send(()).expect("replacement observer");
+                });
+                waits.wait_for_key(waiter, blocker, &key, retired_wait_id, &controls)
+            })
+        };
+        waiting_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("obsolete waiter reaches the condition variable");
+        let newer_wait_id = Uuid::new_v4();
 
         // Act
-        let result = waits.wait_for_key(waiter, blocker, &first_key, retired_wait_id, &controls);
+        {
+            let mut state = waits.state.lock();
+            assert_eq!(
+                state.waits_for.insert(
+                    waiter,
+                    WaitEdge {
+                        blocker,
+                        id: newer_wait_id,
+                    },
+                ),
+                Some(WaitEdge {
+                    blocker,
+                    id: retired_wait_id,
+                })
+            );
+            cancellation.cancel();
+            waits.changed.notify_all();
+        }
+        let result = worker.join().expect("obsolete cleanup worker");
 
         // Assert
         assert!(matches!(result, Err(CassieError::QueryCanceled)));

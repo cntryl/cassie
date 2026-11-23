@@ -182,9 +182,9 @@
     ],
     "files": 1913,
     "rust_files": 1869,
-    "rust_test_declarations": 11543,
+    "rust_test_declarations": 11555,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11568,
+    "registered_rust_instances": 11580,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -311934,8 +311934,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_return_the_limited_rows_when_the_offset_exceeds_the_result_cap",
       "name": "should_return_the_limited_rows_when_the_offset_exceeds_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 37,
-      "end_line": 46,
+      "line": 50,
+      "end_line": 59,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -311965,8 +311965,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_return_every_row_after_an_offset_that_exceeds_the_result_cap",
       "name": "should_return_every_row_after_an_offset_that_exceeds_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 49,
-      "end_line": 58,
+      "line": 62,
+      "end_line": 71,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -311996,8 +311996,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_return_the_limited_rows_past_the_result_cap_with_one_scan_worker",
       "name": "should_return_the_limited_rows_past_the_result_cap_with_one_scan_worker",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 61,
-      "end_line": 70,
+      "line": 74,
+      "end_line": 83,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -312027,8 +312027,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_return_distinct_rows_after_an_offset_within_the_result_cap",
       "name": "should_return_distinct_rows_after_an_offset_within_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 73,
-      "end_line": 84,
+      "line": 86,
+      "end_line": 97,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -312058,8 +312058,8 @@
       "id": "tests/sql_queries/offset_result_cap.rs::should_still_refuse_a_result_larger_than_the_cap_after_an_offset",
       "name": "should_still_refuse_a_result_larger_than_the_cap_after_an_offset",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 87,
-      "end_line": 96,
+      "line": 100,
+      "end_line": 117,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -312086,11 +312086,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/offset_result_cap.rs::should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap",
-      "name": "should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap",
+      "id": "tests/sql_queries/offset_result_cap.rs::should_aggregate_a_derived_table_larger_than_the_result_cap",
+      "name": "should_aggregate_a_derived_table_larger_than_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 99,
-      "end_line": 115,
+      "line": 120,
+      "end_line": 133,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -312098,7 +312098,100 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "offset_result_cap::should_refuse_an_insert_whose_generated_source_exceeds_the_result_cap"
+          "name": "offset_result_cap::should_aggregate_a_derived_table_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/core",
+        "directory": "tests/sql_queries/aggregates/core",
+        "file": "tests/sql_queries/aggregates/core/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_aggregate_an_in_subquery_larger_than_the_result_cap",
+      "name": "should_aggregate_an_in_subquery_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 136,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_aggregate_an_in_subquery_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/core",
+        "directory": "tests/sql_queries/aggregates/core",
+        "file": "tests/sql_queries/aggregates/core/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_aggregate_a_joined_subquery_larger_than_the_result_cap",
+      "name": "should_aggregate_a_joined_subquery_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 148,
+      "end_line": 158,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_aggregate_a_joined_subquery_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/core",
+        "directory": "tests/sql_queries/aggregates/core",
+        "file": "tests/sql_queries/aggregates/core/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_insert_every_row_from_a_derived_source_larger_than_the_result_cap",
+      "name": "should_insert_every_row_from_a_derived_source_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 161,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_insert_every_row_from_a_derived_source_larger_than_the_result_cap"
         }
       ],
       "attributes": [
@@ -312117,11 +312210,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/offset_result_cap.rs::should_insert_a_generated_source_that_fits_the_result_cap",
-      "name": "should_insert_a_generated_source_that_fits_the_result_cap",
+      "id": "tests/sql_queries/offset_result_cap.rs::should_update_every_matching_row_from_a_derived_source_larger_than_the_result_cap",
+      "name": "should_update_every_matching_row_from_a_derived_source_larger_than_the_result_cap",
       "current_file": "tests/sql_queries/offset_result_cap.rs",
-      "line": 118,
-      "end_line": 134,
+      "line": 180,
+      "end_line": 200,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -312129,7 +312222,286 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "offset_result_cap::should_insert_a_generated_source_that_fits_the_result_cap"
+          "name": "offset_result_cap::should_update_every_matching_row_from_a_derived_source_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_update_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "name": "should_update_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 203,
+      "end_line": 225,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_update_every_matching_row_from_a_direct_source_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_delete_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "name": "should_delete_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 228,
+      "end_line": 250,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_delete_every_matching_row_from_a_direct_source_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_merge_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "name": "should_merge_every_matching_row_from_a_direct_source_larger_than_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 253,
+      "end_line": 277,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_merge_every_matching_row_from_a_direct_source_larger_than_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_consume_over_cap_data_modifying_cte_returning_rows_as_an_input",
+      "name": "should_consume_over_cap_data_modifying_cte_returning_rows_as_an_input",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 280,
+      "end_line": 299,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_consume_over_cap_data_modifying_cte_returning_rows_as_an_input"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_rollback_modifying_cte_when_query_memory_budget_is_exceeded",
+      "name": "should_rollback_modifying_cte_when_query_memory_budget_is_exceeded",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 302,
+      "end_line": 324,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_rollback_modifying_cte_when_query_memory_budget_is_exceeded"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget",
+      "name": "should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 327,
+      "end_line": 345,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_execute_modifying_cte_returning_when_retained_copies_fit_the_budget"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_allow_empty_result_at_zero_row_cap",
+      "name": "should_allow_empty_result_at_zero_row_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 348,
+      "end_line": 357,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_allow_empty_result_at_zero_row_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_insert_every_generated_source_row_under_the_result_cap",
+      "name": "should_insert_every_generated_source_row_under_the_result_cap",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 360,
+      "end_line": 376,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_insert_every_generated_source_row_under_the_result_cap"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "expressions",
+        "directory": "tests/sql_queries/expressions",
+        "file": "tests/sql_queries/expressions/offset_result_cap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/offset_result_cap.rs::should_reject_over_cap_returning_before_publishing_inserted_rows",
+      "name": "should_reject_over_cap_returning_before_publishing_inserted_rows",
+      "current_file": "tests/sql_queries/offset_result_cap.rs",
+      "line": 379,
+      "end_line": 398,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "offset_result_cap::should_reject_over_cap_returning_before_publishing_inserted_rows"
         }
       ],
       "attributes": [
@@ -382936,14 +383308,15 @@
     {
       "current_file": "tests/sql_queries/offset_result_cap.rs",
       "role": "test_module",
-      "action": "move_with_module_alias",
-      "lines": 134,
-      "sha256": "e4d75d900e08cfd073e1d1bccf48d079b2c23f15fd26059ab45fd37679f86a59",
-      "test_declarations": 7,
+      "action": "split_by_contract",
+      "lines": 398,
+      "sha256": "4c361d44c237fefb98bcc1eb2e606724fa348569e5a9d45d79120a54fe997914",
+      "test_declarations": 19,
       "registered_suites": [
         "sql_queries"
       ],
       "destinations": [
+        "tests/sql_queries/aggregates/core/offset_result_cap.rs",
         "tests/sql_queries/expressions/offset_result_cap.rs"
       ],
       "line_limit": 1000

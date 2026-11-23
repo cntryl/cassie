@@ -55,11 +55,12 @@ pub(super) fn target_rows(
     scope: &ExecutionScope<'_>,
     table: &str,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let controls = crate::executor::execution::entrypoints::statement_read_controls(
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
         scope.cassie,
         scope.session,
         scope.controls,
     )?;
+    let controls = statement_controls.for_uncapped_input();
     let (_read_scope, _overlay_scope) =
         crate::executor::execution::entrypoints::enter_statement_read(&controls);
     let batches = scan::scan(scope.cassie, scope.session, table, &controls)?;
@@ -75,11 +76,12 @@ pub(super) fn source_rows(
     let select = source.query.as_deref().ok_or_else(|| {
         QueryError::General("mutation source was not bound before execution".to_string())
     })?;
-    let controls = crate::executor::execution::entrypoints::statement_read_controls(
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
         scope.cassie,
         scope.session,
         scope.controls,
     )?;
+    let controls = statement_controls.for_uncapped_input();
     let (_read_scope, _overlay_scope) =
         crate::executor::execution::entrypoints::enter_statement_read(&controls);
     let mut logical = select_plan(select);

@@ -510,6 +510,25 @@ fn should_evaluate_a_scalar_subquery_in_a_function_in_order_by() {
 }
 
 #[test]
+fn should_evaluate_a_function_body_subquery_in_a_true_order_by_expression() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_order_expression",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows("SELECT 1 FROM generate_series(1, 2) g ORDER BY peek()");
+
+    // Assert
+    assert_eq!(result, vec![vec![Value::Int64(1)], vec![Value::Int64(1)]]);
+}
+
+#[test]
 fn should_evaluate_a_scalar_subquery_in_a_function_in_aggregate_filter() {
     // Arrange
     let fixture = sql_fixture(

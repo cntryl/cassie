@@ -555,6 +555,31 @@ fn should_evaluate_a_scalar_subquery_in_a_function_in_aggregate_filter() {
 }
 
 #[test]
+fn should_preserve_a_routine_scalar_subquery_in_a_window_aggregate() {
+    // Arrange
+    let fixture = sql_fixture(
+        "routine_scalar_subquery_window_aggregate",
+        &[
+            "CREATE TABLE secret (ssn TEXT)",
+            "INSERT INTO secret VALUES ('123')",
+            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+        ],
+    );
+
+    // Act
+    let result = fixture.rows(
+        "SELECT count(peek()) OVER () \
+         FROM generate_series(1, 2) g",
+    );
+
+    // Assert
+    assert_eq!(
+        result,
+        vec![vec![Value::Int64(2)], vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
 fn should_skip_a_routine_subquery_argument_when_aggregate_filter_is_false() {
     // Arrange
     let fixture = sql_fixture(

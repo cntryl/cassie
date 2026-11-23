@@ -18,7 +18,6 @@ struct AddColumnContext<'a> {
     existing: bool,
     atomic_storage: bool,
     sequences: &'a [crate::catalog::SequenceMeta],
-    merged_constraints: &'a [crate::catalog::FieldConstraint],
     default_value: Option<serde_json::Value>,
 }
 
@@ -73,8 +72,6 @@ pub(super) fn alter_table_add_column(
         data_type,
         constraints,
     )?;
-    let mut merged_constraints = cassie.catalog.get_constraints(table);
-    crate::catalog::merge_constraint_set(&mut merged_constraints, constraints.to_vec());
     // A volatile default is evaluated once and backfilled like PostgreSQL.
     let default_value = constraints
         .iter()
@@ -104,7 +101,6 @@ pub(super) fn alter_table_add_column(
         existing,
         atomic_storage,
         sequences: &sequences,
-        merged_constraints: &merged_constraints,
         default_value,
     };
     #[cfg(test)]
@@ -165,6 +161,8 @@ fn apply_add_column_under_gates(
         if_not_exists,
         ..
     } = *context.column;
+    let mut merged_constraints = cassie.catalog.get_constraints(context.table);
+    crate::catalog::merge_constraint_set(&mut merged_constraints, constraints.to_vec());
     let default_value = cassie.domain_add_column_default(
         context.session,
         context.table,
@@ -184,7 +182,7 @@ fn apply_add_column_under_gates(
         false
     };
     if resumed {
-        return finish_resumed_field_add(cassie, context);
+        return finish_resumed_field_add(cassie, context, &merged_constraints);
     }
     if if_not_exists && context.existing {
         return Ok(());
@@ -203,7 +201,7 @@ fn apply_add_column_under_gates(
         context.column,
         default_value,
         context.atomic_storage,
-        context.merged_constraints,
+        &merged_constraints,
         &sequence_metadata,
     )?;
 
@@ -212,7 +210,7 @@ fn apply_add_column_under_gates(
         if !constraints.is_empty() {
             cassie
                 .catalog
-                .register_constraints(context.table, context.merged_constraints.to_vec());
+                .register_constraints(context.table, merged_constraints.clone());
         }
         if let Err(error) = refresh_table_cardinality_stats(cassie, context.table) {
             cassie.catalog.clear_cardinality_stats(context.table);
@@ -227,14 +225,11 @@ fn apply_add_column_under_gates(
         if !constraints.is_empty() {
             cassie
                 .midge
-                .save_constraints_with_unique_reservations(
-                    context.table,
-                    context.merged_constraints,
-                )
+                .save_constraints_with_unique_reservations(context.table, &merged_constraints)
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie
                 .catalog
-                .register_constraints(context.table, context.merged_constraints.to_vec());
+                .register_constraints(context.table, merged_constraints.clone());
         }
         refresh_table_cardinality_stats(cassie, context.table)
     }
@@ -243,6 +238,7 @@ fn apply_add_column_under_gates(
 fn finish_resumed_field_add(
     cassie: &Cassie,
     context: &AddColumnContext<'_>,
+    merged_constraints: &[crate::catalog::FieldConstraint],
 ) -> Result<(), QueryError> {
     cassie.catalog.unregister_maintenance_debt(
         context.table,
@@ -254,11 +250,11 @@ fn finish_resumed_field_add(
     if !context.column.constraints.is_empty() {
         cassie
             .midge
-            .save_constraints_with_unique_reservations(context.table, context.merged_constraints)
+            .save_constraints_with_unique_reservations(context.table, merged_constraints)
             .map_err(QueryError::from)?;
         cassie
             .catalog
-            .register_constraints(context.table, context.merged_constraints.to_vec());
+            .register_constraints(context.table, merged_constraints.to_vec());
     }
     refresh_table_cardinality_stats(cassie, context.table)
 }

@@ -54,64 +54,17 @@ pub(super) fn execute_atomic_dml(
             let arbitrate = wait_for_unique_owner
                 || (include_preimages && !batch.session().is_repeatable_read_write());
             batch.session().set_defer_unique_wait_duplicate(arbitrate);
-            let statement_controls = super::super::entrypoints::working_statement_read_controls(
-                cassie,
-                session,
-                batch.session(),
-                controls,
-            )?;
-            let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
-            let result = execute(&working_cassie, batch.session(), &statement_controls)?;
-            check_timeout(controls)?;
-
-            let Some(original) = session else {
-                return Err(QueryError::from(crate::app::CassieError::Execution(
-                    "DML unique-key ownership requires a session".to_owned(),
-                )));
-            };
-            if !batch.matches_current_owner(original) {
-                return Err(QueryError::from(crate::app::CassieError::Execution(
-                    "session transaction changed while DML was executing".to_owned(),
-                )));
-            }
-            if !arbitrate {
-                cassie.publish_statement_batch(Some(original), batch, controls)?;
-                return Ok(AtomicDmlAttempt::Published(result));
-            }
-            let owner = if batch.has_enclosing_transaction() {
-                batch.unique_owner_id()
-            } else {
-                uuid::Uuid::new_v4()
-            };
-            let catalog = batch
-                .session()
-                .transaction_catalog_overlay()
-                .unwrap_or_else(|| cassie.catalog.clone());
-            let (keys, candidate_keys) = {
-                let _read = crate::midge::adapter::StatementReadScope::enter(None);
-                let _overlay = crate::app::SessionReadScope::enter(None);
-                crate::app::collect_statement_unique_keys(
-                    &catalog,
-                    &cassie.midge,
-                    batch.session(),
-                    &batch.changed_row_ids()?,
+            attempt_new_unique_dml(
+                NewUniqueDml {
+                    cassie,
+                    session,
+                    controls,
+                    wait_for_unique_owner,
                     include_preimages,
-                )?
-            };
-            let pending = PendingUniqueDml {
-                owner,
-                batch,
-                result,
-                keys,
-                candidate_keys,
-                resolved_keys: std::collections::BTreeSet::new(),
-            };
-            attempt_unique_dml_publication(
-                cassie,
-                original,
-                controls,
-                pending,
-                wait_for_unique_owner,
+                    arbitrate,
+                    batch,
+                },
+                &mut execute,
             )
         })?;
 
@@ -132,6 +85,92 @@ pub(super) fn execute_atomic_dml(
             }
         }
     }
+}
+
+struct NewUniqueDml<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    controls: &'a QueryExecutionControls,
+    wait_for_unique_owner: bool,
+    include_preimages: bool,
+    arbitrate: bool,
+    batch: crate::app::StatementMutationBatch,
+}
+
+fn attempt_new_unique_dml(
+    request: NewUniqueDml<'_>,
+    execute: &mut impl FnMut(
+        &Cassie,
+        &CassieSession,
+        &QueryExecutionControls,
+    ) -> Result<QueryResult, QueryError>,
+) -> Result<AtomicDmlAttempt, QueryError> {
+    let NewUniqueDml {
+        cassie,
+        session,
+        controls,
+        wait_for_unique_owner,
+        include_preimages,
+        arbitrate,
+        batch,
+    } = request;
+    let statement_controls = super::super::entrypoints::working_statement_read_controls(
+        cassie,
+        session,
+        batch.session(),
+        controls,
+    )?;
+    let working_cassie = cassie.with_statement_metadata_writer(batch.session())?;
+    let result = execute(&working_cassie, batch.session(), &statement_controls)?;
+    check_timeout(controls)?;
+    let Some(original) = session else {
+        return Err(QueryError::from(crate::app::CassieError::Execution(
+            "DML unique-key ownership requires a session".to_owned(),
+        )));
+    };
+    if !batch.matches_current_owner(original) {
+        return Err(QueryError::from(crate::app::CassieError::Execution(
+            "session transaction changed while DML was executing".to_owned(),
+        )));
+    }
+    if !arbitrate {
+        cassie.publish_statement_batch(Some(original), batch, controls)?;
+        return Ok(AtomicDmlAttempt::Published(result));
+    }
+    let owner = if batch.has_enclosing_transaction() {
+        batch.unique_owner_id()
+    } else {
+        uuid::Uuid::new_v4()
+    };
+    let catalog = batch
+        .session()
+        .transaction_catalog_overlay()
+        .unwrap_or_else(|| cassie.catalog.clone());
+    let (keys, candidate_keys) = {
+        let _read = crate::midge::adapter::StatementReadScope::enter(None);
+        let _overlay = crate::app::SessionReadScope::enter(None);
+        crate::app::collect_statement_unique_keys(
+            &catalog,
+            &cassie.midge,
+            batch.session(),
+            &batch.changed_row_ids()?,
+            include_preimages,
+        )?
+    };
+    attempt_unique_dml_publication(
+        cassie,
+        original,
+        controls,
+        PendingUniqueDml {
+            owner,
+            batch,
+            result,
+            keys,
+            candidate_keys,
+            resolved_keys: std::collections::BTreeSet::new(),
+        },
+        wait_for_unique_owner,
+    )
 }
 
 struct PendingUniqueDml {

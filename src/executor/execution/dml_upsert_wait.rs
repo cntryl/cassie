@@ -191,28 +191,15 @@ impl PendingUpsert {
             }
             UniqueKeyClaim::Claimed => {}
         }
-        let result: Result<QueryResult, QueryError> = (|| {
-            let result = super::dml::execute_prepared_insert(
-                &working_cassie,
-                batch.session(),
-                statement,
-                params,
-                functions,
-                controls,
-                prepared.take().expect("prepared candidates"),
-            )?;
-            let actual =
-                crate::app::collect_unique_keys(&cassie.catalog, &cassie.midge, batch.session());
-            let mut retained = previous.clone();
-            retained.extend(keys.intersection(&actual).cloned());
-            cassie.publish_statement_batch(session, batch, controls)?;
-            if session.is_some_and(CassieSession::is_transaction_active) {
-                cassie
-                    .transaction_unique_waits
-                    .restore_owner_keys(current_owner, &retained)?;
-            }
-            Ok(result)
-        })();
+        let result = publish_prepared_upsert(
+            request,
+            &working_cassie,
+            batch,
+            prepared,
+            current_owner,
+            previous,
+            keys,
+        );
         if result.is_err() || !session.is_some_and(CassieSession::is_transaction_active) {
             cassie
                 .transaction_unique_waits
@@ -220,6 +207,45 @@ impl PendingUpsert {
         }
         result.map(Attempt::Published)
     }
+}
+
+fn publish_prepared_upsert(
+    request: UpsertRequest<'_>,
+    working_cassie: &Cassie,
+    batch: crate::app::StatementMutationBatch,
+    prepared: &mut Option<super::dml::WaitingInsert>,
+    current_owner: uuid::Uuid,
+    previous: &BTreeSet<UniqueTransactionKey>,
+    keys: &BTreeSet<UniqueTransactionKey>,
+) -> Result<QueryResult, QueryError> {
+    let UpsertRequest {
+        cassie,
+        session,
+        statement,
+        params,
+        functions,
+        controls,
+        ..
+    } = request;
+    let result = super::dml::execute_prepared_insert(
+        working_cassie,
+        batch.session(),
+        statement,
+        params,
+        functions,
+        controls,
+        prepared.take().expect("prepared candidates"),
+    )?;
+    let actual = crate::app::collect_unique_keys(&cassie.catalog, &cassie.midge, batch.session());
+    let mut retained = previous.clone();
+    retained.extend(keys.intersection(&actual).cloned());
+    cassie.publish_statement_batch(session, batch, controls)?;
+    if session.is_some_and(CassieSession::is_transaction_active) {
+        cassie
+            .transaction_unique_waits
+            .restore_owner_keys(current_owner, &retained)?;
+    }
+    Ok(result)
 }
 
 enum Attempt {

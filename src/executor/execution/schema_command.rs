@@ -7,6 +7,10 @@ use crate::sql::ast::{
     DropViewStatement,
 };
 
+#[cfg(test)]
+#[path = "schema_command/drop_column_metadata_tests.rs"]
+mod drop_column_metadata_tests;
+
 #[path = "comment_cleanup.rs"]
 mod comment_cleanup;
 pub(in crate::executor::execution) use comment_cleanup::{

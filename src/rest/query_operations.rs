@@ -22,7 +22,7 @@ struct Registry {
 struct Operation {
     owner: String,
     cancellation: QueryCancellationHandle,
-    completed: Notify,
+    completed: Arc<Notify>,
 }
 
 pub(crate) struct Registration {
@@ -75,7 +75,7 @@ pub(crate) fn register(
     let operation = Arc::new(Operation {
         owner,
         cancellation,
-        completed: Notify::new(),
+        completed: Arc::new(Notify::new()),
     });
     registry.active.insert(id, Arc::clone(&operation));
     Ok(Registration {
@@ -86,7 +86,7 @@ pub(crate) fn register(
 }
 
 pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(), CancelError> {
-    let operation = {
+    let (operation, completed) = {
         let registry = REGISTRY.lock().expect("query operation registry");
         if registry
             .completed
@@ -95,18 +95,19 @@ pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(
         {
             return Err(CancelError::AlreadyCompleted);
         }
-        registry
+        let operation = registry
             .active
             .get(&id)
             .filter(|operation| operation.owner == owner)
             .cloned()
-            .ok_or(CancelError::NotFound)?
+            .ok_or(CancelError::NotFound)?;
+        let completed = operation.completed.clone().notified_owned();
+        (operation, completed)
     };
 
     #[cfg(test)]
     tests::finish_at_cancel_wait_boundary(id);
 
-    let completed = operation.completed.notified();
     operation.cancellation.cancel();
     tokio::time::timeout(timeout, completed)
         .await

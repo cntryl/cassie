@@ -33,7 +33,7 @@ or PostgreSQL catalog behavior is implemented.
 | Consumer | Catalog relation | Selected fields |
 | --- | --- | --- |
 | #818 object identifiers | `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl` |
-| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions` |
+| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions`; #1489 adds `reltoastrelid` for the psql describe join |
 | #818 object identifiers | `pg_type` | `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`, `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`, `typrelid` |
 | #818 object identifiers | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation` |
 | #828 composites and domains | `pg_class` addition | `reltype` |
@@ -52,6 +52,32 @@ extension. The `#818` conversion and lookup contract is owned by #818 (privilege
 unqualified visibility is implemented and tested, see the
 [object identifier contract](object-identifier-contract.md#visibility)); the base relation descriptors
 do not establish that lookup behavior by themselves.
+
+### Selected OID joins and definition helpers (#1486, #1489)
+
+For the documented `psql \d` describe joins, standard OID columns carry their
+relation or index OID as PostgreSQL `oid`. This includes
+`pg_class.relnamespace`, `pg_attribute.attrelid`, `pg_attrdef.adrelid`,
+`pg_index.indexrelid` and `indrelid`, and `pg_constraint.conrelid`,
+`conindid`, and `confrelid`. Existing auxiliary `*_oid` fields remain
+available where present. `pg_attrdef.adsrc` is retained, and `adbin` exposes
+the same supported stored expression text for `pg_get_expr`; it does not claim
+that Cassie stores PostgreSQL's internal `pg_node_tree` representation.
+
+`pg_class.reltoastrelid` is OID zero because Cassie does not create PostgreSQL
+TOAST relations. `pg_publication_rel` remains a typed empty catalog; the
+publication join binds and returns no rows. These fields do not synthesize
+TOAST relations or publication membership. The scope covers the explicitly
+listed describe joins and definition helper signatures, not general catalog
+parity.
+
+`format_type(oid, NULL)` returns the resolved bare type name; a NULL OID still
+returns SQL NULL. `pg_get_expr(expr, relid)` and its boolean-pretty form return
+the supported stored expression text, with a NULL expression returning SQL
+NULL. `pg_get_indexdef(oid)` and `pg_get_indexdef(oid, column, pretty)` return
+the full definition for column zero, the selected key name for a positive
+column, and empty text when the positive column is beyond the index keys. The
+pretty flag does not change the rendered output for these supported forms.
 
 Evidence for the #843 catalog rows (executed in the final full run on
 1d0750c19): descriptors in

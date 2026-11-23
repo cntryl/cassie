@@ -16,6 +16,13 @@ use super::{
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
 
+pub(super) fn invalid_function_signature(name: &str) -> QueryError {
+    QueryError::Cassie(
+        crate::app::DiagnosticError::new("42883", format!("function {name} does not exist"))
+            .into(),
+    )
+}
+
 #[path = "array_functions.rs"]
 mod array_functions;
 #[path = "bytea_functions.rs"]
@@ -400,7 +407,16 @@ fn evaluate_current_schemas(
 }
 
 fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 2)?;
+    require_arg_count_range(name, args, 2..=3)?;
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+    if args
+        .get(2)
+        .is_some_and(|pretty| !matches!(pretty, Value::Bool(_) | Value::Null))
+    {
+        return Err(invalid_function_signature(name));
+    }
     match text_arg(name, &args[0])? {
         Some(expression) => Ok(Value::String(
             crate::catalog::virtual_views::format_stored_expression(&expression),
@@ -760,9 +776,8 @@ fn evaluate_format_type(
     let oid = signed_integer_arg(name, &args[0])?;
     let typmod = signed_integer_arg(name, &args[1])?;
     Ok(match (oid, typmod) {
-        (Some(oid), Some(typmod)) => {
-            Value::String(format_type_oid_in_session(oid, typmod, session))
-        }
+        (Some(oid), Some(typmod)) => Value::String(format_type_oid_in_session(oid, typmod, session)),
+        (Some(oid), None) => Value::String(format_type_oid_in_session(oid, -1, session)),
         _ => Value::Null,
     })
 }

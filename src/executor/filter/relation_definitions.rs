@@ -1,7 +1,7 @@
 //! `pg_get_indexdef` and `pg_get_viewdef`: render a stored index or view
 //! definition looked up by name or by its relation OID.
 
-use super::{require_arg_count, require_arg_count_range, CassieSession, QueryError, Value};
+use super::{require_arg_count_range, CassieSession, QueryError, Value};
 use crate::types::object_id::FIRST_NORMAL_OBJECT_ID;
 
 pub(super) fn evaluate_pg_get_indexdef(
@@ -9,7 +9,19 @@ pub(super) fn evaluate_pg_get_indexdef(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 1)?;
+    require_arg_count_range(name, args, 1..=3)?;
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+    if args
+        .get(1)
+        .is_some_and(|column| !matches!(column, Value::Int64(_)))
+        || args
+            .get(2)
+            .is_some_and(|pretty| !matches!(pretty, Value::Bool(_)))
+    {
+        return Err(super::invalid_function_signature(name));
+    }
     let Some(argument) = args.first() else {
         return Err(QueryError::General(format!("{name} requires 1 arg")));
     };
@@ -19,10 +31,28 @@ pub(super) fn evaluate_pg_get_indexdef(
     let Some((catalog, _)) = session.and_then(CassieSession::object_lookup_context) else {
         return Ok(Value::Null);
     };
+    let column = args.get(1).and_then(|value| match value {
+        Value::Int64(column) => Some(*column),
+        _ => None,
+    });
     let definition = match argument {
-        Value::Int64(oid) => crate::catalog::virtual_views::index_definition_by_oid(&catalog, *oid),
+        Value::Int64(oid) => column.map_or_else(
+            || crate::catalog::virtual_views::index_definition_by_oid(&catalog, *oid),
+            |column| {
+                crate::catalog::virtual_views::index_column_definition_by_oid(
+                    &catalog, *oid, column,
+                )
+            },
+        ),
         Value::String(index_name) => {
-            crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name)
+            column.map_or_else(
+                || crate::catalog::virtual_views::index_definition_by_name(&catalog, index_name),
+                |column| {
+                    crate::catalog::virtual_views::index_column_definition_by_name(
+                        &catalog, index_name, column,
+                    )
+                },
+            )
         }
         _ => None,
     };

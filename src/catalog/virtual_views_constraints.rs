@@ -44,13 +44,14 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
     vec![
         int("oid"),
         text("conname"),
-        text("conrelid"),
+        super::virtual_views_pg::oid("conrelid"),
         int("conrelid_oid"),
         text("contype"),
-        text("conindid"),
+        super::virtual_views_pg::oid("conindid"),
+        int("conindid_oid"),
         int("connamespace_oid"),
         text("conkey"),
-        text("confrelid"),
+        super::virtual_views_pg::oid("confrelid"),
         int("confrelid_oid"),
         text("confkey"),
         bool("conenforced"),
@@ -341,7 +342,10 @@ fn pg_constraint_row(
             super::virtual_views_pg::constraint_oid(collection, constraint_name),
         ),
         string("conname", constraint_name.to_string()),
-        string("conrelid", local_name(collection)),
+        int_value(
+            "conrelid",
+            super::virtual_views_pg::relation_oid(catalog, collection),
+        ),
         int_value(
             "conrelid_oid",
             super::virtual_views_pg::relation_oid(catalog, collection),
@@ -350,9 +354,19 @@ fn pg_constraint_row(
         (
             "conindid".to_string(),
             if matches!(constraint_type, "p" | "u") {
-                catalog
-                    .get_index(collection, constraint_name)
-                    .map_or(Value::Null, |index| Value::String(local_name(&index.name)))
+                catalog.get_index(collection, constraint_name).map_or(Value::Null, |index| {
+                    Value::Int64(super::virtual_views_pg::index_oid(index))
+                })
+            } else {
+                Value::Null
+            },
+        ),
+        (
+            "conindid_oid".to_string(),
+            if matches!(constraint_type, "p" | "u") {
+                catalog.get_index(collection, constraint_name).map_or(Value::Null, |index| {
+                    Value::Int64(super::virtual_views_pg::index_oid(index))
+                })
             } else {
                 Value::Null
             },
@@ -370,7 +384,14 @@ fn pg_constraint_row(
             ),
         ),
         string("conkey", field_number(catalog, collection, field)),
-        string("confrelid", local_name(referenced_table)),
+        int_value(
+            "confrelid",
+            if referenced_table.is_empty() {
+                0
+            } else {
+                super::virtual_views_pg::relation_oid(catalog, referenced_table)
+            },
+        ),
         int_value(
             "confrelid_oid",
             if referenced_table.is_empty() {

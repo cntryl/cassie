@@ -31,6 +31,22 @@ pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<
     virtual_views_pg::index_definition_by_name(catalog, name)
 }
 
+pub(crate) fn index_column_definition_by_oid(
+    catalog: &Catalog,
+    oid: i64,
+    column: i64,
+) -> Option<String> {
+    virtual_views_pg::index_column_definition_by_oid(catalog, oid, column)
+}
+
+pub(crate) fn index_column_definition_by_name(
+    catalog: &Catalog,
+    name: &str,
+    column: i64,
+) -> Option<String> {
+    virtual_views_pg::index_column_definition_by_name(catalog, name, column)
+}
+
 pub(crate) fn format_stored_expression(expression: &str) -> String {
     virtual_views_pg::format_stored_expression(expression)
 }

@@ -462,6 +462,17 @@ pub(crate) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<Str
         .map(|index| index_definition(&index))
 }
 
+pub(crate) fn index_column_definition_by_oid(
+    catalog: &Catalog,
+    oid: i64,
+    column: i64,
+) -> Option<String> {
+    super::sorted_indexes(catalog)
+        .into_iter()
+        .find(|index| super::index_oid(index) == oid)
+        .map(|index| index_column_definition(&index, column))
+}
+
 pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<String> {
     let matches = super::sorted_indexes(catalog)
         .into_iter()
@@ -471,4 +482,39 @@ pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<
         [index] => Some(index_definition(index)),
         _ => None,
     }
+}
+
+pub(crate) fn index_column_definition_by_name(
+    catalog: &Catalog,
+    name: &str,
+    column: i64,
+) -> Option<String> {
+    let matches = super::sorted_indexes(catalog)
+        .into_iter()
+        .filter(|index| crate::catalog::name_matches(&index.name, name))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [index] => Some(index_column_definition(index, column)),
+        _ => None,
+    }
+}
+
+fn index_column_definition(index: &IndexMeta, column: i64) -> String {
+    if column == 0 {
+        return index_definition(index);
+    }
+    let Some(position) = column
+        .checked_sub(1)
+        .and_then(|position| usize::try_from(position).ok())
+    else {
+        return String::new();
+    };
+    let fields = index.normalized_fields();
+    if let Some(field) = fields.get(position) {
+        return crate::catalog::object_identity::quote_identifier(field);
+    }
+    index
+        .normalized_expressions()
+        .get(position.saturating_sub(fields.len()))
+        .map_or_else(String::new, |expression| format_stored_expression(expression))
 }

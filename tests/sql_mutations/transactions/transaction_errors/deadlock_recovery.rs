@@ -84,7 +84,7 @@ fn should_keep_deadlock_victim_keys_until_transaction_resolution() {
         "savepoint recovery must keep the victim key until owner commit"
     );
     assert!(
-        matches!(waiter_result, Err(CassieError::UniqueViolation { .. })),
+        matches!(waiter_result, Err(CassieError::Diagnostic(diagnostic)) if diagnostic.sql_state == "23505"),
         "the waiting INSERT fails after the recovered owner commits"
     );
     assert_eq!(

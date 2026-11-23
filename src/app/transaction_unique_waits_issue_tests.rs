@@ -62,6 +62,11 @@ fn rows(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
         .to_vec()
 }
 
+fn is_unique_violation_for(error: &CassieError, constraint: &str) -> bool {
+    let descriptor = error.descriptor();
+    descriptor.sql_state == "23505" && descriptor.constraint.as_deref() == Some(constraint)
+}
+
 #[test]
 fn should_make_waiting_insert_report_the_duplicate_after_update_owner_commits() {
     // Arrange
@@ -91,8 +96,7 @@ fn should_make_waiting_insert_report_the_duplicate_after_update_owner_commits() 
     assert!(reached_wait);
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation { constraint, .. }))
-            if constraint == "u_v_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "u_v_key")
     ));
     assert_eq!(
         rows(&cassie, &owner),
@@ -365,10 +369,7 @@ fn should_recheck_unique_value_after_delete_owner_rolls_back() {
     assert!(owner_rollback.is_ok());
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation {
-            constraint,
-            ..
-        })) if constraint == "u_v_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "u_v_key")
     ));
     assert_eq!(
         rows(&cassie, &owner),
@@ -450,10 +451,7 @@ fn should_wait_for_autocommit_insert_while_merge_updates_unique_value() {
     assert!(owner_commit.is_ok());
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation {
-            constraint,
-            ..
-        })) if constraint == "u_v_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "u_v_key")
     ));
     assert_eq!(
         rows(&cassie, &owner),
@@ -583,10 +581,7 @@ fn should_recheck_unique_value_after_merge_delete_owner_rolls_back() {
     assert!(owner_rollback.is_ok());
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation {
-            constraint,
-            ..
-        })) if constraint == "u_v_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "u_v_key")
     ));
     assert_eq!(
         rows(&cassie, &owner),
@@ -635,8 +630,7 @@ fn should_fail_explicit_waiter_insert_when_update_owner_commits() {
     assert!(reached_wait);
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation { constraint, .. }))
-            if constraint == "u_v_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "u_v_key")
     ));
     assert_eq!(waiter_status, "failed");
     assert!(following_statement.is_err());
@@ -802,10 +796,7 @@ fn should_recheck_other_unique_keys_after_waiter_owner_rolls_back() {
         .expect("commit the other unique key");
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation {
-            constraint,
-            ..
-        })) if constraint == "t_b_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "t_b_key")
     ));
     assert_eq!(status, "failed");
     assert!(following_statement.is_err());
@@ -845,10 +836,7 @@ fn should_report_waited_unique_key_conflict_after_owner_commits() {
     assert!(reached_wait);
     assert!(matches!(
         result_event,
-        WaitEvent::Completed(Err(CassieError::UniqueViolation {
-            constraint,
-            ..
-        })) if constraint == "t_a_key"
+        WaitEvent::Completed(Err(error)) if is_unique_violation_for(&error, "t_a_key")
     ));
     assert!(rollback.is_ok());
 }

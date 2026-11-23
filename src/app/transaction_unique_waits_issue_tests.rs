@@ -323,6 +323,65 @@ fn should_not_resume_autocommit_insert_in_a_replacement_transaction() {
 }
 
 #[test]
+fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1500_savepoint_owner");
+    for sql in ["BEGIN", "UPDATE u SET v = 99 WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage the blocking update");
+    }
+    let waiter = cassie.create_session("issue_1500_savepoint_waiter", None);
+    for sql in ["BEGIN", "INSERT INTO u VALUES (3, 3)", "SAVEPOINT retained"] {
+        cassie
+            .execute_sql(&waiter, sql, Vec::new())
+            .expect("stage the retained key");
+    }
+    let (events, worker) = start_observed_insert(
+        cassie.clone(),
+        waiter.clone(),
+        "INSERT INTO u VALUES (4, 99)",
+    );
+    assert!(matches!(receive_event(&events), WaitEvent::ReachedWait));
+
+    // Act
+    cassie
+        .execute_sql(&waiter, "ROLLBACK TO SAVEPOINT retained", Vec::new())
+        .expect("restore the transaction while its later statement waits");
+    let retired_result = receive_event(&events);
+    worker.join().expect("retired unique waiter");
+    let waits_after_retirement = cassie.transaction_unique_waits.waiting_count();
+    let contender = cassie.create_session("issue_1500_retained_owner_waiter", None);
+    let (contender_events, contender_worker) =
+        start_observed_insert(cassie.clone(), contender, "INSERT INTO u VALUES (5, 3)");
+    let retained_wait_event = receive_event(&contender_events);
+    cassie
+        .execute_sql(&waiter, "ROLLBACK", Vec::new())
+        .expect("release the retained key");
+    let contender_result = receive_event(&contender_events);
+    contender_worker
+        .join()
+        .expect("retained-key contender worker");
+    cassie
+        .execute_sql(&owner, "ROLLBACK", Vec::new())
+        .expect("release the blocking owner");
+
+    // Assert
+    assert!(matches!(retired_result, WaitEvent::Completed(Err(_))));
+    assert_eq!(waits_after_retirement, 0);
+    assert!(matches!(retained_wait_event, WaitEvent::ReachedWait));
+    assert!(matches!(contender_result, WaitEvent::Completed(Ok(_))));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+            vec![Value::Int64(5), Value::Int64(3)],
+        ]
+    );
+}
+
+#[test]
 fn should_wait_for_autocommit_insert_while_delete_owner_is_unresolved() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_delete_owner");

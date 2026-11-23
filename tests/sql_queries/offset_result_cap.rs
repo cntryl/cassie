@@ -353,7 +353,7 @@ fn should_allow_empty_result_at_zero_row_cap() {
     let rows = fixture.rows("SELECT n FROM capped WHERE n = (SELECT 100)");
 
     // Assert
-    assert!(rows.is_empty());
+    assert_eq!(rows, [] as [Vec<Value>; 0]);
 }
 
 #[test]

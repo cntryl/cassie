@@ -236,6 +236,49 @@ fn should_wait_for_autocommit_insert_while_delete_owner_is_unresolved() {
 }
 
 #[test]
+fn should_recheck_unique_value_after_delete_owner_rolls_back() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_delete_owner_rollback");
+    for sql in ["BEGIN", "DELETE FROM u WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage DELETE of unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_delete_rollback_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 1)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_rollback.is_ok());
+    assert!(matches!(
+        result_event,
+        WaitEvent::Completed(Err(CassieError::UniqueViolation {
+            constraint,
+            ..
+        })) if constraint == "u_v_key"
+    ));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+}
+
+#[test]
 fn should_wait_for_autocommit_insert_while_merge_updates_unique_value() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_merge_update_owner");
@@ -284,6 +327,49 @@ fn should_wait_for_autocommit_insert_while_merge_updates_unique_value() {
 }
 
 #[test]
+fn should_allow_waiting_insert_after_merge_update_owner_rolls_back() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_merge_update_rollback");
+    for sql in [
+        "CREATE TABLE merge_source (id INT PRIMARY KEY, v INT)",
+        "INSERT INTO merge_source VALUES (1, 99)",
+        "BEGIN",
+        "MERGE INTO u AS target USING merge_source AS source ON target.id = source.id WHEN MATCHED THEN UPDATE SET v = source.v",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage MERGE unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_merge_update_rollback_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 99)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_rollback.is_ok());
+    assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
+            vec![Value::Int64(3), Value::Int64(99)],
+        ]
+    );
+}
+
+#[test]
 fn should_wait_for_autocommit_insert_while_merge_delete_owner_is_unresolved() {
     // Arrange
     let (cassie, owner) = fixture("issue_1465_merge_delete_owner");
@@ -321,6 +407,54 @@ fn should_wait_for_autocommit_insert_while_merge_delete_owner_is_unresolved() {
         vec![
             vec![Value::Int64(2), Value::Int64(2)],
             vec![Value::Int64(3), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
+fn should_recheck_unique_value_after_merge_delete_owner_rolls_back() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_merge_delete_rollback");
+    for sql in [
+        "CREATE TABLE merge_source (id INT PRIMARY KEY)",
+        "INSERT INTO merge_source VALUES (1)",
+        "BEGIN",
+        "MERGE INTO u AS target USING merge_source AS source ON target.id = source.id WHEN MATCHED THEN DELETE",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage MERGE DELETE of unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_merge_delete_rollback_waiter", None);
+    let (events, worker) =
+        start_observed_insert(cassie.clone(), waiter, "INSERT INTO u VALUES (3, 1)");
+    let wait_event = receive_event(&events);
+    let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+    let result_event = if reached_wait {
+        receive_event(&events)
+    } else {
+        wait_event
+    };
+    worker.join().expect("waiting INSERT worker");
+
+    // Assert
+    assert!(reached_wait);
+    assert!(owner_rollback.is_ok());
+    assert!(matches!(
+        result_event,
+        WaitEvent::Completed(Err(CassieError::UniqueViolation {
+            constraint,
+            ..
+        })) if constraint == "u_v_key"
+    ));
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(2)],
         ]
     );
 }

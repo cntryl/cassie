@@ -191,16 +191,16 @@ impl PendingUpsert {
             }
             UniqueKeyClaim::Claimed => {}
         }
-        let result = publish_prepared_upsert(
+        let result = publish_prepared_upsert(PreparedUpsertPublication {
             request,
             controls,
-            &working_cassie,
+            working_cassie: &working_cassie,
             batch,
             prepared,
             current_owner,
             previous,
             keys,
-        );
+        });
         if result.is_err() || !session.is_some_and(CassieSession::is_transaction_active) {
             cassie
                 .transaction_unique_waits
@@ -210,16 +210,30 @@ impl PendingUpsert {
     }
 }
 
-fn publish_prepared_upsert(
-    request: UpsertRequest<'_>,
-    controls: &QueryExecutionControls,
-    working_cassie: &Cassie,
+struct PreparedUpsertPublication<'a> {
+    request: UpsertRequest<'a>,
+    controls: &'a QueryExecutionControls,
+    working_cassie: &'a Cassie,
     batch: crate::app::StatementMutationBatch,
-    prepared: &mut Option<super::dml::WaitingInsert>,
+    prepared: &'a mut Option<super::dml::WaitingInsert>,
     current_owner: uuid::Uuid,
-    previous: &BTreeSet<UniqueTransactionKey>,
-    keys: &BTreeSet<UniqueTransactionKey>,
+    previous: &'a BTreeSet<UniqueTransactionKey>,
+    keys: &'a BTreeSet<UniqueTransactionKey>,
+}
+
+fn publish_prepared_upsert(
+    publication: PreparedUpsertPublication<'_>,
 ) -> Result<QueryResult, QueryError> {
+    let PreparedUpsertPublication {
+        request,
+        controls,
+        working_cassie,
+        batch,
+        prepared,
+        current_owner,
+        previous,
+        keys,
+    } = publication;
     let UpsertRequest {
         cassie,
         session,

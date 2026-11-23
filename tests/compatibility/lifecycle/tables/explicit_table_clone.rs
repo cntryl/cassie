@@ -310,7 +310,7 @@ fn should_create_table_like_with_including_constraints() {
             .query_one(
                 "SELECT conname, contype::TEXT, convalidated \
                  FROM pg_catalog.pg_constraint c \
-                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 JOIN pg_catalog.pg_class r ON r.oid = c.conrelid \
                  WHERE r.relname = 'compat_like_constraint_target' \
                    AND c.conname = 'compat_like_amount_positive'",
                 &[],
@@ -320,7 +320,7 @@ fn should_create_table_like_with_including_constraints() {
         let target_indexes: i64 = client
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_index i \
-                 JOIN pg_catalog.pg_class r ON r.relname = i.indrelid \
+                 JOIN pg_catalog.pg_class r ON r.oid = i.indrelid \
                  WHERE r.relname = 'compat_like_constraint_target'",
                 &[],
             )
@@ -519,7 +519,7 @@ fn should_exclude_checks_when_a_later_like_action_excludes_constraints() {
         let excluded_checks: i64 = client
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_constraint c \
-                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 JOIN pg_catalog.pg_class r ON r.oid = c.conrelid \
                  WHERE r.relname = 'compat_like_constraint_excluded' \
                    AND c.contype = 'c'",
                 &[],
@@ -566,7 +566,7 @@ fn should_copy_checks_when_a_later_like_action_reincludes_constraints() {
         let copied_checks: i64 = client
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_constraint c \
-                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 JOIN pg_catalog.pg_class r ON r.oid = c.conrelid \
                  WHERE r.relname = 'compat_like_constraint_reincluded' \
                    AND c.contype = 'c'",
                 &[],

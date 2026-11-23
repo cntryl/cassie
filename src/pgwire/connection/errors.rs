@@ -41,6 +41,7 @@ pub(super) struct PgWireError {
     pub(super) table: Option<String>,
     pub(super) column: Option<String>,
     pub(super) constraint: Option<String>,
+    pub(super) position: Option<u32>,
     // Owned strings and the admitted network frame precede their shared lease.
     semantic_frame: Option<parameter_semantic::AdmittedErrorFrame>,
 }
@@ -61,6 +62,7 @@ impl PgWireError {
             table: None,
             column: None,
             constraint: None,
+            position: None,
             semantic_frame: None,
         }
     }
@@ -126,6 +128,9 @@ impl PgWireError {
         if let CassieError::Diagnostic(diagnostic) = error {
             pg_error.detail.clone_from(&diagnostic.detail);
             pg_error.hint.clone_from(&diagnostic.hint);
+            pg_error.position = diagnostic
+                .position
+                .and_then(|position| u32::try_from(position).ok());
         }
         pg_error.table = descriptor.table;
         pg_error.column = descriptor.column;

@@ -24,7 +24,7 @@ fn should_preserve_declared_type_identity_with_typmod_after_restart() {
     let selected = cassie
         .execute_sql(
             &session,
-            "SELECT atttypid, atttypmod FROM pg_attribute WHERE attrelid = 'issue_904_persisted_type' AND attname = 'amount'",
+            "SELECT a.atttypid, a.atttypmod FROM pg_attribute a JOIN pg_class c ON a.attrelid = c.oid JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'issue_904_persisted_type' AND n.nspname = 'public' AND a.attname = 'amount'",
             vec![],
         )
         .expect("persisted type descriptor");

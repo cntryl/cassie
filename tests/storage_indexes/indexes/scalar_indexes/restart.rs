@@ -390,8 +390,11 @@ fn should_preserve_unique_null_policy_after_restart() {
         let metadata = restarted
             .execute_sql(
                 &session,
-                "SELECT indnullsnotdistinct FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'sql_unique_null_policy_restart_idx'",
+                "SELECT index_row.indnullsnotdistinct FROM pg_catalog.pg_index index_row \
+                 JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'sql_unique_null_policy_restart_idx' \
+                   AND namespace.nspname = 'public'",
                 vec![],
             )
             .unwrap();

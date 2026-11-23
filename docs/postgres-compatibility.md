@@ -267,6 +267,12 @@ volatility that cannot be resolved remain deterministic rejection boundaries. Fo
 ## Errors and Cancellation
 
 Cassie emits PostgreSQL error responses with SQLSTATE codes where a stable mapping exists. Syntax errors use `42601`, unsupported features use `0A000`, undefined objects use their PostgreSQL-family codes, query cancellation and deadlines use `57014`, resource-limit failures use `54000`, and connection admission uses `53300`.
+For the supported pgwire syntax-diagnostic cases, ErrorResponse includes the
+PostgreSQL `P` position field as a one-based character offset. The `FORM`-typo
+diagnostic names the following token and counts Unicode characters rather than
+UTF-8 bytes; runtime execution errors such as division by zero omit `P`.
+This is a finite diagnostic contract, not a claim that every parser error has a
+position yet.
 
 SQL text is limited to 1 MiB, 100,000 lexical tokens, 128 levels of SQL nesting, and 128 nested block comments. The scanner is linear and ignores delimiters inside quoted strings, quoted identifiers, and comments. These SQL-text limits apply to direct and pgwire parsing; the generic 16 MiB frontend frame limit remains available to bind and COPY payloads. Pgwire backend frames are individually capped at 16 MiB, and a resource-limit error leaves a simple-query connection ready for its next query. Independently, recursive `NOT` and `CASE` expression parsing is capped at 128 levels; exceeding either cap returns SQLSTATE `54000` before parser recursion proceeds. User-defined SQL-function evaluation is capped at 64 logical calls, across both scalar and query-memory evaluation paths; exceeding that cap returns SQLSTATE `54001` (`stack depth limit exceeded`) with the PostgreSQL-compatible max-stack-depth hint. These are Cassie logical guards and do not constitute a platform-independent native-stack safety proof; the selected bounds require executable validation at the integrated runtime boundary.
 

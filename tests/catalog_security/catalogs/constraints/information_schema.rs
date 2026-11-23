@@ -55,7 +55,7 @@ fn should_describe_pg_constraint_catalog_columns_with_postgresql_types() {
             ("contype", 25, -1, -1, true),
             ("conenforced", 16, 1, -1, true),
             ("convalidated", 16, 1, -1, true),
-            ("conrelid", 25, -1, -1, true),
+            ("conrelid", 26, 4, -1, true),
         ],
     );
 }

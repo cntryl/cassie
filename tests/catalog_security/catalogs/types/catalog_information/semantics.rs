@@ -6,10 +6,12 @@ fn should_report_created_table_attribute_type_identities() {
     // Act
     let attributes = fixture
         .execute(
-            "SELECT attname, attnum, atttypid, atttypmod, attnotnull, attidentity::text \
-             FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'items' \
-               AND attnum > 0 \
+            "SELECT a.attname, a.attnum, a.atttypid, a.atttypmod, a.attnotnull, a.attidentity::text \
+             FROM pg_catalog.pg_attribute a \
+             JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'items' AND n.nspname = 'issue_817_catalog_probe' \
+               AND a.attnum > 0 \
              ORDER BY attnum",
         )
         .expect("read table attribute type identities");
@@ -36,6 +38,47 @@ fn should_report_created_table_attribute_type_identities() {
             ],
         ]
     );
+}
+
+#[test]
+fn should_return_bare_builtin_type_names_given_null_typmods() {
+    // Arrange
+    let fixture = sql_fixture("issue-1485-null-type-modifier", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT format_type(1043, NULL), pg_catalog.format_type(23, NULL), \
+                    format_type(1043, 14), format_type(1043, -1)",
+        )
+        .expect("format types without typmods");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("character varying".to_owned()),
+            Value::String("integer".to_owned()),
+            Value::String("character varying(10)".to_owned()),
+            Value::String("character varying".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_return_null_given_null_type_oid_when_formatting_type() {
+    // Arrange
+    let fixture = sql_fixture("issue-1485-null-type-oid", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT format_type(NULL, 1)")
+        .expect("format a NULL type OID");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Null]]);
 }
 
 #[test]

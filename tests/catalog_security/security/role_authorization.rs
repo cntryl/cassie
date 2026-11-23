@@ -9,6 +9,140 @@ use tokio_postgres::NoTls;
 use super::support_sql as support;
 use support::*;
 
+#[test]
+fn should_hide_ungranted_relations_from_information_schema_for_restricted_role() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let admin = cassie
+        .authenticate_role("root", Some(support::test_root_password()), None)
+        .expect("admin login");
+    for sql in [
+        "CREATE TABLE catalog_visible (id INTEGER)",
+        "CREATE TABLE catalog_secret (token TEXT)",
+        "CREATE TABLE catalog_graph_visible (id INTEGER PRIMARY KEY)",
+        "CREATE TABLE catalog_graph_secret (id INTEGER PRIMARY KEY)",
+        "CREATE VIEW catalog_visible_view AS SELECT id FROM catalog_visible",
+        "CREATE VIEW catalog_secret_view AS SELECT token FROM catalog_secret",
+        "CREATE PROPERTY GRAPH catalog_graph VERTEX TABLES \
+         (catalog_graph_visible AS visible KEY (id) LABEL visible_node PROPERTIES (id), \
+          catalog_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id))",
+        "CREATE VIEW catalog_graph_direct_view AS \
+         SELECT direct.id FROM GRAPH_TABLE(catalog_graph \
+         MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \
+         JOIN catalog_graph_visible direct ON direct.id = graph_rows.id",
+        "CREATE VIEW catalog_graph_only_view AS \
+         SELECT id FROM GRAPH_TABLE(catalog_graph \
+         MATCH (secret IS secret_node) COLUMNS (secret.id AS id)) AS graph_rows",
+        "CREATE ROLE catalog_reader LOGIN PASSWORD 'reader-secret'",
+        "CREATE ROLE catalog_blocked LOGIN PASSWORD 'blocked-secret'",
+        "GRANT USAGE ON SCHEMA public TO catalog_reader",
+        "GRANT SELECT ON TABLE public.catalog_visible TO catalog_reader",
+        "GRANT SELECT ON TABLE public.catalog_graph_visible TO catalog_reader",
+    ] {
+        cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+    }
+    let reader = cassie
+        .authenticate_role("catalog_reader", Some("reader-secret"), None)
+        .expect("reader login");
+    let blocked = cassie
+        .authenticate_role("catalog_blocked", Some("blocked-secret"), None)
+        .expect("blocked login");
+
+    // Act
+    let tables = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read visible tables");
+    let columns = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name, ordinal_position",
+            Vec::new(),
+        )
+        .expect("read visible columns");
+    let views = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, view_definition FROM information_schema.views \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view', \
+                                  'catalog_graph_direct_view', 'catalog_graph_only_view') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read visible view definitions");
+    let view_columns = cassie
+        .execute_sql(
+            &reader,
+            "SELECT table_name, column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible_view', 'catalog_secret_view', \
+                                  'catalog_graph_direct_view', 'catalog_graph_only_view')",
+            Vec::new(),
+        )
+        .expect("read visible view columns");
+    let blocked_tables = cassie
+        .execute_sql(
+            &blocked,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret')",
+            Vec::new(),
+        )
+        .expect("read tables as blocked role");
+    let admin_tables = cassie
+        .execute_sql(
+            &admin,
+            "SELECT table_name FROM information_schema.tables \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret') \
+             ORDER BY table_name",
+            Vec::new(),
+        )
+        .expect("read tables as administrator");
+
+    // Assert
+    assert_eq!(
+        tables.rows(),
+        vec![vec![cassie::types::Value::String(
+            "catalog_visible".to_owned()
+        )]]
+    );
+    assert_eq!(
+        columns.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible".to_owned()),
+            cassie::types::Value::String("id".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        views.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible_view".to_owned()),
+            cassie::types::Value::String("SELECT id FROM catalog_visible".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        view_columns.rows(),
+        vec![vec![
+            cassie::types::Value::String("catalog_visible_view".to_owned()),
+            cassie::types::Value::String("id".to_owned()),
+        ]]
+    );
+    assert!(blocked_tables.rows().is_empty());
+    assert_eq!(admin_tables.rows().len(), 2);
+}
+
 async fn copy_out_frames_as(
     address: std::net::SocketAddr,
     user: &str,

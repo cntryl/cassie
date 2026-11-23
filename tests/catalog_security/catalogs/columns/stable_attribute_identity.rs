@@ -33,11 +33,13 @@ fn should_keep_attribute_identity_across_schema_evolution() {
     // Act
     let attributes = fixture
         .execute(
-            "SELECT attname, attnum, attisdropped, atttypid, atttypmod, attcollation, \
+            "SELECT a.attname, a.attnum, a.attisdropped, a.atttypid, a.atttypmod, a.attcollation, \
                     attnotnull, atthasdef, attidentity, attgenerated \
-             FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'issue_817_stable_attributes' AND attnum > 0 \
-             ORDER BY attnum",
+             FROM pg_catalog.pg_attribute a \
+             JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'issue_817_stable_attributes' AND n.nspname = 'public' AND a.attnum > 0 \
+             ORDER BY a.attnum",
         )
         .expect("read stable attribute identities");
     let collations = fixture
@@ -118,10 +120,12 @@ fn should_preserve_attribute_identity_after_local_restart() {
             Value::Int64(100),
         ],
     ];
-    let query = "SELECT attname, attnum, attisdropped, atttypid, atttypmod, attcollation \
-                 FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'issue_817_restart_attributes' AND attnum > 0 \
-                 ORDER BY attnum";
+    let query = "SELECT a.attname, a.attnum, a.attisdropped, a.atttypid, a.atttypmod, a.attcollation \
+                 FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'issue_817_restart_attributes' AND n.nspname = 'public' AND a.attnum > 0 \
+                 ORDER BY a.attnum";
 
     // Act
     {

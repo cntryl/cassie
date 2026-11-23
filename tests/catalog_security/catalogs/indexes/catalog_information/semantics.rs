@@ -146,12 +146,15 @@ fn should_omit_cassie_internal_index_methods_from_postgresql_catalogs() {
         .expect("join emitted index relations to genuine access methods");
     let index_rows = fixture
         .execute(
-            "SELECT indexrelid FROM pg_catalog.pg_index \
-             WHERE indexrelid IN (\
+            "SELECT index_class.relname FROM pg_catalog.pg_index index_row \
+             JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+             JOIN pg_catalog.pg_namespace index_namespace ON index_class.relnamespace = index_namespace.oid \
+             WHERE index_class.relname IN (\
                  'issue_817_events_column_idx', \
                  'issue_817_events_timeseries_idx', \
                  'issue_817_events_btree_idx') \
-             ORDER BY indexrelid",
+               AND index_namespace.nspname = 'issue_817_internal_index_catalog' \
+             ORDER BY index_class.relname",
         )
         .expect("read selected pg_index rows");
     let index_views = fixture
@@ -213,5 +216,191 @@ fn should_render_a_created_index_definition() {
             "CREATE INDEX issue_817_definition_idx ON public.issue_817_definition_items USING btree (amount)"
                 .to_owned()
         )]]
+    );
+}
+
+#[test]
+fn should_return_full_definition_given_column_zero_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-full",
+        &[
+            "CREATE TABLE issue_1486_index_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_amount_idx ON issue_1486_index_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_catalog.pg_get_indexdef(oid, 0, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_amount_idx'",
+        )
+        .expect("render the full index definition");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(
+            "CREATE INDEX issue_1486_amount_idx ON public.issue_1486_index_items USING btree (amount)"
+                .to_owned(),
+        )]]
+    );
+}
+
+#[test]
+fn should_return_key_name_given_positive_column_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-key-name",
+        &[
+            "CREATE TABLE issue_1486_key_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_key_idx ON issue_1486_key_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_get_indexdef(oid, 1, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_key_idx'",
+        )
+        .expect("read the indexed key name");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("amount".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_empty_text_given_column_beyond_index_keys_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1486-pg-get-indexdef-out-of-range",
+        &[
+            "CREATE TABLE issue_1486_range_items (amount INTEGER)",
+            "CREATE INDEX issue_1486_range_idx ON issue_1486_range_items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT pg_get_indexdef(oid, 2, true) \
+             FROM pg_catalog.pg_class WHERE relname = 'issue_1486_range_idx'",
+        )
+        .expect("read a column beyond the index keys");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(String::new())]]
+    );
+}
+
+#[test]
+fn should_reject_four_arguments_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-indexdef-extra-argument", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(1, 0, true, false)");
+
+    // Assert
+    assert_eq!(result.expect_err("reject an extra argument").sqlstate(), "42883");
+}
+
+#[test]
+fn should_reject_non_boolean_pretty_flag_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-pg-get-indexdef-wrong-flag", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(1, 0, 'true')");
+
+    // Assert
+    assert_eq!(result.expect_err("reject a text pretty flag").sql_state(), "42883");
+}
+
+#[test]
+fn should_join_supported_catalog_oid_fields_for_psql_describe_queries() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1489-psql-oid-joins",
+        &[
+            "CREATE SCHEMA issue_1489_first",
+            "CREATE SCHEMA issue_1489_second",
+            "CREATE TABLE issue_1489_first.items (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 7)",
+            "CREATE TABLE issue_1489_second.items (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 9)",
+            "CREATE INDEX issue_1489_first_amount_idx ON issue_1489_first.items (amount)",
+            "CREATE INDEX issue_1489_second_amount_idx ON issue_1489_second.items (amount)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'items' AND n.nspname LIKE 'issue_1489_%'), \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_am am ON c.relam = am.oid \
+                 WHERE c.relname LIKE 'issue_1489_%_idx' AND am.amname = 'btree'), \
+                (SELECT count(*) FROM pg_catalog.pg_index i \
+                 JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid \
+                 WHERE table_class.relname = 'items'), \
+                (SELECT count(*) FROM pg_catalog.pg_attrdef d \
+                 JOIN pg_catalog.pg_attribute a ON d.adrelid = a.attrelid \
+                 WHERE d.adnum = a.attnum), \
+                (SELECT count(*) FROM pg_catalog.pg_constraint con \
+                 JOIN pg_catalog.pg_index i \
+                   ON con.conrelid = i.indrelid AND con.conindid = i.indexrelid \
+                 WHERE con.contype = 'p'), \
+                (SELECT count(*) FROM pg_catalog.pg_class c \
+                 JOIN pg_catalog.pg_class toast ON c.reltoastrelid = toast.oid \
+                 WHERE c.relname = 'items'), \
+                (SELECT count(*) FROM pg_catalog.pg_publication_rel pr \
+                 JOIN pg_catalog.pg_class c ON pr.prrelid = c.oid)",
+        )
+        .expect("execute supported psql catalog joins");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::Int64(2),
+            Value::Int64(4),
+            Value::Int64(4),
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Int64(0),
+            Value::Int64(0),
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_two_arguments_when_calling_pg_get_indexdef() {
+    // Arrange
+    let fixture = sql_fixture("issue-1486-indexdef-two-arguments", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let result = fixture.execute("SELECT pg_get_indexdef(0, 0)");
+
+    // Assert
+    assert_eq!(
+        result.expect_err("reject two arguments").sql_state(),
+        "42883"
     );
 }

@@ -169,11 +169,26 @@ fn plan_feature_enabled(plan: &serde_json::Value, feature_id: &str) -> bool {
 }
 
 async fn login_cookie(client: &Client, base_url: &str) -> String {
+    login_cookie_as(
+        client,
+        base_url,
+        "root",
+        crate::support_sql::test_root_password(),
+    )
+    .await
+}
+
+async fn login_cookie_as(
+    client: &Client,
+    base_url: &str,
+    username: &str,
+    password: &str,
+) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "root",
-            "password": crate::support_sql::test_root_password()
+            "username": username,
+            "password": password
         }))
         .send()
         .await

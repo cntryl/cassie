@@ -61,6 +61,7 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
             "relam",
             "relnamespace",
             "relnamespace_oid",
+            "reltoastrelid",
             "reltype",
             "relowner",
             "relhasindex",

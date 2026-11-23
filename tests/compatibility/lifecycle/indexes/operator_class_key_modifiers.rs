@@ -35,8 +35,10 @@ fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
                         index_row.indoption::text, \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = \
-                   'compat_index_operator_class_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_index_operator_class_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await
@@ -46,7 +48,10 @@ fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
                 "SELECT index_row.indoption::text, \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = 'compat_index_default_modifiers_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_index_default_modifiers_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

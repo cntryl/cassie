@@ -53,7 +53,7 @@ fn collect_named_foreign_key_rows(cassie: &Cassie, session: &CassieSession) -> N
         pg_constraint: query_rows(
             cassie,
             session,
-            "SELECT conname, contype FROM pg_catalog.pg_constraint WHERE conrelid = 'catalog_named_fk_children' ORDER BY conname",
+            "SELECT con.conname, con.contype FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON con.conrelid = c.oid JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'catalog_named_fk_children' AND n.nspname = 'public' ORDER BY con.conname",
         ),
     }
 }

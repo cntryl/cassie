@@ -205,9 +205,11 @@ async fn assert_column_cascade_dependencies_are_restored(client: &tokio_postgres
 
     let foreign_key_count = client
         .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_rollback_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_rollback_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             &[],
         )
         .await
@@ -311,9 +313,11 @@ fn should_recover_column_cascade_dependency_removal_after_local_restart() {
     let foreign_key_count = cassie
         .execute_sql(
             &session,
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_restart_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_restart_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             vec![],
         )
         .expect("inspect the cascaded foreign key after restart")
@@ -379,9 +383,11 @@ async fn observe_column_restrict(client: &tokio_postgres::Client) -> ColumnRestr
         .await;
     let foreign_key_count = client
         .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_restrict_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_restrict_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             &[],
         )
         .await;

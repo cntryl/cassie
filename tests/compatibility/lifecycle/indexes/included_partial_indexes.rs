@@ -32,8 +32,10 @@ fn should_publish_partial_btree_index_clause_metadata() {
                         pg_catalog.pg_get_expr(index_row.indpred, index_row.indrelid), \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = \
-                   'compat_index_include_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_index_include_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

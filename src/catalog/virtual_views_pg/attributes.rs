@@ -40,7 +40,7 @@ pub(super) fn attribute_row(
         constraint.and_then(|item| item.identity)
     };
     vec![
-        string("attrelid", local_name(relation)),
+        int_value("attrelid", relation_oid(catalog, relation)),
         int_value("attrelid_oid", relation_oid(catalog, relation)),
         string("attname", field_name),
         int_value("attnum", attnum),

@@ -9,7 +9,7 @@ fn schema_moved_index_oid(cassie: &Cassie, session: &CassieSession, schema: &str
         "SELECT index_class.oid::bigint \
          FROM pg_catalog.pg_class AS index_class \
          JOIN pg_catalog.pg_namespace AS index_schema \
-           ON index_schema.nspname = index_class.relnamespace \
+           ON index_schema.oid = index_class.relnamespace \
          WHERE index_schema.nspname = '{schema}' \
            AND index_class.relname = 'schema_move_idx'"
     );

@@ -300,6 +300,83 @@ fn should_explain_admin_query_through_rest() {
 }
 
 #[test]
+fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
+    // Arrange
+    let data_dir = data_dir("restricted-schema-visibility");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        cassie.startup().expect("startup");
+        let admin = cassie
+            .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
+            .expect("admin");
+        for sql in [
+            "CREATE TABLE rest_schema_visible (id INTEGER)",
+            "CREATE TABLE rest_schema_secret (token TEXT)",
+            "CREATE TABLE rest_graph_visible (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE rest_graph_secret (id INTEGER PRIMARY KEY)",
+            "CREATE VIEW rest_schema_secret_view AS SELECT token FROM rest_schema_secret",
+            "CREATE INDEX rest_schema_secret_idx ON rest_schema_secret (token)",
+            "CREATE PROPERTY GRAPH rest_visibility_graph VERTEX TABLES \
+             (rest_graph_visible AS visible KEY (id) LABEL visible_node PROPERTIES (id), \
+              rest_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id))",
+            "CREATE VIEW rest_graph_view AS \
+             SELECT direct.id FROM GRAPH_TABLE(rest_visibility_graph \
+             MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \
+             JOIN rest_graph_visible direct ON direct.id = graph_rows.id",
+            "CREATE ROLE rest_schema_reader LOGIN PASSWORD 'reader-secret'",
+            "GRANT CONNECT ON DATABASE postgres TO rest_schema_reader",
+            "GRANT USAGE ON SCHEMA public TO rest_schema_reader",
+            "GRANT SELECT ON TABLE public.rest_graph_visible TO rest_schema_reader",
+        ] {
+            cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+        }
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let reader_cookie =
+            login_cookie_as(&client, &base_url, "rest_schema_reader", "reader-secret").await;
+
+        // Act
+        let response = client
+            .get(format!(
+                "{base_url}/api/v1/admin/query/schema?database=postgres"
+            ))
+            .header("cookie", &reader_cookie)
+            .send()
+            .await
+            .expect("schema request");
+        let payload = response.json::<serde_json::Value>().await.expect("json");
+
+        // Assert
+        assert!(!contains_item(
+            section_items(&payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_schema_secret")
+        ));
+        assert!(!contains_item(
+            section_items(&payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_schema_visible")
+        ));
+        assert!(contains_item(
+            section_items(&payload, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_graph_visible")
+        ));
+        assert!(!contains_item(
+            section_items(&payload, "views"),
+            &canonical_relation_name("postgres", "public", "rest_graph_view")
+        ));
+        assert!(section_items(&payload, "views").is_empty());
+        assert!(section_items(&payload, "indexes").is_empty());
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn should_return_admin_query_schema_sections_in_stable_order() {
     // Arrange
     let data_dir = data_dir("schema");

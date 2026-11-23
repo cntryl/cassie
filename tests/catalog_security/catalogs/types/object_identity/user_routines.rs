@@ -515,17 +515,21 @@ fn should_evaluate_a_function_body_subquery_in_a_true_order_by_expression() {
     let fixture = sql_fixture(
         "routine_scalar_subquery_order_expression",
         &[
-            "CREATE TABLE secret (ssn TEXT)",
-            "INSERT INTO secret VALUES ('123')",
-            "CREATE FUNCTION peek() RETURNS TEXT AS '(SELECT ssn FROM secret LIMIT 1)'",
+            "CREATE TABLE secret (v INT)",
+            "INSERT INTO secret VALUES (0)",
+            "CREATE FUNCTION order_key(x INT) RETURNS INT \
+             AS '((SELECT v FROM secret LIMIT 1) + x)'",
         ],
     );
 
     // Act
-    let result = fixture.rows("SELECT 1 FROM generate_series(1, 2) g ORDER BY peek()");
+    let result = fixture.rows(
+        "SELECT n FROM generate_series(1, 2) series(n) \
+         ORDER BY order_key(n) DESC",
+    );
 
     // Assert
-    assert_eq!(result, vec![vec![Value::Int64(1)], vec![Value::Int64(1)]]);
+    assert_eq!(result, vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]);
 }
 
 #[test]

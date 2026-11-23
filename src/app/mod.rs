@@ -179,8 +179,9 @@ mod transaction_unique_waits;
 #[cfg(test)]
 pub(crate) use transaction_unique_waits::install_row_wait_observer;
 pub(crate) use transaction_unique_waits::{
-    collect_unique_keys, collect_upsert_unique_keys, validate_unique_key_candidate, RowKeyClaim,
-    RowTransactionKey, TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
+    collect_unique_keys, collect_unique_keys_with_preimages, collect_upsert_unique_keys,
+    has_unique_wait_owner, validate_unique_key_candidate, RowKeyClaim, RowTransactionKey,
+    TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
 mod storage_recovery;
 mod transaction_semantics;

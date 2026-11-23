@@ -163,10 +163,35 @@ impl TransactionUniqueWaits {
         self.state.lock().waits_for.len()
     }
 
+    pub(crate) fn has_other_owner(&self, owner: Uuid, key: &UniqueTransactionKey) -> bool {
+        self.state
+            .lock()
+            .owners
+            .get(key)
+            .is_some_and(|current| *current != owner)
+    }
+
     pub(crate) fn claim_keys(
         &self,
         owner: Uuid,
         keys: &BTreeSet<UniqueTransactionKey>,
+    ) -> Result<UniqueKeyClaim, CassieError> {
+        self.claim_keys_with_wait(owner, keys, true)
+    }
+
+    pub(crate) fn claim_keys_without_wait(
+        &self,
+        owner: Uuid,
+        keys: &BTreeSet<UniqueTransactionKey>,
+    ) -> Result<UniqueKeyClaim, CassieError> {
+        self.claim_keys_with_wait(owner, keys, false)
+    }
+
+    fn claim_keys_with_wait(
+        &self,
+        owner: Uuid,
+        keys: &BTreeSet<UniqueTransactionKey>,
+        wait: bool,
     ) -> Result<UniqueKeyClaim, CassieError> {
         let mut state = self.state.lock();
         state.waits_for.remove(&owner);
@@ -177,6 +202,14 @@ impl TransactionUniqueWaits {
                 .filter(|blocker| **blocker != owner)
                 .map(|blocker| (key.clone(), *blocker))
         }) {
+            if !wait {
+                return Err(CassieError::Transaction {
+                    kind: TransactionErrorKind::SerializationFailure,
+                    message:
+                        "unique key is owned by another active transaction; retry the transaction"
+                            .to_owned(),
+                });
+            }
             if closes_wait_cycle(&state, owner, blocker) {
                 return Err(deadlock_error());
             }
@@ -414,17 +447,106 @@ pub(crate) fn collect_unique_keys(
             if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
                 continue;
             }
-            collect_constraint_values(
-                &mut keys,
-                &relation,
-                &collection,
-                constraint,
-                schema.as_ref(),
-                &changes,
-            );
+            for change in changes.values() {
+                if let TransactionRowChange::Upsert(payload) = change {
+                    collect_constraint_value(
+                        &mut keys,
+                        &relation,
+                        &collection,
+                        constraint,
+                        schema.as_ref(),
+                        payload,
+                    );
+                }
+            }
         }
     }
     keys
+}
+
+pub(crate) fn collect_unique_keys_with_preimages(
+    catalog: &Catalog,
+    midge: &Midge,
+    session: &crate::app::CassieSession,
+    include_preimages: bool,
+) -> Result<BTreeSet<UniqueTransactionKey>, CassieError> {
+    let writes = session.transaction_writes();
+    let mut keys = BTreeSet::new();
+    for (collection, changes) in writes {
+        let constraints = catalog.get_constraints(&collection);
+        if constraints.is_empty() {
+            continue;
+        }
+        let schema = catalog.get_schema(&collection);
+        let relation = midge.canonical_collection_name(&collection);
+        let has_published_relation =
+            include_preimages && midge.current_row_schema_identity(&collection)?.is_some();
+        for (id, change) in &changes {
+            let previous = if has_published_relation {
+                midge.get_document(&collection, id)?
+            } else {
+                None
+            };
+            for constraint in &constraints {
+                if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
+                    continue;
+                }
+                if let TransactionRowChange::Upsert(payload) = change {
+                    collect_constraint_value(
+                        &mut keys,
+                        &relation,
+                        &collection,
+                        constraint,
+                        schema.as_ref(),
+                        payload,
+                    );
+                }
+                if let Some(previous) = &previous {
+                    collect_constraint_value(
+                        &mut keys,
+                        &relation,
+                        &collection,
+                        constraint,
+                        schema.as_ref(),
+                        &previous.payload,
+                    );
+                }
+            }
+        }
+    }
+    Ok(keys)
+}
+
+pub(crate) fn has_unique_wait_owner(
+    catalog: &Catalog,
+    midge: &Midge,
+    session: &crate::app::CassieSession,
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if !session.defers_unique_wait_duplicate() {
+        return false;
+    }
+    let Some(waits) = session.transaction_unique_waits() else {
+        return false;
+    };
+    let constraints = catalog.get_constraints(collection);
+    let relation = midge.canonical_collection_name(collection);
+    let owner = session.transaction_unique_owner_id();
+    constraints.iter().any(|constraint| {
+        constraint.field == field
+            && crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
+            && waits.has_other_owner(
+                owner,
+                &UniqueTransactionKey {
+                    relation: relation.clone(),
+                    constraint: constraint.unique_constraint_name(collection),
+                    field: constraint.field.clone(),
+                    value: value.to_string(),
+                },
+            )
+    })
 }
 
 pub(crate) fn collect_upsert_unique_keys(
@@ -510,31 +632,26 @@ pub(crate) fn validate_unique_key_candidate(
     ))
 }
 
-fn collect_constraint_values(
+fn collect_constraint_value(
     keys: &mut BTreeSet<UniqueTransactionKey>,
     relation: &str,
     collection: &str,
     constraint: &FieldConstraint,
     schema: Option<&crate::catalog::CollectionSchema>,
-    changes: &BTreeMap<String, TransactionRowChange>,
+    payload: &serde_json::Value,
 ) {
-    for change in changes.values() {
-        let TransactionRowChange::Upsert(payload) = change else {
-            continue;
-        };
-        let Some(value) = payload.get(&constraint.field) else {
-            continue;
-        };
-        if crate::app::field_value_is_sql_null(Some(value), schema, &constraint.field) {
-            continue;
-        }
-        keys.insert(UniqueTransactionKey {
-            relation: relation.to_owned(),
-            constraint: constraint.unique_constraint_name(collection),
-            field: constraint.field.clone(),
-            value: value.to_string(),
-        });
+    let Some(value) = payload.get(&constraint.field) else {
+        return;
+    };
+    if crate::app::field_value_is_sql_null(Some(value), schema, &constraint.field) {
+        return;
     }
+    keys.insert(UniqueTransactionKey {
+        relation: relation.to_owned(),
+        constraint: constraint.unique_constraint_name(collection),
+        field: constraint.field.clone(),
+        value: value.to_string(),
+    });
 }
 
 fn closes_wait_cycle(state: &RegistryState, waiter: Uuid, blocker: Uuid) -> bool {

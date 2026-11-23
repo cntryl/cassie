@@ -33,6 +33,7 @@ impl CassieSession {
         drop(transaction);
         let base_generation = working_state.generation;
         let base_rollback_epoch = working_state.rollback_epoch;
+        let base_unique_owner_id = working_state.unique_owner_id;
         let base_writes = working_state.writes.clone();
         let conflict_intents = &working_state.conflict_intents;
         let catalog_overlay = working_state
@@ -56,6 +57,7 @@ impl CassieSession {
             publication_fence: Arc::clone(&self.publication_fence),
             transaction: Arc::new(Mutex::new(working_state)),
             transaction_unique_waits: Arc::clone(&self.transaction_unique_waits),
+            defer_unique_wait_duplicate: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             owns_transaction_lifecycle: false,
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
             random: Arc::clone(&self.random),
@@ -68,6 +70,7 @@ impl CassieSession {
             base_transaction_active,
             base_generation,
             base_rollback_epoch,
+            base_unique_owner_id,
             base_writes,
             base_conflict_intent_count,
             base_catalog_overlay: catalog_overlay,
@@ -247,6 +250,23 @@ impl StatementMutationBatch {
 
     pub(crate) const fn has_enclosing_transaction(&self) -> bool {
         self.base_transaction_active
+    }
+
+    pub(crate) const fn unique_owner_id(&self) -> uuid::Uuid {
+        self.base_unique_owner_id
+    }
+
+    pub(crate) fn matches_current_owner(&self, current: &CassieSession) -> bool {
+        let transaction = current.transaction.lock();
+        let expected_status = if self.base_transaction_active {
+            SessionTransactionStatus::InTransaction
+        } else {
+            SessionTransactionStatus::Idle
+        };
+        transaction.status == expected_status
+            && transaction.generation == self.base_generation
+            && transaction.rollback_epoch == self.base_rollback_epoch
+            && transaction.unique_owner_id == self.base_unique_owner_id
     }
 
     pub(in crate::app) fn into_session(self) -> CassieSession {

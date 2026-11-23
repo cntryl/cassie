@@ -1,4 +1,5 @@
 use cassie::app::{Cassie, CassieSession};
+use cassie::config::CassieRuntimeConfig;
 use cassie::runtime::QueryCancellationHandle;
 use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
@@ -160,4 +161,112 @@ fn should_cancel_copy_before_partial_commit() {
             [] as [std::vec::Vec<cassie::types::Value>; 0]
         );
     });
+}
+
+#[test]
+fn should_rollback_transactional_copy_without_publishing_rows() {
+    // Arrange
+    with_copy_table("copy-transaction-rollback", |cassie, session| {
+        cassie
+            .execute_sql(session, "BEGIN", vec![])
+            .expect("begin COPY transaction");
+        cassie
+            .copy_from_csv_stdin(session, &copy_statement(), b"1,staged\n")
+            .expect("stage COPY row");
+
+        // Act
+        cassie
+            .execute_sql(session, "ROLLBACK", vec![])
+            .expect("rollback COPY transaction");
+
+        // Assert
+        assert_eq!(
+            selected_rows(cassie, session),
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
+    });
+}
+
+#[test]
+fn should_publish_copy_through_warm_cache_and_column_batch_reads_after_commit() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE copy_cache_parity (id INT PRIMARY KEY, tag TEXT, title TEXT)",
+        "INSERT INTO copy_cache_parity VALUES (1, 'kept', 'before')",
+        "CREATE INDEX copy_cache_parity_idx ON copy_cache_parity USING column (tag, title) WITH (segment_size = 1)",
+    ] {
+        cassie
+            .execute_sql(&session, sql, Vec::new())
+            .expect("setup COPY cache fixture");
+    }
+    let query = "SELECT title FROM copy_cache_parity WHERE tag = 'kept'";
+    let select_rows = || {
+        cassie
+            .execute_sql(&session, query, Vec::new())
+            .expect("read COPY cache fixture")
+            .rows()
+            .to_vec()
+    };
+    let cache_hits = || {
+        cassie.metrics()["execution_result_cache"]["hits"]
+            .as_u64()
+            .expect("cache hit metric")
+    };
+    let first = select_rows();
+    let column_scans_before = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column batch scan metric");
+    let hits_before_warm = cache_hits();
+
+    // Act
+    let warmed = select_rows();
+    let hits_after_warm = cache_hits();
+    cassie
+        .execute_sql(&session, "BEGIN", Vec::new())
+        .expect("begin COPY transaction");
+    let statement = CopyStatement {
+        table: "copy_cache_parity".to_string(),
+        columns: vec!["id".to_string(), "tag".to_string(), "title".to_string()],
+        format: CopyFormat::Csv,
+        header: false,
+    };
+    cassie
+        .copy_from_csv_stdin(&session, &statement, b"2,kept,after\n")
+        .expect("stage COPY rows");
+    cassie
+        .execute_sql(&session, "COMMIT", Vec::new())
+        .expect("commit COPY transaction");
+    let rows_after_copy = select_rows();
+    let hits_after_copy = cache_hits();
+    let column_scans_after = cassie.metrics()["column_batches"]["scans"]
+        .as_u64()
+        .expect("column batch scan metric");
+
+    // Assert
+    assert_eq!(first, vec![vec![Value::String("before".into())]]);
+    assert_eq!(warmed, first);
+    assert_eq!(
+        hits_after_warm,
+        hits_before_warm + 1,
+        "the repeated pre-COPY query must prove an actual cache hit"
+    );
+    assert_eq!(rows_after_copy.len(), 2);
+    assert!(rows_after_copy.contains(&vec![Value::String("before".into())]));
+    assert!(rows_after_copy.contains(&vec![Value::String("after".into())]));
+    assert_eq!(
+        hits_after_copy, hits_after_warm,
+        "the query after COPY must not return a stale cached result"
+    );
+    assert!(
+        column_scans_before > 0,
+        "the baseline read must exercise the column-batch path"
+    );
+    assert!(
+        column_scans_after > column_scans_before,
+        "the post-COPY read must refresh through the column-batch path"
+    );
 }

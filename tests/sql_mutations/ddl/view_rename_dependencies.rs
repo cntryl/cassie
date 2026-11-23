@@ -196,17 +196,21 @@ fn should_rewrite_a_column_qualified_by_source_alias() {
     // Arrange
     let (label, view) = (
         "rename-column-alias",
-        "CREATE VIEW rv AS SELECT x.id, x.n FROM rt x",
+        "CREATE VIEW rv AS SELECT x.n FROM rt x",
     );
 
     // Act
     let fixture = base(label, view);
     let renamed = fixture.execute("ALTER TABLE rt RENAME COLUMN n TO m");
-    let rows = view_rows(&fixture);
+    let result = fixture.execute("SELECT * FROM rv").expect("the view reads");
+    let rows = result.rows().to_vec();
+    let columns = result.columns();
 
     // Assert
     assert!(renamed.is_ok());
-    assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
+    assert_eq!(rows, vec![vec![Value::Int64(5)]]);
+    assert_eq!(columns[0].name, "n");
+    assert_eq!(columns[0].type_oid, cassie::types::DataType::Int.type_oid());
 }
 
 #[test]

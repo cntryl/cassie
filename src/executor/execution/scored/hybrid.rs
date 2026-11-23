@@ -785,18 +785,51 @@ mod ivfflat_candidate_tests {
         cassie
             .execute_sql(
                 &session,
+                "INSERT INTO metric_mismatch (id, body, embedding) VALUES \
+                 (1, 'near', '[1,0]'), (2, 'mid', '[2,1]'), (3, 'far', '[-1,0]')",
+                Vec::new(),
+            )
+            .expect("populate mismatch table");
+        cassie
+            .execute_sql(
+                &session,
                 "CREATE INDEX metric_mismatch_embedding_idx ON metric_mismatch \
                  USING vector (embedding) WITH (source_field = body, metric = dot, \
                  index_type = hnsw, m = 4, ef_construction = 8, ef_search = 8)",
                 Vec::new(),
             )
             .expect("create mismatch index");
+        let collection = crate::catalog::canonical_relation_name(
+            &cassie.default_database,
+            crate::catalog::DEFAULT_SCHEMA,
+            "metric_mismatch",
+        );
+        let index = cassie
+            .midge
+            .get_vector_index(&collection, "embedding")
+            .expect("load persisted mismatch index")
+            .expect("persisted mismatch index");
+        let graph = index
+            .metadata
+            .hnsw_graph
+            .as_ref()
+            .expect("persisted HNSW graph");
+        assert_eq!(graph.row_count, 3);
+        assert!(graph.entry_point.is_some());
+        let ann = cassie
+            .midge
+            .search_hnsw_graph_point_read(
+                &collection,
+                "embedding",
+                &[1.0, 0.0],
+                index.metadata.hnsw.as_ref().expect("HNSW options"),
+                1,
+            )
+            .expect("read persisted HNSW graph")
+            .expect("usable HNSW graph");
+        assert!(!ann.candidates.is_empty());
         let spec = super::super::HybridTopKSpec {
-            collection: crate::catalog::canonical_relation_name(
-                &cassie.default_database,
-                crate::catalog::DEFAULT_SCHEMA,
-                "metric_mismatch",
-            ),
+            collection,
             text_field: "body".to_string(),
             query: "match".to_string(),
             vector_field: "embedding".to_string(),

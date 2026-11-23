@@ -385,8 +385,17 @@ async fn execute_prepared_portal(
         },
     )
     .await?;
-    finish_prepared_portal_output(write_half, runtime, state, session, portal_name, standalone)
-        .await
+    super::writers::write_changed_parameter_statuses(
+        write_half,
+        session,
+        &mut state.parameter_statuses,
+    )
+    .await
+    .map_err(|error| ExtendedQueryError::write_failed(&error))?;
+    if standalone && state.remove_portal(portal_name).is_some() {
+        runtime.record_pgwire_portal_delta(-1);
+    }
+    Ok(())
 }
 
 async fn commit_standalone_portal_transaction(
@@ -403,27 +412,6 @@ async fn commit_standalone_portal_transaction(
     {
         super::transactions::fail_owned_transaction(session).await;
         return Err(ExtendedQueryError::cassie(&error));
-    }
-    Ok(())
-}
-
-async fn finish_prepared_portal_output(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    runtime: &RuntimeState,
-    state: &mut SessionState,
-    session: &CassieSession,
-    portal_name: &str,
-    standalone: bool,
-) -> Result<(), ExtendedQueryError> {
-    super::writers::write_changed_parameter_statuses(
-        write_half,
-        session,
-        &mut state.parameter_statuses,
-    )
-    .await
-    .map_err(|error| ExtendedQueryError::write_failed(&error))?;
-    if standalone && state.remove_portal(portal_name).is_some() {
-        runtime.record_pgwire_portal_delta(-1);
     }
     Ok(())
 }

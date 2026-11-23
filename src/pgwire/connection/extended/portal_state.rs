@@ -327,18 +327,22 @@ pub(super) async fn write_suspended_result(
             .as_mut()
             .expect("prepared owner")
             .restore_frames(frames.into_storage());
-        publish_suspended_page(
+        suspended.row_offset += page_len;
+        suspended.row_description_sent = row_description_sent;
+        suspended.rows_emitted = suspended.rows_emitted.saturating_add(page_len);
+        let completion = suspended.result.clone();
+        let retained = remains_suspended.then_some(suspended);
+        store_portal_state(
             state,
             portal_name,
-            suspended,
-            SuspendedPageState {
-                page_len,
-                row_description_sent,
-                remains_suspended,
-            },
-            cancellation.as_ref(),
-            frame_owner,
+            row_description_sent,
+            completion.command(),
+            retained,
         );
+        publish_retained_portal_frames(state, portal_name, remains_suspended, &mut frame_owner);
+        if !remains_suspended {
+            clear_cancellation(state, cancellation.as_ref());
+        }
         Ok(())
     }
     .await;
@@ -349,33 +353,13 @@ pub(super) async fn write_suspended_result(
     output
 }
 
-struct SuspendedPageState {
-    page_len: usize,
-    row_description_sent: bool,
-    remains_suspended: bool,
-}
-
-fn publish_suspended_page(
+fn publish_retained_portal_frames(
     state: &mut SessionState,
     portal_name: &str,
-    mut suspended: PortalSuspended,
-    page: SuspendedPageState,
-    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-    mut frame_owner: Option<PortalFrameOwner>,
+    remains_suspended: bool,
+    frame_owner: &mut Option<PortalFrameOwner>,
 ) {
-    suspended.row_offset += page.page_len;
-    suspended.row_description_sent = page.row_description_sent;
-    suspended.rows_emitted = suspended.rows_emitted.saturating_add(page.page_len);
-    let completion = suspended.result.clone();
-    let retained = page.remains_suspended.then_some(suspended);
-    store_portal_state(
-        state,
-        portal_name,
-        page.row_description_sent,
-        completion.command(),
-        retained,
-    );
-    if page.remains_suspended
+    if remains_suspended
         && state
             .portals
             .get(portal_name)
@@ -384,9 +368,6 @@ fn publish_suspended_page(
         state
             .portal_frames
             .publish(frame_owner.take().expect("retained frame owner"));
-    }
-    if !page.remains_suspended {
-        clear_cancellation(state, cancellation);
     }
 }
 

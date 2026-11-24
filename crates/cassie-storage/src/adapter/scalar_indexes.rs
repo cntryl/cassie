@@ -1,15 +1,14 @@
-use crate::catalog::EngineIndexMetaExt;
 use super::{
     check_document_write_failure_point, key_encoding, CassieError, DataType,
     DocumentWriteFailurePoint, Midge, RowDecode, RowSchema,
 };
-use crate::catalog::{IndexKind, IndexMeta};
-use crate::executor::filter;
-use crate::sql::ast::Expr;
-use crate::types::Value;
-use cassie_storage::ScalarExpressionEvaluator;
+use super::StorageValueHooks;
+use crate::{ScalarExpressionEvaluationError, ScalarExpressionEvaluator};
+use cassie_core::catalog::declarations::IndexKind;
+use cassie_core::types::{self, Value};
+use cassie_sql::catalog_declarations::IndexMeta;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 mod codec;
 mod reservation_owner;
@@ -18,13 +17,13 @@ mod scan;
 use self::codec::encode_covering_fields;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ScalarIndexBound {
+pub struct ScalarIndexBound {
     pub value: serde_json::Value,
     pub inclusive: bool,
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ScalarIndexScanRequest {
+pub struct ScalarIndexScanRequest {
     pub equality_prefix: Vec<serde_json::Value>,
     pub lower_bound: Option<ScalarIndexBound>,
     pub upper_bound: Option<ScalarIndexBound>,
@@ -33,9 +32,57 @@ pub(crate) struct ScalarIndexScanRequest {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ScalarIndexScanHit {
+pub struct ScalarIndexScanHit {
     pub id: String,
     pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
+type EvaluateScalarExpression =
+    fn(&str, &str, &[(String, Value)]) -> Result<Value, CassieError>;
+
+struct ScalarExpressionHook<'a> {
+    index_name: &'a str,
+    evaluate: EvaluateScalarExpression,
+}
+
+impl ScalarExpressionEvaluator for ScalarExpressionHook<'_> {
+    type Error = CassieError;
+
+    fn evaluate(
+        &self,
+        stored_expression: &str,
+        row: &[(String, Value)],
+    ) -> Result<Value, CassieError> {
+        (self.evaluate)(self.index_name, stored_expression, row)
+    }
+}
+
+pub(super) fn scalar_expression_evaluator<'a>(
+    index_name: &'a str,
+    hooks: &StorageValueHooks,
+) -> impl ScalarExpressionEvaluator<Error = CassieError> + 'a {
+    ScalarExpressionHook {
+        index_name,
+        evaluate: hooks.evaluate_scalar_expression,
+    }
+}
+
+impl From<ScalarExpressionEvaluationError<CassieError>> for CassieError {
+    fn from(error: ScalarExpressionEvaluationError<CassieError>) -> Self {
+        match error {
+            ScalarExpressionEvaluationError::Evaluation(error) => error,
+            ScalarExpressionEvaluationError::UnsupportedValue(message) => Self::Unsupported(message),
+        }
+    }
+}
+
+pub(super) fn unique_index_violation(index: &IndexMeta, collection: &str) -> CassieError {
+    let details = index.unique_violation_details(collection);
+    CassieError::UniqueViolation {
+        table: details.table,
+        column: details.column,
+        constraint: details.constraint,
+    }
 }
 
 type ScalarIndexEntry = (Vec<u8>, Vec<u8>);
@@ -59,7 +106,7 @@ fn should_flush_scalar_index_batch(batch_number: usize, batch_count: usize) -> b
 
 impl Midge {
     pub(crate) fn sync_scalar_indexes_for_document(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
@@ -71,11 +118,11 @@ impl Midge {
 
         for index in indexes {
             let old_entry = match old_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema)?,
+                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?,
                 None => None,
             };
             let new_entry = match new_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema)?,
+                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?,
                 None => None,
             };
 
@@ -106,7 +153,10 @@ impl Midge {
         Ok((deletes, puts))
     }
 
-    pub(crate) fn rebuild_scalar_indexes_for_collection(
+    /// # Errors
+    ///
+    /// Returns an error when the collection's scalar indexes cannot be read or rebuilt.
+    pub fn rebuild_scalar_indexes_for_collection(
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {
@@ -119,7 +169,10 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn rebuild_scalar_index_for_index(
+    /// # Errors
+    ///
+    /// Returns an error when the current scalar index cannot be read or rebuilt.
+    pub fn rebuild_scalar_index_for_index(
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
@@ -148,7 +201,7 @@ impl Midge {
 
         for row in rows {
             if let Some((key, value)) =
-                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema)?
+                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema, self.value_hooks())?
             {
                 tx.put(key, value, None).map_err(CassieError::from)?;
             }
@@ -178,7 +231,7 @@ impl Midge {
                 &index.collection,
                 &key_encoding::unique_index_reservation_prefix_for(
                     &index.collection,
-                    index.reservation_identity()?,
+                    index.reservation_identity_details().map_err(CassieError::Parse)?,
                 ),
             )?;
         }
@@ -192,9 +245,14 @@ impl Midge {
             for row in &rows[range] {
                 let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
                 let reservation_values = if index.unique
-                    && Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)?
+                    && Self::payload_matches_scalar_index_predicate(
+                        index,
+                        &canonical,
+                        &row_schema,
+                        self.value_hooks().evaluate_scalar_predicate,
+                    )?
                 {
-                    let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+                    let evaluator = scalar_expression_evaluator(&index.name, self.value_hooks());
                     Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
                 } else {
                     None
@@ -202,14 +260,14 @@ impl Midge {
                 if let Some(values) = reservation_values {
                     let reservation = key_encoding::unique_index_reservation_key_for(
                         &index.collection,
-                        index.reservation_identity()?,
+                        index.reservation_identity_details().map_err(CassieError::Parse)?,
                         &values,
                     )?;
                     tx.put(reservation, row.id.as_bytes().to_vec(), None)
                         .map_err(CassieError::from)?;
                 }
                 if let Some((key, value)) =
-                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema)?
+                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema, self.value_hooks())?
                 {
                     tx.put(key, value, None).map_err(CassieError::from)?;
                 }
@@ -226,16 +284,21 @@ impl Midge {
     fn validate_unique_index_rows(
         &self,
         index: &IndexMeta,
-        rows: &[crate::midge::adapter::DocumentRef],
+        rows: &[crate::adapter::DocumentRef],
     ) -> Result<(), CassieError> {
         let mut owners = HashMap::<Vec<u8>, String>::new();
         let row_schema = self.row_schema(&index.collection)?;
         for row in rows {
             let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
-            if !Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)? {
+            if !Self::payload_matches_scalar_index_predicate(
+                        index,
+                        &canonical,
+                        &row_schema,
+                        self.value_hooks().evaluate_scalar_predicate,
+                    )? {
                 continue;
             }
-            let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+            let evaluator = scalar_expression_evaluator(&index.name, self.value_hooks());
             let Some(values) =
                 Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
             else {
@@ -243,11 +306,11 @@ impl Midge {
             };
             let key = key_encoding::unique_index_reservation_key_for(
                 &index.collection,
-                index.reservation_identity()?,
+                index.reservation_identity_details().map_err(CassieError::Parse)?,
                 &values,
             )?;
             if owners.insert(key, row.id.clone()).is_some() {
-                return Err(index.unique_violation(&index.collection));
+                return Err(unique_index_violation(index, &index.collection));
             }
         }
         Ok(())
@@ -297,7 +360,10 @@ impl Midge {
         self.delete_data_keys_with_prefix_in_batches(collection, prefix)
     }
 
-    pub(crate) fn delete_scalar_index_data(
+    /// # Errors
+    ///
+    /// Returns an error if the index cannot be inspected or its data removed.
+    pub fn delete_scalar_index_data(
         &self,
         collection: &str,
         index_name: &str,
@@ -331,14 +397,20 @@ impl Midge {
         id: &str,
         payload: &serde_json::Value,
         row_schema: &RowSchema,
+        hooks: &StorageValueHooks,
     ) -> Result<Option<ScalarIndexEntry>, CassieError> {
         if !Self::scalar_index_supports_storage(index)
-            || !Self::payload_matches_scalar_index_predicate(index, payload, row_schema)?
+            || !Self::payload_matches_scalar_index_predicate(
+                index,
+                payload,
+                row_schema,
+                hooks.evaluate_scalar_predicate,
+            )?
         {
             return Ok(None);
         }
 
-        let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+        let evaluator = scalar_expression_evaluator(&index.name, hooks);
         let Some(key_values) =
             Self::scalar_index_key_values(index, payload, row_schema, &evaluator)?
         else {
@@ -355,12 +427,15 @@ impl Midge {
         Ok(Some((key, value)))
     }
 
-    pub(crate) fn scalar_index_key_values(
+    /// # Errors
+    ///
+    /// Returns a typed expression-evaluation or persisted key-conversion error.
+    pub fn scalar_index_key_values<E>(
         index: &IndexMeta,
         payload: &serde_json::Value,
         row_schema: &RowSchema,
-        evaluator: &impl ScalarExpressionEvaluator<Error = CassieError>,
-    ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {
+        evaluator: &impl ScalarExpressionEvaluator<Error = E>,
+    ) -> Result<Option<Vec<serde_json::Value>>, ScalarExpressionEvaluationError<E>> {
         let mut values = Vec::new();
         for field in index.normalized_fields() {
             let Some(value) = payload.get(&field) else {
@@ -384,38 +459,18 @@ impl Midge {
         }
 
         let row = payload_to_row(payload, row_schema);
-        let expression_values = cassie_storage::evaluate_expression_index_values(
+        let expression_values = crate::evaluate_expression_index_values(
             &expressions,
             &row,
             index.nulls_not_distinct(),
             evaluator,
-        )
-        .map_err(|error| match error {
-            cassie_storage::ScalarExpressionEvaluationError::Evaluation(error) => error,
-            cassie_storage::ScalarExpressionEvaluationError::UnsupportedValue(message) => {
-                CassieError::Unsupported(message)
-            }
-        })?;
+        )?;
         let Some(expression_values) = expression_values else {
             return Ok(None);
         };
         values.extend(expression_values);
 
         Ok(Some(values))
-    }
-
-    pub(crate) fn scalar_index_expression_evaluator(
-        index_name: &str,
-    ) -> impl ScalarExpressionEvaluator<Error = CassieError> + '_ {
-        EngineScalarExpressionEvaluator { index_name }
-    }
-
-    fn scalar_index_expression(index_name: &str, raw: &str) -> Result<Expr, CassieError> {
-        serde_json::from_str(raw).map_err(|error| {
-            CassieError::Parse(format!(
-                "invalid scalar index expression for '{index_name}': {error}"
-            ))
-        })
     }
 
     fn scalar_index_stored_fields(
@@ -435,26 +490,27 @@ impl Midge {
         fields
     }
 
-    pub(crate) fn payload_matches_scalar_index_predicate(
+    /// # Errors
+    ///
+    /// Returns a definition error or the original error from the predicate evaluator.
+    pub fn payload_matches_scalar_index_predicate<E>(
         index: &IndexMeta,
         payload: &serde_json::Value,
         row_schema: &RowSchema,
-    ) -> Result<bool, CassieError> {
-        crate::sql::definition_guard::index(index)?;
+        evaluate: impl FnOnce(&str, &str, Vec<(String, Value)>) -> Result<bool, E>,
+    ) -> Result<bool, E>
+    where
+        E: From<cassie_sql::definition_guard::DefinitionError>,
+    {
+        cassie_sql::definition_guard::index(
+            index.definition_semantics_version,
+            &index.expressions,
+            index.predicate.as_deref(),
+        )?;
         let Some(raw_predicate) = index.predicate.as_ref() else {
             return Ok(true);
         };
-        let predicate: Expr = serde_json::from_str(raw_predicate).map_err(|error| {
-            CassieError::Parse(format!(
-                "invalid scalar index predicate for '{}': {error}",
-                index.name
-            ))
-        })?;
-        let row = payload_to_row(payload, row_schema);
-        let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
-            .map_err(CassieError::from)?
-            .is_empty();
-        Ok(matched)
+        evaluate(&index.name, raw_predicate, payload_to_row(payload, row_schema))
     }
 }
 
@@ -497,12 +553,14 @@ pub(crate) fn scalar_index_canonical_payload<'a>(
 /// The key form of a stored field value. `numeric` and `real` carriers become
 /// order-preserving, value-canonical key text (equal values key equally and the
 /// byte order is the numeric order); every other value is used as stored.
-pub(crate) fn index_key_field_value(
+#[doc(hidden)]
+#[must_use]
+pub fn index_key_field_value(
     row_schema: &RowSchema,
     field: &str,
     value: &serde_json::Value,
 ) -> serde_json::Value {
-    use crate::types::extended::{index_key, ExtendedType};
+    use types::extended::{index_key, ExtendedType};
     let Some(field_meta) = row_schema
         .fields
         .iter()
@@ -518,7 +576,9 @@ pub(crate) fn index_key_field_value(
     .unwrap_or_else(|| value.clone())
 }
 
-pub(crate) fn canonical_field_value(
+#[doc(hidden)]
+#[must_use]
+pub fn canonical_field_value(
     data_type: &DataType,
     value: &serde_json::Value,
 ) -> Option<serde_json::Value> {
@@ -532,7 +592,7 @@ pub(crate) fn canonical_field_value(
         DataType::Bytea => {
             return value
                 .as_str()
-                .and_then(|value| crate::midge::row_blob::canonical_bytea_text(value).ok())
+                .and_then(|value| crate::row_blob::canonical_bytea_text(value).ok())
                 .map(serde_json::Value::String);
         }
         DataType::Float => {
@@ -546,12 +606,12 @@ pub(crate) fn canonical_field_value(
         DataType::Char { .. } => {
             return value
                 .as_str()
-                .map(crate::types::char_text::canonical_char_text)
+                .map(types::char_text::canonical_char_text)
                 .map(|text| serde_json::Value::String(text.to_string()));
         }
-        DataType::Date => crate::types::temporal::canonical_date,
-        DataType::Time => crate::types::temporal::canonical_time,
-        DataType::Timestamp => crate::types::temporal::canonical_timestamp,
+        DataType::Date => types::temporal::canonical_date,
+        DataType::Time => types::temporal::canonical_time,
+        DataType::Timestamp => types::temporal::canonical_timestamp,
         _ => return None,
     };
     canonical_text(value.as_str()?)
@@ -601,25 +661,6 @@ fn json_to_query_value(value: &serde_json::Value, data_type: Option<&DataType>) 
         return Value::Float64(value);
     }
     Value::Json(value.clone())
-}
-
-struct EngineScalarExpressionEvaluator<'a> {
-    index_name: &'a str,
-}
-
-impl ScalarExpressionEvaluator for EngineScalarExpressionEvaluator<'_> {
-    type Error = CassieError;
-
-    fn evaluate(
-        &self,
-        stored_expression: &str,
-        row: &[(String, Value)],
-    ) -> Result<Value, Self::Error> {
-        let expression = Midge::scalar_index_expression(self.index_name, stored_expression)?;
-        let user_functions = HashMap::new();
-        filter::evaluate_expr_value(row, &expression, &[], None, &user_functions, None, None)
-            .map_err(CassieError::from)
-    }
 }
 
 #[cfg(test)]

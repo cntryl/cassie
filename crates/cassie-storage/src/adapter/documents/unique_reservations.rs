@@ -1,4 +1,6 @@
-use crate::catalog::EngineIndexMetaExt;
+use super::super::scalar_indexes::{scalar_expression_evaluator, unique_index_violation};
+use super::super::StorageValueHooks;
+use cassie_core::{catalog::declarations::UniqueNullPolicy, types::DataType};
 use super::{
     key_encoding, CassieError, DocumentWriteBatchContext, FieldConstraint, IndexMeta, Midge,
     PreparedWrite, RowSchema,
@@ -16,7 +18,7 @@ enum UniqueReservationDescriptor {
 
 impl Midge {
     pub(super) fn release_unique_reservations_for_batch(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &[PreparedWrite],
@@ -44,7 +46,7 @@ impl Midge {
     }
 
     pub(super) fn sync_unique_reservations_for_document(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,
@@ -58,6 +60,7 @@ impl Midge {
             &context.unique_scalar_indexes,
             &context.row_schema,
             previous_payload,
+            tx.value_hooks(),
         )?;
         let next_targets = Self::collect_unique_reservation_targets(
             collection,
@@ -65,6 +68,7 @@ impl Midge {
             &context.unique_scalar_indexes,
             &context.row_schema,
             next_payload,
+            tx.value_hooks(),
         )?;
 
         for (key, _descriptor) in stale_targets.drain(..) {
@@ -107,6 +111,7 @@ impl Midge {
         unique_indexes: &[IndexMeta],
         row_schema: &RowSchema,
         payload: Option<&serde_json::Value>,
+        hooks: &StorageValueHooks,
     ) -> Result<Vec<(Vec<u8>, UniqueReservationDescriptor)>, CassieError> {
         let Some(payload) = payload else {
             return Ok(Vec::new());
@@ -118,12 +123,12 @@ impl Midge {
                 continue;
             };
             if value.is_null()
-                && constraint.unique_null_policy != crate::catalog::UniqueNullPolicy::NotDistinct
+                && constraint.unique_null_policy != UniqueNullPolicy::NotDistinct
                 && !row_schema.fields.iter().any(|field_meta| {
                     field_meta.name == constraint.field
                         && matches!(
                             field_meta.data_type,
-                            crate::types::DataType::Json | crate::types::DataType::Jsonb
+                            DataType::Json | DataType::Jsonb
                         )
                 })
             {
@@ -131,7 +136,7 @@ impl Midge {
             }
 
             let key_value =
-                crate::midge::adapter::index_key_field_value(row_schema, &constraint.field, value);
+                crate::adapter::index_key_field_value(row_schema, &constraint.field, value);
             let key = key_encoding::unique_constraint_reservation_key(
                 collection,
                 &constraint.field,
@@ -148,10 +153,15 @@ impl Midge {
         }
 
         for index in unique_indexes {
-            if !Self::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
+            if !Self::payload_matches_scalar_index_predicate(
+                index,
+                payload,
+                row_schema,
+                hooks.evaluate_scalar_predicate,
+            )? {
                 continue;
             }
-            let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+            let evaluator = scalar_expression_evaluator(&index.name, hooks);
             let Some(values) =
                 Self::scalar_index_key_values(index, payload, row_schema, &evaluator)?
             else {
@@ -159,13 +169,13 @@ impl Midge {
             };
             let key = key_encoding::unique_index_reservation_key_for(
                 collection,
-                index.reservation_identity()?,
+                index.reservation_identity_details().map_err(CassieError::Parse)?,
                 &values,
             )?;
             targets.push((
                 key,
                 UniqueReservationDescriptor::UniqueIndex(Box::new(
-                    index.unique_violation(collection),
+                    unique_index_violation(index, collection),
                 )),
             ));
         }

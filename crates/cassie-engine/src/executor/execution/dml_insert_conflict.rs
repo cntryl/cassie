@@ -1,3 +1,4 @@
+use crate::midge::scalar_expression;
 //! Finding the existing row an `INSERT ... ON CONFLICT` proposal conflicts with.
 
 use super::{json_to_value, Cassie, CassieSession, CollectionSchema, HashMap, QueryError, Value};
@@ -189,12 +190,10 @@ pub(super) fn find_expression_index_conflict(
     payload: &serde_json::Value,
     row_schema: &crate::midge::row_blob::RowSchema,
 ) -> Result<Option<String>, QueryError> {
-    use crate::midge::adapter::Midge;
-    if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
+    if !scalar_expression::matches_predicate(index, payload, row_schema)? {
         return Ok(None);
     }
-    let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
-    let Some(key) = Midge::scalar_index_key_values(index, payload, row_schema, &evaluator)? else {
+    let Some(key) = scalar_expression::key_values(index, payload, row_schema)? else {
         return Ok(None);
     };
     let staged_snapshot = session.map(|session| session.staged_write_snapshot(table));
@@ -236,13 +235,11 @@ pub(super) fn expression_index_key_matches(
     row_schema: &crate::midge::row_blob::RowSchema,
     key: &[serde_json::Value],
 ) -> Result<bool, QueryError> {
-    use crate::midge::adapter::Midge;
-    if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
+    if !scalar_expression::matches_predicate(index, payload, row_schema)? {
         return Ok(false);
     }
-    let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
     Ok(
-        Midge::scalar_index_key_values(index, payload, row_schema, &evaluator)?.as_deref()
+        scalar_expression::key_values(index, payload, row_schema)?.as_deref()
             == Some(key),
     )
 }

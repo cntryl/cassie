@@ -1,8 +1,8 @@
+use crate::midge::scalar_expression;
 //! Reconcile committed unique reservation owners with the session's staged view.
 use crate::catalog::EngineIndexMetaExt;
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
 use crate::catalog::{IndexKind, IndexMeta};
-use crate::midge::adapter::Midge;
 
 impl Cassie {
     pub(super) fn validate_uniques(
@@ -92,9 +92,8 @@ impl Cassie {
                 continue;
             }
             let fields = index.normalized_fields();
-            let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
             let key_matches = |candidate: &serde_json::Value| -> Result<Option<Vec<serde_json::Value>>, CassieError> {
-                if !Midge::payload_matches_scalar_index_predicate(&index, candidate, &row_schema)?
+                if !scalar_expression::matches_predicate(&index, candidate, &row_schema)?
                     || (!index.nulls_not_distinct()
                         && fields.iter().any(|field| {
                             super::field_value_is_sql_null(
@@ -106,7 +105,7 @@ impl Cassie {
                 {
                     return Ok(None);
                 }
-                Midge::scalar_index_key_values(&index, candidate, &row_schema, &evaluator)
+                scalar_expression::key_values(&index, candidate, &row_schema)
             };
             let Some(key) = key_matches(payload)? else {
                 continue;

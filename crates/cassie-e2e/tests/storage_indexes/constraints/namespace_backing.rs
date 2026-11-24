@@ -529,7 +529,7 @@ fn should_release_alias_reservations_given_a_dropped_unique_when_the_key_is_repu
     // Act
     cassie
         .midge
-        .save_constraints_and_release_unique_reservations(
+        .save_constraints_and_release_unique_reservations::<()>(
             "public.namespace_probe",
             &[],
             &["value".into()],
@@ -670,7 +670,7 @@ fn should_replay_canonical_cleanup_given_an_alias_drop_when_local_storage_restar
     // Act
     let interrupted = cassie
         .midge
-        .save_constraints_and_release_unique_reservations(
+        .save_constraints_and_release_unique_reservations::<()>(
             "public.namespace_probe",
             &[],
             &["value".into()],

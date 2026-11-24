@@ -430,7 +430,7 @@ fn should_fail_a_batched_scan_when_a_field_has_no_live_marker() {
     let result = env.cassie.midge.scan_documents_batched(TABLE, 2);
 
     // Assert
-    assert_corruption(
+    assert_storage_corruption(
         &result.expect_err("orphan fields must fail the scan"),
         "ghost",
     );

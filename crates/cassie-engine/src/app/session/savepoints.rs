@@ -76,7 +76,7 @@ impl CassieSession {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
     pub fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
         self.rollback_to_savepoint_inner(name, None, || {})

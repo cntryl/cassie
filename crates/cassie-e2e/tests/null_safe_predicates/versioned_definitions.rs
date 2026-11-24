@@ -1,5 +1,6 @@
 use crate::support_sql_fixture::sql_fixture;
 use cassie::app::CassieError;
+use cassie::midge::adapter::StorageError;
 use cassie::types::Value;
 
 #[test]
@@ -65,7 +66,7 @@ fn should_reject_future_definition_versions_before_publication() {
     // Assert
     assert!(matches!(
         rejected.expect_err("unknown semantics"),
-        CassieError::Unsupported(_)
+        StorageError::Unsupported(_)
     ));
     assert!(stored.is_none());
 }
@@ -202,7 +203,7 @@ fn should_reject_legacy_null_safe_operator_admission() {
     // Assert
     assert!(matches!(
         rejected.expect_err("legacy admission"),
-        CassieError::Unsupported(_)
+        StorageError::Unsupported(_)
     ));
 }
 
@@ -306,7 +307,7 @@ fn should_preserve_loaded_future_records_after_rejected_use() {
     // Assert
     assert!(matches!(
         loaded.expect_err("unknown loaded version"),
-        CassieError::Unsupported(_)
+        StorageError::Unsupported(_)
     ));
     assert!(matches!(
         used.expect_err("unknown execution version"),
@@ -331,7 +332,7 @@ fn should_reject_future_constraint_semantics_before_alter_default_can_replace_th
         .midge
         .load_constraints(&collection)
         .expect("original constraints");
-    let mut future = original.clone();
+    let mut future = fixture.cassie.catalog.get_constraints(&collection);
     future
         .first_mut()
         .expect("default constraint")
@@ -441,7 +442,7 @@ fn should_reject_unbound_versioned_default_metadata_before_publication() {
     // Assert
     assert!(matches!(
         rejected.expect_err("metadata needs its bound literal carrier"),
-        CassieError::Unsupported(_)
+        StorageError::Unsupported(_)
     ));
     assert_eq!(before, after);
 }
@@ -617,8 +618,8 @@ fn should_reject_unprepared_non_null_check_metadata() {
         .load_constraints(&collection)
         .expect("readback");
     // Assert
-    assert!(matches!(result, Err(CassieError::Unsupported(_))));
-    assert_eq!(stored, Vec::<cassie::catalog::FieldConstraint>::new());
+    assert!(matches!(result, Err(StorageError::Unsupported(_))));
+    assert!(stored.is_empty());
 }
 
 #[test]

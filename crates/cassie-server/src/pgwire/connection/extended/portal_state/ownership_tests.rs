@@ -455,7 +455,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
             crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
         );
         let registration = cassie.runtime().register_pgwire_backend();
-        let previous = registration.begin_query().suspend();
+        let previous = registration.begin_query().handle();
         state.backend_registration = Some(registration);
         state
             .portals

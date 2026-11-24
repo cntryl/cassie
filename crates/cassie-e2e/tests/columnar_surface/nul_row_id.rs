@@ -3,7 +3,7 @@
 //! otherwise be stored but read back under a different id.
 
 use super::pair::{with_pair, Pair, COL, ROW};
-use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use cassie::app::{CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
 
@@ -31,7 +31,7 @@ fn put_refused(pair: &Pair, name: &str, mode: &str) {
 
     // Assert
     let error = result.expect_err("a NUL row id must be refused");
-    assert_eq!(error.sql_state(), "22021");
+    assert_eq!(CassieError::from(error).sql_state(), "22021");
     assert!(zero_rows(pair, &table), "refused write left a row behind");
 }
 
@@ -83,7 +83,7 @@ fn should_refuse_nul_row_id_in_fresh_document_load() {
 
         // Assert
         let error = result.expect_err("a NUL row id must be refused");
-        assert_eq!(error.sql_state(), "22021");
+        assert_eq!(CassieError::from(error).sql_state(), "22021");
         assert!(zero_rows(pair, &table), "refused load left a row behind");
     });
 }

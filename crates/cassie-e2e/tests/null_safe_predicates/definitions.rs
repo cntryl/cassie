@@ -1,5 +1,6 @@
 use crate::support_sql_fixture::sql_fixture;
 use cassie::app::CassieError;
+use cassie::midge::adapter::StorageError;
 
 #[test]
 fn should_publish_selected_persisted_view_null_safe_predicates() {
@@ -70,7 +71,7 @@ fn should_reject_direct_durable_null_safe_metadata_admission() {
     // Assert
     for (kind, result) in ["function", "procedure", "view"].iter().zip(results) {
         assert!(
-            matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+            matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
             "{kind}: should_reject_direct_durable_null_safe_metadata_admission should report Unsupported (SQLSTATE 0A000) for persisted definition"
         );
     }
@@ -152,7 +153,7 @@ fn should_reject_null_safe_predicates_in_nested_procedure_definitions() {
     let result = fixture.cassie.midge.put_procedure(&procedure);
     // Assert
     assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "should_reject_null_safe_predicates_in_nested_procedure_definitions should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
@@ -196,7 +197,7 @@ fn should_reject_direct_default_expression_publication() {
     // Assert
     assert!(
         results.iter().all(|result| matches!(result,
-        Err(CassieError::Unsupported(message)) if message.contains("persisted definitions"))),
+        Err(StorageError::Unsupported(message)) if message.contains("persisted definitions"))),
         "should_reject_direct_default_expression_publication should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
@@ -222,7 +223,7 @@ fn should_reject_null_safe_arguments_in_stored_procedure_calls() {
     let result = fixture.cassie.midge.put_procedure(&metadata);
     // Assert
     assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "should_reject_null_safe_arguments_in_stored_procedure_calls should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
@@ -327,7 +328,7 @@ fn should_reject_nested_default_parser_guard_before_procedure_publication() {
     // Assert
     eprintln!("nested DEFAULT procedure published={}", published.is_some());
     assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "nested DEFAULT must preserve selected Unsupported rejection"
     );
     assert!(published.is_none(), "rejected procedure must not publish");
@@ -357,7 +358,7 @@ fn should_reject_nested_check_parser_guard_before_procedure_publication() {
     // Assert
     eprintln!("nested CHECK procedure published={}", published.is_some());
     assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "nested CHECK must preserve selected Unsupported rejection"
     );
     assert!(published.is_none(), "rejected procedure must not publish");
@@ -428,7 +429,7 @@ fn should_reject_recursive_procedure_parser_guard() {
         .expect("read recursive procedure");
     // Assert
     assert!(
-        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        matches!(result, Err(StorageError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "recursive procedure must report the selected Unsupported rejection"
     );
     assert!(

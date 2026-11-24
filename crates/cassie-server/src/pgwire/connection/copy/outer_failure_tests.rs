@@ -4,7 +4,8 @@ use crate::config::CassieRuntimeConfig;
 #[test]
 fn should_keep_the_replacement_healthy_after_a_copy_worker_error() {
     // Arrange
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    let cassie =
+        Arc::new(Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap());
     cassie.startup().unwrap();
     let session = cassie.create_session("copy_outer", None);
     cassie
@@ -46,7 +47,7 @@ fn should_keep_the_replacement_healthy_after_a_copy_worker_error() {
     // Act
     let mut output = Vec::new();
     let handled = runtime.block_on(finish_simple_copy(
-        cassie.clone(),
+        Arc::clone(&cassie),
         *binding,
         session.clone(),
         request,

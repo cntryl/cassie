@@ -86,7 +86,7 @@ fn should_retain_idle_bound_portals_only_for_their_own_implicit_start() {
     assert!(state.portal_owners.belongs_to("bound", after));
     session.rollback_transaction();
     session
-        .begin_implicit_transaction()
+        .begin_implicit_transaction_for_operation(None)
         .expect("unrelated implicit start");
     let replacement = FailureAuthority::capture(&session)
         .identity()

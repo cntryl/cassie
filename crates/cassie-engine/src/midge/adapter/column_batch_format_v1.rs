@@ -1,7 +1,5 @@
 //! Engine compatibility facade for storage-owned column codecs.
 
-mod manifest;
-
 use crate::app::CassieError;
 
 pub(crate) use cassie_storage::column_batch_format_v1::{
@@ -62,10 +60,9 @@ pub(crate) fn decode_boolean_column_chunk(
         .map_err(CassieError::from)
 }
 
-pub(crate) use manifest::{
-    checksum_hex, decode as decode_manifest, encode as encode_manifest, has_current_header,
-    summary_checksum, FORMAT_VERSION as MANIFEST_FORMAT_VERSION,
-    SUMMARY_VERSION as MANIFEST_SUMMARY_VERSION,
+pub(crate) use cassie_storage::column_batch_format_v1::{
+    checksum_hex, decode_manifest, encode_manifest, has_current_header, summary_checksum,
+    MANIFEST_FORMAT_VERSION, MANIFEST_SUMMARY_VERSION,
 };
 
 #[doc(hidden)]
@@ -127,14 +124,16 @@ pub fn decode_row_id_chunk_for_test(bytes: &[u8]) -> Result<Vec<String>, CassieE
 pub fn encode_column_batch_manifest_for_test(
     metadata: &crate::catalog::ColumnBatchMetadata,
 ) -> Result<Vec<u8>, CassieError> {
-    manifest::encode(metadata)
+    cassie_storage::column_batch_format_v1::encode_column_batch_manifest_for_test(metadata)
+        .map_err(CassieError::from)
 }
 
 #[doc(hidden)]
 pub fn decode_column_batch_manifest_for_test(
     bytes: &[u8],
 ) -> Result<crate::catalog::ColumnBatchMetadata, CassieError> {
-    manifest::decode(bytes)
+    cassie_storage::column_batch_format_v1::decode_column_batch_manifest_for_test(bytes)
+        .map_err(CassieError::from)
 }
 
 #[cfg(test)]

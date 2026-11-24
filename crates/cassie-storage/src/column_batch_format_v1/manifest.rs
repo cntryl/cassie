@@ -2,22 +2,22 @@ use std::collections::BTreeMap;
 
 use sha2::{Digest, Sha256};
 
-use crate::app::CassieError;
-use crate::catalog::{
+use crate::StorageCodecError;
+use cassie_core::catalog::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
     ColumnBatchSegmentMeta,
 };
-use crate::types::{Value, Vector};
+use cassie_core::types::{SqlArray, Value, Vector};
 
-use cassie_storage::column_batch_format_v1::binary::{
+use super::binary::{
     invalid, write_bytes, write_f64, write_i128, write_i64, write_string, write_u16, write_u32,
     write_u64, Reader,
 };
-use cassie_storage::column_batch_format_v1::chunk::{Codec, LogicalType};
+use super::chunk::{Codec, LogicalType};
 
 const MAGIC: &[u8; 4] = b"CBM1";
-pub(crate) const FORMAT_VERSION: u16 = 1;
-pub(crate) const SUMMARY_VERSION: u16 = 1;
+pub const FORMAT_VERSION: u16 = 1;
+pub const SUMMARY_VERSION: u16 = 1;
 const CHECKSUM_LEN: usize = 32;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024 * 1024;
 const MAX_STRING_BYTES: usize = 1024 * 1024;
@@ -26,7 +26,7 @@ const MAX_SEGMENTS: usize = 1_048_576;
 const MAX_VECTOR_VALUES: usize = 1_048_576;
 const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
 
-pub(crate) fn encode(metadata: &ColumnBatchMetadata) -> Result<Vec<u8>, CassieError> {
+pub fn encode(metadata: &ColumnBatchMetadata) -> Result<Vec<u8>, StorageCodecError> {
     if metadata.metadata_format_version != u32::from(FORMAT_VERSION)
         || metadata.summary_format_version != u32::from(SUMMARY_VERSION)
     {
@@ -79,7 +79,7 @@ pub(crate) fn encode(metadata: &ColumnBatchMetadata) -> Result<Vec<u8>, CassieEr
     Ok(out)
 }
 
-pub(crate) fn decode(bytes: &[u8]) -> Result<ColumnBatchMetadata, CassieError> {
+pub fn decode(bytes: &[u8]) -> Result<ColumnBatchMetadata, StorageCodecError> {
     if bytes.len() < CHECKSUM_LEN || bytes.len() > MAX_MANIFEST_BYTES {
         return Err(invalid("invalid column-batch manifest length"));
     }
@@ -133,21 +133,21 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<ColumnBatchMetadata, CassieError> {
     })
 }
 
-pub(crate) fn has_current_header(bytes: &[u8]) -> bool {
+pub fn has_current_header(bytes: &[u8]) -> bool {
     bytes.get(..4) == Some(MAGIC.as_slice())
         && bytes
             .get(4..6)
             .is_some_and(|raw| raw == FORMAT_VERSION.to_le_bytes())
 }
 
-pub(crate) fn checksum_hex(bytes: &[u8]) -> String {
+pub fn checksum_hex(bytes: &[u8]) -> String {
     hex(Sha256::digest(bytes).as_slice())
 }
 
-pub(crate) fn summary_checksum(
+pub fn summary_checksum(
     row_count: usize,
     summaries: &BTreeMap<String, ColumnBatchFieldSummary>,
-) -> Result<String, CassieError> {
+) -> Result<String, StorageCodecError> {
     let mut out = Vec::new();
     write_u16(&mut out, SUMMARY_VERSION);
     write_u64(
@@ -158,7 +158,7 @@ pub(crate) fn summary_checksum(
     Ok(checksum_hex(out.as_slice()))
 }
 
-fn encode_segment(out: &mut Vec<u8>, segment: &ColumnBatchSegmentMeta) -> Result<(), CassieError> {
+fn encode_segment(out: &mut Vec<u8>, segment: &ColumnBatchSegmentMeta) -> Result<(), StorageCodecError> {
     write_u64(out, segment.segment_id);
     write_u64(out, segment.revision);
     write_optional_string(out, segment.row_id_start.as_deref())?;
@@ -187,7 +187,7 @@ fn encode_segment(out: &mut Vec<u8>, segment: &ColumnBatchSegmentMeta) -> Result
 fn decode_segment(
     reader: &mut Reader<'_>,
     manifest_field_count: usize,
-) -> Result<ColumnBatchSegmentMeta, CassieError> {
+) -> Result<ColumnBatchSegmentMeta, StorageCodecError> {
     let segment_id = reader.read_u64()?;
     let revision = reader.read_u64()?;
     let row_id_start = read_optional_string(reader)?;
@@ -229,7 +229,7 @@ fn decode_segment(
     })
 }
 
-fn encode_chunk_meta(out: &mut Vec<u8>, chunk: &ColumnBatchChunkMeta) -> Result<(), CassieError> {
+fn encode_chunk_meta(out: &mut Vec<u8>, chunk: &ColumnBatchChunkMeta) -> Result<(), StorageCodecError> {
     let logical_type = logical_type_tag(&chunk.logical_type)?;
     let codec = codec_from_meta(chunk.codec_id, &chunk.codec_name)?;
     out.push(logical_type);
@@ -258,7 +258,7 @@ fn encode_chunk_meta(out: &mut Vec<u8>, chunk: &ColumnBatchChunkMeta) -> Result<
     write_checksum(out, &chunk.checksum_sha256)
 }
 
-fn decode_chunk_meta(reader: &mut Reader<'_>) -> Result<ColumnBatchChunkMeta, CassieError> {
+fn decode_chunk_meta(reader: &mut Reader<'_>) -> Result<ColumnBatchChunkMeta, StorageCodecError> {
     let logical_type = logical_type_name(reader.read_u8()?)?;
     let codec = Codec::from_tag_for_manifest(reader.read_u8()?)?;
     let codec_version = reader.read_u32()?;
@@ -286,7 +286,7 @@ fn decode_chunk_meta(reader: &mut Reader<'_>) -> Result<ColumnBatchChunkMeta, Ca
 fn encode_summaries(
     out: &mut Vec<u8>,
     summaries: &BTreeMap<String, ColumnBatchFieldSummary>,
-) -> Result<(), CassieError> {
+) -> Result<(), StorageCodecError> {
     if summaries.len() > MAX_FIELDS {
         return Err(invalid("column-batch summary count exceeds limit"));
     }
@@ -322,7 +322,7 @@ fn encode_summaries(
 fn decode_summaries(
     reader: &mut Reader<'_>,
     manifest_field_count: usize,
-) -> Result<BTreeMap<String, ColumnBatchFieldSummary>, CassieError> {
+) -> Result<BTreeMap<String, ColumnBatchFieldSummary>, StorageCodecError> {
     let count = read_count(reader, MAX_FIELDS, 32)?;
     if count != manifest_field_count {
         return Err(invalid("column-batch summary count mismatch"));
@@ -349,7 +349,7 @@ fn decode_summaries(
     Ok(summaries)
 }
 
-fn write_optional_value(out: &mut Vec<u8>, value: Option<&Value>) -> Result<(), CassieError> {
+fn write_optional_value(out: &mut Vec<u8>, value: Option<&Value>) -> Result<(), StorageCodecError> {
     match value {
         None => out.push(0),
         Some(value) => {
@@ -360,7 +360,7 @@ fn write_optional_value(out: &mut Vec<u8>, value: Option<&Value>) -> Result<(), 
     Ok(())
 }
 
-fn read_optional_value(reader: &mut Reader<'_>) -> Result<Option<Value>, CassieError> {
+fn read_optional_value(reader: &mut Reader<'_>) -> Result<Option<Value>, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(None),
         1 => decode_value(reader).map(Some),
@@ -368,7 +368,7 @@ fn read_optional_value(reader: &mut Reader<'_>) -> Result<Option<Value>, CassieE
     }
 }
 
-fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
+fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), StorageCodecError> {
     match value {
         Value::Null => out.push(0),
         Value::Bool(value) => {
@@ -413,8 +413,8 @@ fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
             write_u32(
                 out,
                 value.kind().map_or(
-                    crate::types::composite::RECORD_OID,
-                    crate::types::extended::ExtendedType::type_oid,
+                    cassie_core::types::composite::RECORD_OID,
+                    cassie_core::types::extended::ExtendedType::type_oid,
                 ),
             );
             write_bytes(out, &value.send_binary())?;
@@ -432,7 +432,7 @@ fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
     Ok(())
 }
 
-fn decode_value(reader: &mut Reader<'_>) -> Result<Value, CassieError> {
+fn decode_value(reader: &mut Reader<'_>) -> Result<Value, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(Value::Null),
         1 => match reader.read_u8()? {
@@ -459,7 +459,7 @@ fn decode_value(reader: &mut Reader<'_>) -> Result<Value, CassieError> {
                 .map_err(|_| invalid("invalid column-batch JSON summary"))
         }
         7 => {
-            let kind = crate::types::extended::ExtendedType::for_oid(reader.read_u32()?)
+            let kind = cassie_core::types::extended::ExtendedType::for_oid(reader.read_u32()?)
                 .ok_or_else(|| invalid("unknown column-batch summary type"))?;
             let raw = reader.read_bounded_bytes(MAX_JSON_BYTES)?;
             kind.receive_binary(raw)
@@ -470,7 +470,7 @@ fn decode_value(reader: &mut Reader<'_>) -> Result<Value, CassieError> {
             let raw = reader.read_bounded_bytes(MAX_JSON_BYTES)?;
             let value = serde_json::from_slice(raw)
                 .map_err(|_| invalid("invalid column-batch SQL array"))?;
-            crate::types::SqlArray::from_storage_json(&value)
+            SqlArray::from_storage_json(&value)
                 .map(Value::Array)
                 .map_err(|_| invalid("invalid column-batch SQL array shape"))
         }
@@ -494,7 +494,7 @@ fn encode_numeric_sum(out: &mut Vec<u8>, sum: &ColumnBatchNumericSum) {
     }
 }
 
-fn decode_numeric_sum(reader: &mut Reader<'_>) -> Result<ColumnBatchNumericSum, CassieError> {
+fn decode_numeric_sum(reader: &mut Reader<'_>) -> Result<ColumnBatchNumericSum, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(ColumnBatchNumericSum::Empty),
         1 => Ok(ColumnBatchNumericSum::FloatEmpty),
@@ -515,7 +515,7 @@ fn write_optional_i128(out: &mut Vec<u8>, value: Option<i128>) {
     }
 }
 
-fn read_optional_i128(reader: &mut Reader<'_>) -> Result<Option<i128>, CassieError> {
+fn read_optional_i128(reader: &mut Reader<'_>) -> Result<Option<i128>, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(None),
         1 => reader.read_i128().map(Some),
@@ -533,7 +533,7 @@ fn write_optional_f64(out: &mut Vec<u8>, value: Option<f64>) {
     }
 }
 
-fn read_optional_f64(reader: &mut Reader<'_>) -> Result<Option<f64>, CassieError> {
+fn read_optional_f64(reader: &mut Reader<'_>) -> Result<Option<f64>, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(None),
         1 => reader.read_f64().map(Some),
@@ -541,7 +541,7 @@ fn read_optional_f64(reader: &mut Reader<'_>) -> Result<Option<f64>, CassieError
     }
 }
 
-fn write_optional_usize(out: &mut Vec<u8>, value: Option<usize>) -> Result<(), CassieError> {
+fn write_optional_usize(out: &mut Vec<u8>, value: Option<usize>) -> Result<(), StorageCodecError> {
     match value {
         None => out.push(0),
         Some(value) => {
@@ -556,7 +556,7 @@ fn write_optional_usize(out: &mut Vec<u8>, value: Option<usize>) -> Result<(), C
     Ok(())
 }
 
-fn read_optional_usize(reader: &mut Reader<'_>) -> Result<Option<usize>, CassieError> {
+fn read_optional_usize(reader: &mut Reader<'_>) -> Result<Option<usize>, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(None),
         1 => read_usize_u64(reader, "optional count").map(Some),
@@ -564,7 +564,7 @@ fn read_optional_usize(reader: &mut Reader<'_>) -> Result<Option<usize>, CassieE
     }
 }
 
-fn write_optional_string(out: &mut Vec<u8>, value: Option<&str>) -> Result<(), CassieError> {
+fn write_optional_string(out: &mut Vec<u8>, value: Option<&str>) -> Result<(), StorageCodecError> {
     match value {
         None => out.push(0),
         Some(value) => {
@@ -575,7 +575,7 @@ fn write_optional_string(out: &mut Vec<u8>, value: Option<&str>) -> Result<(), C
     Ok(())
 }
 
-fn read_optional_string(reader: &mut Reader<'_>) -> Result<Option<String>, CassieError> {
+fn read_optional_string(reader: &mut Reader<'_>) -> Result<Option<String>, StorageCodecError> {
     match reader.read_u8()? {
         0 => Ok(None),
         1 => reader.read_bounded_string(MAX_STRING_BYTES).map(Some),
@@ -583,7 +583,7 @@ fn read_optional_string(reader: &mut Reader<'_>) -> Result<Option<String>, Cassi
     }
 }
 
-fn write_checksum(out: &mut Vec<u8>, checksum: &str) -> Result<(), CassieError> {
+fn write_checksum(out: &mut Vec<u8>, checksum: &str) -> Result<(), StorageCodecError> {
     let raw = decode_hex(checksum)?;
     if raw.len() != CHECKSUM_LEN {
         return Err(invalid("invalid column-batch checksum length"));
@@ -592,7 +592,7 @@ fn write_checksum(out: &mut Vec<u8>, checksum: &str) -> Result<(), CassieError> 
     Ok(())
 }
 
-fn read_checksum(reader: &mut Reader<'_>) -> Result<String, CassieError> {
+fn read_checksum(reader: &mut Reader<'_>) -> Result<String, StorageCodecError> {
     Ok(hex(reader.read_exact(CHECKSUM_LEN)?))
 }
 
@@ -600,7 +600,7 @@ fn read_count(
     reader: &mut Reader<'_>,
     maximum: usize,
     minimum_record_bytes: usize,
-) -> Result<usize, CassieError> {
+) -> Result<usize, StorageCodecError> {
     let count = read_usize_u32(reader, "count")?;
     if count > maximum
         || count
@@ -612,17 +612,17 @@ fn read_count(
     Ok(count)
 }
 
-fn read_usize_u32(reader: &mut Reader<'_>, name: &str) -> Result<usize, CassieError> {
+fn read_usize_u32(reader: &mut Reader<'_>, name: &str) -> Result<usize, StorageCodecError> {
     usize::try_from(reader.read_u32()?)
         .map_err(|_| invalid(&format!("column-batch {name} overflow")))
 }
 
-fn read_usize_u64(reader: &mut Reader<'_>, name: &str) -> Result<usize, CassieError> {
+fn read_usize_u64(reader: &mut Reader<'_>, name: &str) -> Result<usize, StorageCodecError> {
     usize::try_from(reader.read_u64()?)
         .map_err(|_| invalid(&format!("column-batch {name} overflow")))
 }
 
-fn logical_type_tag(name: &str) -> Result<u8, CassieError> {
+fn logical_type_tag(name: &str) -> Result<u8, StorageCodecError> {
     match name {
         "int64" => Ok(LogicalType::Int64 as u8),
         "float64" => Ok(LogicalType::Float64 as u8),
@@ -634,14 +634,14 @@ fn logical_type_tag(name: &str) -> Result<u8, CassieError> {
     }
 }
 
-fn logical_type_name(tag: u8) -> Result<&'static str, CassieError> {
+fn logical_type_name(tag: u8) -> Result<&'static str, StorageCodecError> {
     if tag == 6 {
         return Ok("row_id");
     }
     LogicalType::from_tag_for_manifest(tag).map(LogicalType::name)
 }
 
-fn codec_from_meta(id: u8, name: &str) -> Result<Codec, CassieError> {
+fn codec_from_meta(id: u8, name: &str) -> Result<Codec, StorageCodecError> {
     let codec = Codec::from_tag_for_manifest(id)?;
     if codec.name() != name {
         return Err(invalid("column-batch codec ID/name mismatch"));
@@ -674,7 +674,7 @@ fn hex(bytes: &[u8]) -> String {
     out
 }
 
-fn decode_hex(value: &str) -> Result<Vec<u8>, CassieError> {
+fn decode_hex(value: &str) -> Result<Vec<u8>, StorageCodecError> {
     if !value.len().is_multiple_of(2) {
         return Err(invalid("invalid column-batch checksum hex"));
     }

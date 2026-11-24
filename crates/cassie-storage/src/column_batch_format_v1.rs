@@ -7,6 +7,7 @@ mod bitpack;
 mod boolean;
 pub mod chunk;
 mod fsst;
+mod manifest;
 mod numeric;
 mod row_ids;
 mod selected;
@@ -68,4 +69,24 @@ pub fn decode_boolean_column_chunk(
     expected_rows: usize,
 ) -> Result<DecodedBooleanChunk, StorageCodecError> {
     boolean::decode(bytes, expected_rows)
+}
+
+pub use manifest::{
+    checksum_hex, decode as decode_manifest, encode as encode_manifest, has_current_header,
+    summary_checksum, FORMAT_VERSION as MANIFEST_FORMAT_VERSION,
+    SUMMARY_VERSION as MANIFEST_SUMMARY_VERSION,
+};
+
+#[doc(hidden)]
+pub fn encode_column_batch_manifest_for_test(
+    metadata: &cassie_core::catalog::ColumnBatchMetadata,
+) -> Result<Vec<u8>, crate::StorageCodecError> {
+    encode_manifest(metadata)
+}
+
+#[doc(hidden)]
+pub fn decode_column_batch_manifest_for_test(
+    bytes: &[u8],
+) -> Result<cassie_core::catalog::ColumnBatchMetadata, crate::StorageCodecError> {
+    decode_manifest(bytes)
 }

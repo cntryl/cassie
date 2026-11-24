@@ -374,6 +374,8 @@ pub use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSele
 pub use column_store::ColumnPruningSnapshot;
 pub use column_store::ColumnStoreScanRequest;
 pub use column_store::ColumnVectorReadSnapshot;
+#[cfg(feature = "storage-test-hooks")]
+pub use column_store::vector_scan::test_support as column_vector_test_support;
 pub use column_store::{
     identity_lanes, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
     ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,

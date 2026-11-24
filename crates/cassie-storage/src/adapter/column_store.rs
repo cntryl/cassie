@@ -14,7 +14,7 @@ mod golden_tests;
 mod rows;
 mod summary;
 mod summary_refresh;
-mod vector_scan;
+pub(super) mod vector_scan;
 pub use vector_scan::identity_lanes;
 pub use vector_scan::ColumnVectorReadSnapshot;
 pub use vector_scan::{

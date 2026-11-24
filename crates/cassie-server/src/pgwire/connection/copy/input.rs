@@ -1,11 +1,11 @@
-use crate::app::CassieError;
 #[cfg(test)]
 use crate::app::Cassie;
+use crate::app::CassieError;
 #[cfg(test)]
 use crate::sql::ast::CopyStatement;
-use crate::types::Value;
 #[cfg(test)]
 use crate::types::DataType;
+use crate::types::Value;
 
 #[path = "input/binary_bit.rs"]
 mod binary_bit;

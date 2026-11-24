@@ -1,6 +1,6 @@
 //! Primitive output schemas for selected FROM-only catalog functions.
-use crate::types::DataType;
 use super::{is_options_table, is_pg_input_error_info};
+use crate::types::DataType;
 
 pub(crate) fn catalog_table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
     if super::is_loaded_modules(name) {

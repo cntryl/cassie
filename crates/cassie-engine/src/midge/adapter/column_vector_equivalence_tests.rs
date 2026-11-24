@@ -18,18 +18,15 @@ const ALL_TYPE_FIELDS: [&str; 14] = [
 ];
 
 fn fixture() -> Cassie {
-    let cassie = Cassie::new_in_memory_with_config(
-        CassieRuntimeConfig::from_env().expect("runtime config"),
-    )
-    .expect("Cassie");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::from_env().expect("runtime config"))
+            .expect("Cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
             &session,
-            &format!(
-                "CREATE TABLE typed ({ALL_TYPES}) WITH (storage = column_store)"
-            ),
+            &format!("CREATE TABLE typed ({ALL_TYPES}) WITH (storage = column_store)"),
             vec![],
         )
         .expect("create typed table");
@@ -127,11 +124,8 @@ fn lanes_by_row(batches: &[TestColumnVectorBatch], fields: usize) -> Vec<(String
 
 fn document_values(cassie: &Cassie) -> Result<Vec<(String, Vec<Value>)>, CassieError> {
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
-    let (schema, documents) = read_row_documents(
-        &cassie.midge,
-        "typed",
-        &controls.storage_request(),
-    )?;
+    let (schema, documents) =
+        read_row_documents(&cassie.midge, "typed", &controls.storage_request())?;
     documents
         .into_iter()
         .map(|(id, document)| {

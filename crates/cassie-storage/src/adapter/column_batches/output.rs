@@ -72,7 +72,9 @@ fn projected_value<'a>(row: &'a ColumnBatchRow, field: &str) -> &'a serde_json::
     static NULL: serde_json::Value = serde_json::Value::Null;
     row.values
         .iter()
-        .find(|(name, _)| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, name))
+        .find(|(name, _)| {
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, name)
+        })
         .map_or(&NULL, |(_, value)| value)
 }
 
@@ -107,9 +109,9 @@ fn checked_add(left: usize, right: usize) -> Result<usize, CassieError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::adapter::request_test_support::TestRequest;
     use std::cell::Cell;
     use std::collections::BTreeMap;
-    use crate::adapter::request_test_support::TestRequest;
 
     use super::{project_column_batch_document, reserve_before_projecting, ColumnBatchRow};
 
@@ -117,7 +119,10 @@ mod tests {
     fn should_reject_projected_column_row_before_building_segment_output_given_low_memory() {
         // Arrange
         let controls = TestRequest::with_budget(1);
-        let mut memory = controls.context().reserve_query_memory(0).expect("empty reservation");
+        let mut memory = controls
+            .context()
+            .reserve_query_memory(0)
+            .expect("empty reservation");
         let projection_calls = Cell::new(0);
         let row = ColumnBatchRow {
             row_id: "row-0001".to_string(),
@@ -141,7 +146,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err( crate::adapter::CassieError::ResourceLimit(_))
+            Err(crate::adapter::CassieError::ResourceLimit(_))
         ));
         assert_eq!(projection_calls.get(), 0);
         assert_eq!(memory.bytes(), 0);

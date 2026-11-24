@@ -47,9 +47,15 @@ pub enum StorageError {
     #[error("retryable storage failure: {0}")]
     StorageRetryable(RetryableStorageError),
     #[error("catalog object {kind} '{name}' does not exist")]
-    CatalogObjectNotFound { kind: CatalogObjectKind, name: String },
+    CatalogObjectNotFound {
+        kind: CatalogObjectKind,
+        name: String,
+    },
     #[error("catalog object {kind} '{name}' already exists")]
-    CatalogObjectAlreadyExists { kind: CatalogObjectKind, name: String },
+    CatalogObjectAlreadyExists {
+        kind: CatalogObjectKind,
+        name: String,
+    },
     #[error("unique constraint failed for '{column}'")]
     UniqueViolation {
         table: String,
@@ -93,9 +99,7 @@ impl StorageError {
             Self::Native(cntryl_midge::MidgeError::WriteStall(_)) => {
                 Some(StorageRetryKind::WriteStall)
             }
-            Self::Native(cntryl_midge::MidgeError::Fenced(_)) => {
-                Some(StorageRetryKind::Fenced)
-            }
+            Self::Native(cntryl_midge::MidgeError::Fenced(_)) => Some(StorageRetryKind::Fenced),
             Self::StorageRetryable(error) => Some(error.kind()),
             _ => None,
         }
@@ -203,13 +207,8 @@ pub(crate) fn decode_projected_row_with_aliases_and_hooks(
     projection: &std::collections::HashSet<String>,
     hooks: &super::StorageValueHooks,
 ) -> Result<serde_json::Value, StorageError> {
-    crate::row_blob::decode_projected_row_with_aliases(
-        schema,
-        row,
-        projection,
-        hooks.decode_json,
-    )
-    .map_err(StorageError::from)
+    crate::row_blob::decode_projected_row_with_aliases(schema, row, projection, hooks.decode_json)
+        .map_err(StorageError::from)
 }
 
 pub(crate) fn decode_projected_row_matching_with_aliases_and_hooks(
@@ -232,7 +231,6 @@ pub(crate) fn decode_projected_row_matching_with_aliases_and_hooks(
     )
     .map_err(StorageError::from)
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogObjectKind {
@@ -389,6 +387,9 @@ mod outcome_unknown_tests {
         let error = StorageError::from(native);
 
         // Assert
-        assert!(matches!(error, StorageError::Native(cntryl_midge::MidgeError::OutcomeUnknown(_))));
+        assert!(matches!(
+            error,
+            StorageError::Native(cntryl_midge::MidgeError::OutcomeUnknown(_))
+        ));
     }
 }

@@ -158,7 +158,10 @@ pub fn summary_checksum(
     Ok(checksum_hex(out.as_slice()))
 }
 
-fn encode_segment(out: &mut Vec<u8>, segment: &ColumnBatchSegmentMeta) -> Result<(), StorageCodecError> {
+fn encode_segment(
+    out: &mut Vec<u8>,
+    segment: &ColumnBatchSegmentMeta,
+) -> Result<(), StorageCodecError> {
     write_u64(out, segment.segment_id);
     write_u64(out, segment.revision);
     write_optional_string(out, segment.row_id_start.as_deref())?;
@@ -229,7 +232,10 @@ fn decode_segment(
     })
 }
 
-fn encode_chunk_meta(out: &mut Vec<u8>, chunk: &ColumnBatchChunkMeta) -> Result<(), StorageCodecError> {
+fn encode_chunk_meta(
+    out: &mut Vec<u8>,
+    chunk: &ColumnBatchChunkMeta,
+) -> Result<(), StorageCodecError> {
     let logical_type = logical_type_tag(&chunk.logical_type)?;
     let codec = codec_from_meta(chunk.codec_id, &chunk.codec_name)?;
     out.push(logical_type);

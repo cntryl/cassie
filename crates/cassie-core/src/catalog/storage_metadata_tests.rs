@@ -1,6 +1,4 @@
-use super::storage_metadata::{
-    CollectionMeta, CollectionStorageMode, ColumnBatchNumericSum,
-};
+use super::storage_metadata::{CollectionMeta, CollectionStorageMode, ColumnBatchNumericSum};
 
 #[test]
 fn should_preserve_storage_catalog_default_and_skip_semantics() {

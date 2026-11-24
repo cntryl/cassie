@@ -510,7 +510,9 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     assert_eq!(writer.frame_tags, vec![b'D']);
     assert!(state.portals["retained"].suspended.is_none());
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
-    assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
+    assert!(!cassie
+        .runtime()
+        .cancel_pgwire_backend(process_id, secret_key));
 }
 
 #[test]
@@ -564,7 +566,9 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
         );
         assert_eq!(writer.frame_tags, vec![b'D']);
         assert!(state.portals["retained"].suspended.is_none());
-        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie
+            .runtime()
+            .cancel_pgwire_backend(process_id, secret_key));
     }
 }
 
@@ -613,7 +617,9 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
             .portals
             .get("retained")
             .is_none_or(|portal| portal.suspended.is_none()));
-        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie
+            .runtime()
+            .cancel_pgwire_backend(process_id, secret_key));
     }
 }
 
@@ -673,7 +679,9 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         );
         assert!(writer.frame_tags.contains(&b'C'));
         assert!(!session.is_transaction_active());
-        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie
+            .runtime()
+            .cancel_pgwire_backend(process_id, secret_key));
         if sql.starts_with("CREATE TABLE") {
             assert!(cassie.catalog.get_schema("published").is_some());
         } else if sql.starts_with("CREATE DATABASE") {

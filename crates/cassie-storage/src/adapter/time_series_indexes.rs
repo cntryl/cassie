@@ -4,8 +4,8 @@ use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, Of
 use cassie_core::types::temporal::parse_timestamp_utc;
 
 use super::{
-    check_document_write_failure_point, collect_scan, encode_row,
-    key_encoding, CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
+    check_document_write_failure_point, collect_scan, encode_row, key_encoding, CassieError,
+    DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 
@@ -718,7 +718,9 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| {
+                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
+            })
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut documents = Vec::with_capacity(hits.len());
@@ -737,7 +739,8 @@ impl Midge {
                     DANGLING_BUCKET_MEMBERSHIP,
                 ));
             };
-            let full_payload = super::decode_row_with_hooks(&row_schema, &raw, &self.value_hooks())?;
+            let full_payload =
+                super::decode_row_with_hooks(&row_schema, &raw, &self.value_hooks())?;
             let Some(expected_entry) =
                 Self::time_series_index_entry(&index, &hit.id, &full_payload)?
             else {

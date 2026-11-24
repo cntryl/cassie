@@ -86,10 +86,9 @@ pub(super) struct GraphBuilder {
 
 fn distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &DenseNode) -> f64 {
     match metric {
-        DistanceMetric::Cosine => crate::cosine_distance_from_normalized_query(
-            &query.normalized,
-            &node.query.normalized,
-        ),
+        DistanceMetric::Cosine => {
+            crate::cosine_distance_from_normalized_query(&query.normalized, &node.query.normalized)
+        }
         DistanceMetric::Dot => crate::dot_distance_from_normalized_target(
             &query.raw,
             &node.query.normalized,

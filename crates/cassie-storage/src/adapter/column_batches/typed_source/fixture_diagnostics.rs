@@ -87,9 +87,7 @@ impl Midge {
                     first_field.map_or(0, |field| field.values().len()),
                 ))
             }
-            EncodedSourceDecision::Fallback(reason) => {
-                Ok((false, Some(reason), 0, None, 0))
-            }
+            EncodedSourceDecision::Fallback(reason) => Ok((false, Some(reason), 0, None, 0)),
             EncodedSourceDecision::TransportBudget => Ok((false, None, 0, None, 0)),
         }
     }

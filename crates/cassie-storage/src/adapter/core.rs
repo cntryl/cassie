@@ -1,7 +1,7 @@
 use super::native_memory::NativeMemoryConfiguration;
 use super::{
-    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, NativePublicationControlScope,
-    Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
+    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, NativePublicationControlScope,
+    Path, Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
@@ -19,8 +19,7 @@ use super::StorageError;
 #[doc(hidden)]
 pub struct StorageValueHooks {
     pub(crate) decode_json: fn(&[u8]) -> Result<serde_json::Value, StorageError>,
-    pub(crate) decode_typed_value:
-        fn(&serde_json::Value, &DataType) -> Result<Value, StorageError>,
+    pub(crate) decode_typed_value: fn(&serde_json::Value, &DataType) -> Result<Value, StorageError>,
     pub(crate) validate_graph_fields:
         fn(&Schema, &serde_json::Map<String, serde_json::Value>) -> Result<(), StorageError>,
     pub(crate) evaluate_scalar_expression:
@@ -69,8 +68,16 @@ impl StorageValueHooks {
             &Schema,
             &serde_json::Map<String, serde_json::Value>,
         ) -> Result<(), StorageError>,
-        evaluate_scalar_expression: fn(&str, &str, &[(String, Value)]) -> Result<Value, StorageError>,
-        evaluate_scalar_predicate: fn(&str, &str, Vec<(String, Value)>) -> Result<bool, StorageError>,
+        evaluate_scalar_expression: fn(
+            &str,
+            &str,
+            &[(String, Value)],
+        ) -> Result<Value, StorageError>,
+        evaluate_scalar_predicate: fn(
+            &str,
+            &str,
+            Vec<(String, Value)>,
+        ) -> Result<bool, StorageError>,
     ) -> Self {
         Self {
             decode_json,
@@ -140,10 +147,7 @@ mod value_hook_tests {
 }
 
 impl Midge {
-    pub fn configure_repeatable_history_budget(
-        &self,
-        bytes: usize,
-    ) -> Result<(), CassieError> {
+    pub fn configure_repeatable_history_budget(&self, bytes: usize) -> Result<(), CassieError> {
         self.publication.configure_history_budget(bytes)
     }
 
@@ -823,7 +827,7 @@ mod tests {
                 .get(&crate::adapter::key_encoding::layout_marker_key())
                 .expect("read layout marker"),
             Some(
-crate::adapter::key_encoding::LAYOUT_MARKER_VALUE
+                crate::adapter::key_encoding::LAYOUT_MARKER_VALUE
                     .to_vec()
                     .into()
             )

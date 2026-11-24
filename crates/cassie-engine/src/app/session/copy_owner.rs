@@ -168,7 +168,9 @@ impl CopyCommandOwner {
             .catalog
             .catalog()
             .matches_transaction_metadata(current, controls)?
-            || !self.storage.matches(&overlay, &controls.storage_request())?
+            || !self
+                .storage
+                .matches(&overlay, &controls.storage_request())?
         {
             return Err(stale_copy());
         }
@@ -410,7 +412,10 @@ impl Cassie {
                 .unwrap_or(&self.publication_catalog)
                 .snapshot_with_controls(controls)?
         };
-        let storage = transaction.storage_overlay.lock().copy_snapshot(&controls.storage_request())?;
+        let storage = transaction
+            .storage_overlay
+            .lock()
+            .copy_snapshot(&controls.storage_request())?;
         let database_source = session.current_database().unwrap_or(&self.default_database);
         let database_memory;
         let database;
@@ -616,11 +621,14 @@ impl CassieSession {
                     .catalog
                     .catalog()
                     .matches_transaction_metadata(current, controls)?
-                || !owner.storage.matches(&overlay, &controls.storage_request())?
-                || owner
-                    .midge
-                    .copy_physical_identity(target, &overlay, &controls.storage_request())?
-                    != Some(*physical_id)
+                || !owner
+                    .storage
+                    .matches(&overlay, &controls.storage_request())?
+                || owner.midge.copy_physical_identity(
+                    target,
+                    &overlay,
+                    &controls.storage_request(),
+                )? != Some(*physical_id)
             {
                 return Err(stale_copy());
             }

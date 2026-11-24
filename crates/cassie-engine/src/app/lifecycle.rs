@@ -391,8 +391,8 @@ mod tests {
             .get_role("root")
             .expect("load root role")
             .expect("root role");
-        let token = crate::app::network_sessions::issue(cassie, &role)
-            .expect("write cloud REST session");
+        let token =
+            crate::app::network_sessions::issue(cassie, &role).expect("write cloud REST session");
         query_cache::store_fulltext_stats(
             &cassie.midge,
             &cassie.runtime,

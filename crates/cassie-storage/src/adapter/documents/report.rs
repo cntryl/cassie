@@ -17,12 +17,7 @@ pub struct RollupSourceRowChange {
 }
 
 impl RollupSourceChangeReport {
-    pub fn record(
-        &mut self,
-        before: Option<&Value>,
-        after: Option<&Value>,
-        fields: &[String],
-    ) {
+    pub fn record(&mut self, before: Option<&Value>, after: Option<&Value>, fields: &[String]) {
         if self.exceeded_limit {
             return;
         }

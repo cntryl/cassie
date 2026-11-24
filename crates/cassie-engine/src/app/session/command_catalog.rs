@@ -27,10 +27,7 @@ pub(crate) struct CommandCatalogScope {
 
 impl CommandCatalogScope {
     #[doc(hidden)]
-    pub fn enter(
-        session: &CassieSession,
-        owner: Option<Arc<ControlledCatalogSnapshot>>,
-    ) -> Self {
+    pub fn enter(session: &CassieSession, owner: Option<Arc<ControlledCatalogSnapshot>>) -> Self {
         let current = owner.map(|owner| CommandCatalog {
             owner,
             identity: Arc::downgrade(&session.transaction),

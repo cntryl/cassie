@@ -3,11 +3,16 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use crate::catalog::{IndexKind, IndexMeta};
 use crate::adapter::{FieldSchema, Midge, Schema};
+use crate::catalog::{IndexKind, IndexMeta};
 use cassie_core::types::DataType;
 
-fn index_metadata_fixture() -> (Arc<Midge>, Arc<parking_lot::Mutex<IndexMeta>>, String, String) {
+fn index_metadata_fixture() -> (
+    Arc<Midge>,
+    Arc<parking_lot::Mutex<IndexMeta>>,
+    String,
+    String,
+) {
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("create Midge"));
     midge
         .create_collection(
@@ -53,9 +58,9 @@ fn should_not_defer_drop_while_a_same_name_publication_requires_recovery() {
         .get_index(&collection, &name)
         .expect("read")
         .expect("index");
-crate::adapter::set_index_publication_failure_point(true);
+    crate::adapter::set_index_publication_failure_point(true);
     let prepared = midge.put_index(&index);
-crate::adapter::set_index_publication_failure_point(false);
+    crate::adapter::set_index_publication_failure_point(false);
     assert!(
         prepared.is_err(),
         "injection must leave a prepared publication"
@@ -90,9 +95,9 @@ fn should_recover_an_observed_unrelated_journal_before_preparing_a_new_index() {
         .get_index(&collection, &name)
         .expect("read")
         .expect("index");
-crate::adapter::set_index_publication_failure_point(true);
+    crate::adapter::set_index_publication_failure_point(true);
     let prepared = midge.put_index(&index);
-crate::adapter::set_index_publication_failure_point(false);
+    crate::adapter::set_index_publication_failure_point(false);
     assert!(prepared.is_err(), "leave an older prepared record");
     let mut other = index.clone();
     other.name = "unrelated_pending_idx".to_owned();
@@ -128,9 +133,9 @@ fn should_reject_index_rename_when_source_or_destination_has_a_prepared_journal(
         if !pending_source {
             pending.name = destination.to_owned();
         }
-crate::adapter::set_index_publication_failure_point(true);
+        crate::adapter::set_index_publication_failure_point(true);
         let prepared = midge.put_index(&pending);
-crate::adapter::set_index_publication_failure_point(false);
+        crate::adapter::set_index_publication_failure_point(false);
         assert!(prepared.is_err(), "leave prepared journal");
         let gate = midge.collection_write_gate(&collection);
         let guard = gate.lock();
@@ -163,7 +168,7 @@ fn update_and_publish_fillfactor(
     name: &str,
     fillfactor: &str,
     before_publish: impl FnOnce(),
-) -> Result<(),crate::adapter::CassieError> {
+) -> Result<(), crate::adapter::CassieError> {
     midge.update_index_metadata(
         collection,
         name,
@@ -287,7 +292,7 @@ fn should_reject_unsafe_index_metadata_before_lifecycle_mutation() {
     let key = Midge::index_key(&collection, &name);
     let original = serde_json::to_vec(&metadata).expect("encode metadata");
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &original)
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &original)
         .expect("seed");
     let gate = midge.collection_write_gate(&collection);
     let _guard = gate.lock();
@@ -322,13 +327,13 @@ fn should_reject_unsafe_index_metadata_before_lifecycle_mutation() {
     assert!(!published);
     assert_eq!(
         midge
-            .raw_get( crate::adapter::StorageFamily::Data, &key)
+            .raw_get(crate::adapter::StorageFamily::Data, &key)
             .expect("read"),
         Some(original)
     );
     let renamed_key = Midge::index_key(&collection, "renamed_idx");
     assert!(midge
-        .raw_get( crate::adapter::StorageFamily::Data, &renamed_key)
+        .raw_get(crate::adapter::StorageFamily::Data, &renamed_key)
         .expect("read")
         .is_none());
 }
@@ -339,7 +344,7 @@ fn should_reject_unsafe_index_replacement_before_durable_or_catalog_publication(
     let (midge, _catalog, collection, name) = index_metadata_fixture();
     let key = Midge::index_key(&collection, &name);
     let original = midge
-        .raw_get( crate::adapter::StorageFamily::Data, &key)
+        .raw_get(crate::adapter::StorageFamily::Data, &key)
         .expect("read");
     let expression = cassie_sql::parser::parse_expression("(SELECT 1)").expect("parse");
     let encoded = serde_json::to_string(&expression).expect("encode");
@@ -363,7 +368,7 @@ fn should_reject_unsafe_index_replacement_before_durable_or_catalog_publication(
     assert!(!published);
     assert_eq!(
         midge
-            .raw_get( crate::adapter::StorageFamily::Data, &key)
+            .raw_get(crate::adapter::StorageFamily::Data, &key)
             .expect("read"),
         original
     );
@@ -383,18 +388,14 @@ fn should_preserve_collision_with_identity_errors_before_definition_checks() {
     let key = Midge::index_key(&collection, &name);
     midge
         .raw_put(
-crate::adapter::StorageFamily::Data,
+            crate::adapter::StorageFamily::Data,
             &key,
             &serde_json::to_vec(&metadata).expect("encode"),
         )
         .expect("seed");
     let next_key = Midge::index_key(&collection, "occupied_idx");
     midge
-        .raw_put(
-crate::adapter::StorageFamily::Data,
-            &next_key,
-            b"occupied",
-        )
+        .raw_put(crate::adapter::StorageFamily::Data, &next_key, b"occupied")
         .expect("seed destination");
     let gate = midge.collection_write_gate(&collection);
     let guard = gate.lock();
@@ -409,7 +410,7 @@ crate::adapter::StorageFamily::Data,
     metadata.expressions.clear();
     midge
         .raw_put(
-crate::adapter::StorageFamily::Data,
+            crate::adapter::StorageFamily::Data,
             &key,
             &serde_json::to_vec(&metadata).expect("encode"),
         )
@@ -427,7 +428,7 @@ crate::adapter::StorageFamily::Data,
     // Assert
     assert!(matches!(
         collision,
-        Err( crate::adapter::CassieError::CatalogObjectAlreadyExists { .. })
+        Err(crate::adapter::CassieError::CatalogObjectAlreadyExists { .. })
     ));
     assert!(
         matches!(identity, Err( crate::adapter::CassieError::Execution(message)) if message.contains("cannot change index identity"))
@@ -440,7 +441,7 @@ fn should_reject_unknown_index_definition_version_before_update_or_publication()
     let (midge, _catalog, collection, name) = index_metadata_fixture();
     let key = Midge::index_key(&collection, &name);
     let original = midge
-        .raw_get( crate::adapter::StorageFamily::Data, &key)
+        .raw_get(crate::adapter::StorageFamily::Data, &key)
         .expect("read");
     let mut published = false;
     // Act
@@ -460,7 +461,7 @@ fn should_reject_unknown_index_definition_version_before_update_or_publication()
     assert!(!published);
     assert_eq!(
         midge
-            .raw_get( crate::adapter::StorageFamily::Data, &key)
+            .raw_get(crate::adapter::StorageFamily::Data, &key)
             .expect("read"),
         original
     );
@@ -478,7 +479,7 @@ fn should_reject_unknown_index_definition_version_before_rename_or_update() {
     unknown.definition_semantics_version = 2;
     let bytes = serde_json::to_vec(&unknown).expect("encode");
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &bytes)
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &bytes)
         .expect("seed");
     let mut updated = false;
     let gate = midge.collection_write_gate(&collection);
@@ -510,7 +511,7 @@ fn should_reject_unknown_index_definition_version_before_rename_or_update() {
     assert!(!updated);
     assert_eq!(
         midge
-            .raw_get( crate::adapter::StorageFamily::Data, &key)
+            .raw_get(crate::adapter::StorageFamily::Data, &key)
             .expect("read"),
         Some(bytes)
     );
@@ -544,7 +545,7 @@ fn should_preserve_definition_version_during_index_update() {
     let key = Midge::index_key(&collection, &name);
     midge
         .raw_put(
-crate::adapter::StorageFamily::Data,
+            crate::adapter::StorageFamily::Data,
             &key,
             &serde_json::to_vec(&versioned).expect("encode"),
         )

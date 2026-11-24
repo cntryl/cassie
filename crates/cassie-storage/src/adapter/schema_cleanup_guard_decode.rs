@@ -43,9 +43,9 @@ pub(in crate::adapter) fn decode<T: serde::de::DeserializeOwned>(
     let memory = controls
         .map(|controls| {
             controls.check_interruption()?;
-            controls.reserve_query_memory(cassie_core::request::accounted::json::serialized_decode_bytes(
-                raw.len(),
-            )?)
+            controls.reserve_query_memory(
+                cassie_core::request::accounted::json::serialized_decode_bytes(raw.len())?,
+            )
         })
         .transpose()?;
     let value = match serde_json::from_reader(CheckingReader {
@@ -74,11 +74,16 @@ pub(in crate::adapter) fn names_match(
 ) -> Result<bool, CassieError> {
     if let Some(controls) = controls {
         use cassie_core::catalog::controlled_name::name_matches_controlled;
-        use cassie_core::request::{text::{TextError, TextRequest}, InterruptionError};
+        use cassie_core::request::{
+            text::{TextError, TextRequest},
+            InterruptionError,
+        };
         let request = TextRequest::new(controls.interruption(), controls.memory());
         name_matches_controlled(stored, requested, &request).map_err(|error| match error {
             TextError::Interrupted(InterruptionError::Canceled) => CassieError::QueryCanceled,
-            TextError::Interrupted(InterruptionError::DeadlineExceeded) => CassieError::DeadlineExceeded,
+            TextError::Interrupted(InterruptionError::DeadlineExceeded) => {
+                CassieError::DeadlineExceeded
+            }
             TextError::ResourceLimit(message) => CassieError::ResourceLimit(message),
         })
     } else {

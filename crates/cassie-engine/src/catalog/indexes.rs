@@ -8,7 +8,9 @@ pub use cassie_core::catalog::storage_metadata::{
 #[path = "indexes_identity_tests.rs"]
 mod identity_tests;
 
-pub use cassie_sql::catalog_declarations::{IndexMeta, ReservationIdentity, UniqueViolationDetails};
+pub use cassie_sql::catalog_declarations::{
+    IndexMeta, ReservationIdentity, UniqueViolationDetails,
+};
 
 /// Engine error and catalog identity operations kept outside the SQL crate.
 pub(crate) trait EngineIndexMetaExt {
@@ -30,5 +32,4 @@ impl EngineIndexMetaExt for IndexMeta {
             constraint: details.constraint,
         }
     }
-
 }

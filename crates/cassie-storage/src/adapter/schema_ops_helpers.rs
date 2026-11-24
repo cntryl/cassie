@@ -687,9 +687,7 @@ pub(super) fn rename_collection_column_batch_metadata(
             .map_err(CassieError::from)?,
     )?;
     for (key, value) in entries {
-        let Ok(mut metadata) =
-            crate::column_batch_format_v1::decode_manifest(&value)
-        else {
+        let Ok(mut metadata) = crate::column_batch_format_v1::decode_manifest(&value) else {
             continue;
         };
         let next_index_name =

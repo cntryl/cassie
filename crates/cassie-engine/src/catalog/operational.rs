@@ -1,5 +1,7 @@
 use crate::catalog::Catalog;
-pub use cassie_core::catalog::operational::{OperationalAssignmentMeta, OperationalAssignmentState};
+pub use cassie_core::catalog::operational::{
+    OperationalAssignmentMeta, OperationalAssignmentState,
+};
 
 impl Catalog {
     pub fn register_operational_assignment(&self, metadata: OperationalAssignmentMeta) {

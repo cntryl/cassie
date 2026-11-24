@@ -14,7 +14,7 @@ use crate::config::CassieRuntimeConfig;
 use crate::midge::adapter::{Midge, ScalarIndexScanRequest};
 use cassie_core::types::Value;
 
-use super::replay_process_crash::{OwnedDataDir, kill_test_child, wait_after_marker};
+use super::replay_process_crash::{kill_test_child, wait_after_marker, OwnedDataDir};
 
 const CHILD_PROFILE: &str = "CASSIE_TEST_CLOUD_CACHE_LOSS_PROFILE";
 const CHILD_CACHE: &str = "CASSIE_TEST_CLOUD_CACHE_LOSS_PATH";

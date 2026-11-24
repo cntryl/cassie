@@ -1,7 +1,7 @@
 use super::super::Midge;
-use crate::adapter::{CassieError, StorageRetryKind};
 use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::NativePublicationControlScope;
+use crate::adapter::{CassieError, StorageRetryKind};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 

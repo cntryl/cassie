@@ -1,12 +1,12 @@
+use super::RowBlobValueError;
 use cassie_core::types::composite::{CompositeType, RECORD_STORAGE_KEY};
 use cassie_core::types::{DataType, DomainType, EnumType, EnumValue};
-use super::RowBlobValueError;
 use uuid::Uuid;
 
 use super::{
-    TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED,
-    TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID,
-    TYPE_VECTOR_F32,
+    TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
+    TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
+    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 
 pub fn encode_compact_value(
@@ -31,7 +31,12 @@ pub(super) fn encode_value(
     match data_type {
         DataType::Null => Ok((TYPE_NULL, Vec::new())),
         DataType::Extended(kind) => {
-            let typed = kind.from_json(value).map_err(|error| RowBlobValueError::TypeInput { sqlstate: error.sqlstate, message: error.message })?;
+            let typed = kind
+                .from_json(value)
+                .map_err(|error| RowBlobValueError::TypeInput {
+                    sqlstate: error.sqlstate,
+                    message: error.message,
+                })?;
             let mut bytes = kind.type_oid().to_be_bytes().to_vec();
             bytes.extend_from_slice(&typed.send_binary());
             Ok((TYPE_EXTENDED, bytes))
@@ -97,8 +102,9 @@ pub(super) fn encode_value(
         DataType::Domain(descriptor) => encode_domain(descriptor, value),
         DataType::Enum(descriptor) => encode_enum(descriptor, value),
         DataType::Json | DataType::Jsonb => {
-            let encoded = serde_json::to_vec(value)
-                .map_err(|error| RowBlobValueError::InvalidEncoding(format!("invalid json field: {error}")))?;
+            let encoded = serde_json::to_vec(value).map_err(|error| {
+                RowBlobValueError::InvalidEncoding(format!("invalid json field: {error}"))
+            })?;
             Ok((TYPE_JSON, encoded))
         }
         DataType::Vector(dimensions) => encode_vector_value(*dimensions, value),
@@ -236,7 +242,8 @@ fn encode_array_value(
     {
         SqlArray::from_storage_json(value).map_err(RowBlobValueError::InvalidValue)?
     } else {
-        SqlArray::from_nested_json_typed(value, element_type).map_err(RowBlobValueError::InvalidValue)?
+        SqlArray::from_nested_json_typed(value, element_type)
+            .map_err(RowBlobValueError::InvalidValue)?
     };
 
     let mut out = Vec::new();
@@ -329,57 +336,100 @@ fn encode_composite(
     descriptor: &CompositeType,
     value: &serde_json::Value,
 ) -> Result<(u8, Vec<u8>), RowBlobValueError> {
-    let invalid = || RowBlobValueError::InvalidValue(format!(
-        "composite field expects a record of type {}",
-        descriptor.name
-    ));
-    let body = value.as_object()
+    let invalid = || {
+        RowBlobValueError::InvalidValue(format!(
+            "composite field expects a record of type {}",
+            descriptor.name
+        ))
+    };
+    let body = value
+        .as_object()
         .and_then(|object| object.get(RECORD_STORAGE_KEY))
         .and_then(serde_json::Value::as_object)
         .ok_or_else(invalid)?;
     if body.get("oid").and_then(serde_json::Value::as_u64) != Some(u64::from(descriptor.oid)) {
         return Err(invalid());
     }
-    let fields = body.get("fields").and_then(serde_json::Value::as_array).ok_or_else(invalid)?;
-    if fields.len() > descriptor.physical_len() { return Err(invalid()); }
+    let fields = body
+        .get("fields")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(invalid)?;
+    if fields.len() > descriptor.physical_len() {
+        return Err(invalid());
+    }
     let mut out = vec![1];
     out.extend_from_slice(&descriptor.oid.to_be_bytes());
     out.extend_from_slice(&descriptor.revision.to_be_bytes());
-    let count = u32::try_from(descriptor.physical_len()).map_err(|_| RowBlobValueError::InvalidEncoding("composite field count overflow".to_owned()))?;
+    let count = u32::try_from(descriptor.physical_len()).map_err(|_| {
+        RowBlobValueError::InvalidEncoding("composite field count overflow".to_owned())
+    })?;
     out.extend_from_slice(&count.to_be_bytes());
     let mut live = descriptor.fields.iter();
     for slot in 0..descriptor.physical_len() {
         let stored = fields.get(slot).unwrap_or(&serde_json::Value::Null);
-        let field = if descriptor.dropped_positions.contains(&slot) { None } else { live.next() };
+        let field = if descriptor.dropped_positions.contains(&slot) {
+            None
+        } else {
+            live.next()
+        };
         let (tag, data) = match field {
             Some(field) if !stored.is_null() => encode_value(&field.data_type, stored)?,
             _ => (TYPE_NULL, Vec::new()),
         };
         out.push(tag);
         match tag {
-            TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(&data),
-            _ => { write_varint(u64::try_from(data.len()).unwrap_or(u64::MAX), &mut out); out.extend_from_slice(&data); }
+            TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => {
+                out.extend_from_slice(&data)
+            }
+            _ => {
+                write_varint(u64::try_from(data.len()).unwrap_or(u64::MAX), &mut out);
+                out.extend_from_slice(&data);
+            }
         }
     }
     Ok((TYPE_COMPOSITE, out))
 }
 
-fn encode_domain(domain: &DomainType, value: &serde_json::Value) -> Result<(u8, Vec<u8>), RowBlobValueError> {
+fn encode_domain(
+    domain: &DomainType,
+    value: &serde_json::Value,
+) -> Result<(u8, Vec<u8>), RowBlobValueError> {
     let (tag, data) = encode_value(&domain.base, value)?;
-    if tag == TYPE_NULL { return Err(RowBlobValueError::InvalidEncoding(format!("domain {} cannot wrap a NULL base value", domain.name))); }
-    let mut out = vec![1]; out.extend_from_slice(&domain.oid.to_be_bytes()); out.extend_from_slice(&domain.revision.to_be_bytes()); out.push(tag);
+    if tag == TYPE_NULL {
+        return Err(RowBlobValueError::InvalidEncoding(format!(
+            "domain {} cannot wrap a NULL base value",
+            domain.name
+        )));
+    }
+    let mut out = vec![1];
+    out.extend_from_slice(&domain.oid.to_be_bytes());
+    out.extend_from_slice(&domain.revision.to_be_bytes());
+    out.push(tag);
     match tag {
         TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(&data),
-        _ => { write_varint(u64::try_from(data.len()).unwrap_or(u64::MAX), &mut out); out.extend_from_slice(&data); }
+        _ => {
+            write_varint(u64::try_from(data.len()).unwrap_or(u64::MAX), &mut out);
+            out.extend_from_slice(&data);
+        }
     }
     Ok((TYPE_DOMAIN, out))
 }
 
-fn encode_enum(descriptor: &EnumType, value: &serde_json::Value) -> Result<(u8, Vec<u8>), RowBlobValueError> {
+fn encode_enum(
+    descriptor: &EnumType,
+    value: &serde_json::Value,
+) -> Result<(u8, Vec<u8>), RowBlobValueError> {
     let member_id = EnumValue::storage_member_id(value)
         .filter(|member_id| descriptor.member(*member_id).is_some())
-        .ok_or_else(|| RowBlobValueError::InvalidValue(format!("enum field expects a member of type {}", descriptor.name)))?;
-    let mut out = vec![1]; out.extend_from_slice(&descriptor.oid.to_be_bytes()); out.extend_from_slice(&member_id.to_be_bytes());
+        .ok_or_else(|| {
+            RowBlobValueError::InvalidValue(format!(
+                "enum field expects a member of type {}",
+                descriptor.name
+            ))
+        })?;
+    let mut out = vec![1];
+    out.extend_from_slice(&descriptor.oid.to_be_bytes());
+    out.extend_from_slice(&member_id.to_be_bytes());
     Ok((TYPE_ENUM, out))
 }
 
@@ -393,19 +443,43 @@ pub fn canonical_bytea_text(value: &str) -> Result<String, RowBlobValueError> {
 }
 
 fn decode_bytea(value: &str) -> Result<Vec<u8>, RowBlobValueError> {
-    if !value.starts_with("\\x") { return Err(RowBlobValueError::InvalidValue("bytea field expects '\\x' hexadecimal format".to_owned())); }
-    if value.len() == 2 { return Ok(Vec::new()); }
-    if (value.len() - 2).rem_euclid(2) != 0 { return Err(RowBlobValueError::InvalidValue("bytea field expects an even number of hex digits".to_owned())); }
-    let bytes = value.as_bytes(); let mut out = Vec::with_capacity((value.len() - 2) / 2); let mut index = 2;
+    if !value.starts_with("\\x") {
+        return Err(RowBlobValueError::InvalidValue(
+            "bytea field expects '\\x' hexadecimal format".to_owned(),
+        ));
+    }
+    if value.len() == 2 {
+        return Ok(Vec::new());
+    }
+    if (value.len() - 2).rem_euclid(2) != 0 {
+        return Err(RowBlobValueError::InvalidValue(
+            "bytea field expects an even number of hex digits".to_owned(),
+        ));
+    }
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity((value.len() - 2) / 2);
+    let mut index = 2;
     while index < value.len() {
-        let high = decode_hex_digit(bytes[index]).ok_or_else(|| RowBlobValueError::InvalidValue("bytea field expects hexadecimal input".to_owned()))?;
-        let low = decode_hex_digit(bytes[index + 1]).ok_or_else(|| RowBlobValueError::InvalidValue("bytea field expects hexadecimal input".to_owned()))?;
-        out.push((high << 4) | low); index += 2;
+        let high = decode_hex_digit(bytes[index]).ok_or_else(|| {
+            RowBlobValueError::InvalidValue("bytea field expects hexadecimal input".to_owned())
+        })?;
+        let low = decode_hex_digit(bytes[index + 1]).ok_or_else(|| {
+            RowBlobValueError::InvalidValue("bytea field expects hexadecimal input".to_owned())
+        })?;
+        out.push((high << 4) | low);
+        index += 2;
     }
     Ok(out)
 }
 
-fn decode_hex_digit(byte: u8) -> Option<u8> { match byte { b'0'..=b'9' => Some(byte - b'0'), b'a'..=b'f' => Some(byte - b'a' + 10), b'A'..=b'F' => Some(byte - b'A' + 10), _ => None } }
+fn decode_hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
 
 fn write_varint(mut value: u64, out: &mut Vec<u8>) {
     while value >= 0x80 {

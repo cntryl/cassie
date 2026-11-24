@@ -6,12 +6,12 @@ pub use error::StorageCodecError;
 
 pub mod adapter;
 pub mod cardinality;
-pub mod native;
-pub mod operation_stats;
-pub mod runtime_feedback;
 pub mod column_batch_format_v1;
 pub mod key_codec;
+pub mod native;
+pub mod operation_stats;
 pub mod row_blob;
+pub mod runtime_feedback;
 pub use adapter::error::StorageError;
 mod catalog;
 pub(crate) use cassie_vector::{self as vector, types as embeddings};

@@ -1,14 +1,14 @@
 use std::mem::size_of;
 
+use crate::adapter::query_scan_control_test_guard;
 use crate::adapter::request_test_support::TestRequest;
 use crate::embeddings::{
     DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
-use crate::adapter::query_scan_control_test_guard;
-use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::hnsw::HnswCandidate;
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
-use super::{Midge};
+use super::Midge;
 
 #[test]
 fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
@@ -30,7 +30,7 @@ fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
         .expect("storage IDs");
     let key = super::key_encoding::hnsw_graph_node_key(relation_id, field_id, "entry");
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &raw)
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &raw)
         .expect("persist late decode canary");
     let index = midge
         .get_vector_index_definition(collection, "embedding")
@@ -40,21 +40,20 @@ fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
         .vector_state_key_for_diagnostics(collection, "embedding")
         .expect("state key");
     let state_raw = midge
-        .raw_get( crate::adapter::StorageFamily::Data, &state_key)
+        .raw_get(crate::adapter::StorageFamily::Data, &state_key)
         .expect("read state")
         .expect("persisted state");
     let summary_key = super::key_encoding::hnsw_source_summary_key(relation_id, field_id);
     let summary_raw = midge
-        .raw_get( crate::adapter::StorageFamily::Data, &summary_key)
+        .raw_get(crate::adapter::StorageFamily::Data, &summary_key)
         .expect("read summary")
         .expect("persisted summary");
     // Permit valid metadata and query preparation, retaining 240 bytes for node decode.
     let metadata_bytes = super::accounting::vector_state_bytes(state_raw.len())
         .expect("state bound")
         + super::accounting::source_summary_bytes(summary_raw.len()).expect("summary bound");
-    let controls = TestRequest::with_budget(
-        metadata_bytes + 2 * 3 * size_of::<f32>() + "entry".len() + 240,
-    );
+    let controls =
+        TestRequest::with_budget(metadata_bytes + 2 * 3 * size_of::<f32>() + "entry".len() + 240);
     let before_reads = midge.query_scan_entries_for_diagnostics();
 
     // Act
@@ -74,7 +73,7 @@ fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
 
     // Assert
     assert!(
-        matches!(error,crate::adapter::CassieError::ResourceLimit(_)),
+        matches!(error, crate::adapter::CassieError::ResourceLimit(_)),
         "the decoded-node reservation must win before the corrupt neighbor canary: {error:?}"
     );
     assert_eq!(
@@ -117,8 +116,7 @@ fn should_reserve_the_retained_hnsw_candidate_capacity_after_truncating_top_k() 
         .get_vector_index_definition(collection, "embedding")
         .expect("stored index definition")
         .expect("HNSW index");
-    let controls =
-        TestRequest::default();
+    let controls = TestRequest::default();
 
     // Act
     let batch = midge
@@ -210,17 +208,13 @@ fn should_reject_ivfflat_decode_overlap_before_a_later_corrupt_candidate() {
         .expect("storage IDs");
     let key = super::key_encoding::normalized_vector_key(relation_id, field_id, &record.id);
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &raw)
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &raw)
         .expect("persist valid wide candidate");
     let mut canary = raw[..27].to_vec();
     canary[17] = u8::MAX;
     let canary_key = super::key_encoding::normalized_vector_key(relation_id, field_id, "canary");
     midge
-        .raw_put(
-crate::adapter::StorageFamily::Data,
-            &canary_key,
-            &canary,
-        )
+        .raw_put(crate::adapter::StorageFamily::Data, &canary_key, &canary)
         .expect("persist corrupt later candidate");
     let controls = TestRequest::with_budget(minimum_live_bytes - 1);
     let tx = midge
@@ -367,14 +361,17 @@ fn should_keep_decoded_ivfflat_manifest_capacities_reserved_until_drop() {
         .vector_state_key_for_diagnostics("controlled_ivf", "embedding")
         .expect("state key");
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &raw)
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &raw)
         .expect("persist IVF manifest");
-    let controls =
-        TestRequest::default();
+    let controls = TestRequest::default();
 
     // Act
     let snapshot = midge
-        .get_ivfflat_training_manifest_controlled("controlled_ivf", "embedding", &controls.context())
+        .get_ivfflat_training_manifest_controlled(
+            "controlled_ivf",
+            "embedding",
+            &controls.context(),
+        )
         .expect("controlled manifest read")
         .expect("IVF manifest");
     let training = &snapshot.training;
@@ -418,7 +415,7 @@ fn should_reserve_complete_sparse_ivfflat_membership_state() {
     let id = "a";
     let key = super::key_encoding::ivfflat_membership_key(relation_id, field_id, 0, id);
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &key, &[])
+        .raw_put(crate::adapter::StorageFamily::Data, &key, &[])
         .expect("persist valid membership");
     // A sparse BTree leaf holds eleven String slots, in addition to the ID Vec and both copies.
     let minimum_live_bytes = 11 * size_of::<String>() + size_of::<String>() + 2 * id.len();
@@ -454,7 +451,7 @@ fn should_reserve_complete_sparse_ivfflat_membership_state() {
 
     // Act
     let result = super::load_controlled_ivfflat_memberships(&context, &training, &probed_lists);
-    let rejected = matches!(result, Err( crate::adapter::CassieError::ResourceLimit(_)));
+    let rejected = matches!(result, Err(crate::adapter::CassieError::ResourceLimit(_)));
     drop(result);
     let remaining_bytes = controls.current_query_memory_bytes();
     drop(tx);
@@ -508,15 +505,11 @@ fn should_reject_hnsw_state_entry_copy_before_a_later_corrupt_summary() {
         .vector_state_key_for_diagnostics("controlled_ivf", "embedding")
         .expect("state key");
     midge
-        .raw_put( crate::adapter::StorageFamily::Data, &state_key, &raw)
+        .raw_put(crate::adapter::StorageFamily::Data, &state_key, &raw)
         .expect("persist HNSW header");
     let summary_key = super::key_encoding::hnsw_source_summary_key(relation_id, field_id);
     midge
-        .raw_put(
-crate::adapter::StorageFamily::Data,
-            &summary_key,
-            b"{",
-        )
+        .raw_put(crate::adapter::StorageFamily::Data, &summary_key, b"{")
         .expect("persist later corrupt summary canary");
     let controls = TestRequest::with_budget(minimum_live_bytes - 1);
     let tx = midge

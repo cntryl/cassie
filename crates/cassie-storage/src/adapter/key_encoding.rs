@@ -33,12 +33,10 @@ pub(crate) use fulltext::{
 };
 #[cfg(test)]
 pub(super) use graph::legacy_graph_sample_keys;
-pub use graph::{
-    legacy_graph_prefixes_for_diagnostics, legacy_graph_sample_keys_for_diagnostics,
-};
 pub(super) use graph::{
     database_identity_key, legacy_graph_prefixes, property_graph_key, property_graph_prefix,
 };
+pub use graph::{legacy_graph_prefixes_for_diagnostics, legacy_graph_sample_keys_for_diagnostics};
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
     column_batch_metadata_key, column_batch_row_ids_key, generated_unique_index_reservation_prefix,

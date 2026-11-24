@@ -1,11 +1,11 @@
 //! Vector reader tests (#1358 S2).
 
 use super::{
-    COLUMN_VECTOR_BATCH_ROWS, ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadSnapshot,
+    ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadSnapshot, COLUMN_VECTOR_BATCH_ROWS,
 };
 use crate::adapter::{
-    CassieError, Midge, RowDecode, RowTraversal, StorageError, StorageFamily,
-    StorageRequestContext, StorageValueHooks, query_scan_control_test_guard,
+    query_scan_control_test_guard, CassieError, Midge, RowDecode, RowTraversal, StorageError,
+    StorageFamily, StorageRequestContext, StorageValueHooks,
 };
 use cassie_core::request::{Interruption, RequestCancellation, RequestMemory};
 use cassie_core::types::lanes::{LaneValidity, RawLanes};

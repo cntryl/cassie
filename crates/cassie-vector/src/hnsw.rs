@@ -20,10 +20,12 @@ mod validation;
 
 pub use controlled::search_graph_with_node_loader;
 pub use controlled::{
-    search_graph_with_controlled_node_loader, ControlledHnswSearchRequest,
-    HnswGraphRepairReason, HnswSearchError,
+    search_graph_with_controlled_node_loader, ControlledHnswSearchRequest, HnswGraphRepairReason,
+    HnswSearchError,
 };
-pub use incremental::{GraphMaintainer, MaintainError, MaintainResult, MaintainedGraph, MaintainerSeed};
+pub use incremental::{
+    GraphMaintainer, MaintainError, MaintainResult, MaintainedGraph, MaintainerSeed,
+};
 pub use validation::graph_validity_violation;
 
 pub const HNSW_GRAPH_VERSION: u32 = 1;
@@ -408,11 +410,9 @@ fn graph_distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &Hns
         DistanceMetric::Cosine => {
             crate::cosine_distance_from_normalized_query(&query.normalized, &node.vector)
         }
-        DistanceMetric::Dot => crate::dot_distance_from_normalized_target(
-            &query.raw,
-            &node.vector,
-            node.magnitude,
-        ),
+        DistanceMetric::Dot => {
+            crate::dot_distance_from_normalized_target(&query.raw, &node.vector, node.magnitude)
+        }
         DistanceMetric::L2 => l2_to_stored(&query.raw, &node.vector, node.magnitude),
     }
 }
@@ -454,9 +454,7 @@ fn l2_to_stored(query: &[f32], vector: &[f32], magnitude: f64) -> f64 {
 fn denormalize(vector: &[f32], magnitude: f64) -> Vec<f32> {
     vector
         .iter()
-        .map(|value| {
-            crate::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
-        })
+        .map(|value| crate::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY))
         .collect()
 }
 
@@ -520,9 +518,7 @@ fn compare_hnsw_candidates(left: &HnswCandidate, right: &HnswCandidate) -> std::
 #[cfg(test)]
 mod tests {
     use super::{build_graph, graph_distance, search, search_graph, GraphDistanceQuery};
-    use crate::types::{
-        DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord,
-    };
+    use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord};
 
     #[test]
     fn should_return_exactly_ranked_hnsw_candidates() {

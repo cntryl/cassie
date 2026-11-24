@@ -1,21 +1,21 @@
 //! Private immutable CBC1 input owners. Existing validators decide eligibility and framing.
 mod boolean;
-mod numeric;
 #[cfg(feature = "storage-test-hooks")]
 mod fixture_diagnostics;
+mod numeric;
 
 use std::collections::BTreeSet;
 use std::mem::size_of;
 use std::sync::Arc;
 
+use crate::operation_stats::ColumnBatchScanMetrics;
 use cassie_core::request::accounted::retained::{add, mul};
 use cassie_core::request::accounted::Accounted;
-use crate::operation_stats::ColumnBatchScanMetrics;
 
 use super::{
     check_column_batch_controls, CassieError, ColumnBatchMetadata, ColumnBatchScanFallbackReason,
-    ColumnBatchScanFilters, Midge, PreparedColumnBatchScan, StorageRequestContext,
-    QueryMemoryReservation,
+    ColumnBatchScanFilters, Midge, PreparedColumnBatchScan, QueryMemoryReservation,
+    StorageRequestContext,
 };
 
 #[derive(Debug)]
@@ -164,7 +164,9 @@ impl Midge {
             for wanted in wanted {
                 check_column_batch_controls(self, controls)?;
                 let Some((field, chunk)) = segment.field_chunks.iter().find(|(field, _)| {
-                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted, field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                        wanted, field,
+                    )
                 }) else {
                     return Ok(EncodedSourceDecision::Fallback(
                         ColumnBatchScanFallbackReason::FieldCoverageMismatch,
@@ -173,8 +175,7 @@ impl Midge {
                 let bytes = field_retained_bytes(chunk, segment.row_count, field)?;
                 let field_memory = controls.reserve_query_memory(bytes)?;
                 let loaded = if chunk.logical_type == "boolean"
-                    && chunk.codec_id
-                        == crate::column_batch_format_v1::Codec::Plain as u8
+                    && chunk.codec_id == crate::column_batch_format_v1::Codec::Plain as u8
                 {
                     boolean::load(&tx, relation_id, index_id, segment, field, chunk)?
                 } else {
@@ -236,7 +237,9 @@ fn source_retained_bytes(
         )?;
         for name in wanted {
             let Some((field, chunk)) = segment.field_chunks.iter().find(|(field, _)| {
-                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(name, field)
+                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                    name, field,
+                )
             }) else {
                 return Ok(None);
             };

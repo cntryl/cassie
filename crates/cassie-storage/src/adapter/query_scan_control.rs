@@ -99,8 +99,6 @@ pub fn current_query_scan_control_scope() -> Option<Arc<QueryScanControlScope>> 
     TEST_SCOPE.with(|scope| scope.borrow().clone())
 }
 
-pub fn should_cancel_controlled_query_scan(
-    context: &super::StorageRequestContext<'_>,
-) -> bool {
+pub fn should_cancel_controlled_query_scan(context: &super::StorageRequestContext<'_>) -> bool {
     context.should_cancel_controlled_query_scan()
 }

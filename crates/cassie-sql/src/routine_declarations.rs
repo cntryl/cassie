@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-
 use cassie_core::types::DataType;
 use cassie_core::types::Schema;
 
@@ -98,10 +97,7 @@ pub struct ProcedureMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewMeta {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
-    #[serde(
-        default,
-        skip_serializing_if = "crate::definition_guard::is_legacy"
-    )]
+    #[serde(default, skip_serializing_if = "crate::definition_guard::is_legacy")]
     pub definition_semantics_version: u32,
     pub name: String,
     pub query: String,
@@ -146,7 +142,11 @@ mod tests {
     #[test]
     fn should_preserve_view_definition_legacy_and_versioned_encoding() {
         // Arrange
-        let mut view = ViewMeta::new("public.active", "SELECT id FROM events", Schema { fields: vec![] });
+        let mut view = ViewMeta::new(
+            "public.active",
+            "SELECT id FROM events",
+            Schema { fields: vec![] },
+        );
 
         // Act
         let legacy = serde_json::to_value(&view).expect("serialize legacy view");

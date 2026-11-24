@@ -3,8 +3,8 @@ use cassie_sql::catalog_declarations::ReservationIdentity;
 use crate::adapter::CassieError;
 
 use super::{
-    FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION, LexKey,
-    append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix,
+    append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix, LexKey,
+    FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION,
 };
 
 pub(crate) fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {

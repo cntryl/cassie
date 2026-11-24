@@ -7,7 +7,9 @@ use super::ast::{
 use crate::declarations::{ConstraintOperator, FieldConstraint};
 
 mod check_comparison;
-pub use check_comparison::{case_operand, exact_eq, field_type, literal, original_operand, validate};
+pub use check_comparison::{
+    case_operand, exact_eq, field_type, literal, original_operand, validate,
+};
 
 #[cfg(test)]
 mod tests;
@@ -502,10 +504,7 @@ impl Policy {
         Ok(())
     }
 
-    fn constraints<A>(
-        self,
-        constraints: &[FieldConstraint<A>],
-    ) -> Result<(), DefinitionError> {
+    fn constraints<A>(self, constraints: &[FieldConstraint<A>]) -> Result<(), DefinitionError> {
         for constraint in constraints {
             if let Some(check) = &constraint.check {
                 if self.0 == 0 && check.bound_expression.is_some() {
@@ -528,8 +527,7 @@ impl Policy {
                 && constraint.check.as_ref().is_some_and(|check| {
                     matches!(
                         check.operator,
-                        ConstraintOperator::IsDistinctFrom
-                            | ConstraintOperator::IsNotDistinctFrom
+                        ConstraintOperator::IsDistinctFrom | ConstraintOperator::IsNotDistinctFrom
                     )
                 })
             {
@@ -540,7 +538,8 @@ impl Policy {
                 if self.0 == 1
                     && constraint.default_value.is_none()
                     && constraint.default_sequence.is_none()
-                    && crate::default_expression::parse_volatile_default_expression(expression).is_none()
+                    && crate::default_expression::parse_volatile_default_expression(expression)
+                        .is_none()
                 {
                     return Err(DefinitionError::Unsupported(
                         "versioned constant DEFAULT metadata requires its bound literal value"

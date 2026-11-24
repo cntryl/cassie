@@ -179,10 +179,11 @@ fn probe(
             ..Default::default()
         };
         counts.dimension_probes += 1;
-        let hits =
-            env.cassie
-                .midge
-                .scan_scalar_index_controlled(&probe.index, &request, &env.controls.storage_request())?;
+        let hits = env.cassie.midge.scan_scalar_index_controlled(
+            &probe.index,
+            &request,
+            &env.controls.storage_request(),
+        )?;
         env.cassie.runtime.record_read_path_index_seek(
             &probe.relation.collection,
             hits.len(),

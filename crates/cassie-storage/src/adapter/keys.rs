@@ -35,7 +35,11 @@ impl Midge {
         key_encoding::projection_consistency_report_prefix()
     }
 
-    pub(super) fn projection_event_key(projection: &str, source_identity: &str, event_id: &str) -> Vec<u8> {
+    pub(super) fn projection_event_key(
+        projection: &str,
+        source_identity: &str,
+        event_id: &str,
+    ) -> Vec<u8> {
         key_encoding::projection_event_key(projection, source_identity, event_id)
     }
 
@@ -103,11 +107,17 @@ impl Midge {
         key_encoding::maintenance_debt_prefix()
     }
 
-    pub(super) fn unique_constraint_reservation_field_prefix(collection: &str, field: &str) -> Vec<u8> {
+    pub(super) fn unique_constraint_reservation_field_prefix(
+        collection: &str,
+        field: &str,
+    ) -> Vec<u8> {
         key_encoding::unique_constraint_reservation_field_prefix(collection, field)
     }
 
-    pub(super) fn unique_scalar_index_reservation_prefix(collection: &str, index_name: &str) -> Vec<u8> {
+    pub(super) fn unique_scalar_index_reservation_prefix(
+        collection: &str,
+        index_name: &str,
+    ) -> Vec<u8> {
         key_encoding::unique_scalar_index_reservation_prefix(collection, index_name)
     }
 
@@ -294,7 +304,11 @@ impl Midge {
         key_encoding::schema_operation_prefix()
     }
 
-    pub(super) fn field_rename_operation_key(collection: &str, current: &str, next: &str) -> Vec<u8> {
+    pub(super) fn field_rename_operation_key(
+        collection: &str,
+        current: &str,
+        next: &str,
+    ) -> Vec<u8> {
         key_encoding::field_rename_operation_key(collection, current, next)
     }
 

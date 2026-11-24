@@ -4,8 +4,8 @@ use super::{
     StorageFamily, TransactionMode, WriteOptions, DEFAULT_FAMILY_NAME,
 };
 use crate::catalog::{
-    canonical_relation_name, is_system_schema, parse_name,
-    relation_database_name, schema_database_name, ParsedName,
+    canonical_relation_name, is_system_schema, parse_name, relation_database_name,
+    schema_database_name, ParsedName,
 };
 use cntryl_midge::ConflictPolicy;
 use parking_lot::Mutex;
@@ -49,9 +49,7 @@ use native_commit::commit_native_transaction;
 
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
-pub use copy_snapshot::{
-    CheckpointStorageSnapshot, CopyStorageSnapshot, StagedCheckpointChange,
-};
+pub use copy_snapshot::{CheckpointStorageSnapshot, CopyStorageSnapshot, StagedCheckpointChange};
 
 #[path = "transactions/index_cleanup_guard.rs"]
 mod index_cleanup_guard;
@@ -61,8 +59,8 @@ pub use index_cleanup_guard::{IndexCleanupCommitGuard, IndexCleanupGateNames};
 mod mutation_error;
 #[path = "transactions/sequence_owner.rs"]
 pub(super) mod sequence_owner;
-pub use sequence_owner::PreparedSequenceCursorMetadata;
 pub use mutation_error::AdapterMutationError;
+pub use sequence_owner::PreparedSequenceCursorMetadata;
 
 #[path = "transactions/row_fence/mod.rs"]
 mod row_fence;
@@ -814,10 +812,7 @@ impl Midge {
         COLLECTION_FLUSH_FAMILY.take()
     }
 
-    pub fn flush_data_family_for_collection(
-        &self,
-        collection: &str,
-    ) -> Result<(), CassieError> {
+    pub fn flush_data_family_for_collection(&self, collection: &str) -> Result<(), CassieError> {
         let canonical = self.canonical_collection_name(collection);
         let database =
             relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());

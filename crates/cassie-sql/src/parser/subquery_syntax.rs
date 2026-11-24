@@ -226,9 +226,11 @@ pub(in crate::parser) fn output_name(subquery: &SubqueryExpr) -> Option<String> 
         | SelectItem::WindowFunction {
             alias: Some(alias), ..
         } => Some(alias.clone()),
-        SelectItem::Column { name, .. } => crate::column_identifier::ColumnIdentifierPath::parse(name)
-            .ok()
-            .map(|column| column.implicit_output_label()),
+        SelectItem::Column { name, .. } => {
+            crate::column_identifier::ColumnIdentifierPath::parse(name)
+                .ok()
+                .map(|column| column.implicit_output_label())
+        }
         SelectItem::Function { function, .. } => Some(
             function
                 .name

@@ -397,7 +397,8 @@ impl Midge {
     where
         L: FnMut(
             &str,
-        ) -> Result<Option<crate::embeddings::HnswGraphNode>, MaintainError<CassieError>>,
+        )
+            -> Result<Option<crate::embeddings::HnswGraphNode>, MaintainError<CassieError>>,
     {
         let mut changed = 0usize;
         for (id, record) in deltas {

@@ -21,10 +21,7 @@ mod tests {
             worker_armed.wait();
             worker_release.wait();
             set_query_scan_cancellation_after_entries(Some(2));
-            let controlled = (
-                hook(&worker_controls),
-                hook(&worker_controls),
-            );
+            let controlled = (hook(&worker_controls), hook(&worker_controls));
             set_query_scan_cancellation_after_entries(None);
             controlled
         });

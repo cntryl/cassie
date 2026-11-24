@@ -21,7 +21,11 @@ pub(super) fn admit(
         ));
     }
     let admitted = cassie.with_transaction_analysis_view(session, controls, |scoped_cassie| {
-        crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)?;
+        crate::sql::parse_analysis::normalize_type_functions(
+            parsed,
+            parameter_type_oids,
+            controls,
+        )?;
         let admitted = with_function_input_scope(scoped_cassie, session, |scope| {
             crate::sql::checked_wire_parse_parameter_types_in_scope(
                 parsed,

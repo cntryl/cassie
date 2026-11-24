@@ -204,7 +204,7 @@ impl<'a> CapacityFamily<'a> {
         }
     }
 
-    fn scan(&self, midge: &Midge) -> Result<CapacityScanEntries,crate::adapter::CassieError> {
+    fn scan(&self, midge: &Midge) -> Result<CapacityScanEntries, crate::adapter::CassieError> {
         match self {
             Self::Storage(_, family) => midge.raw_scan_prefix(*family, b""),
             Self::Named(_, family) => midge.raw_scan_prefix_named(family, b""),

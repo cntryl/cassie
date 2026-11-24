@@ -2,9 +2,9 @@ use std::cell::Cell;
 use std::mem::size_of;
 use std::sync::Arc;
 
+use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions};
 use cassie_core::request::{Interruption, RequestCancellation, RequestMemory};
 use std::convert::Infallible;
-use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions};
 
 use super::{
     hnsw_cache_entry_bytes, search_graph_layer_loaded_controlled,
@@ -49,7 +49,8 @@ fn should_include_complete_owned_node_storage_in_hnsw_memory() {
     let minimum_retained = cache_slots + "entry".len() + retained_node;
 
     // Act
-    let estimate = hnsw_cache_entry_bytes::<Infallible>("entry", Some(&node)).expect("cache estimate");
+    let estimate =
+        hnsw_cache_entry_bytes::<Infallible>("entry", Some(&node)).expect("cache estimate");
 
     // Assert
     assert!(
@@ -198,15 +199,18 @@ fn should_keep_returned_hnsw_candidate_storage_reserved_until_the_result_is_drop
     };
 
     // Act
-    let result = search_graph_with_controlled_node_loader(&request, interruption, &request_memory, |id| {
-        let Some(node) = nodes.iter().find(|node| node.id == id) else {
-            return Ok::<_, Infallible>(None);
-        };
-        let memory = request_memory.reserve(hnsw_cache_entry_bytes::<Infallible>(id, Some(node)).expect("cache size")).expect("reservation");
-        Ok(Some((node.clone(), memory)))
-    })
-    .expect("controlled HNSW search")
-    .expect("candidate result");
+    let result =
+        search_graph_with_controlled_node_loader(&request, interruption, &request_memory, |id| {
+            let Some(node) = nodes.iter().find(|node| node.id == id) else {
+                return Ok::<_, Infallible>(None);
+            };
+            let memory = request_memory
+                .reserve(hnsw_cache_entry_bytes::<Infallible>(id, Some(node)).expect("cache size"))
+                .expect("reservation");
+            Ok(Some((node.clone(), memory)))
+        })
+        .expect("controlled HNSW search")
+        .expect("candidate result");
     let candidate_count = result.0.candidate_count;
     let returned_count = result.0.candidates.len();
     let retained_bytes = result.0.candidates.capacity() * size_of::<HnswCandidate>()
@@ -250,12 +254,10 @@ fn should_preserve_hnsw_loader_errors_as_storage_errors() {
     };
 
     // Act
-    let result = search_graph_with_controlled_node_loader(
-        &request,
-        interruption,
-        &request_memory,
-        |_| Err(LoaderFailure),
-    );
+    let result =
+        search_graph_with_controlled_node_loader(&request, interruption, &request_memory, |_| {
+            Err(LoaderFailure)
+        });
 
     // Assert
     assert!(matches!(

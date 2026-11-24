@@ -3,10 +3,10 @@ use std::time::Duration;
 
 use super::super::{CassieError, Midge};
 use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
-use crate::adapter::StorageRetryKind;
 use crate::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
 use crate::adapter::maintenance::check_fulltext_maintenance_failure_point;
 use crate::adapter::vector_indexes::{VectorBatchWork, VectorFieldWrites};
+use crate::adapter::StorageRetryKind;
 
 impl Midge {
     /// Maintains each full-text index of a changed collection, or records
@@ -99,7 +99,7 @@ impl Midge {
     pub(super) fn finish_document_write_batches(
         &self,
         options: &DocumentWriteBatchOptions,
-        mut tx:crate::adapter::AdapterTransaction,
+        mut tx: crate::adapter::AdapterTransaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
         vector: &VectorBatchWork,

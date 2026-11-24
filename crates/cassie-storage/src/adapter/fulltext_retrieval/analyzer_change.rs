@@ -48,7 +48,8 @@ impl Midge {
         if metadata.kind != cassie_core::catalog::declarations::IndexKind::FullText {
             return Err(CassieError::Unsupported(format!(
                 "index '{name}' is not a full-text index"
-            )).into());
+            ))
+            .into());
         }
         let mut options = metadata.options.clone();
         update(&mut options)?;

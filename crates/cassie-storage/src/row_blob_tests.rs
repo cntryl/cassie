@@ -1,6 +1,9 @@
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
-use super::{RowBlobEncodeError, RowSchema, RowBlobValueError, TYPE_JSON, decode_row, encode_row, encode_row_with};
+use super::{
+    decode_row, encode_row, encode_row_with, RowBlobEncodeError, RowBlobValueError, RowSchema,
+    TYPE_JSON,
+};
 use crate::StorageCodecError;
 
 #[test]
@@ -27,9 +30,12 @@ fn should_decode_json_payload_through_supplied_decoder() {
     });
 
     // Assert
-    assert_eq!(decoded.expect("decoded row"), serde_json::json!({
-        "document": {"parsed_by_engine": true}
-    }));
+    assert_eq!(
+        decoded.expect("decoded row"),
+        serde_json::json!({
+            "document": {"parsed_by_engine": true}
+        })
+    );
 }
 
 #[test]

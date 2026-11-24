@@ -1,5 +1,5 @@
-pub use cassie_core::catalog::sequence::{SequenceCursor, SequenceError, SequenceParameters};
 pub use cassie_core::catalog::declarations::SequenceOptions;
+pub use cassie_core::catalog::sequence::{SequenceCursor, SequenceError, SequenceParameters};
 
 #[cfg(test)]
 mod tests {

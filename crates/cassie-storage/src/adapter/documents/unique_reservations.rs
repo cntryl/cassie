@@ -1,10 +1,10 @@
 use super::super::scalar_indexes::{scalar_expression_evaluator, unique_index_violation};
 use super::super::StorageValueHooks;
-use cassie_core::{catalog::declarations::UniqueNullPolicy, types::DataType};
 use super::{
     key_encoding, CassieError, DocumentWriteBatchContext, FieldConstraint, IndexMeta, Midge,
     PreparedWrite, RowSchema,
 };
+use cassie_core::{catalog::declarations::UniqueNullPolicy, types::DataType};
 
 #[derive(Debug)]
 enum UniqueReservationDescriptor {
@@ -126,10 +126,7 @@ impl Midge {
                 && constraint.unique_null_policy != UniqueNullPolicy::NotDistinct
                 && !row_schema.fields.iter().any(|field_meta| {
                     field_meta.name == constraint.field
-                        && matches!(
-                            field_meta.data_type,
-                            DataType::Json | DataType::Jsonb
-                        )
+                        && matches!(field_meta.data_type, DataType::Json | DataType::Jsonb)
                 })
             {
                 continue;
@@ -169,14 +166,16 @@ impl Midge {
             };
             let key = key_encoding::unique_index_reservation_key_for(
                 collection,
-                index.reservation_identity_details().map_err(CassieError::Parse)?,
+                index
+                    .reservation_identity_details()
+                    .map_err(CassieError::Parse)?,
                 &values,
             )?;
             targets.push((
                 key,
-                UniqueReservationDescriptor::UniqueIndex(Box::new(
-                    unique_index_violation(index, collection),
-                )),
+                UniqueReservationDescriptor::UniqueIndex(Box::new(unique_index_violation(
+                    index, collection,
+                ))),
             ));
         }
 

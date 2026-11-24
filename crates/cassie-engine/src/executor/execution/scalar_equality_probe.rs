@@ -82,7 +82,9 @@ pub(super) fn probe_scalar_equality(
         });
         let id_memory = controls.reserve_query_memory(retained_bytes)?;
         ids.extend(hits.into_iter().map(|hit| hit.id));
-        memory.push(crate::runtime::QueryMemoryReservation::from_core(hit_memory));
+        memory.push(crate::runtime::QueryMemoryReservation::from_core(
+            hit_memory,
+        ));
         memory.push(id_memory);
     }
     Ok(Some(ControlledScalarCandidates { ids, memory }))

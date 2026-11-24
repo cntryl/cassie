@@ -86,8 +86,8 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
     let constraint_key = Midge::constraints_key(&midge.canonical_collection_name(table));
     assert!(matches!(
         create_error,
-crate::adapter::CassieError::CatalogObjectAlreadyExists {
-            kind:crate::adapter::CatalogObjectKind::Sequence,
+        crate::adapter::CassieError::CatalogObjectAlreadyExists {
+            kind: crate::adapter::CatalogObjectKind::Sequence,
             ..
         }
     ));

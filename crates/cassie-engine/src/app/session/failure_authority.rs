@@ -60,9 +60,7 @@ impl FailureAuthority {
     }
 
     #[doc(hidden)]
-    pub fn portal_adoption(
-        &self,
-    ) -> Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)> {
+    pub fn portal_adoption(&self) -> Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)> {
         let owner = self.owner.lock();
         if owner.captured && !owner.admission_rejected {
             owner.portal_adoption

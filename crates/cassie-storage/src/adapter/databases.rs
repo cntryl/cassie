@@ -365,10 +365,7 @@ impl Midge {
         Ok(scoped_entries)
     }
 
-    pub fn stage_database_family(
-        &self,
-        name: &str,
-    ) -> Result<StagedDatabaseFamily, CassieError> {
+    pub fn stage_database_family(&self, name: &str) -> Result<StagedDatabaseFamily, CassieError> {
         self.ensure_families_ready()?;
         if self
             .database_families

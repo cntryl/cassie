@@ -123,7 +123,8 @@ pub fn grown_capacity(count: usize, minimum: usize) -> Result<usize, AccountingE
 /// Returns an accounting error when the estimate exceeds the supported size.
 #[doc(hidden)]
 pub fn add(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_add(right).ok_or(AccountingError::StateSizeOverflow)
+    left.checked_add(right)
+        .ok_or(AccountingError::StateSizeOverflow)
 }
 
 ///
@@ -132,5 +133,6 @@ pub fn add(left: usize, right: usize) -> Result<usize, AccountingError> {
 /// Returns an accounting error when the estimate exceeds the supported size.
 #[doc(hidden)]
 pub fn mul(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_mul(right).ok_or(AccountingError::StateSizeOverflow)
+    left.checked_mul(right)
+        .ok_or(AccountingError::StateSizeOverflow)
 }

@@ -1,7 +1,7 @@
 use crate::StorageCodecError;
 
 use super::binary::invalid;
-use super::chunk::{Codec, LogicalType, bit_is_set, parse_chunk};
+use super::chunk::{bit_is_set, parse_chunk, Codec, LogicalType};
 
 pub struct DecodedAlpChunk {
     pub values: Vec<Option<i64>>,

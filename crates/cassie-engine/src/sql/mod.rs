@@ -62,8 +62,8 @@ pub(crate) use parameters::{
 #[doc(hidden)]
 pub use parameters::{
     checked_wire_parse_parameter_types_in_scope, validate_wire_parse_parameter_slots,
-    AdmittedParameterTypes, BooleanConstruct, ParameterAdmissionError,
-    ParameterSemanticDiagnostic, ScalarLiteralDiagnostic,
+    AdmittedParameterTypes, BooleanConstruct, ParameterAdmissionError, ParameterSemanticDiagnostic,
+    ScalarLiteralDiagnostic,
 };
 pub use parameters::{
     declared_parameter_type_conflict, parameter_count, parameter_type_oids,

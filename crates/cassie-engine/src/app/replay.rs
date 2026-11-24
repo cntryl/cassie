@@ -450,14 +450,17 @@ impl Cassie {
         };
         let (rollup_fields, record_rollup_maintenance_debt) =
             self.rollup_change_fields(&batch.projection);
-        let result = self.midge.apply_projection_replay_batch(
-            &batch.projection,
-            std::mem::take(&mut prepared.write_ops),
-            replay,
-            commit,
-            rollup_fields,
-            record_rollup_maintenance_debt,
-        ).map_err(CassieError::from);
+        let result = self
+            .midge
+            .apply_projection_replay_batch(
+                &batch.projection,
+                std::mem::take(&mut prepared.write_ops),
+                replay,
+                commit,
+                rollup_fields,
+                record_rollup_maintenance_debt,
+            )
+            .map_err(CassieError::from);
         let write_report = match result {
             Ok(report) => report,
             // Interrupted before native submission: nothing was published and

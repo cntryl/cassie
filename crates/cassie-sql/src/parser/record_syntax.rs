@@ -4,9 +4,7 @@
 //! expression tree gains no new variants.
 use super::super::lexical;
 use super::{parse_expression, row_predicates, Expr, SqlError};
-use crate::ast::{
-    FunctionCall, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
-};
+use crate::ast::{FunctionCall, FIELD_ACCESS_ALL, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION};
 
 /// `ROW(a, b)` and `(a, b)` outside a row predicate.
 pub(super) fn row_constructor(raw: &str) -> Result<Option<Expr>, SqlError> {
@@ -61,10 +59,9 @@ fn take_field_name(raw: &str) -> Result<(String, &str), SqlError> {
         return Ok((FIELD_ACCESS_ALL.to_owned(), rest));
     }
     if let Some(body) = raw.strip_prefix('"') {
-        let Some((decoded, consumed)) = crate::identifier_text::quoted(
-            body,
-            crate::identifier_text::IDENTIFIER_BYTES,
-        ) else {
+        let Some((decoded, consumed)) =
+            crate::identifier_text::quoted(body, crate::identifier_text::IDENTIFIER_BYTES)
+        else {
             return Err(SqlError::syntax("unterminated quoted identifier".into()));
         };
         return Ok((decoded, &body[consumed..]));

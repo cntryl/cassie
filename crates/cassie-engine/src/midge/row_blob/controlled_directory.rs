@@ -7,7 +7,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
 use super::super::{
-    Cursor, FORMAT_VERSION, MAGIC, RowFieldMeta, TYPE_JSON, expected_type_tag, field_bit,
+    expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION, MAGIC, TYPE_JSON,
 };
 
 #[derive(Clone, Copy)]

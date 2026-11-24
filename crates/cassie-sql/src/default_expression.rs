@@ -92,7 +92,11 @@ mod tests {
         // Assert
         assert_eq!(
             canonical,
-            vec![Some("now()".to_string()), Some("CURRENT_DATE".to_string()), None]
+            vec![
+                Some("now()".to_string()),
+                Some("CURRENT_DATE".to_string()),
+                None
+            ]
         );
     }
 }

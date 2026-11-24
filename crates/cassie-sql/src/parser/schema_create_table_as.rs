@@ -22,9 +22,7 @@ pub(super) fn parse_create_table_as_statement(
     if !matches!(
         &query.statement,
         super::QueryStatement::Select(_)
-            | super::QueryStatement::SessionObject(
-                crate::ast::SessionObjectStatement::Execute(_)
-            )
+            | super::QueryStatement::SessionObject(crate::ast::SessionObjectStatement::Execute(_))
     ) {
         return Err(super::SqlError::unsupported(
             "CREATE TABLE AS requires a SELECT, TABLE, VALUES, or EXECUTE query".to_string(),
@@ -69,7 +67,8 @@ fn parse_target(target: &str) -> Result<CreateTableAsTarget, super::SqlError> {
             target,
             "CREATE TABLE",
         )?;
-    let storage_mode = storage_mode.unwrap_or(cassie_core::catalog::declarations::CollectionStorageMode::RowStore);
+    let storage_mode =
+        storage_mode.unwrap_or(cassie_core::catalog::declarations::CollectionStorageMode::RowStore);
 
     if let Some(open) = target.find('(') {
         let close = super::find_matching_paren(target, open)

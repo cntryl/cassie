@@ -1,6 +1,6 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use super::{Codec, EncodedChunk, LogicalType, decode, encode, encode_with_policy};
+use super::{decode, encode, encode_with_policy, Codec, EncodedChunk, LogicalType};
 
 #[test]
 fn should_apply_the_complete_chunk_thirty_two_byte_savings_boundary() {

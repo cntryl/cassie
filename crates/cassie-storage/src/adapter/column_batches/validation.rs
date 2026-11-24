@@ -1,8 +1,8 @@
 use std::collections::{BTreeSet, HashSet};
 
-use crate::catalog::{ColumnBatchMetadata, ColumnBatchRow, IndexKind, IndexMeta};
 use crate::adapter::ColumnBatchSummaryDecision;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::catalog::{ColumnBatchMetadata, ColumnBatchRow, IndexKind, IndexMeta};
 
 use super::{
     collect_scan, column_batch_summaries, column_index_segment_size, column_values,
@@ -30,7 +30,7 @@ pub struct ControlledColumnBatchMetadata {
 
 pub enum ControlledColumnBatchSummaryDecision {
     Ready(ControlledColumnBatchMetadata),
-    Fallback( crate::adapter::ColumnBatchScanFallbackReason),
+    Fallback(crate::adapter::ColumnBatchScanFallbackReason),
 }
 
 type ValidationResult<T> = Result<T, ColumnBatchScanFallbackReason>;
@@ -119,7 +119,9 @@ impl Midge {
             let fields = index
                 .normalized_fields()
                 .iter()
-                .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field))
+                .map(|field| {
+                    cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field)
+                })
                 .collect::<Vec<_>>();
             let valid = matches!(
                 self.validate_column_batch_index(
@@ -331,16 +333,23 @@ impl Midge {
                     .fields
                     .iter()
                     .find(|stored| {
-                        cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored)
+                        cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                            field, stored,
+                        )
                     })
-                    .map(|stored| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(stored))
+                    .map(|stored| {
+                        cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
+                            stored,
+                        )
+                    })
             })
             .collect::<BTreeSet<_>>();
         if requested_fields.iter().any(|field| {
-            !metadata
-                .fields
-                .iter()
-                .any(|stored| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored))
+            !metadata.fields.iter().any(|stored| {
+                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                    field, stored,
+                )
+            })
         }) || !requested.is_subset(&metadata_fields)
         {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
@@ -399,7 +408,9 @@ impl Midge {
             if metadata.fields.iter().any(|field| {
                 !segment.summaries.keys().any(|stored| {
                     cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(stored)
-                        == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field)
+                        == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
+                            field,
+                        )
                 })
             }) {
                 return Ok(Err(ColumnBatchScanFallbackReason::SummaryMissing));

@@ -30,8 +30,7 @@ fn should_decode_legacy_unfiltered_window_calls_without_a_filter_field() {
     let legacy = r#"{"name":"var_pop","args":[],"partition_by":[],"order_by":[],"frame":null}"#;
 
     // Act
-    let call: crate::ast::WindowFunctionCall =
-        serde_json::from_str(legacy).expect("legacy call");
+    let call: crate::ast::WindowFunctionCall = serde_json::from_str(legacy).expect("legacy call");
     let encoded = serde_json::to_value(&call).expect("window encoding");
 
     // Assert

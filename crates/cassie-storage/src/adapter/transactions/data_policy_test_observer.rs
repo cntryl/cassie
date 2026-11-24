@@ -59,10 +59,7 @@ pub(super) fn observe_data_submission<T>(
         observer(DataSubmission {
             policy,
             succeeded: result.is_ok(),
-            outcome_unknown: matches!(
-                &result,
-                Err(cntryl_midge::MidgeError::OutcomeUnknown(_))
-            ),
+            outcome_unknown: matches!(&result, Err(cntryl_midge::MidgeError::OutcomeUnknown(_))),
         });
     }
     result

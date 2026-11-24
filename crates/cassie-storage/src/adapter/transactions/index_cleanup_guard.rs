@@ -1,12 +1,12 @@
 //! Commit-owned index and cleanup targets for transactional DDL.
 use super::{ExpectedStorageValue, Midge, StorageMutation, StorageOverlay};
-use crate::adapter::CassieError;
-use crate::catalog::IndexMeta;
 use crate::adapter::schema_cleanup::{
     guard_decode, PendingSchemaCleanup, PendingSchemaCleanupAction,
 };
-use cassie_core::request::accounted::allocation::try_reserve_vec;
+use crate::adapter::CassieError;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::catalog::IndexMeta;
+use cassie_core::request::accounted::allocation::try_reserve_vec;
 
 struct IndexEntry<'a> {
     metadata: guard_decode::Decoded<IndexMeta>,

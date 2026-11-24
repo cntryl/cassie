@@ -88,14 +88,19 @@ impl Fixture {
         let before = self.midge().query_scan_entries_for_diagnostics();
         let scanned = self
             .midge()
-            .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls.context(), |document| {
-                assert_eq!(document.id, "a");
-                assert_eq!(
-                    document.payload,
-                    serde_json::json!({"payload": "narrow-source"})
-                );
-                Ok(false)
-            })
+            .scan_rows_until::<CassieError, _>(
+                COLLECTION,
+                RowDecode::Full,
+                &controls.context(),
+                |document| {
+                    assert_eq!(document.id, "a");
+                    assert_eq!(
+                        document.payload,
+                        serde_json::json!({"payload": "narrow-source"})
+                    );
+                    Ok(false)
+                },
+            )
             .expect("narrow source fits the same budget");
         assert_eq!(scanned, 1);
         assert_eq!(
@@ -264,10 +269,15 @@ fn should_preserve_bounded_modern_row_precedence_over_legacy_rows() {
     // Act
     let scanned = fixture
         .midge()
-        .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls.context(), |document| {
-            rows.push((document.id, document.payload));
-            Ok(true)
-        })
+        .scan_rows_until::<CassieError, _>(
+            COLLECTION,
+            RowDecode::Full,
+            &controls.context(),
+            |document| {
+                rows.push((document.id, document.payload));
+                Ok(true)
+            },
+        )
         .expect("modern and legacy source scan");
     rows.sort_by(|left, right| left.0.cmp(&right.0));
 

@@ -365,7 +365,7 @@ impl Midge {
             let index = index.clone_for_relation(name, &index.name);
             if !seen_names.insert(index.name.to_ascii_lowercase()) {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind:crate::adapter::CatalogObjectKind::Index,
+                    kind: crate::adapter::CatalogObjectKind::Index,
                     name: index.name,
                 });
             }
@@ -386,7 +386,7 @@ impl Midge {
             let index_key = Self::index_key(name, &index.name);
             if tx.get(&index_key).map_err(CassieError::from)?.is_some() {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind:crate::adapter::CatalogObjectKind::Index,
+                    kind: crate::adapter::CatalogObjectKind::Index,
                     name: index.name,
                 });
             }
@@ -594,7 +594,7 @@ impl Midge {
                     .is_some()
             {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind:crate::adapter::CatalogObjectKind::Sequence,
+                    kind: crate::adapter::CatalogObjectKind::Sequence,
                     name: sequence_name,
                 });
             }
@@ -671,10 +671,7 @@ impl Midge {
             }))
     }
 
-    pub fn collection_uses_column_store(
-        &self,
-        collection: &str,
-    ) -> Result<bool, CassieError> {
+    pub fn collection_uses_column_store(&self, collection: &str) -> Result<bool, CassieError> {
         Ok(self
             .storage_mode_for_collection(collection)?
             .uses_column_store_storage())

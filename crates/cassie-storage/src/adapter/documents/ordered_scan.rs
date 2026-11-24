@@ -1,10 +1,7 @@
 #[path = "ordered_scan/controlled.rs"]
 mod controlled;
 
-use super::super::{
-    CassieError, DocumentRef,
-    Midge, OrderedRowBound, Query, RowDecode,
-};
+use super::super::{CassieError, DocumentRef, Midge, OrderedRowBound, Query, RowDecode};
 
 pub struct OrderedRowScanRequest<'a> {
     pub collection: &'a str,

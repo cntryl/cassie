@@ -23,5 +23,4 @@ impl CopyFromBinding {
             .identity()
             .and_then(|identity| identity.transaction)
     }
-
 }

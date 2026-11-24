@@ -1,5 +1,5 @@
-use crate::{parse_statement, SqlErrorKind};
 use crate::ast::QueryStatement;
+use crate::{parse_statement, SqlErrorKind};
 
 #[test]
 fn should_preserve_default_fetch_count_given_row_syntax_when_bounds_are_parsed() {

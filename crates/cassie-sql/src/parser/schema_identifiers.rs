@@ -13,10 +13,9 @@ pub(in crate::parser) fn parse_identifier(raw: &str) -> Result<String, SqlError>
     }
 
     if let Some(body) = raw.strip_prefix('"') {
-        let Some((decoded, consumed)) = crate::identifier_text::quoted(
-            body,
-            crate::identifier_text::IDENTIFIER_BYTES,
-        ) else {
+        let Some((decoded, consumed)) =
+            crate::identifier_text::quoted(body, crate::identifier_text::IDENTIFIER_BYTES)
+        else {
             return Err(SqlError::new(format!(
                 "unterminated quoted identifier '{raw}'"
             )));

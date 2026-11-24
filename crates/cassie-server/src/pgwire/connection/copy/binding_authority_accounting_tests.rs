@@ -57,7 +57,9 @@ fn should_retain_shared_copy_owner_memory_until_the_outer_operation_retires() {
             panic!("COPY FROM binding");
         };
         let controls = binding.controls.clone();
-        assert!(binding.operation.shared_authority_reservation_matches_for_test());
+        assert!(binding
+            .operation
+            .shared_authority_reservation_matches_for_test());
 
         // Act
         drop(binding);
@@ -184,12 +186,8 @@ fn should_retain_copy_binding_authority_at_exact_remaining_budget() {
         let charged_tracker = binding
             .operation
             .admission_reservation_belongs_to_for_test(&binding.controls);
-        let retained_bytes = binding
-            .operation
-            .admission_reservation_bytes_for_test();
-        let owner_tracker = binding
-            .operation
-            .owner_reservation_matches_for_test();
+        let retained_bytes = binding.operation.admission_reservation_bytes_for_test();
+        let owner_tracker = binding.operation.owner_reservation_matches_for_test();
         let before_drop = observation.controls.current_query_memory_bytes();
         drop(binding);
         let after_drop = observation.controls.current_query_memory_bytes();
@@ -293,7 +291,8 @@ fn should_report_malformed_payload_after_binding_is_admitted() {
         panic!("COPY FROM binding")
     };
     // Act
-    let result = super::execute::execute_bound_copy_payload(&binding, &session, &request, &[0xff], None);
+    let result =
+        super::execute::execute_bound_copy_payload(&binding, &session, &request, &[0xff], None);
     drop(binding);
     session.rollback_transaction();
 
@@ -382,9 +381,7 @@ fn should_retain_copy_binding_charge_until_blocking_worker_finishes() {
             cassie,
             "copy_authority_reservation_test",
             move |_| {
-                let retained = binding
-                    .operation
-                    .admission_reservation_bytes_for_test();
+                let retained = binding.operation.admission_reservation_bytes_for_test();
                 let on_tracker = binding
                     .operation
                     .admission_reservation_belongs_to_for_test(&tracker);

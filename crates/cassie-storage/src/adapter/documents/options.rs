@@ -4,12 +4,12 @@ use super::super::WriteOptions;
 pub(super) fn require_single_database<'a>(
     mut collections: impl Iterator<Item = &'a str>,
     database: &str,
-) -> Result<(),crate::adapter::CassieError> {
+) -> Result<(), crate::adapter::CassieError> {
     if collections.any(|collection| {
         crate::catalog::relation_database_name(collection)
             .is_some_and(|candidate| !candidate.eq_ignore_ascii_case(database))
     }) {
-        return Err( crate::adapter::CassieError::Unsupported(
+        return Err(crate::adapter::CassieError::Unsupported(
             "one transaction cannot access multiple databases".to_string(),
         ));
     }
@@ -40,14 +40,14 @@ impl DocumentWriteBatchOptions {
     pub(super) fn stage_additional_data_writes(
         &self,
         tx: &mut crate::adapter::AdapterTransaction,
-    ) -> Result<(),crate::adapter::CassieError> {
+    ) -> Result<(), crate::adapter::CassieError> {
         for (key, value) in &self.additional_data_writes {
             if let Some(value) = value {
                 tx.put(key.clone(), value.clone(), None)
-                    .map_err( crate::adapter::CassieError::from)?;
+                    .map_err(crate::adapter::CassieError::from)?;
             } else {
                 tx.delete(key.clone())
-                    .map_err( crate::adapter::CassieError::from)?;
+                    .map_err(crate::adapter::CassieError::from)?;
             }
         }
         Ok(())

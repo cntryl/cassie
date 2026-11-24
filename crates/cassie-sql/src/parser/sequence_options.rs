@@ -2,8 +2,8 @@
 //! identity columns.
 use super::schema_identifiers::{parse_column_reference, parse_identifier};
 use super::{DataType, SqlError};
-use cassie_core::catalog::declarations::{SequenceOptions, SequencePersistence};
 use crate::ast::SequenceOwnedBy;
+use cassie_core::catalog::declarations::{SequenceOptions, SequencePersistence};
 
 /// Parsed clauses; `restart`, `owned_by` and `persistence` only appear where
 /// the caller allows them.

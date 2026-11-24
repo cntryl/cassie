@@ -228,9 +228,7 @@ fn require_heap_access_method(method: &str, command: &str) -> Result<(), SqlErro
     )))
 }
 
-pub(super) fn parse_relation_identifier(
-    raw: &str,
-) -> Result<crate::ast::IdentifierPath, SqlError> {
+pub(super) fn parse_relation_identifier(raw: &str) -> Result<crate::ast::IdentifierPath, SqlError> {
     let raw = super::lexical::trim_separators(raw);
     let mut characters = raw.chars().peekable();
     let mut quoted = false;

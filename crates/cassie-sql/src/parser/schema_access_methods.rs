@@ -54,11 +54,11 @@ pub(super) fn take_access_method_identifier(raw: &str) -> Result<(&str, &str), s
         ));
     }
     if let Some(body) = raw.strip_prefix('"') {
-        let (_, consumed) = crate::identifier_text::quoted(
-            body,
-            crate::identifier_text::IDENTIFIER_BYTES,
-        )
-        .ok_or_else(|| super::SqlError::new(format!("unterminated quoted identifier '{raw}'")))?;
+        let (_, consumed) =
+            crate::identifier_text::quoted(body, crate::identifier_text::IDENTIFIER_BYTES)
+                .ok_or_else(|| {
+                    super::SqlError::new(format!("unterminated quoted identifier '{raw}'"))
+                })?;
         let end = consumed + 1;
         return Ok((&raw[..end], &raw[end..]));
     }
@@ -70,7 +70,13 @@ pub(super) fn take_access_method_identifier(raw: &str) -> Result<(&str, &str), s
 pub(super) fn strip_table_access_method_clause<'a>(
     raw: &'a str,
     command: &str,
-) -> Result<(&'a str, Option<cassie_core::catalog::declarations::CollectionStorageMode>), super::SqlError> {
+) -> Result<
+    (
+        &'a str,
+        Option<cassie_core::catalog::declarations::CollectionStorageMode>,
+    ),
+    super::SqlError,
+> {
     let raw = raw.trim();
     if !super::starts_with_keyword(raw, "using") {
         return Ok((raw, None));
@@ -85,7 +91,13 @@ pub(super) fn strip_table_access_method_clause<'a>(
 pub(super) fn strip_create_table_target_access_method<'a>(
     raw: &'a str,
     command: &str,
-) -> Result<(&'a str, Option<cassie_core::catalog::declarations::CollectionStorageMode>), super::SqlError> {
+) -> Result<
+    (
+        &'a str,
+        Option<cassie_core::catalog::declarations::CollectionStorageMode>,
+    ),
+    super::SqlError,
+> {
     let Some(position) = super::find_top_level_keyword(raw, 0, "using") else {
         return Ok((raw.trim(), None));
     };
@@ -131,7 +143,9 @@ mod tests {
         );
     }
 
-    fn created_storage_mode(sql: &str) -> cassie_core::catalog::declarations::CollectionStorageMode {
+    fn created_storage_mode(
+        sql: &str,
+    ) -> cassie_core::catalog::declarations::CollectionStorageMode {
         let parsed = parser::parse_statement(sql).expect("parse CREATE TABLE");
         let crate::ast::QueryStatement::CreateTable(statement) = parsed.statement else {
             panic!("expected a create-table statement");
@@ -148,7 +162,10 @@ mod tests {
         let mode = created_storage_mode(sql);
 
         // Assert
-        assert_eq!(mode, cassie_core::catalog::declarations::CollectionStorageMode::ColumnStore);
+        assert_eq!(
+            mode,
+            cassie_core::catalog::declarations::CollectionStorageMode::ColumnStore
+        );
     }
 
     #[test]
@@ -166,7 +183,10 @@ mod tests {
             columnar_mode,
             cassie_core::catalog::declarations::CollectionStorageMode::ColumnStore
         );
-        assert_eq!(heap_mode, cassie_core::catalog::declarations::CollectionStorageMode::RowStore);
+        assert_eq!(
+            heap_mode,
+            cassie_core::catalog::declarations::CollectionStorageMode::RowStore
+        );
     }
 
     #[test]
@@ -200,7 +220,10 @@ mod tests {
         let mode = created_storage_mode(sql);
 
         // Assert
-        assert_eq!(mode, cassie_core::catalog::declarations::CollectionStorageMode::ColumnStore);
+        assert_eq!(
+            mode,
+            cassie_core::catalog::declarations::CollectionStorageMode::ColumnStore
+        );
     }
 
     #[test]

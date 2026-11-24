@@ -19,9 +19,7 @@ use admission::{check_controls, checked_parameter_count, reserve_vector};
 #[doc(hidden)]
 pub use admission::{AdmittedParameterTypes, ParameterAdmissionError};
 #[doc(hidden)]
-pub use diagnostics::{
-    BooleanConstruct, ParameterSemanticDiagnostic, ScalarLiteralDiagnostic,
-};
+pub use diagnostics::{BooleanConstruct, ParameterSemanticDiagnostic, ScalarLiteralDiagnostic};
 pub(crate) use occurrences::PrivateParameterTypeInput;
 
 pub use cassie_sql::parameter_count;

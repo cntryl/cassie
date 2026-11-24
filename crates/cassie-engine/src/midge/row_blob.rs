@@ -7,12 +7,12 @@ use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Valu
 use uuid::Uuid;
 
 pub(crate) use cassie_storage::row_blob::{
-    Cursor, RowBlobEncodeError, RowBlobField, RowBlobRecord, RowFieldMeta, RowSchema,
+    field_bit, FORMAT_VERSION, MAGIC, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
+    TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING,
+    TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 pub(crate) use cassie_storage::row_blob::{
-    FORMAT_VERSION, MAGIC, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
-    TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING,
-    TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32, field_bit,
+    Cursor, RowBlobEncodeError, RowBlobField, RowBlobRecord, RowFieldMeta, RowSchema,
 };
 
 mod compact;
@@ -31,20 +31,18 @@ use self::compact::decode_directory_value;
 #[cfg(any(test, feature = "transport-test-hooks"))]
 use self::compact::expected_type_tag;
 pub(crate) use compact::{
-    CompactScalar, decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
-    encode_compact_value,
+    decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
+    encode_compact_value, CompactScalar,
 };
-pub(crate) use vector_field::{PackedVector, VectorColumn, split_vector_row};
+pub(crate) use vector_field::{split_vector_row, PackedVector, VectorColumn};
 
 pub(crate) fn encode_row(
     schema: &RowSchema,
     payload: &serde_json::Value,
 ) -> Result<Vec<u8>, CassieError> {
-    cassie_storage::row_blob::encode_row(schema, payload).map_err(|error| {
-        match error {
-            RowBlobEncodeError::Layout(error) => CassieError::from(error),
-            RowBlobEncodeError::FieldValue(error) => map_row_value_error(error),
-        }
+    cassie_storage::row_blob::encode_row(schema, payload).map_err(|error| match error {
+        RowBlobEncodeError::Layout(error) => CassieError::from(error),
+        RowBlobEncodeError::FieldValue(error) => map_row_value_error(error),
     })
 }
 
@@ -165,19 +163,22 @@ pub(crate) fn decode_engine_json(bytes: &[u8]) -> Result<serde_json::Value, Cass
         }
         Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) => {
             let detail = crate::runtime::accounted::json_arena::syntax_error(bytes);
-            Err(CassieError::Parse(format!("invalid JSON in row blob: {detail}")))
+            Err(CassieError::Parse(format!(
+                "invalid JSON in row blob: {detail}"
+            )))
         }
     }
 }
 
-fn map_row_decode_error(error: cassie_storage::row_blob::RowBlobDecodeError<CassieError>) -> CassieError {
+fn map_row_decode_error(
+    error: cassie_storage::row_blob::RowBlobDecodeError<CassieError>,
+) -> CassieError {
     match error {
         cassie_storage::row_blob::RowBlobDecodeError::Codec(error) => error.into(),
         cassie_storage::row_blob::RowBlobDecodeError::Json(error) => error,
-        cassie_storage::row_blob::RowBlobDecodeError::DataCorruption {
-            sqlstate,
-            message,
-        } => CassieError::from(crate::app::DiagnosticError::new(sqlstate, message)),
+        cassie_storage::row_blob::RowBlobDecodeError::DataCorruption { sqlstate, message } => {
+            CassieError::from(crate::app::DiagnosticError::new(sqlstate, message))
+        }
     }
 }
 

@@ -14,8 +14,8 @@ use crate::types::DomainType;
 
 use super::encoding::encode_value;
 use super::{
-    Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_DOMAIN, TYPE_F64, TYPE_I64, TYPE_NULL, TYPE_UUID,
-    decode_value, write_varint,
+    decode_value, write_varint, Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_DOMAIN, TYPE_F64, TYPE_I64,
+    TYPE_NULL, TYPE_UUID,
 };
 
 pub(super) const DOMAIN_PAYLOAD_VERSION: u8 = 1;

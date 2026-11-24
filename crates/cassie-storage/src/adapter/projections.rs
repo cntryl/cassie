@@ -513,8 +513,8 @@ impl Midge {
 #[cfg(test)]
 mod checkpoint_snapshot_tests {
     use super::Midge;
-    use crate::adapter::CassieError;
     use crate::adapter::request_test_support::TestRequest;
+    use crate::adapter::CassieError;
     use cassie_core::types::Schema;
 
     fn fixture() -> Midge {
@@ -533,8 +533,7 @@ mod checkpoint_snapshot_tests {
         let mut tx = midge.begin_data_rw_tx_for(&collection).unwrap();
         tx.delete(Midge::projection_key(&collection)).unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
-        let controls =
-            TestRequest::default();
+        let controls = TestRequest::default();
 
         // Act
         let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
@@ -558,8 +557,7 @@ mod checkpoint_snapshot_tests {
         tx.put(Midge::projection_key(&collection), mismatched, None)
             .unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
-        let controls =
-            TestRequest::default();
+        let controls = TestRequest::default();
 
         // Act
         let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
@@ -591,8 +589,7 @@ mod checkpoint_snapshot_tests {
         let _guard = super::super::query_scan_control::query_scan_control_test_guard();
         let midge = fixture();
         super::super::query_scan_control::set_query_scan_cancellation_after_entries(Some(1));
-        let controls =
-            TestRequest::default();
+        let controls = TestRequest::default();
 
         // Act
         let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
@@ -623,8 +620,7 @@ mod checkpoint_snapshot_tests {
         )
         .unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
-        let controls =
-            TestRequest::default();
+        let controls = TestRequest::default();
 
         // Act
         let rows = midge

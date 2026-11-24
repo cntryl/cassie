@@ -1,10 +1,10 @@
 #[path = "inference_expressions.rs"]
 mod expressions;
+#[doc(hidden)]
+pub use expressions::VECTOR_PARAMETER_TYPE_OID;
 pub(crate) use expressions::{
     data_type_for_parameter_oid, infer_expr_type, integer_literal_type, known_expr_type,
 };
-#[doc(hidden)]
-pub use expressions::VECTOR_PARAMETER_TYPE_OID;
 
 #[path = "inference_types.rs"]
 mod types;

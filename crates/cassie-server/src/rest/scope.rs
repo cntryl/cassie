@@ -120,12 +120,11 @@ mod tests {
         // Arrange
         let collection = canonical_relation_name("cassie", "private", "events");
         let cassie = cassie_with_collections("search-path", &[&collection]);
-        let session =
-            CassieSession::authenticated_for_test(
-                "reader".to_string(),
-                Some("cassie".to_string()),
-                false,
-            );
+        let session = CassieSession::authenticated_for_test(
+            "reader".to_string(),
+            Some("cassie".to_string()),
+            false,
+        );
         session.set_search_path(vec!["private".to_string(), DEFAULT_SCHEMA.to_string()]);
 
         // Act
@@ -141,12 +140,11 @@ mod tests {
         let first = canonical_relation_name("cassie", "first", "events");
         let second = canonical_relation_name("cassie", "second", "events");
         let cassie = cassie_with_collections("ambiguous", &[&first, &second]);
-        let session =
-            CassieSession::authenticated_for_test(
-                "reader".to_string(),
-                Some("cassie".to_string()),
-                false,
-            );
+        let session = CassieSession::authenticated_for_test(
+            "reader".to_string(),
+            Some("cassie".to_string()),
+            false,
+        );
         session.set_search_path(vec!["first".to_string(), "second".to_string()]);
 
         // Act
@@ -163,12 +161,11 @@ mod tests {
         // Arrange
         let collection = canonical_relation_name("other", DEFAULT_SCHEMA, "events");
         let cassie = cassie_with_collections("cross-database", &[&collection]);
-        let session =
-            CassieSession::authenticated_for_test(
-                "reader".to_string(),
-                Some("cassie".to_string()),
-                false,
-            );
+        let session = CassieSession::authenticated_for_test(
+            "reader".to_string(),
+            Some("cassie".to_string()),
+            false,
+        );
 
         // Act
         let error =
@@ -184,12 +181,11 @@ mod tests {
         let dotted = canonical_relation_name("cassie", DEFAULT_SCHEMA, "triage.dot");
         let qualified = canonical_relation_name("cassie", "triage", "dot");
         let cassie = cassie_with_collections("quoted-dot", &[&dotted, &qualified]);
-        let session =
-            CassieSession::authenticated_for_test(
-                "reader".to_string(),
-                Some("cassie".to_string()),
-                false,
-            );
+        let session = CassieSession::authenticated_for_test(
+            "reader".to_string(),
+            Some("cassie".to_string()),
+            false,
+        );
         session.set_search_path(vec![DEFAULT_SCHEMA.to_string(), "triage".to_string()]);
 
         // Act

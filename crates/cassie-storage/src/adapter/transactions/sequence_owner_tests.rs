@@ -1,9 +1,9 @@
 //! Transaction-owned sequence cursor and fork lease invariants.
 
 use super::{decode, CheckingReader, StorageOverlay, CURSOR_BYTES};
-use crate::catalog::SequenceMeta;
 use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::NativePublicationControlScope;
+use crate::catalog::SequenceMeta;
 use cassie_core::request::{RequestCancellation, RequestMemory};
 use cassie_core::types::DataType;
 
@@ -84,8 +84,8 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     // Arrange
     let metadata = SequenceMeta::new("sequence", DataType::BigInt);
     let raw = serde_json::to_vec(&metadata).expect("sequence metadata");
-    let bytes =
-        cassie_core::request::accounted::json::serialized_decode_bytes(raw.len()).expect("decode bound");
+    let bytes = cassie_core::request::accounted::json::serialized_decode_bytes(raw.len())
+        .expect("decode bound");
     let below = TestRequest::with_budget(bytes - 1);
     let exact = TestRequest::with_budget(bytes);
     let cancellation = RequestCancellation::new();
@@ -103,7 +103,7 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     assert!(rejected.is_err());
     assert!(matches!(
         canceled,
-        Err( crate::adapter::CassieError::QueryCanceled)
+        Err(crate::adapter::CassieError::QueryCanceled)
     ));
     assert_eq!(held, bytes);
     assert_eq!(exact.current_query_memory_bytes(), 0);
@@ -392,7 +392,8 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
         let overlay = parent.lock();
         let mut state = overlay.sequence_cursors.state.lock();
         state.admission = Some(
-            RequestMemory::new(CURSOR_BYTES).reserve(CURSOR_BYTES)
+            RequestMemory::new(CURSOR_BYTES)
+                .reserve(CURSOR_BYTES)
                 .expect("exact owner budget"),
         );
     }
@@ -459,7 +460,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() 
     // Assert
     assert!(matches!(
         canceled,
-        Err( crate::adapter::CassieError::QueryCanceled)
+        Err(crate::adapter::CassieError::QueryCanceled)
     ));
     assert_eq!(next.expect("original epoch").0, 2);
     assert!(parent.lock().sequence_epochs.is_none());
@@ -601,8 +602,7 @@ fn should_interrupt_metadata_writer_at_a_deterministic_chunk_boundary() {
 #[test]
 fn should_encode_sequence_metadata_like_the_existing_serde_format() {
     // Arrange
-    let controls =
-        TestRequest::default();
+    let controls = TestRequest::default();
     let mut metadata = SequenceMeta::new("unicode-é-\\\"-\n-\u{1}", DataType::BigInt);
     metadata.object_id = 999;
     metadata.owned_by = Some(crate::catalog::SequenceOwner {
@@ -624,8 +624,7 @@ fn should_encode_sequence_metadata_like_the_existing_serde_format() {
 fn should_treat_private_next_sequence_api_as_nontransactional_advance() {
     // Arrange
     use std::sync::Arc;
-    let controls =
-        TestRequest::default();
+    let controls = TestRequest::default();
     let _controls = NativePublicationControlScope::enter(Some(&controls.context()));
     let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
@@ -688,7 +687,7 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
     // Assert
     assert!(matches!(
         result,
-        Err( crate::adapter::CassieError::QueryCanceled)
+        Err(crate::adapter::CassieError::QueryCanceled)
     ));
     assert!(writer.bytes < metadata.name.len());
 }

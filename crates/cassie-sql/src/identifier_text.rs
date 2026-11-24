@@ -64,8 +64,10 @@ mod tests {
         // Arrange
         let name = format!("__cassie_relation_alias_{}", "a".repeat(128));
         // Act
-        let internal = crate::column_identifier::ColumnIdentifierPath::parse(&name).expect("internal qualifier");
-        let sql = crate::column_identifier::ColumnIdentifierPath::parse_sql(&name).expect("SQL token");
+        let internal = crate::column_identifier::ColumnIdentifierPath::parse(&name)
+            .expect("internal qualifier");
+        let sql =
+            crate::column_identifier::ColumnIdentifierPath::parse_sql(&name).expect("SQL token");
         // Assert
         assert_eq!(internal.final_name(), name);
         assert_eq!(sql.final_name(), &name[..63]);

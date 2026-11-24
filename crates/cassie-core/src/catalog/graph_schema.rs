@@ -1,8 +1,6 @@
 //! Names and persisted descriptors of the reserved graph schema.
 
-use super::scope::{
-    canonical_relation_name, canonical_schema_name, split_identifier_path,
-};
+use super::scope::{canonical_relation_name, canonical_schema_name, split_identifier_path};
 use super::{CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
 use crate::types::composite::{CompositeField, CompositeRef};
 use crate::types::graph_identity::{GraphTypeKind, GRAPH_SCHEMA};

@@ -147,9 +147,7 @@ struct RestWaitControls {
 impl PublicationWaitControls {
     fn check_interruption(&self) -> Result<(), CassieError> {
         if let Some(controls) = &self.query {
-            controls
-                .context()
-                .check_interruption()?;
+            controls.context().check_interruption()?;
         }
         if let Some(controls) = &self.rest {
             if controls.cancellation.is_canceled() {
@@ -170,9 +168,8 @@ impl PublicationWaitControls {
         interruption: Interruption<'_>,
         memory: &cassie_core::request::RequestMemory,
     ) -> Self {
-        self.query.get_or_insert_with(|| {
-            NativeRequestControls::new(interruption, memory.clone())
-        });
+        self.query
+            .get_or_insert_with(|| NativeRequestControls::new(interruption, memory.clone()));
         self
     }
 }
@@ -349,10 +346,7 @@ impl NativePublicationControlScope {
     }
 
     #[doc(hidden)]
-    pub fn enter_for_rest(
-        cancellation: &RequestCancellation,
-        deadline: Instant,
-    ) -> Self {
+    pub fn enter_for_rest(cancellation: &RequestCancellation, deadline: Instant) -> Self {
         let mut controls = CURRENT_CONTROLS
             .with(|slot| slot.borrow().clone())
             .unwrap_or_default();
@@ -428,9 +422,7 @@ impl Midge {
     }
 
     #[cfg(test)]
-    pub fn observe_next_publication_wait_for_test(
-        callback: impl FnOnce() + 'static,
-    ) -> impl Drop {
+    pub fn observe_next_publication_wait_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
         tests::next_wait(callback)
     }
 

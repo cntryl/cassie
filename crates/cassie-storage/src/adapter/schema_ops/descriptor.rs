@@ -84,7 +84,10 @@ impl Midge {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;
         let Some(schema_field) = schema.fields.iter_mut().find(|entry| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, &entry.name)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                field,
+                &entry.name,
+            )
         }) else {
             return Err(CassieError::Unsupported(format!(
                 "field '{field}' not found in collection '{collection}'"
@@ -96,7 +99,10 @@ impl Midge {
             .unwrap_or_else(|| RowSchema::from_schema(&schema));
         let Some(row_field) = row_schema.fields.iter_mut().find(|entry| {
             !entry.retired
-                && cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, &entry.name)
+                && cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                    field,
+                    &entry.name,
+                )
         }) else {
             return Err(CassieError::Unsupported(format!(
                 "field '{field}' not found in row schema for '{collection}'"

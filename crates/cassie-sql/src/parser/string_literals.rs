@@ -39,9 +39,7 @@ pub(super) fn parse(raw: &str) -> Result<Option<String>, SqlError> {
     Ok(Some(text))
 }
 
-pub(in crate::parser) fn unicode_identifier_prefix(
-    raw: &str,
-) -> Result<(String, usize), SqlError> {
+pub(in crate::parser) fn unicode_identifier_prefix(raw: &str) -> Result<(String, usize), SqlError> {
     let mut cursor = 3;
     let end = loop {
         let Some(byte) = raw.as_bytes().get(cursor) else {

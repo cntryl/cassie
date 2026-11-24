@@ -114,7 +114,8 @@ fn should_preserve_integer_power_range_when_bounded_workspace_uses_an_exponentia
 #[test]
 fn should_preserve_all_integer_digits_of_a_supported_large_numeric_exponential() {
     // Arrange
-    let expected = include_str!("../../../../cassie-e2e/tests/fixtures/math/exp-5000-pg18.6.txt").trim();
+    let expected =
+        include_str!("../../../../cassie-e2e/tests/fixtures/math/exp-5000-pg18.6.txt").trim();
     let input = numeric("5000");
 
     // Act
@@ -131,11 +132,15 @@ fn should_refine_power_precision_after_an_extreme_exponent_amplifies_a_near_unit
     let cases = [
         (
             "1e403",
-            include_str!("../../../../cassie-e2e/tests/fixtures/math/power-near-one-positive-pg18.6.txt"),
+            include_str!(
+                "../../../../cassie-e2e/tests/fixtures/math/power-near-one-positive-pg18.6.txt"
+            ),
         ),
         (
             "-1e403",
-            include_str!("../../../../cassie-e2e/tests/fixtures/math/power-near-one-negative-pg18.6.txt"),
+            include_str!(
+                "../../../../cassie-e2e/tests/fixtures/math/power-near-one-negative-pg18.6.txt"
+            ),
         ),
     ];
 

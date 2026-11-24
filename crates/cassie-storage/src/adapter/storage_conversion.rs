@@ -6,8 +6,7 @@
 //! storage overlay, so the rewrite commits or rolls back with that transaction.
 use super::column_store::validation::{decode_deleted_marker, decode_marker_parts};
 use super::{
-    encode_row, key_encoding, CassieError, CollectionStorageMode, Midge, Query,
-    RowSchema,
+    encode_row, key_encoding, CassieError, CollectionStorageMode, Midge, Query, RowSchema,
 };
 use std::collections::HashSet;
 
@@ -189,7 +188,8 @@ impl Midge {
                 // A row key shadows a legacy document key with the same id.
                 let first = seen.insert(id.clone());
                 if first {
-                    let payload = crate::adapter::decode_row_with_hooks(row_schema, &raw, tx.value_hooks())?;
+                    let payload =
+                        crate::adapter::decode_row_with_hooks(row_schema, &raw, tx.value_hooks())?;
                     Self::write_column_store_document_to_tx(
                         tx, collection, &id, &payload, row_schema,
                     )?;

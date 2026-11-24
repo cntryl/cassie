@@ -160,7 +160,9 @@ impl CassieSession {
                     })
             })
         });
-        fence.validate_rows(rows, &controls.storage_request()).map_err(CassieError::from)
+        fence
+            .validate_rows(rows, &controls.storage_request())
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn repeatable_statement_read(

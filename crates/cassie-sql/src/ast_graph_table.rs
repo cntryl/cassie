@@ -281,9 +281,11 @@ impl<A> GraphColumn<A> {
     pub fn output_name(&self) -> Option<String> {
         match (&self.alias, &self.expr) {
             (Some(alias), _) => Some(alias.clone()),
-            (None, Expr::Column(name)) => crate::column_identifier::ColumnIdentifierPath::parse(name)
-                .ok()
-                .map(|path| path.implicit_output_label()),
+            (None, Expr::Column(name)) => {
+                crate::column_identifier::ColumnIdentifierPath::parse(name)
+                    .ok()
+                    .map(|path| path.implicit_output_label())
+            }
             (None, _) => None,
         }
     }

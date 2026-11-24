@@ -1,6 +1,6 @@
 use cassie_core::catalog::role::{RoleGrantTarget, RoleObjectGrantMeta};
 
-use super::{FAMILY_ROLE_OBJECT_GRANT, key, prefix};
+use super::{key, prefix, FAMILY_ROLE_OBJECT_GRANT};
 
 pub(in crate::adapter) fn role_object_grant_key(grant: &RoleObjectGrantMeta) -> Vec<u8> {
     let role_id = grant.role_id.to_be_bytes();

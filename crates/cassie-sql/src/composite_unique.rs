@@ -24,7 +24,9 @@ pub struct CompositeUnique {
 
 /// Returns the composite PRIMARY KEY constraints declared across `constraints`.
 #[must_use]
-pub fn composite_primary_key_constraints<A>(constraints: &[FieldConstraint<A>]) -> Vec<CompositeUnique> {
+pub fn composite_primary_key_constraints<A>(
+    constraints: &[FieldConstraint<A>],
+) -> Vec<CompositeUnique> {
     let mut groups = BTreeMap::<String, (String, Vec<(u32, String)>)>::new();
     for constraint in constraints
         .iter()
@@ -38,9 +40,10 @@ pub fn composite_primary_key_constraints<A>(constraints: &[FieldConstraint<A>]) 
             .or_insert_with(|| (name.clone(), Vec::new()))
             .1;
         let field_key = ColumnIdentifierPath::stored_field_key(&constraint.field);
-        if fields.iter().any(|(_, field)| {
-            ColumnIdentifierPath::stored_field_key(field) == field_key
-        }) {
+        if fields
+            .iter()
+            .any(|(_, field)| ColumnIdentifierPath::stored_field_key(field) == field_key)
+        {
             continue;
         }
         fields.push((

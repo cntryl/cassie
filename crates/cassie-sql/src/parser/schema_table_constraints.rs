@@ -102,9 +102,9 @@ pub(super) fn apply_table_constraints(
     let mut check_fields = std::collections::HashSet::new();
     if existing.iter().chain(&constraints).any(|constraint| {
         constraint.check.is_some()
-            && !check_fields.insert(crate::column_identifier::ColumnIdentifierPath::stored_field_key(
-                &constraint.field,
-            ))
+            && !check_fields.insert(
+                crate::column_identifier::ColumnIdentifierPath::stored_field_key(&constraint.field),
+            )
     }) {
         return Err(SqlError::unsupported(
             "multiple CHECK constraints on one field are not supported".into(),
@@ -117,7 +117,8 @@ pub(super) fn apply_table_constraints(
     }
     for mut constraint in constraints {
         let Some(field) = fields.iter_mut().find(|field| {
-            crate::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name) == constraint.field
+            crate::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name)
+                == constraint.field
         }) else {
             return Err(SqlError::new(format!(
                 "table constraint references unknown column '{}'",
@@ -419,9 +420,11 @@ fn normalize_constraint_include_fields(
     constraint: &mut FieldConstraint,
 ) -> Result<(), SqlError> {
     for include_field in &mut constraint.constraint_index_include_fields {
-        let include_key = crate::column_identifier::ColumnIdentifierPath::stored_field_key(include_field);
+        let include_key =
+            crate::column_identifier::ColumnIdentifierPath::stored_field_key(include_field);
         let Some(declared) = fields.iter().find(|field| {
-            crate::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name) == include_key
+            crate::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name)
+                == include_key
         }) else {
             return Err(SqlError::new(format!(
                 "constraint INCLUDE references unknown column '{include_field}'"

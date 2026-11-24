@@ -252,7 +252,10 @@ pub enum RowBlobValueError {
     #[error("{0}")]
     Unsupported(String),
     #[error("{message}")]
-    TypeInput { sqlstate: &'static str, message: String },
+    TypeInput {
+        sqlstate: &'static str,
+        message: String,
+    },
 }
 
 mod encode;
@@ -558,10 +561,10 @@ fn invalid(message: impl Into<String>) -> StorageCodecError {
 
 mod decode;
 pub use decode::{
-    CompactScalar, PackedVector, RowBlobDecodeError, VectorColumn, VectorRowParts,
     decode_compact_field_value, decode_compact_scalar, decode_projected_row,
     decode_projected_row_matching, decode_projected_row_with_aliases, decode_row,
-    encode_compact_sql_null, split_vector_row,
+    encode_compact_sql_null, split_vector_row, CompactScalar, PackedVector, RowBlobDecodeError,
+    VectorColumn, VectorRowParts,
 };
 pub use encode::{canonical_bytea_text, encode_compact_value};
 

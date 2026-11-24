@@ -42,13 +42,12 @@ use super::plan_inspection;
 #[cfg(test)]
 use super::reserve_projection_output_before_building;
 use super::{
-    aggregate, aggregate_accel, aggregate_exec, batch, catalog, check_timeout,
-    deduce_text_fields, ensure_query_memory_budget, execute_plan_with_outer_row,
-    filter, load_fulltext_index_options, plan_execution_env_with_parameter_oids, projection,
-    resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig,
-    Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr,
-    FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, PlanExecutionEnv, QueryError,
-    QueryExecutionControls, QuerySource, Value,
+    aggregate, aggregate_accel, aggregate_exec, batch, catalog, check_timeout, deduce_text_fields,
+    ensure_query_memory_budget, execute_plan_with_outer_row, filter, load_fulltext_index_options,
+    plan_execution_env_with_parameter_oids, projection, resolve_exists_expr, row_signature, scan,
+    sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession,
+    CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind,
+    LogicalPlan, PlanExecutionEnv, QueryError, QueryExecutionControls, QuerySource, Value,
 };
 pub(super) use source_values::scratch_bytes as values_scratch_bytes;
 
@@ -427,8 +426,8 @@ mod source_rows;
 pub(crate) use source_rows::{aggregate_signature, expr_key, group_expr_name};
 use source_rows::{
     apply_set_operation, attach_outer_scope, distinct_batches, distinct_on_batches,
-    materialize_virtual_rows, plan_uses_aggregate, qualify_batches,
-    schema_text_fields, source_row_budget,
+    materialize_virtual_rows, plan_uses_aggregate, qualify_batches, schema_text_fields,
+    source_row_budget,
 };
 pub(super) use source_rows::{
     combine_rows, qualify_row, row_lookup_columns, slice_rows, source_contains_lateral,

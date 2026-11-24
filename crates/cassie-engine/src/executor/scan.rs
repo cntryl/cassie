@@ -21,11 +21,11 @@ mod character_arrays;
 #[doc(hidden)]
 pub mod composite_arrays;
 mod controlled_source;
+pub(crate) use composite_arrays::element_descriptor as composite_array_descriptor;
 #[doc(hidden)]
 pub use composite_arrays::from_text as composite_array_from_text;
 #[doc(hidden)]
 pub use composite_arrays::typed_records as composite_array_records;
-pub(crate) use composite_arrays::element_descriptor as composite_array_descriptor;
 mod enum_values;
 pub(crate) use character_arrays::{
     hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,
@@ -392,8 +392,9 @@ pub(crate) fn try_controlled_column_batch_scan(
     storage_filter: Option<&RowFilter>,
 ) -> Result<Option<EncodedProjectedScan>, crate::executor::QueryError> {
     let storage_request = request.controls.storage_request();
-    let outcome = cassie.midge.scan_column_batch_projected_rows_controlled(
-        &ControlledColumnBatchScanRequest {
+    let outcome = cassie
+        .midge
+        .scan_column_batch_projected_rows_controlled(&ControlledColumnBatchScanRequest {
             collection: request.collection,
             batch_size: DEFAULT_BATCH_SIZE,
             fields: request.fields,
@@ -401,8 +402,8 @@ pub(crate) fn try_controlled_column_batch_scan(
             segment_filter: request.column_filter,
             limit: request.limit,
             controls: &storage_request,
-        },
-    ).map_err(CassieError::from);
+        })
+        .map_err(CassieError::from);
     match outcome {
         Ok(ColumnBatchScanDecision::Hit(outcome)) => {
             let query_memory = outcome.query_memory;

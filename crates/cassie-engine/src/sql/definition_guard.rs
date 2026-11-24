@@ -2,7 +2,9 @@
 
 use super::ast::{CreateRollupStatement, Expr, ParsedStatement};
 use crate::app::CassieError;
-use crate::catalog::{FieldConstraint, IndexMeta, MaterializedProjectionMeta, RollupMeta, ViewMeta};
+use crate::catalog::{
+    FieldConstraint, IndexMeta, MaterializedProjectionMeta, RollupMeta, ViewMeta,
+};
 
 use cassie_sql::definition_guard as syntax;
 pub(crate) use syntax::{is_legacy, null_safe_default};
@@ -86,7 +88,12 @@ pub(crate) fn rollup(metadata: &RollupMeta) -> Result<(), CassieError> {
     let expressions = metadata
         .group_keys
         .iter()
-        .chain(metadata.aggregates.iter().map(|aggregate| &aggregate.expression))
+        .chain(
+            metadata
+                .aggregates
+                .iter()
+                .map(|aggregate| &aggregate.expression),
+        )
         .chain(&metadata.filter_expr)
         .map(String::as_str);
     Ok(syntax::rollup(

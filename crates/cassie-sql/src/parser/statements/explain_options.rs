@@ -27,9 +27,7 @@ const BOOLEAN_OPTIONS: &[&str] = &[
 ];
 
 /// Splits `EXPLAIN`'s options from its statement; `rest` follows `EXPLAIN`.
-pub(in crate::parser) fn parse_explain_prefix(
-    rest: &str,
-) -> Result<ExplainPrefix<'_>, SqlError> {
+pub(in crate::parser) fn parse_explain_prefix(rest: &str) -> Result<ExplainPrefix<'_>, SqlError> {
     let rest = lexical::trim_separators(rest);
     if rest.starts_with('(') && !parenthesized_query(&rest[1..]) {
         let close = lexical::matching_paren(rest, 0)

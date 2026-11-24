@@ -117,13 +117,14 @@ fn should_binary_copy_a_staged_enum_before_transaction_commit() {
         "CREATE TYPE copy_binary_mood AS ENUM ('sad', 'ok')",
         "CREATE TABLE copy_binary_enum (mood copy_binary_mood)",
     ] {
-        cassie.execute_sql(&session, sql, Vec::new()).expect("setup SQL");
+        cassie
+            .execute_sql(&session, sql, Vec::new())
+            .expect("setup SQL");
     }
-    let request = request::parse_copy_request(
-        "COPY copy_binary_enum (mood) FROM STDIN WITH (FORMAT BINARY)",
-    )
-    .expect("parse binary COPY")
-    .expect("COPY request");
+    let request =
+        request::parse_copy_request("COPY copy_binary_enum (mood) FROM STDIN WITH (FORMAT BINARY)")
+            .expect("parse binary COPY")
+            .expect("COPY request");
     let binding_sql = request.table_binding_sql().expect("table target");
     let operation = crate::app::transport::copy::CopyFromOperation::bind(
         std::sync::Arc::new(cassie.clone()),
@@ -345,13 +346,8 @@ fn should_preserve_autocommit_copy_without_owner() {
     assert!(!binding.operation.has_owner_for_test());
 
     // Act
-    let result = execute::execute_bound_copy_payload(
-        &binding,
-        &fixture.session,
-        &request,
-        b"41\n",
-        None,
-    );
+    let result =
+        execute::execute_bound_copy_payload(&binding, &fixture.session, &request, b"41\n", None);
     let rows = fixture
         .cassie
         .execute_sql(
@@ -448,13 +444,7 @@ fn should_execute_fresh_copy_predicate_after_savepoint_restoration() {
 
     // Act
     let result = {
-        execute::execute_bound_copy_payload(
-            &binding,
-            &fixture.session,
-            &request,
-            b"41\n",
-            None,
-        )
+        execute::execute_bound_copy_payload(&binding, &fixture.session, &request, b"41\n", None)
     };
     fixture
         .cassie
@@ -566,13 +556,7 @@ fn should_reject_copy_binding_across_savepoint_restore() {
         panic!("COPY FROM binding")
     };
     let fresh = {
-        execute::execute_bound_copy_payload(
-            &binding,
-            &fixture.session,
-            &request,
-            b"41\n",
-            None,
-        )
+        execute::execute_bound_copy_payload(&binding, &fixture.session, &request, b"41\n", None)
     };
     fixture
         .cassie

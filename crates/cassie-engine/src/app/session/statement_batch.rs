@@ -92,7 +92,9 @@ impl CassieSession {
             StorageOverlay::default()
         };
         let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
-        let request = controls.as_ref().map(crate::runtime::QueryExecutionControls::storage_request);
+        let request = controls
+            .as_ref()
+            .map(crate::runtime::QueryExecutionControls::storage_request);
         storage_overlay.attach_sequence_fork_lease(request.as_ref())?;
         Ok(SessionTransactionState {
             status: SessionTransactionStatus::InTransaction,
@@ -251,7 +253,9 @@ impl CassieSession {
         let batch_transaction = batch.session.transaction.lock();
         let mut published = batch_transaction.storage_overlay.lock().clone();
         let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
-        let request = controls.as_ref().map(crate::runtime::QueryExecutionControls::storage_request);
+        let request = controls
+            .as_ref()
+            .map(crate::runtime::QueryExecutionControls::storage_request);
         {
             let parent = transaction.storage_overlay.lock();
             published.inherit_sequence_fork_lease(&parent, request.as_ref())?;

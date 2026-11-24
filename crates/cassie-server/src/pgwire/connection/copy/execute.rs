@@ -1,8 +1,8 @@
 //! Decoding and executing a single buffered COPY input.
 
-use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 #[cfg(test)]
 use super::filter;
+use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 use super::{input, payload_owner, request, CassieSession, CopyRequest};
 
 pub(super) struct CopyCompletion {
@@ -22,11 +22,8 @@ pub(super) fn execute_decoded_operation(
 ) -> Result<CopyCompletion, crate::app::transport::copy::CopyOperationError> {
     use crate::app::transport::copy::{CopyExecutionOptions, CopyHeaderMode};
 
-    let decoded_payload = payload_owner::decode_copy_payload(
-        payload,
-        request.encoding.as_deref(),
-        controls,
-    )?;
+    let decoded_payload =
+        payload_owner::decode_copy_payload(payload, request.encoding.as_deref(), controls)?;
     let payload = decoded_payload
         .as_ref()
         .map_or(payload, payload_owner::DecodedPayload::as_slice);
@@ -124,18 +121,16 @@ pub(super) fn execute_bound_copy_payload(
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<CopyCompletion, filter::CopyWhereError> {
-    binding
-        .operation
-        .with_publication_scope(|controls| {
-            execute_decoded_operation(
-                session,
-                request,
-                &binding.operation,
-                payload,
-                cancellation,
-                controls,
-            )
-        })
+    binding.operation.with_publication_scope(|controls| {
+        execute_decoded_operation(
+            session,
+            request,
+            &binding.operation,
+            payload,
+            cancellation,
+            controls,
+        )
+    })
 }
 
 fn skipped_row_notices<'a>(

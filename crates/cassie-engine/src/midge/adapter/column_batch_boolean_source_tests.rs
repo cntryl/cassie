@@ -28,8 +28,7 @@ fn fixture_with_segments(
     IndexMeta,
     ColumnBatchMetadata,
 ) {
-    let cassie =
-        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory");
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -147,8 +146,7 @@ fn should_discard_the_complete_source_for_a_required_boolean_checksum_failure() 
     replace(&cassie, &index, &metadata, raw, 0);
     let controls = controls(&cassie);
     // Act
-    let (hit, fallback, _, _, _) =
-        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
+    let (hit, fallback, _, _, _) = diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
     assert!(!hit);
     assert!(matches!(
@@ -175,8 +173,7 @@ fn should_discard_a_checksum_consistent_malformed_boolean_chunk() {
     replace(&cassie, &index, &metadata, raw, 1);
     let controls = controls(&cassie);
     // Act
-    let (hit, fallback, _, _, _) =
-        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
+    let (hit, fallback, _, _, _) = diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
     assert!(!hit);
     assert!(matches!(
@@ -222,8 +219,7 @@ fn should_reject_boolean_chunk_metadata_disagreement_without_publishing_a_source
     replace(&cassie, &index, &metadata, raw, 0);
     let controls = controls(&cassie);
     // Act
-    let (hit, fallback, _, _, _) =
-        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
+    let (hit, fallback, _, _, _) = diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
     assert!(!hit);
     assert!(fallback.is_some());

@@ -1,8 +1,8 @@
 use cntryl_midge::Query;
 
+use crate::adapter::StorageRequestContext;
 use crate::catalog::IndexMeta;
 use cassie_core::request::accounted::AccountedVec;
-use crate::adapter::StorageRequestContext;
 
 use super::codec::{covering_fields_retained_bytes, decode_covering_fields};
 use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
@@ -31,13 +31,13 @@ impl Midge {
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
         controls: &StorageRequestContext<'_>,
-        mut visit: impl FnMut( crate::adapter::DocumentRef) -> Result<bool, E>,
+        mut visit: impl FnMut(crate::adapter::DocumentRef) -> Result<bool, E>,
     ) -> Result<(), E> {
         self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
             let _memory =
                 controls.reserve_query_memory(scalar_index_hit_variable_bytes(key, raw_value)?)?;
             let hit = decode_scalar_index_hit(index, key, raw_value)?;
-            visit( crate::adapter::DocumentRef {
+            visit(crate::adapter::DocumentRef {
                 id: hit.id,
                 payload: serde_json::Value::Object(hit.fields),
             })

@@ -107,21 +107,21 @@ pub use error::{
 };
 pub(crate) use existing_constraint_checks::AddedColumnDefault;
 pub use session::CassieSession;
+pub(crate) use session::PrivateOutputs;
 pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
-pub(crate) use session::{
-    CommandCatalogScope, CopyBindingContext, SessionRandom, SessionReadScope, StagedWriteSnapshot,
-    StatementDataRead, StatementMutationBatch, StatementReadScope,
-    TransactionConflictIntent, TransactionRowChange,
-};
 #[doc(hidden)]
 pub use session::{BoundReadScope, BoundReadView, SessionTransactionStatus};
+pub(crate) use session::{
+    CommandCatalogScope, CopyBindingContext, SessionRandom, SessionReadScope, StagedWriteSnapshot,
+    StatementDataRead, StatementMutationBatch, StatementReadScope, TransactionConflictIntent,
+    TransactionRowChange,
+};
 #[doc(hidden)]
 pub use session::{CopyCommandOwner, FailureAuthority, FailureAuthorityIdentity};
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
     MAX_PREPARED_PER_SESSION,
 };
-pub(crate) use session::PrivateOutputs;
 pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
 #[doc(hidden)]
 pub use session_objects::SessionObjectError;
@@ -139,9 +139,9 @@ pub(crate) use bulk_ingest::CopyIngestOptions;
 #[doc(hidden)]
 pub use bulk_ingest::{copy_columns, CopyCsvOptions};
 #[doc(hidden)]
-pub use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
-#[doc(hidden)]
 pub use bulk_ingest::{CopyColumn, CopyIngestResult, CopySkippedRow};
+#[doc(hidden)]
+pub use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
 mod consistency;
 mod database_images;
 mod databases;

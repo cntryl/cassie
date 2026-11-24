@@ -279,8 +279,7 @@ pub(super) fn find_set_operation(sql: &str) -> Option<(usize, usize, SetOperator
                 };
                 return (pos, all_end - pos, all);
             }
-            let end =
-                crate::parser::lexical::pattern_end(sql, next, "distinct").unwrap_or(end);
+            let end = crate::parser::lexical::pattern_end(sql, next, "distinct").unwrap_or(end);
             (pos, end - pos, operator)
         })
     })

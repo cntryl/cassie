@@ -29,10 +29,7 @@ pub(crate) fn login(
     crate::app::network_sessions::login(cassie, &user, request.password.as_deref(), peer_ip)
 }
 
-pub(crate) fn authenticate(
-    cassie: &Cassie,
-    token: &str,
-) -> Result<NetworkPrincipal, CassieError> {
+pub(crate) fn authenticate(cassie: &Cassie, token: &str) -> Result<NetworkPrincipal, CassieError> {
     crate::app::network_sessions::authenticate(cassie, token)
 }
 

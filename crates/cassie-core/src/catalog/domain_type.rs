@@ -1,7 +1,10 @@
 //! Portable domain type declarations and stored-name comparison.
-use serde::{Deserialize, Serialize};
-use crate::catalog::scope::{local_name, parse_name, relation_database_name, relation_schema_name, ParsedName, DEFAULT_SCHEMA};
+use crate::catalog::scope::{
+    local_name, parse_name, relation_database_name, relation_schema_name, ParsedName,
+    DEFAULT_SCHEMA,
+};
 use crate::types::{DataType, DomainCheck, DomainDefault, DomainRef, DomainType};
+use serde::{Deserialize, Serialize};
 
 use super::object_identity::normal_oid;
 

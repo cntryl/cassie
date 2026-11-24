@@ -58,10 +58,7 @@ pub(super) fn from_storage(
 /// Returns `XX001` for a malformed document and the input error for text that
 /// is not a record of this type.
 #[doc(hidden)]
-pub fn typed_records(
-    array: &SqlArray,
-    descriptor: &CompositeRef,
-) -> Result<Value, CassieError> {
+pub fn typed_records(array: &SqlArray, descriptor: &CompositeRef) -> Result<Value, CassieError> {
     let element_type = DataType::Composite(descriptor.clone());
     let elements = array
         .elements()

@@ -12,10 +12,10 @@ mod numeric;
 mod row_ids;
 mod selected;
 
+pub use alp_chunk::{decode_scaled as decode_alp_scaled, DecodedAlpChunk};
 pub use boolean::DecodedBooleanChunk;
 pub use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
 pub use numeric::{DecodedNumericChunk, NumericValues};
-pub use alp_chunk::{decode_scaled as decode_alp_scaled, DecodedAlpChunk};
 
 pub fn scale_alp_value(value: &serde_json::Value, scale: u8) -> Option<i64> {
     alp::scale_value_at(value, scale)

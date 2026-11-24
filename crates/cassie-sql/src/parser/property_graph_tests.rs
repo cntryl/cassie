@@ -1,6 +1,4 @@
-use crate::ast::{
-    GraphEndpoint, GraphLabel, GraphProperty, PropertyGraphAction, QueryStatement,
-};
+use crate::ast::{GraphEndpoint, GraphLabel, GraphProperty, PropertyGraphAction, QueryStatement};
 use crate::parser::parse_statement;
 use crate::SqlErrorKind;
 

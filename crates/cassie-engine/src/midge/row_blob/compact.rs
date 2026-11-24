@@ -6,14 +6,14 @@
 use crate::app::CassieError;
 use crate::types::DataType;
 
+#[cfg(test)]
+use super::{decode_value, write_varint};
 #[cfg(any(test, feature = "transport-test-hooks"))]
 use super::{
     Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
     TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
     TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
-#[cfg(test)]
-use super::{decode_value, write_varint};
 
 pub(crate) fn encode_compact_value(
     data_type: &DataType,
@@ -32,8 +32,12 @@ pub(crate) fn decode_compact_field_value(
     data_type: &DataType,
     bytes: &[u8],
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    cassie_storage::row_blob::decode_compact_field_value(data_type, bytes, super::decode_engine_json)
-        .map_err(super::map_row_decode_error)
+    cassie_storage::row_blob::decode_compact_field_value(
+        data_type,
+        bytes,
+        super::decode_engine_json,
+    )
+    .map_err(super::map_row_decode_error)
 }
 
 /// One stored field value read without building a JSON value for the

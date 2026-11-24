@@ -93,11 +93,13 @@ fn owned_heap_bytes(
 }
 
 fn checked_add(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_add(right).ok_or(AccountingError::JsonSizeOverflow)
+    left.checked_add(right)
+        .ok_or(AccountingError::JsonSizeOverflow)
 }
 
 fn checked_mul(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_mul(right).ok_or(AccountingError::JsonSizeOverflow)
+    left.checked_mul(right)
+        .ok_or(AccountingError::JsonSizeOverflow)
 }
 
 #[cfg(test)]

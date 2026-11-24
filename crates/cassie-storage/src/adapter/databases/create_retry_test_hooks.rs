@@ -77,7 +77,8 @@ pub fn has_seeded_create_retry(midge: &Midge, seed: &CreateRetrySeed) -> bool {
 #[doc(hidden)]
 pub fn snapshot(midge: &Midge) -> DurableStorageSnapshot {
     DurableStorageSnapshot(
-        midge.engine
+        midge
+            .engine
             .list_column_families()
             .unwrap()
             .into_iter()
@@ -137,7 +138,9 @@ pub fn persist_ambiguity(
     let mut tx = midge.begin_schema_rw_tx().unwrap();
     match problem {
         CreateRetryAmbiguity::StagedFamilyStillPresent => {
-            midge.create_physical_family(&intent.physical_family).unwrap();
+            midge
+                .create_physical_family(&intent.physical_family)
+                .unwrap();
         }
         CreateRetryAmbiguity::StagedFamilyOwned
         | CreateRetryAmbiguity::ReplacementShared
@@ -160,7 +163,8 @@ pub fn persist_ambiguity(
             }
         }
         CreateRetryAmbiguity::ReplacementMissing => {
-            midge.drop_physical_family_if_present(replacement_family)
+            midge
+                .drop_physical_family_if_present(replacement_family)
                 .unwrap();
         }
         CreateRetryAmbiguity::ReplacementUnlisted => {
@@ -235,10 +239,7 @@ pub fn persist_overlapping_intents(
 
 /// Persists an orphan create and replacement drop beside the retry intent.
 #[doc(hidden)]
-pub fn persist_independent_intents(
-    midge: &Midge,
-    replacement_family: &str,
-) -> String {
+pub fn persist_independent_intents(midge: &Midge, replacement_family: &str) -> String {
     let orphan = DatabaseMeta::new("abandoned", None);
     let replacement = DatabaseMeta::with_physical_family(DATABASE, None, replacement_family);
     let mut tx = midge.begin_schema_rw_tx().unwrap();

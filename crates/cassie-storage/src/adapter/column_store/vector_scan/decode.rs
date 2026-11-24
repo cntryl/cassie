@@ -4,9 +4,9 @@
 //! Booleans and text never become JSON, and every other type goes through the
 //! same JSON-to-`Value` conversion the row path uses, one value per cell.
 
-use crate::adapter::CassieError;
 use crate::adapter::column_store::compression::expand_column_field;
 use crate::adapter::column_store::validation::corrupt_row;
+use crate::adapter::CassieError;
 use crate::adapter::StorageValueHooks;
 use crate::row_blob::{decode_compact_scalar, CompactScalar, RowFieldMeta};
 use cassie_core::types::lanes::{LaneValidity, RawLanes};
@@ -243,13 +243,13 @@ pub(crate) fn decode_into_lane(
     let cell = decode_compact_scalar(&field.data_type, &expanded, hooks.decode_json)
         .map_err(CassieError::from)
         .map_err(|error| match error {
-        CassieError::Parse(detail) => corrupt_row(
-            relation,
-            id,
-            &format!("field '{}' does not decode: {detail}", field.name),
-        ),
-        other => other,
-    })?;
+            CassieError::Parse(detail) => corrupt_row(
+                relation,
+                id,
+                &format!("field '{}' does not decode: {detail}", field.name),
+            ),
+            other => other,
+        })?;
     lane.push_cell(cell, &field.data_type, hooks)
         .map_err(|error| match error {
             CassieError::Parse(detail) => corrupt_row(

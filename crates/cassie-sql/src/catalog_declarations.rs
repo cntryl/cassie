@@ -2,17 +2,21 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
 use cassie_core::catalog::projection::{
-    MaterializedProjectionState, ProjectionFreshness, ProjectionHashMeta, ProjectionIntegrityReportMeta,
-    ProjectionKind, ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
-    ProjectionVersionMeta, ProjectionVersionState,
+    MaterializedProjectionState, ProjectionFreshness, ProjectionHashMeta,
+    ProjectionIntegrityReportMeta, ProjectionKind, ProjectionRebuildState,
+    ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVersionMeta,
+    ProjectionVersionState,
 };
+use serde::{Deserialize, Serialize};
 
 pub use cassie_core::catalog::declarations::IndexKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReservationIdentity<'a> { Legacy(&'a str), Generation(u64) }
+pub enum ReservationIdentity<'a> {
+    Legacy(&'a str),
+    Generation(u64),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UniqueViolationDetails {
@@ -24,10 +28,7 @@ pub struct UniqueViolationDetails {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IndexMeta {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
-    #[serde(
-        default,
-        skip_serializing_if = "crate::definition_guard::is_legacy"
-    )]
+    #[serde(default, skip_serializing_if = "crate::definition_guard::is_legacy")]
     pub definition_semantics_version: u32,
     pub collection: String,
     pub name: String,
@@ -54,7 +55,8 @@ impl IndexMeta {
         "__cassie_unique_reservation_generation";
     /// Index option key that records the selected PostgreSQL access method.
     pub const ACCESS_METHOD_OPTION: &'static str = crate::index_options::ACCESS_METHOD_OPTION;
-    pub const NULLS_NOT_DISTINCT_OPTION: &'static str = crate::index_options::NULLS_NOT_DISTINCT_OPTION;
+    pub const NULLS_NOT_DISTINCT_OPTION: &'static str =
+        crate::index_options::NULLS_NOT_DISTINCT_OPTION;
 
     #[must_use]
     pub fn read_definition_matches(&self, other: &Self) -> bool {
@@ -180,10 +182,16 @@ impl IndexMeta {
     }
 
     pub fn set_reservation_generation(&mut self, identity: u64) -> Result<(), String> {
-        if identity == 0 || self.storage_id() != Some(identity) || self.relation_id().is_none_or(|id| id == 0) {
+        if identity == 0
+            || self.storage_id() != Some(identity)
+            || self.relation_id().is_none_or(|id| id == 0)
+        {
             return Err("invalid unique index reservation generation".to_owned());
         }
-        self.options.insert(Self::UNIQUE_RESERVATION_GENERATION_OPTION.to_string(), identity.to_string());
+        self.options.insert(
+            Self::UNIQUE_RESERVATION_GENERATION_OPTION.to_string(),
+            identity.to_string(),
+        );
         Ok(())
     }
 
@@ -272,7 +280,10 @@ impl IndexMeta {
         let field_key = crate::column_identifier::ColumnIdentifierPath::stored_field_key(field);
         for raw in self.expressions.iter().chain(self.predicate.iter()) {
             let expression = serde_json::from_str::<crate::ast::Expr>(raw).map_err(|error| {
-                format!("invalid expression metadata for index '{}': {error}", self.name)
+                format!(
+                    "invalid expression metadata for index '{}': {error}",
+                    self.name
+                )
             })?;
             if expression.any_descendant_or_self(&mut |node| {
                 matches!(
@@ -305,7 +316,9 @@ impl IndexMeta {
         let rename_names = |names: &mut Vec<String>| {
             let mut changed = false;
             for name in names {
-                if crate::column_identifier::ColumnIdentifierPath::stored_field_key(name) == current_key {
+                if crate::column_identifier::ColumnIdentifierPath::stored_field_key(name)
+                    == current_key
+                {
                     *name = next.to_string();
                     changed = true;
                 }
@@ -356,18 +369,13 @@ impl IndexMeta {
     }
 }
 
-
-
 /// Option key marking a materialized projection created by SQL materialized-view DDL.
 pub const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaterializedProjectionMeta {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
-    #[serde(
-        default,
-        skip_serializing_if = "crate::definition_guard::is_legacy"
-    )]
+    #[serde(default, skip_serializing_if = "crate::definition_guard::is_legacy")]
     pub definition_semantics_version: u32,
     pub name: String,
     pub query: String,
@@ -382,8 +390,6 @@ pub struct MaterializedProjectionMeta {
     pub refresh_cursor: Option<String>,
     pub last_built_ms: Option<u64>,
 }
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionMeta {
@@ -579,7 +585,6 @@ pub fn materialized_output_collection(name: &str, version_id: &str) -> String {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{IndexKind, IndexMeta, MaterializedProjectionSpec, ProjectionMeta};
@@ -642,7 +647,10 @@ mod tests {
             materialized_bytes["materialized"]["definition_semantics_version"],
             1
         );
-        assert_eq!(materialized_bytes["materialized"]["query"], "SELECT id FROM public.events");
+        assert_eq!(
+            materialized_bytes["materialized"]["query"],
+            "SELECT id FROM public.events"
+        );
         assert_eq!(materialized_bytes["versions"][0]["version_id"], "v1");
     }
 }

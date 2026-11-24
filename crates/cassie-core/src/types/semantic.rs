@@ -117,9 +117,9 @@ impl<J, A, R> SemanticValue<J, A, R> {
             Value::Float64(value) => Self::Number(SemanticNumber::from_float(*value)),
             // Legacy canonical timestamps are widened so they compare equal
             // by instant with fixed-width timestamps.
-            Value::String(value) => Self::String(
-                crate::types::temporal::timestamp_order_text(value).into_owned(),
-            ),
+            Value::String(value) => {
+                Self::String(crate::types::temporal::timestamp_order_text(value).into_owned())
+            }
             Value::Vector(value) => {
                 Self::Vector(value.values.iter().map(|part| part.to_bits()).collect())
             }
@@ -445,9 +445,9 @@ mod tests {
     fn should_normalize_integral_numeric_to_the_equal_integer() {
         // Arrange
         let integer = Value::Int64(12);
-        let numeric = Value::Typed(crate::types::typed::TypedValue::Numeric(
-            Numeric::from_i64(12),
-        ));
+        let numeric = Value::Typed(crate::types::typed::TypedValue::Numeric(Numeric::from_i64(
+            12,
+        )));
 
         // Act
         let ordering = compare_values(&integer, &numeric);

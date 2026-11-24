@@ -61,8 +61,12 @@ impl CollectionMeta {
     }
 }
 
-fn initial_row_type_revision() -> u64 { 1 }
-fn default_collection_storage_version() -> u16 { SUPPORTED_COLLECTION_STORAGE_VERSION }
+fn initial_row_type_revision() -> u64 {
+    1
+}
+fn default_collection_storage_version() -> u16 {
+    SUPPORTED_COLLECTION_STORAGE_VERSION
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NamespaceMeta {
@@ -76,7 +80,12 @@ pub struct NamespaceMeta {
 
 impl NamespaceMeta {
     pub fn new(name: impl Into<String>, description: Option<String>) -> Self {
-        Self { name: name.into(), description, object_id: 0, system_owner: None }
+        Self {
+            name: name.into(),
+            description,
+            object_id: 0,
+            system_owner: None,
+        }
     }
 }
 
@@ -94,7 +103,9 @@ pub struct CollectionCardinalityStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct IndexCardinalityStats { pub cardinality: u64 }
+pub struct IndexCardinalityStats {
+    pub cardinality: u64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct FieldCardinalityStats {
@@ -117,33 +128,54 @@ pub struct FieldCardinalityStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct FieldHistogramBucket { pub lower: String, pub upper: String, pub count: u64 }
+pub struct FieldHistogramBucket {
+    pub lower: String,
+    pub upper: String,
+    pub count: u64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct FieldHeavyHitter { pub value: String, pub count: u64 }
+pub struct FieldHeavyHitter {
+    pub value: String,
+    pub count: u64,
+}
 
 impl CollectionCardinalityStats {
     #[must_use]
     pub fn index_key(kind: &IndexKind, name: &str) -> String {
         let kind = match kind {
-            IndexKind::Scalar => "scalar", IndexKind::FullText => "fulltext",
-            IndexKind::Vector => "vector", IndexKind::Hybrid => "hybrid",
-            IndexKind::Column => "column", IndexKind::TimeSeries => "time_series",
+            IndexKind::Scalar => "scalar",
+            IndexKind::FullText => "fulltext",
+            IndexKind::Vector => "vector",
+            IndexKind::Hybrid => "hybrid",
+            IndexKind::Column => "column",
+            IndexKind::TimeSeries => "time_series",
         };
         format!("{kind}:{name}")
     }
     #[must_use]
-    pub fn scalar_index_key(name: &str) -> String { Self::index_key(&IndexKind::Scalar, name) }
+    pub fn scalar_index_key(name: &str) -> String {
+        Self::index_key(&IndexKind::Scalar, name)
+    }
     #[must_use]
-    pub fn fulltext_index_key(name: &str) -> String { Self::index_key(&IndexKind::FullText, name) }
+    pub fn fulltext_index_key(name: &str) -> String {
+        Self::index_key(&IndexKind::FullText, name)
+    }
     #[must_use]
-    pub fn vector_index_key(field: &str) -> String { Self::index_key(&IndexKind::Vector, field) }
+    pub fn vector_index_key(field: &str) -> String {
+        Self::index_key(&IndexKind::Vector, field)
+    }
     #[must_use]
-    pub fn hybrid_index_key(name: &str) -> String { Self::index_key(&IndexKind::Hybrid, name) }
+    pub fn hybrid_index_key(name: &str) -> String {
+        Self::index_key(&IndexKind::Hybrid, name)
+    }
     #[must_use]
-    pub fn time_series_index_key(name: &str) -> String { Self::index_key(&IndexKind::TimeSeries, name) }
+    pub fn time_series_index_key(name: &str) -> String {
+        Self::index_key(&IndexKind::TimeSeries, name)
+    }
     pub fn set_index_cardinality(&mut self, key: String, cardinality: u64) {
-        self.indexes.insert(key, IndexCardinalityStats { cardinality });
+        self.indexes
+            .insert(key, IndexCardinalityStats { cardinality });
     }
     #[must_use]
     pub fn index_cardinality(&self, key: &str) -> Option<u64> {
@@ -153,7 +185,9 @@ impl CollectionCardinalityStats {
         self.fields.insert(field, stats);
     }
     #[must_use]
-    pub fn field_stats(&self, field: &str) -> Option<&FieldCardinalityStats> { self.fields.get(field) }
+    pub fn field_stats(&self, field: &str) -> Option<&FieldCardinalityStats> {
+        self.fields.get(field)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -203,7 +237,13 @@ pub struct ColumnBatchFieldSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub enum ColumnBatchNumericSum { Empty, FloatEmpty, Integer(i64), Float(f64), IntegerOverflow }
+pub enum ColumnBatchNumericSum {
+    Empty,
+    FloatEmpty,
+    Integer(i64),
+    Float(f64),
+    IntegerOverflow,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ColumnBatchChunkMeta {

@@ -3,14 +3,14 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::{Arc, Barrier, mpsc};
+use std::sync::{mpsc, Arc, Barrier};
 use std::time::{Duration, Instant};
 
 use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 use crate::midge::adapter::{
-    ScalarIndexScanRequest, SchemaWritePausePoint, schema_write_conflict_test_guard,
-    schema_write_conflict_worker_guard, set_schema_write_commit_barriers,
+    schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
+    set_schema_write_commit_barriers, ScalarIndexScanRequest, SchemaWritePausePoint,
 };
 
 const CHILD_CASE: &str = "CASSIE_TEST_REPLAY_PROCESS_DEATH_CASE";
@@ -233,12 +233,10 @@ fn assert_recovered_state(cassie: &Cassie, projection: &str, expected_position: 
         metadata.last_applied_event_id,
         Some(format!("event-{expected_position}"))
     );
-    assert!(
-        cassie
-            .midge
-            .has_projection_event(projection, "orders", "event-1")
-            .unwrap()
-    );
+    assert!(cassie
+        .midge
+        .has_projection_event(projection, "orders", "event-1")
+        .unwrap());
     assert_eq!(
         cassie
             .midge

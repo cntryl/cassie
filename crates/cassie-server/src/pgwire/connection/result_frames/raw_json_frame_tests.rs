@@ -20,10 +20,9 @@ fn should_match_legacy_frames_for_ordinary_values_in_each_json_type() {
         (PlainIdentity::Jsonb, 3802, crate::types::DataType::Jsonb),
     ] {
         for format in [0, 1] {
-            let cell = crate::midge::transport_test_fixtures::owned_row_cell(
-                source, identity, &controls,
-            )
-                .expect("cell");
+            let cell =
+                crate::midge::transport_test_fixtures::owned_row_cell(source, identity, &controls)
+                    .expect("cell");
             let mut expected = Vec::new();
             let columns = [crate::executor::ColumnMeta::from_data_type("doc", &kind)];
             crate::pgwire::connection::writers::append_data_row_frame_in(
@@ -66,10 +65,9 @@ fn should_emit_postgresql_json_frame_payloads() {
     let mut outcomes = Vec::new();
     for source in [raw, sentinel] {
         for (identity, oid) in [(PlainIdentity::Json, 114), (PlainIdentity::Jsonb, 3802)] {
-            let cell = crate::midge::transport_test_fixtures::owned_row_cell(
-                source, identity, &controls,
-            )
-                .expect("cell");
+            let cell =
+                crate::midge::transport_test_fixtures::owned_row_cell(source, identity, &controls)
+                    .expect("cell");
             for format in [0, 1] {
                 let frame = RawFrame::build(Some(&cell), oid, format, &controls).expect("frame");
                 let expected = if identity == PlainIdentity::Json {
@@ -104,13 +102,12 @@ fn should_record_json_value_writer_spelling_difference_from_postgresql() {
     // Arrange
     let controls = controls();
     let source = r#" {"z":1e+2, "a": 2, "a":3} "#;
-    let cell =
-        crate::midge::transport_test_fixtures::owned_row_cell(
-            source,
-            PlainIdentity::Json,
-            &controls,
-        )
-            .expect("cell");
+    let cell = crate::midge::transport_test_fixtures::owned_row_cell(
+        source,
+        PlainIdentity::Json,
+        &controls,
+    )
+    .expect("cell");
     let parsed: serde_json::Value = serde_json::from_str(source).expect("legacy parse");
     let mut legacy = Vec::new();
     let columns = [crate::executor::ColumnMeta::from_data_type(
@@ -140,13 +137,12 @@ fn should_record_json_value_writer_spelling_difference_from_postgresql() {
 fn should_reject_mismatched_raw_frame_arguments_while_distinguishing_nulls() {
     // Arrange
     let controls = controls();
-    let cell =
-        crate::midge::transport_test_fixtures::owned_row_cell(
-            "null",
-            PlainIdentity::Jsonb,
-            &controls,
-        )
-            .expect("cell");
+    let cell = crate::midge::transport_test_fixtures::owned_row_cell(
+        "null",
+        PlainIdentity::Jsonb,
+        &controls,
+    )
+    .expect("cell");
     // Act
     let sql_null = RawFrame::build(None, 3802, 1, &controls).expect("SQL null");
     let json_null = RawFrame::build(Some(&cell), 3802, 1, &controls).expect("JSON null");
@@ -167,13 +163,12 @@ fn should_account_raw_frame_to_owning_tracker_across_source_drop() {
     // Arrange
     let owner = controls();
     let other = controls();
-    let cell =
-        crate::midge::transport_test_fixtures::owned_row_cell(
-            r#"{"a":1}"#,
-            PlainIdentity::Json,
-            &owner,
-        )
-            .expect("cell");
+    let cell = crate::midge::transport_test_fixtures::owned_row_cell(
+        r#"{"a":1}"#,
+        PlainIdentity::Json,
+        &owner,
+    )
+    .expect("cell");
     // Act
     let foreign = RawFrame::build(Some(&cell), 114, 0, &other);
     let frame = RawFrame::build(Some(&cell), 114, 0, &owner).expect("frame");

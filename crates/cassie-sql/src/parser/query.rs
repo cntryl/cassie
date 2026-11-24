@@ -90,9 +90,7 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
     parse_select_statement(main_select, cte_defs, recursive)
 }
 
-pub(super) fn parse_projection_items(
-    raw: &str,
-) -> Result<Vec<crate::ast::SelectItem>, SqlError> {
+pub(super) fn parse_projection_items(raw: &str) -> Result<Vec<crate::ast::SelectItem>, SqlError> {
     parse_projection_items_with_named_windows(raw, &HashMap::new())
 }
 
@@ -126,7 +124,8 @@ pub(super) fn parse_projection_item_with_named_windows(
     }
     // `(expr).*` is a field expansion of an expression, not a qualified wildcard.
     if token.ends_with(".*") && !token.starts_with('(') {
-        let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(token).map_err(SqlError::new)?;
+        let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(token)
+            .map_err(SqlError::new)?;
         if path.is_qualified() && path.final_name() == "*" {
             return Ok(SelectItem::Column {
                 name: path.namespace_key(),
@@ -402,7 +401,8 @@ pub(super) fn parse_named_windows(raw: &str) -> Result<NamedWindows, SqlError> {
 }
 
 fn parse_window_name(raw: &str) -> Result<String, SqlError> {
-    let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
+    let path =
+        crate::column_identifier::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     if path.is_qualified() {
         return Err(SqlError::syntax(
             "window names cannot be schema-qualified".into(),

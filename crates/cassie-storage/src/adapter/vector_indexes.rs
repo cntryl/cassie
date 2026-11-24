@@ -57,7 +57,10 @@ fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, Ca
         .fields
         .iter()
         .find(|candidate| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, &candidate.name)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                field,
+                &candidate.name,
+            )
         })
         .map(|candidate| candidate.field_id)
         .ok_or_else(|| CassieError::Parse(format!("missing vector field storage id: {field}")))

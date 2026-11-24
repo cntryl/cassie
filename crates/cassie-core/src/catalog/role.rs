@@ -1,8 +1,8 @@
 //! Portable persisted role and grant declarations.
 
+use crate::catalog::declarations::RoleObjectPrivilege;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use crate::catalog::declarations::RoleObjectPrivilege;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RoleMeta {
@@ -122,7 +122,10 @@ mod tests {
         // Assert
         assert_eq!(role.name, "analyst");
         assert_eq!(encoded["database_grants"], serde_json::json!([]));
-        assert_eq!(target, serde_json::json!({"kind": "table", "object_id": 42}));
+        assert_eq!(
+            target,
+            serde_json::json!({"kind": "table", "object_id": 42})
+        );
         assert_eq!(normalize_role_name("ROOT"), "root");
     }
 }

@@ -106,11 +106,7 @@ impl ColumnVectorReader {
     }
 
     /// A reader of one range, or `None` past the last range.
-    pub fn partition(
-        &self,
-        midge: &Midge,
-        index: usize,
-    ) -> Option<ColumnPartitionReader<'_>> {
+    pub fn partition(&self, midge: &Midge, index: usize) -> Option<ColumnPartitionReader<'_>> {
         let range = self.scan.ranges.get(index)?.clone();
         midge.column_vector_counters().record_partition();
         Some(ColumnPartitionReader {

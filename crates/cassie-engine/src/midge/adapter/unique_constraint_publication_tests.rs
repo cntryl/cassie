@@ -62,10 +62,7 @@ fn should_replay_canonical_unique_publication_given_a_prepared_record_after_rest
         matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "recovered_unique"),
         "replayed publication must reject the duplicate: {duplicate:?}"
     );
-    assert!(
-        pending == 0,
-        "startup must retire the prepared record"
-    );
+    assert!(pending == 0, "startup must retire the prepared record");
     drop(restarted);
     std::fs::remove_dir_all(path).unwrap();
 }

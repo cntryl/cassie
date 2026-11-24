@@ -4,7 +4,6 @@
 //! inferred here, with the enclosing scope's fields visible to a correlated
 //! body, and kept on the node. PostgreSQL rejects a sublink of the wrong
 //! width while analysing the statement (SQLSTATE 42601), before any row runs.
-use crate::sql::SubqueryExprWidthError;
 use super::inference::{
     append_source_qualifiers, infer_cte_schema, infer_select_schema_with_outer,
     infer_source_schema_with_outer,
@@ -14,6 +13,7 @@ use super::{
     QueryStatement, Schema, SelectItem, SelectStatement,
 };
 use crate::sql::ast::{CteQuery, SubqueryExpr, SubqueryKind};
+use crate::sql::SubqueryExprWidthError;
 
 struct Scope<'a> {
     catalog: &'a Catalog,

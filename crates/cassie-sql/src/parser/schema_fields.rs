@@ -35,8 +35,9 @@ pub(super) fn parse_field_definition_for_table(
         constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
         constraint.default_sequence = Some(sequence.clone());
         constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
-        constraint.default_expression =
-            Some(crate::sequence_default::canonical_nextval_expression(&sequence));
+        constraint.default_expression = Some(
+            crate::sequence_default::canonical_nextval_expression(&sequence),
+        );
     }
     let mut pending_constraint_name: Option<String> = None;
     while let Some(token) = parts.next() {
@@ -375,8 +376,9 @@ fn apply_column_storage_option(
         constraint.storage = cassie_core::catalog::column_storage::ColumnStorage::parse(&value)
             .map_err(SqlError::invalid_parameter_value)?;
     } else {
-        constraint.compression = cassie_core::catalog::column_storage::ColumnCompression::parse(&value)
-            .map_err(SqlError::invalid_parameter_value)?;
+        constraint.compression =
+            cassie_core::catalog::column_storage::ColumnCompression::parse(&value)
+                .map_err(SqlError::invalid_parameter_value)?;
     }
     Ok(())
 }
@@ -425,8 +427,9 @@ pub(super) fn apply_default_constraint(
         constraint.default_value = None;
         constraint.default_sequence = Some(sequence.clone());
         constraint.default_sequence_owned = DefaultSequenceOwnership::shared();
-        constraint.default_expression =
-            Some(crate::sequence_default::canonical_nextval_expression(&sequence));
+        constraint.default_expression = Some(
+            crate::sequence_default::canonical_nextval_expression(&sequence),
+        );
         return Ok(());
     }
 

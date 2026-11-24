@@ -14,13 +14,11 @@
 
 use super::decode::{decode_into_lane, LaneBuilder};
 use super::{check_controls, Marker};
+use crate::adapter::column_store::validation::{corrupt_row, field_is_required, missing_field};
 use crate::adapter::CassieError;
-use crate::adapter::column_store::validation::{
-    corrupt_row, field_is_required, missing_field,
-};
 use crate::adapter::{Midge, RowTraversal};
-use crate::row_blob::RowFieldMeta;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::row_blob::RowFieldMeta;
 use bytes::Bytes;
 use std::cmp::Ordering;
 
@@ -174,7 +172,7 @@ fn take_value(
     counters.record_payload(raw.len());
     vector.record_value_fetched();
     check_controls(controls)?;
-    let logical_len =crate::adapter::column_store::column_payload_logical_len(raw);
+    let logical_len = crate::adapter::column_store::column_payload_logical_len(raw);
     let field_bytes = if matches!(
         field.data_type,
         cassie_core::types::DataType::Json | cassie_core::types::DataType::Jsonb
@@ -182,9 +180,9 @@ fn take_value(
         cassie_core::request::accounted::json::serialized_decode_bytes(logical_len)?
     } else {
         logical_len
-            .checked_mul(
-crate::adapter::streaming_scans::decode_expansion_factor(&field.data_type),
-            )
+            .checked_mul(crate::adapter::streaming_scans::decode_expansion_factor(
+                &field.data_type,
+            ))
             .ok_or_else(|| {
                 CassieError::ResourceLimit("column vector field accounting overflow".to_owned())
             })?
@@ -192,7 +190,14 @@ crate::adapter::streaming_scans::decode_expansion_factor(&field.data_type),
     memory.try_grow(field_bytes)?;
     counters.record_decode();
     vector.record_value_decoded();
-    decode_into_lane(builder, relation, &marker.id, field, raw, &midge.value_hooks())?;
+    decode_into_lane(
+        builder,
+        relation,
+        &marker.id,
+        field,
+        raw,
+        &midge.value_hooks(),
+    )?;
     counters.record_retained(field_bytes);
     check_controls(controls)
 }

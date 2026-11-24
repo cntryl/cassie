@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use cassie_core::request::{Interruption, InterruptionError, MemoryBudgetError, RequestMemory, RequestMemoryReservation};
 use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions};
+use cassie_core::request::{
+    Interruption, InterruptionError, MemoryBudgetError, RequestMemory, RequestMemoryReservation,
+};
 
 use super::{
     compare_hnsw_candidates, exact_distance, graph_distance, GraphDistanceQuery, HnswCandidate,
@@ -30,10 +32,14 @@ pub enum HnswGraphRepairReason {
 }
 
 impl<E> From<MemoryBudgetError> for HnswSearchError<E> {
-    fn from(error: MemoryBudgetError) -> Self { Self::Memory(error) }
+    fn from(error: MemoryBudgetError) -> Self {
+        Self::Memory(error)
+    }
 }
 impl<E> From<InterruptionError> for HnswSearchError<E> {
-    fn from(error: InterruptionError) -> Self { Self::Interruption(error) }
+    fn from(error: InterruptionError) -> Self {
+        Self::Interruption(error)
+    }
 }
 
 /// Searches a persisted graph through an unaccounted point-read node loader.
@@ -90,10 +96,7 @@ pub fn search_graph_with_controlled_node_loader<E>(
     request: &ControlledHnswSearchRequest<'_>,
     interruption: Interruption<'_>,
     request_memory: &RequestMemory,
-    mut load_node: impl FnMut(
-        &str,
-    )
-        -> Result<Option<(HnswGraphNode, RequestMemoryReservation)>, E>,
+    mut load_node: impl FnMut(&str) -> Result<Option<(HnswGraphNode, RequestMemoryReservation)>, E>,
 ) -> Result<Option<(HnswSearchResult, RequestMemoryReservation)>, HnswSearchError<E>> {
     check_controls(interruption)?;
     let query_bytes = request
@@ -113,10 +116,9 @@ pub fn search_graph_with_controlled_node_loader<E>(
 
     traversal_memory.try_grow(request.entry_point.len())?;
     let mut current = request.entry_point.to_owned();
-    let entry = load(request.entry_point)?
-        .ok_or(HnswSearchError::GraphRepair(
-            HnswGraphRepairReason::MissingEntryPoint,
-        ))?;
+    let entry = load(request.entry_point)?.ok_or(HnswSearchError::GraphRepair(
+        HnswGraphRepairReason::MissingEntryPoint,
+    ))?;
     if entry.layers.len() <= request.max_layer {
         return Err(HnswSearchError::GraphRepair(
             HnswGraphRepairReason::InconsistentMaxLayer,
@@ -142,7 +144,7 @@ pub fn search_graph_with_controlled_node_loader<E>(
             metric: request.metric,
             query: &distance_query,
             layer: 0,
-                interruption,
+            interruption,
             _error: std::marker::PhantomData,
         },
         &current,
@@ -191,10 +193,7 @@ fn load_controlled_cached_node<E>(
     id: &str,
     interruption: Interruption<'_>,
     request_memory: &RequestMemory,
-    load_node: &mut impl FnMut(
-        &str,
-    )
-        -> Result<Option<(HnswGraphNode, RequestMemoryReservation)>, E>,
+    load_node: &mut impl FnMut(&str) -> Result<Option<(HnswGraphNode, RequestMemoryReservation)>, E>,
 ) -> Result<Option<Arc<HnswGraphNode>>, HnswSearchError<E>> {
     check_controls(interruption)?;
     if let Some(cached) = cache.get(id) {
@@ -467,7 +466,10 @@ fn reserve_visited_identity<E>(
     Ok(())
 }
 
-fn hnsw_cache_entry_bytes<E>(id: &str, node: Option<&HnswGraphNode>) -> Result<usize, HnswSearchError<E>> {
+fn hnsw_cache_entry_bytes<E>(
+    id: &str,
+    node: Option<&HnswGraphNode>,
+) -> Result<usize, HnswSearchError<E>> {
     let cache_bytes = checked_add_bytes(
         btree_node_bytes::<String, ControlledCachedNode, E>()?,
         id.len(),

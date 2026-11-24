@@ -54,7 +54,8 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
 /// the historical identifier-or-dotted-path check.
 fn resolve_check_field(left: &str) -> Result<String, SqlError> {
     if left.starts_with('"') {
-        let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(left).map_err(SqlError::new)?;
+        let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(left)
+            .map_err(SqlError::new)?;
         if path.is_qualified() {
             return Err(SqlError::unsupported(
                 "a CHECK constraint must name a single column of this table".to_string(),

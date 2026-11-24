@@ -28,28 +28,26 @@ pub(crate) fn canonical_with_controls(
     let controls = controls
         .or(local_controls.as_ref())
         .expect("canonical controls");
-    let output = crate::runtime::accounted::json_arena::canonical_jsonb_text(
-        input.as_bytes(),
-        controls,
-    )
-    .map_err(|error| match error {
-        crate::runtime::accounted::json_arena::JsonbTextError::Invalid => {
-            CassieError::TypeInput(invalid_json_detail(input))
-        }
-        crate::runtime::accounted::json_arena::JsonbTextError::NumericOverflow => {
-            CassieError::TypeInput(TypeInputError::new(
-                "22003",
-                "value overflows numeric format".into(),
-            ))
-        }
-        crate::runtime::accounted::json_arena::JsonbTextError::Nul => {
-            CassieError::TypeInput(TypeInputError::new(
-                "22P05",
-                "unsupported Unicode escape sequence: \\u0000".into(),
-            ))
-        }
-        crate::runtime::accounted::json_arena::JsonbTextError::Control(error) => error,
-    })?;
+    let output =
+        crate::runtime::accounted::json_arena::canonical_jsonb_text(input.as_bytes(), controls)
+            .map_err(|error| match error {
+                crate::runtime::accounted::json_arena::JsonbTextError::Invalid => {
+                    CassieError::TypeInput(invalid_json_detail(input))
+                }
+                crate::runtime::accounted::json_arena::JsonbTextError::NumericOverflow => {
+                    CassieError::TypeInput(TypeInputError::new(
+                        "22003",
+                        "value overflows numeric format".into(),
+                    ))
+                }
+                crate::runtime::accounted::json_arena::JsonbTextError::Nul => {
+                    CassieError::TypeInput(TypeInputError::new(
+                        "22P05",
+                        "unsupported Unicode escape sequence: \\u0000".into(),
+                    ))
+                }
+                crate::runtime::accounted::json_arena::JsonbTextError::Control(error) => error,
+            })?;
     let (text, memory) = output.into_parts();
     drop(memory);
     Ok(text)

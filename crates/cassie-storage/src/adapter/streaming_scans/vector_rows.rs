@@ -10,9 +10,9 @@ use super::{
     check_controls, key_encoding, CassieError, CursorStorage, Midge, MidgeRowCursor, Query,
     STORAGE_SCAN_PAGE_ENTRIES,
 };
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext, StorageValueHooks};
 use crate::row_blob::{split_vector_row, PackedVector, VectorColumn};
 use cassie_core::request::accounted::json;
-use crate::adapter::{QueryMemoryReservation, StorageRequestContext, StorageValueHooks};
 
 /// One row read for vector ranking, with the reservation that covers what it retains.
 pub struct AccountedVectorRow {

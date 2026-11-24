@@ -188,10 +188,7 @@ fn validate_element_modifiers(raw: &str) -> Result<(), SqlError> {
     Ok(())
 }
 
-type ParsedConflictAction = (
-    InsertConflictAction,
-    Vec<crate::ast::RowSubqueryAssignment>,
-);
+type ParsedConflictAction = (InsertConflictAction, Vec<crate::ast::RowSubqueryAssignment>);
 
 fn parse_on_conflict_action(raw: &str) -> Result<ParsedConflictAction, SqlError> {
     let raw = trim_separators(raw);

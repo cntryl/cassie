@@ -4,9 +4,11 @@ use std::sync::Arc;
 
 use crate::catalog::{name_matches, Catalog};
 
-pub use cassie_core::catalog::sequence::{SequenceMeta, SequenceOwner};
+pub use super::sequence_state::{
+    SequenceCursor, SequenceError, SequenceOptions, SequenceParameters,
+};
 pub use cassie_core::catalog::declarations::SequencePersistence;
-pub use super::sequence_state::{SequenceCursor, SequenceError, SequenceOptions, SequenceParameters};
+pub use cassie_core::catalog::sequence::{SequenceMeta, SequenceOwner};
 
 impl Catalog {
     #[must_use]

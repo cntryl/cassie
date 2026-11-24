@@ -16,9 +16,9 @@ use super::blocks::{self, PostingChange};
 use super::layout::{document_length, document_terms, read_term_record, IndexRecord};
 use super::metrics::FulltextWriteTally;
 use super::{
-    analyze_document_statistics, codec, collect_scan, decode_row_with_hooks, key_encoding, CassieError,
-    FulltextIndexMetadata, FulltextTermRecord, IndexMeta, Midge, PersistedFulltextDocumentStats,
-    PersistedFulltextPosting, Query, STATE_VERSION,
+    analyze_document_statistics, codec, collect_scan, decode_row_with_hooks, key_encoding,
+    CassieError, FulltextIndexMetadata, FulltextTermRecord, IndexMeta, Midge,
+    PersistedFulltextDocumentStats, PersistedFulltextPosting, Query, STATE_VERSION,
 };
 use cassie_search::analyzer::AnalyzerConfig;
 

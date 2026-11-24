@@ -1,9 +1,9 @@
 //! Engine compatibility facade for the storage-owned Midge adapter.
 
+pub(crate) use crate::app::{StatementDataRead, StatementReadScope};
 pub use cassie_storage::adapter::*;
 pub use cassie_storage::adapter::{canonical_field_value, index_key_field_value};
 pub use cassie_storage::adapter::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
-pub(crate) use crate::app::{StatementDataRead, StatementReadScope};
 
 pub mod column_batch_format_v1;
 pub use column_batch_format_v1::{
@@ -15,14 +15,8 @@ pub use column_batch_format_v1::{
 };
 
 #[cfg(test)]
-#[path = "adapter/native_memory_tests.rs"]
-mod native_memory_tests;
-#[cfg(test)]
-#[path = "adapter/legacy_graph_state_tests.rs"]
-mod legacy_graph_state_tests;
-#[cfg(test)]
-#[path = "adapter/unique_constraint_publication_tests.rs"]
-mod unique_constraint_publication_tests;
+#[path = "adapter/column_vector_equivalence_tests.rs"]
+mod column_vector_equivalence_tests;
 #[cfg(test)]
 #[path = "adapter/copy_identity_tests.rs"]
 mod copy_identity_tests;
@@ -30,8 +24,14 @@ mod copy_identity_tests;
 #[path = "adapter/index_publication_tests.rs"]
 mod index_publication_tests;
 #[cfg(test)]
-#[path = "adapter/column_vector_equivalence_tests.rs"]
-mod column_vector_equivalence_tests;
+#[path = "adapter/legacy_graph_state_tests.rs"]
+mod legacy_graph_state_tests;
+#[cfg(test)]
+#[path = "adapter/native_memory_tests.rs"]
+mod native_memory_tests;
+#[cfg(test)]
+#[path = "adapter/unique_constraint_publication_tests.rs"]
+mod unique_constraint_publication_tests;
 
 use std::cell::RefCell;
 
@@ -90,9 +90,7 @@ impl PublicationControlScope {
         }
     }
 
-    pub(crate) fn enter_for_replay(
-        cancellation: &crate::runtime::QueryCancellationHandle,
-    ) -> Self {
+    pub(crate) fn enter_for_replay(cancellation: &crate::runtime::QueryCancellationHandle) -> Self {
         Self {
             previous: None,
             restore_engine_controls: false,
@@ -120,10 +118,11 @@ impl PublicationControlScope {
     pub fn enter(controls: Option<&crate::runtime::QueryExecutionControls>) -> Self {
         let previous = CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone());
         let active = previous.clone().or_else(|| controls.cloned());
-        let storage_context = active.as_ref().map(crate::runtime::QueryExecutionControls::storage_request);
-        let storage = cassie_storage::adapter::NativePublicationControlScope::enter(
-            storage_context.as_ref(),
-        );
+        let storage_context = active
+            .as_ref()
+            .map(crate::runtime::QueryExecutionControls::storage_request);
+        let storage =
+            cassie_storage::adapter::NativePublicationControlScope::enter(storage_context.as_ref());
         CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.replace(active));
         Self {
             previous,
@@ -209,12 +208,10 @@ impl From<cassie_storage::StorageError> for crate::app::CassieError {
             StorageError::StorageRetryable(error) => Self::StorageRetryable(
                 crate::app::RetryableStorageError::new(error.kind().into(), error.to_string()),
             ),
-            StorageError::CatalogObjectNotFound { kind, name } => {
-                Self::CatalogObjectNotFound {
-                    kind: kind.into(),
-                    name,
-                }
-            }
+            StorageError::CatalogObjectNotFound { kind, name } => Self::CatalogObjectNotFound {
+                kind: kind.into(),
+                name,
+            },
             StorageError::CatalogObjectAlreadyExists { kind, name } => {
                 Self::CatalogObjectAlreadyExists {
                     kind: kind.into(),
@@ -249,10 +246,12 @@ impl From<cassie_storage::StorageError> for crate::app::CassieError {
                 }
                 Self::from(diagnostic)
             }
-            StorageError::EngineCallback(error) => match error.downcast::<crate::app::CassieError>() {
-                Ok(error) => *error,
-                Err(error) => Self::Execution(error.to_string()),
-            },
+            StorageError::EngineCallback(error) => {
+                match error.downcast::<crate::app::CassieError>() {
+                    Ok(error) => *error,
+                    Err(error) => Self::Execution(error.to_string()),
+                }
+            }
         }
     }
 }
@@ -326,9 +325,7 @@ impl From<cassie_storage::adapter::error::StorageRetryKind> for crate::app::Stor
 }
 
 impl crate::runtime::QueryExecutionControls {
-    pub(crate) fn storage_request(
-        &self,
-    ) -> cassie_storage::adapter::StorageRequestContext<'_> {
+    pub(crate) fn storage_request(&self) -> cassie_storage::adapter::StorageRequestContext<'_> {
         cassie_storage::adapter::StorageRequestContext::new(
             None,
             self.interruption(),
@@ -355,13 +352,10 @@ fn decode_storage_json(bytes: &[u8]) -> Result<serde_json::Value, cassie_storage
             cassie_storage::StorageError::ResourceLimit(message)
         }
         crate::app::CassieError::QueryCanceled => cassie_storage::StorageError::QueryCanceled,
-        crate::app::CassieError::DeadlineExceeded => {
-            cassie_storage::StorageError::DeadlineExceeded
-        }
+        crate::app::CassieError::DeadlineExceeded => cassie_storage::StorageError::DeadlineExceeded,
         other => engine_callback_error(other),
     })
 }
-
 
 fn decode_storage_typed_value(
     value: &serde_json::Value,

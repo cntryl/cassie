@@ -60,7 +60,10 @@ mod tests {
     fn should_parse_and_canonicalize_sequence_default_expressions() {
         // Arrange
         let expressions = [
-            ("nextval('public.items_id_seq'::regclass)", "public.items_id_seq"),
+            (
+                "nextval('public.items_id_seq'::regclass)",
+                "public.items_id_seq",
+            ),
             ("nextval(\"items_id_seq\")", "items_id_seq"),
         ];
 

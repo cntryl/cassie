@@ -21,11 +21,7 @@ impl NameText {
         })
     }
 
-    fn push(
-        &mut self,
-        character: char,
-        controls: &TextRequest<'_>,
-    ) -> Result<(), TextError> {
+    fn push(&mut self, character: char, controls: &TextRequest<'_>) -> Result<(), TextError> {
         controls.check_interruption()?;
         let needed = self
             .text
@@ -33,9 +29,10 @@ impl NameText {
             .checked_add(character.len_utf8())
             .ok_or_else(|| TextError::ResourceLimit("catalog name capacity overflow".into()))?;
         if needed > self.text.capacity() {
-            let capacity = needed.max(4).checked_next_power_of_two().ok_or_else(|| {
-                TextError::ResourceLimit("catalog name capacity overflow".into())
-            })?;
+            let capacity = needed
+                .max(4)
+                .checked_next_power_of_two()
+                .ok_or_else(|| TextError::ResourceLimit("catalog name capacity overflow".into()))?;
             let replacement_memory = controls.reserve(capacity)?;
             let mut replacement = String::new();
             replacement
@@ -70,10 +67,7 @@ impl NameText {
 ///
 /// # Errors
 /// Returns an interruption or admission error.
-pub fn trim_checked<'a>(
-    raw: &'a str,
-    controls: &TextRequest<'_>,
-) -> Result<&'a str, TextError> {
+pub fn trim_checked<'a>(raw: &'a str, controls: &TextRequest<'_>) -> Result<&'a str, TextError> {
     let mut first = None;
     let mut last = 0;
     let mut next_check = 0;
@@ -90,11 +84,7 @@ pub fn trim_checked<'a>(
     Ok(first.map_or("", |start| &raw[start..last]))
 }
 
-fn push_part(
-    parts: &mut Parts,
-    text: &str,
-    controls: &TextRequest<'_>,
-) -> Result<(), TextError> {
+fn push_part(parts: &mut Parts, text: &str, controls: &TextRequest<'_>) -> Result<(), TextError> {
     grow_text_vec(&mut parts.values, &mut parts.memory, controls)?;
     let (text, memory) = copy_text(text, controls)?;
     parts.values.push(text);
@@ -106,10 +96,7 @@ fn push_part(
 ///
 /// # Errors
 /// Returns an interruption or admission error.
-pub fn parse_parts(
-    raw: &str,
-    controls: &TextRequest<'_>,
-) -> Result<Option<Parts>, TextError> {
+pub fn parse_parts(raw: &str, controls: &TextRequest<'_>) -> Result<Option<Parts>, TextError> {
     controls.check_interruption()?;
     let raw = trim_checked(raw, controls)?;
     let mut parts = Parts {
@@ -197,11 +184,7 @@ fn push_folded_part(
     push_part(parts, &part.to_ascii_lowercase(), controls)
 }
 
-fn exactly_equal(
-    left: &str,
-    right: &str,
-    controls: &TextRequest<'_>,
-) -> Result<bool, TextError> {
+fn exactly_equal(left: &str, right: &str, controls: &TextRequest<'_>) -> Result<bool, TextError> {
     if left.len() != right.len() {
         return Ok(false);
     }

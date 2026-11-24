@@ -459,9 +459,10 @@ impl<'a> ObjectScope<'a> {
                     .into_iter()
                     .find(|projection| {
                         projection.kind == crate::catalog::ProjectionKind::Materialized
-                            && projection.materialized.as_ref().is_some_and(
-                                crate::catalog::is_sql_materialized_view,
-                            )
+                            && projection
+                                .materialized
+                                .as_ref()
+                                .is_some_and(crate::catalog::is_sql_materialized_view)
                             && stable_materialized_view_oid(projection.projection_id()) == oid
                     })
                     .map(|projection| projection.collection)
@@ -600,9 +601,10 @@ pub fn stored_relation_oid(catalog: &Catalog, canonical: &str) -> Option<u32> {
         catalog
             .get_materialized_projection(canonical)
             .filter(|projection| {
-                projection.materialized.as_ref().is_some_and(
-                    crate::catalog::is_sql_materialized_view,
-                )
+                projection
+                    .materialized
+                    .as_ref()
+                    .is_some_and(crate::catalog::is_sql_materialized_view)
             })
     {
         Some(stable_materialized_view_oid(projection.projection_id()))

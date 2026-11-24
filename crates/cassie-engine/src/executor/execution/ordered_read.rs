@@ -132,7 +132,9 @@ fn execute_ordered_row_id_page_with_projection_probe(
     let mut skipped = 0;
     while rows.len() < spec.limit {
         check_timeout(controls)?;
-        let Some(document) = cursor.next_accounted_document(&cassie.midge, &controls.storage_request())? else {
+        let Some(document) =
+            cursor.next_accounted_document(&cassie.midge, &controls.storage_request())?
+        else {
             break;
         };
         if skipped < spec.offset {

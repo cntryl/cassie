@@ -1,7 +1,7 @@
 //! The prepared CHECK remains one owning field compared with one literal.
 use super::DefinitionError;
-use crate::declarations::{ConstraintCheck, ConstraintOperator};
 use crate::ast::{BinaryOp, Expr, RowComparisonOp};
+use crate::declarations::{ConstraintCheck, ConstraintOperator};
 use crate::types::DataType;
 
 /// # Errors

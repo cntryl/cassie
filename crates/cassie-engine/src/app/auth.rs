@@ -160,10 +160,7 @@ impl Cassie {
     }
 
     #[doc(hidden)]
-    pub fn validate_network_listener(
-        &self,
-        listener: SocketAddr,
-    ) -> Result<(), CassieError> {
+    pub fn validate_network_listener(&self, listener: SocketAddr) -> Result<(), CassieError> {
         crate::config::validate_listener_password(&self.auth_password, listener)?;
 
         let bootstrap_role = normalize_role_name(&self.auth_user);
@@ -184,10 +181,7 @@ impl Cassie {
     }
 
     #[doc(hidden)]
-    pub fn validate_rest_network_listener(
-        &self,
-        listener: SocketAddr,
-    ) -> Result<(), CassieError> {
+    pub fn validate_rest_network_listener(&self, listener: SocketAddr) -> Result<(), CassieError> {
         self.validate_network_listener(listener)?;
         crate::config::validate_rest_listener_transport(
             self.rest_tls_cert_file.as_deref(),

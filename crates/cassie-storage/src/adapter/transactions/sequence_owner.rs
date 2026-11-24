@@ -3,8 +3,8 @@
 use super::{
     Arc, CassieError, ExpectedStorageValue, Midge, Mutex, StorageOverlay, ACTIVE_STORAGE_SCOPE,
 };
-use cassie_core::catalog::sequence::{SequenceCursor, SequenceMeta};
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use cassie_core::catalog::sequence::{SequenceCursor, SequenceMeta};
 use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
 
@@ -391,10 +391,11 @@ impl SequenceOwner {
         if let Some(cursor) = state.cursors.get(&(metadata.object_id, epoch)) {
             metadata.set_cursor(*cursor);
         }
-        let controls = super::super::publication::NativePublicationControlScope::current_request_controls()
-            .ok_or_else(|| {
-                CassieError::Unsupported("staged sequence requires query controls".into())
-            })?;
+        let controls =
+            super::super::publication::NativePublicationControlScope::current_request_controls()
+                .ok_or_else(|| {
+                    CassieError::Unsupported("staged sequence requires query controls".into())
+                })?;
         let request = controls.context();
         request.check_interruption()?;
         let is_new = !state.cursors.contains_key(&(metadata.object_id, epoch));
@@ -697,7 +698,10 @@ impl StorageOverlay {
             controls.and_then(|controls| {
                 let base = controls.reserve_query_memory(0)?;
                 let (mut keys, _memory) =
-                    cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
+                    cassie_core::request::accounted::allocation::try_reserve_vec(
+                        state.cursors.len(),
+                        &base,
+                    )?;
                 keys.extend(state.cursors.keys().copied());
                 for key in keys {
                     fork.protect(&mut state, key, controls)?;
@@ -726,8 +730,10 @@ impl StorageOverlay {
                 CassieError::Unsupported("nested sequence fork requires query controls".into())
             })?;
             let base = controls.reserve_query_memory(0)?;
-            let (mut keys, _memory) =
-                cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
+            let (mut keys, _memory) = cassie_core::request::accounted::allocation::try_reserve_vec(
+                state.cursors.len(),
+                &base,
+            )?;
             keys.extend(state.cursors.keys().copied());
             for key in keys {
                 fork.protect(&mut state, key, controls)?;
@@ -777,8 +783,10 @@ impl StorageOverlay {
             return Ok(());
         }
         let base = controls.reserve_query_memory(0)?;
-        let (mut live, _memory) =
-            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
+        let (mut live, _memory) = cassie_core::request::accounted::allocation::try_reserve_vec(
+            state.cursors.len(),
+            &base,
+        )?;
         let prefix = super::super::key_encoding::sequence_prefix();
         for overlay in std::iter::once(self).chain(protected) {
             for (index, (key, change)) in overlay.changes.iter().enumerate() {
@@ -822,8 +830,10 @@ impl StorageOverlay {
     ) -> Result<(Vec<QueryMemoryReservation>, QueryMemoryReservation), CassieError> {
         let state = self.sequence_cursors.state.lock();
         let base = controls.reserve_query_memory(0)?;
-        let (mut leases, directory) =
-            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
+        let (mut leases, directory) = cassie_core::request::accounted::allocation::try_reserve_vec(
+            state.cursors.len(),
+            &base,
+        )?;
         if state.cursors.is_empty() {
             return Ok((leases, directory));
         }
@@ -855,7 +865,10 @@ impl StorageOverlay {
                 };
                 encode_sequence_metadata(&mut counter, &metadata, controls)?;
                 let (mut encoded, memory) =
-                    cassie_core::request::accounted::allocation::try_reserve_vec(counter.position, &base)?;
+                    cassie_core::request::accounted::allocation::try_reserve_vec(
+                        counter.position,
+                        &base,
+                    )?;
                 {
                     let mut writer = CheckingWriter {
                         output: &mut encoded,
@@ -918,7 +931,10 @@ impl StorageOverlay {
         }
         let base = controls.reserve_query_memory(0)?;
         let (mut prepared, directory_memory) =
-            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
+            cassie_core::request::accounted::allocation::try_reserve_vec(
+                state.cursors.len(),
+                &base,
+            )?;
         let prefix = super::super::key_encoding::sequence_prefix();
         for (index, (key, change)) in self.changes.iter().enumerate() {
             if index % 128 == 0 {

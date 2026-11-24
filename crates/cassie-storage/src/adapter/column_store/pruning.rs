@@ -412,7 +412,8 @@ fn resolve_predicate(
     predicate: &crate::adapter::ColumnBatchScanPredicate,
 ) -> Option<PrunePredicate> {
     use crate::adapter::ColumnBatchScanOp as Op;
-    let reference = cassie_sql::column_identifier::ColumnIdentifierPath::parse(&predicate.field).ok()?;
+    let reference =
+        cassie_sql::column_identifier::ColumnIdentifierPath::parse(&predicate.field).ok()?;
     let field = row_schema
         .fields
         .iter()

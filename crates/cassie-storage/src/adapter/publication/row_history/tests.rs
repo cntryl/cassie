@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use super::*;
 use crate::adapter::publication::PublicationCoordinator;
-use crate::adapter::Midge;
 use crate::adapter::request_test_support::TestRequest;
+use crate::adapter::Midge;
 
 thread_local! {
     static RETIRING: RefCell<Option<mpsc::Sender<()>>> = const { RefCell::new(None) };
@@ -65,7 +65,10 @@ fn should_track_a_writer_staged_before_the_first_repeatable_capture() {
     // Assert
     assert!(matches!(
         result.expect_err("newer current conflict target"),
-        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+        CassieError::Transaction {
+            kind: crate::adapter::TransactionErrorKind::SerializationFailure,
+            ..
+        }
     ));
 }
 
@@ -101,7 +104,10 @@ fn should_track_same_value_writes_for_each_authoritative_representation() {
         // Assert
         assert!(matches!(
             result.expect_err("same payload still mutated"),
-            CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+            CassieError::Transaction {
+                kind: crate::adapter::TransactionErrorKind::SerializationFailure,
+                ..
+            }
         ));
     }
 }
@@ -226,7 +232,9 @@ fn should_serialize_owner_retirement_with_native_confirmation() {
 
     // Assert
     assert_eq!(newer.sequence, 1);
-    assert!(newer.check_keys([key.as_slice()], &controls().context()).is_ok());
+    assert!(newer
+        .check_keys([key.as_slice()], &controls().context())
+        .is_ok());
 }
 
 fn admitted_publication(budget: usize) -> Result<(usize, Arc<DatabasePublication>), CassieError> {
@@ -296,7 +304,9 @@ fn should_reject_sequence_exhaustion_before_native_submission() {
         CassieError::ResourceLimit(_)
     ));
     assert!(!submitted.get());
-    assert!(owner.check_keys([key.as_slice()], &controls().context()).is_ok());
+    assert!(owner
+        .check_keys([key.as_slice()], &controls().context())
+        .is_ok());
 }
 
 #[test]
@@ -354,13 +364,13 @@ fn should_classify_binary_relation_boundaries_before_column_row_markers() {
     let relation = 0x0072_0000_0000_0000;
     let modern = Midge::row_key(relation, "one");
     let column = Midge::column_store_row_key(relation, "one");
-    let field =crate::adapter::key_encoding::column_store_field_key(relation, 3, "one");
+    let field = crate::adapter::key_encoding::column_store_field_key(relation, 3, "one");
     let legacy = Midge::doc_key("postgres.public.items", "one");
     let epoch = Midge::data_epoch_key();
 
     // Act
     let actual = [modern, column, field, legacy, epoch]
-        .map(|key|crate::adapter::key_encoding::is_authoritative_row_key(&key));
+        .map(|key| crate::adapter::key_encoding::is_authoritative_row_key(&key));
 
     // Assert
     assert_eq!(actual, [true, true, false, true, false]);
@@ -429,7 +439,10 @@ fn should_remember_a_delete_reinsert_of_the_same_payload() {
     // Assert
     assert!(matches!(
         result.expect_err("ABA is a mutation"),
-        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+        CassieError::Transaction {
+            kind: crate::adapter::TransactionErrorKind::SerializationFailure,
+            ..
+        }
     ));
 }
 
@@ -487,6 +500,9 @@ fn should_complete_confirmed_history_with_no_remaining_admission() {
     assert!(published.is_ok());
     assert!(matches!(
         changed.expect_err("confirmed history installed without another reservation"),
-        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+        CassieError::Transaction {
+            kind: crate::adapter::TransactionErrorKind::SerializationFailure,
+            ..
+        }
     ));
 }

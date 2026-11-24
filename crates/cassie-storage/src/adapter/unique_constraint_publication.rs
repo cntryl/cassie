@@ -89,19 +89,18 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint<A>],
     ) -> Result<(), CassieError> {
-        let previous = cassie_sql::attachment::rebind_attachment::<A, _>(
-            self.load_constraints(collection)?,
-        );
+        let previous =
+            cassie_sql::attachment::rebind_attachment::<A, _>(self.load_constraints(collection)?);
         let fields = constraints
             .iter()
             .filter(|constraint| {
                 crate::catalog::enforces_single_column_uniqueness(constraint, constraints)
                     && !previous.iter().any(|existing| {
-                        cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&existing.field)
-                            == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&constraint.field)
-                            &&crate::catalog::enforces_single_column_uniqueness(
-                                existing, &previous,
-                            )
+                        cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
+                            &existing.field,
+                        ) == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
+                            &constraint.field,
+                        ) && crate::catalog::enforces_single_column_uniqueness(existing, &previous)
                     })
             })
             .cloned()
@@ -148,7 +147,8 @@ impl Midge {
                             field_meta.name == constraint.field
                                 && matches!(
                                     field_meta.data_type,
-                                    cassie_core::types::DataType::Json | cassie_core::types::DataType::Jsonb
+                                    cassie_core::types::DataType::Json
+                                        | cassie_core::types::DataType::Jsonb
                                 )
                         })
                     {
@@ -200,7 +200,8 @@ impl Midge {
                         field_meta.name == constraint.field
                             && matches!(
                                 field_meta.data_type,
-                                cassie_core::types::DataType::Json | cassie_core::types::DataType::Jsonb
+                                cassie_core::types::DataType::Json
+                                    | cassie_core::types::DataType::Jsonb
                             )
                     })
                 {

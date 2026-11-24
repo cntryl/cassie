@@ -32,12 +32,12 @@ impl Midge {
             .get(&current_key)
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind:crate::adapter::CatalogObjectKind::Index,
+                kind: crate::adapter::CatalogObjectKind::Index,
                 name: current_name.to_string(),
             })?;
         if current_key != next_key && tx.get(&next_key).map_err(CassieError::from)?.is_some() {
             return Err(CassieError::CatalogObjectAlreadyExists {
-                kind:crate::adapter::CatalogObjectKind::Index,
+                kind: crate::adapter::CatalogObjectKind::Index,
                 name: next_name.to_string(),
             });
         }
@@ -113,7 +113,7 @@ impl Midge {
         let raw = tx.get(&key).map_err(CassieError::from)?;
         let mut metadata: IndexMeta = raw
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind:crate::adapter::CatalogObjectKind::Index,
+                kind: crate::adapter::CatalogObjectKind::Index,
                 name: name.to_string(),
             })
             .and_then(|raw| {

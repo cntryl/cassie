@@ -1,8 +1,8 @@
 //! Portable composite type declarations and descriptor helpers.
-use serde::{Deserialize, Serialize};
 use crate::catalog::scope::{local_name, relation_schema_name};
 use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::DataType;
+use serde::{Deserialize, Serialize};
 
 use super::object_identity::normal_oid;
 
@@ -96,7 +96,10 @@ impl CompositeTypeMeta {
         self.attribute_index(name).ok_or_else(|| {
             TypeAlterError::new(
                 "42703",
-                format!("column \"{name}\" of relation \"{}\" does not exist", self.local_name()),
+                format!(
+                    "column \"{name}\" of relation \"{}\" does not exist",
+                    self.local_name()
+                ),
             )
         })
     }
@@ -105,7 +108,10 @@ impl CompositeTypeMeta {
         if self.fields.iter().any(|field| field.name == name) {
             return Err(TypeAlterError::new(
                 "42701",
-                format!("column \"{name}\" of relation \"{}\" already exists", self.local_name()),
+                format!(
+                    "column \"{name}\" of relation \"{}\" already exists",
+                    self.local_name()
+                ),
             ));
         }
         Ok(())
@@ -121,7 +127,10 @@ impl CompositeTypeMeta {
         self.reject_duplicate(name)?;
         self.reject_self_reference(&data_type)?;
         let mut next = self.clone();
-        next.fields.push(CompositeField { name: name.to_owned(), data_type });
+        next.fields.push(CompositeField {
+            name: name.to_owned(),
+            data_type,
+        });
         next.revision += 1;
         Ok(next)
     }
@@ -176,7 +185,10 @@ impl CompositeTypeMeta {
         if data_type_depends_on(data_type, self.type_oid()) {
             return Err(TypeAlterError::new(
                 "42P16",
-                format!("composite type {} cannot be made a member of itself", self.local_name()),
+                format!(
+                    "composite type {} cannot be made a member of itself",
+                    self.local_name()
+                ),
             ));
         }
         Ok(())

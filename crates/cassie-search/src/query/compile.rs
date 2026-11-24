@@ -303,9 +303,6 @@ mod tests {
         let result = compile(&query);
 
         // Assert
-        assert!(matches!(
-            result,
-            Err(SearchQueryError::InvalidParameter(_))
-        ));
+        assert!(matches!(result, Err(SearchQueryError::InvalidParameter(_))));
     }
 }

@@ -115,12 +115,17 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
 
     let with_storage_mode = match options.get("storage") {
         Some(value) => {
-            let Some(mode) = cassie_core::catalog::declarations::CollectionStorageMode::parse_option(value) else {
+            let Some(mode) =
+                cassie_core::catalog::declarations::CollectionStorageMode::parse_option(value)
+            else {
                 return Err(SqlError::new(format!(
                     "unsupported CREATE TABLE storage mode '{value}'"
                 )));
             };
-            if matches!(mode, cassie_core::catalog::declarations::CollectionStorageMode::ColumnIndexed) {
+            if matches!(
+                mode,
+                cassie_core::catalog::declarations::CollectionStorageMode::ColumnIndexed
+            ) {
                 return Err(SqlError::new(
                     "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
                         .to_string(),
@@ -225,9 +230,7 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
     }
     let names = names
         .into_iter()
-        .map(|name| {
-            parse_relation_path(name.trim()).map(crate::ast::IdentifierPath::into_string)
-        })
+        .map(|name| parse_relation_path(name.trim()).map(crate::ast::IdentifierPath::into_string))
         .collect::<Result<Vec<_>, _>>()?;
     let mut names = names.into_iter();
     let table = names.next().expect("validated DROP TABLE target list");

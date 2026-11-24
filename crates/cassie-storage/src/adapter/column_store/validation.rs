@@ -125,12 +125,14 @@ pub(crate) fn decode_field(
         }
         Err(other) => return Err(other),
     };
-    let decoded = crate::row_blob::decode_compact_field_value(
-        &field.data_type, &expanded, hooks.decode_json,
-    )
-    .map_err(CassieError::from);
+    let decoded =
+        crate::row_blob::decode_compact_field_value(&field.data_type, &expanded, hooks.decode_json)
+            .map_err(CassieError::from);
     match decoded {
-        Err(CassieError::Parse(detail) | CassieError::Codec(crate::StorageCodecError::InvalidEncoding(detail))) => Err(corrupt_row(
+        Err(
+            CassieError::Parse(detail)
+            | CassieError::Codec(crate::StorageCodecError::InvalidEncoding(detail)),
+        ) => Err(corrupt_row(
             relation,
             id,
             &format!("field '{}' does not decode: {detail}", field.name),
@@ -361,7 +363,12 @@ impl Midge {
                     field,
                 ) {
                     Ok(_) => {}
-                    Err(error @ CassieError::Diagnostic { sql_state: CORRUPTION_SQLSTATE, .. }) => {
+                    Err(
+                        error @ CassieError::Diagnostic {
+                            sql_state: CORRUPTION_SQLSTATE,
+                            ..
+                        },
+                    ) => {
                         violations.push(error.to_string());
                     }
                     Err(error) => return Err(error),
@@ -548,7 +555,7 @@ mod tests {
         let schema = midge.row_schema("bounded_callback").expect("row schema");
         midge
             .raw_put(
-crate::adapter::StorageFamily::Data,
+                crate::adapter::StorageFamily::Data,
                 &Midge::column_store_field_key(
                     schema.relation_id,
                     schema.fields[0].field_id,
@@ -564,8 +571,8 @@ crate::adapter::StorageFamily::Data,
         // Act
         let emitted = midge.scan_rows_until_with_traversal::<CassieError, _>(
             "bounded_callback",
-crate::adapter::RowDecode::Full,
-crate::adapter::RowTraversal::VisitedRows,
+            crate::adapter::RowDecode::Full,
+            crate::adapter::RowTraversal::VisitedRows,
             &controls.context(),
             |_| Ok(false),
         );
@@ -610,7 +617,7 @@ crate::adapter::RowTraversal::VisitedRows,
         let schema = midge.row_schema("complete_cursor").expect("row schema");
         midge
             .raw_put(
-crate::adapter::StorageFamily::Data,
+                crate::adapter::StorageFamily::Data,
                 &Midge::column_store_field_key(schema.relation_id, schema.fields[0].field_id, "z"),
                 b"\x05orphan",
             )
@@ -618,7 +625,7 @@ crate::adapter::StorageFamily::Data,
         let controls = crate::adapter::request_test_support::TestRequest::default();
         let before = midge.column_validation_reads_for_diagnostics();
         let mut cursor = midge
-            .open_row_cursor("complete_cursor",crate::adapter::RowDecode::Full)
+            .open_row_cursor("complete_cursor", crate::adapter::RowDecode::Full)
             .expect("open")
             .expect("cursor");
 
@@ -626,7 +633,13 @@ crate::adapter::StorageFamily::Data,
         let result = cursor.next_accounted_document(&midge, &controls.context());
 
         // Assert
-        assert!(matches!(result, Err(CassieError::Diagnostic { sql_state: "XX001", .. })));
+        assert!(matches!(
+            result,
+            Err(CassieError::Diagnostic {
+                sql_state: "XX001",
+                ..
+            })
+        ));
         assert_eq!(
             midge.column_validation_reads_for_diagnostics() - before,
             4,

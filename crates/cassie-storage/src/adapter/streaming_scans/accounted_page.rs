@@ -2,9 +2,9 @@ use std::collections::{HashSet, VecDeque};
 use std::mem::size_of;
 
 use crate::adapter::CassieError;
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use crate::row_blob::RowSchema;
 use cassie_core::request::accounted::json;
-use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::DataType;
 
 use super::DocumentRef;
@@ -193,7 +193,10 @@ pub(crate) fn provisional_document_bytes(
                 .filter(|alias| {
                     projection.is_some_and(|fields| {
                         fields.contains(
-                            &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                            &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(
+                                alias,
+                            )
+                            .lookup_key(),
                         )
                     })
                 })
@@ -226,7 +229,9 @@ fn decoded_field_name_count(
     let Some(projection) = projection else {
         return usize::from(!field.retired);
     };
-    let current_key = cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+    let current_key =
+        cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name)
+            .lookup_key();
     let current_name = usize::from(!field.retired && projection.contains(&current_key));
     let aliases = if include_historical_aliases {
         field
@@ -234,7 +239,8 @@ fn decoded_field_name_count(
             .iter()
             .filter(|alias| {
                 projection.contains(
-                    &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                    &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(alias)
+                        .lookup_key(),
                 )
             })
             .count()

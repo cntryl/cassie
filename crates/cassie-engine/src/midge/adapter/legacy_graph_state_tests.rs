@@ -14,8 +14,7 @@ fn open(path: &std::path::Path) -> Cassie {
 #[test]
 fn should_remove_legacy_graph_entries_on_startup() {
     // Arrange
-    let path =
-        std::env::temp_dir().join(format!("cassie-legacy-graph-{}", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("cassie-legacy-graph-{}", uuid::Uuid::new_v4()));
     let cassie = open(&path);
     let session = cassie.create_session("tester", None);
     cassie

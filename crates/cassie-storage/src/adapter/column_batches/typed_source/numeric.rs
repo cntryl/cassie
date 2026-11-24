@@ -2,9 +2,9 @@
 use super::super::storage_v1;
 use super::super::CURRENT_COLUMN_BATCH_CODEC_VERSION;
 use crate::adapter::CassieError;
+use crate::adapter::{ColumnBatchScanFallbackReason, Midge};
 use crate::catalog::{ColumnBatchChunkMeta, ColumnBatchSegmentMeta};
 use crate::column_batch_format_v1::{decode_numeric_column_chunk, NumericValues};
-use crate::adapter::{ColumnBatchScanFallbackReason, Midge};
 
 pub(super) struct Loaded {
     pub(super) raw: bytes::Bytes,

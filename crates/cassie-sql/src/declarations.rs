@@ -64,15 +64,23 @@ pub struct DefaultSequenceOwnership(bool);
 
 impl DefaultSequenceOwnership {
     #[must_use]
-    pub const fn shared() -> Self { Self(false) }
+    pub const fn shared() -> Self {
+        Self(false)
+    }
     #[must_use]
-    pub const fn owned() -> Self { Self(true) }
+    pub const fn owned() -> Self {
+        Self(true)
+    }
     #[must_use]
-    pub const fn is_owned(self) -> bool { self.0 }
+    pub const fn is_owned(self) -> bool {
+        self.0
+    }
 }
 
 impl Default for DefaultSequenceOwnership {
-    fn default() -> Self { Self::shared() }
+    fn default() -> Self {
+        Self::shared()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -254,15 +262,20 @@ impl<A> FieldConstraint<A> {
     }
 
     pub fn use_declared_field_spelling(&mut self, declared: &str) {
-        let current = crate::column_identifier::ColumnIdentifierPath::reference_field_key(&self.field);
+        let current =
+            crate::column_identifier::ColumnIdentifierPath::reference_field_key(&self.field);
         if self.field != declared
             && current != crate::column_identifier::ColumnIdentifierPath::stored_field_key(declared)
-        { return; }
+        {
+            return;
+        }
         if let Some(check) = self.check.as_mut().filter(|check| {
             check.field == declared
                 || crate::column_identifier::ColumnIdentifierPath::reference_field_key(&check.field)
                     == crate::column_identifier::ColumnIdentifierPath::stored_field_key(declared)
-        }) { check.field = declared.to_string(); }
+        }) {
+            check.field = declared.to_string();
+        }
         self.field = declared.to_string();
     }
 
@@ -318,7 +331,9 @@ pub fn conflicting_unique_membership<A: Clone>(
         let Some(current) = existing.iter().find(|entry| {
             entry.unique
                 && crate::column_identifier::ColumnIdentifierPath::stored_field_key(&entry.field)
-                    == crate::column_identifier::ColumnIdentifierPath::stored_field_key(&addition.field)
+                    == crate::column_identifier::ColumnIdentifierPath::stored_field_key(
+                        &addition.field,
+                    )
         }) else {
             continue;
         };
@@ -328,9 +343,13 @@ pub fn conflicting_unique_membership<A: Clone>(
             continue;
         }
         let spans_columns = |name: &str| {
-            combined.iter().filter(|entry| {
-                entry.unique && unique_name(collection, entry).eq_ignore_ascii_case(name)
-            }).nth(1).is_some()
+            combined
+                .iter()
+                .filter(|entry| {
+                    entry.unique && unique_name(collection, entry).eq_ignore_ascii_case(name)
+                })
+                .nth(1)
+                .is_some()
         };
         if spans_columns(&current_name) || spans_columns(&added_name) {
             return Some(format!(
@@ -343,9 +362,10 @@ pub fn conflicting_unique_membership<A: Clone>(
 }
 
 fn unique_name<A>(collection: &str, constraint: &FieldConstraint<A>) -> String {
-    constraint.unique_name.clone().unwrap_or_else(|| {
-        generated_constraint_name(collection, &constraint.field, "UNIQUE")
-    })
+    constraint
+        .unique_name
+        .clone()
+        .unwrap_or_else(|| generated_constraint_name(collection, &constraint.field, "UNIQUE"))
 }
 
 pub fn merge_constraint_set<A>(
@@ -395,28 +415,62 @@ fn merge_constraint<A>(existing: &mut FieldConstraint<A>, next: FieldConstraint<
         existing.not_null_ownership = existing.not_null_ownership.with_primary_key();
     }
     existing.unique |= next.unique;
-    if next.unique_null_policy == cassie_core::catalog::declarations::UniqueNullPolicy::NotDistinct {
-        existing.unique_null_policy = cassie_core::catalog::declarations::UniqueNullPolicy::NotDistinct;
+    if next.unique_null_policy == cassie_core::catalog::declarations::UniqueNullPolicy::NotDistinct
+    {
+        existing.unique_null_policy =
+            cassie_core::catalog::declarations::UniqueNullPolicy::NotDistinct;
     }
     existing.primary_key |= next.primary_key;
-    if next.primary_key_name.is_some() { existing.primary_key_name = next.primary_key_name; }
-    if next.primary_key_ordinal.is_some() { existing.primary_key_ordinal = next.primary_key_ordinal; }
-    if next.unique_name.is_some() { existing.unique_name = next.unique_name; }
-    if next.unique_ordinal.is_some() { existing.unique_ordinal = next.unique_ordinal; }
-    if next.default_value.is_some() { existing.default_value = next.default_value; }
-    if next.default_expression.is_some() { existing.default_expression = next.default_expression; }
-    if next.default_sequence.is_some() { existing.default_sequence = next.default_sequence; }
-    if next.default_sequence_owned.is_owned() { existing.default_sequence_owned = next.default_sequence_owned; }
-    if next.check.is_some() { existing.check = next.check; }
-    if next.check_name.is_some() { existing.check_name = next.check_name; }
+    if next.primary_key_name.is_some() {
+        existing.primary_key_name = next.primary_key_name;
+    }
+    if next.primary_key_ordinal.is_some() {
+        existing.primary_key_ordinal = next.primary_key_ordinal;
+    }
+    if next.unique_name.is_some() {
+        existing.unique_name = next.unique_name;
+    }
+    if next.unique_ordinal.is_some() {
+        existing.unique_ordinal = next.unique_ordinal;
+    }
+    if next.default_value.is_some() {
+        existing.default_value = next.default_value;
+    }
+    if next.default_expression.is_some() {
+        existing.default_expression = next.default_expression;
+    }
+    if next.default_sequence.is_some() {
+        existing.default_sequence = next.default_sequence;
+    }
+    if next.default_sequence_owned.is_owned() {
+        existing.default_sequence_owned = next.default_sequence_owned;
+    }
+    if next.check.is_some() {
+        existing.check = next.check;
+    }
+    if next.check_name.is_some() {
+        existing.check_name = next.check_name;
+    }
     if next.references_table.is_some() {
         existing.references_table = next.references_table;
         existing.references_field = next.references_field;
     }
-    if next.foreign_key_name.is_some() { existing.foreign_key_name = next.foreign_key_name; }
-    if next.foreign_key_ordinal.is_some() { existing.foreign_key_ordinal = next.foreign_key_ordinal; }
-    if next.foreign_key_on_delete.is_some() { existing.foreign_key_on_delete = next.foreign_key_on_delete; }
-    if next.foreign_key_on_update.is_some() { existing.foreign_key_on_update = next.foreign_key_on_update; }
-    if next.storage.is_some() { existing.storage = next.storage; }
-    if next.compression.is_some() { existing.compression = next.compression; }
+    if next.foreign_key_name.is_some() {
+        existing.foreign_key_name = next.foreign_key_name;
+    }
+    if next.foreign_key_ordinal.is_some() {
+        existing.foreign_key_ordinal = next.foreign_key_ordinal;
+    }
+    if next.foreign_key_on_delete.is_some() {
+        existing.foreign_key_on_delete = next.foreign_key_on_delete;
+    }
+    if next.foreign_key_on_update.is_some() {
+        existing.foreign_key_on_update = next.foreign_key_on_update;
+    }
+    if next.storage.is_some() {
+        existing.storage = next.storage;
+    }
+    if next.compression.is_some() {
+        existing.compression = next.compression;
+    }
 }

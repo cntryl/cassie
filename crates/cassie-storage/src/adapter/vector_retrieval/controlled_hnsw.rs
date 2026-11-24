@@ -1,8 +1,8 @@
 use std::mem::size_of;
 
 use crate::adapter::CassieError;
-use crate::embeddings::{HnswGraphNode, VectorIndexMetadata};
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::embeddings::{HnswGraphNode, VectorIndexMetadata};
 
 pub(super) fn validate_manifest(
     manifest: &super::super::codec::PersistedHnswManifest,

@@ -494,10 +494,7 @@ async fn dispatch_admin_routes(
 
     match (context.method.as_str(), context.segments) {
         ("GET", ["api", "v1", "admin", "databases"]) => {
-            let authenticated_role = context
-                .request_context
-                .role
-                .clone();
+            let authenticated_role = context.request_context.role.clone();
             run_rest_blocking_route(
                 cassie,
                 context.method,

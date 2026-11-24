@@ -58,7 +58,10 @@ pub fn parameter_from_text_with_controls(
     }
     let utc = temporal::default_session();
     let parsed = parse_controlled(kind, text, utc, controls)?;
-    if matches!(kind, ExtendedType::TimestampTz { .. } | ExtendedType::TimeTz { .. }) {
+    if matches!(
+        kind,
+        ExtendedType::TimestampTz { .. } | ExtendedType::TimeTz { .. }
+    ) {
         let shifted = TemporalSession {
             zone: temporal::zone::fixed_zone(3600),
             ..utc.clone()

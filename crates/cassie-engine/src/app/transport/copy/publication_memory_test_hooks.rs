@@ -19,7 +19,10 @@ impl Drop for Guard {
 pub fn observe_before_ingest() -> (Guard, Receiver<usize>) {
     let (sender, receiver) = mpsc::sync_channel(1);
     NEXT.with(|slot| {
-        assert!(slot.replace(Some(sender)).is_none(), "nested COPY memory observer");
+        assert!(
+            slot.replace(Some(sender)).is_none(),
+            "nested COPY memory observer"
+        );
     });
     (Guard, receiver)
 }

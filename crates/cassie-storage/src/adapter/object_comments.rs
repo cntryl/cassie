@@ -11,10 +11,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the address is unsupported or durable publication fails.
-    pub fn put_object_comment(
-        &self,
-        metadata: &ObjectCommentMeta,
-    ) -> Result<(), CassieError> {
+    pub fn put_object_comment(&self, metadata: &ObjectCommentMeta) -> Result<(), CassieError> {
         let mut metadata = metadata.clone();
         metadata.address.database.make_ascii_lowercase();
         metadata
@@ -92,10 +89,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the family cannot be written or publication fails.
-    pub fn delete_object_comment(
-        &self,
-        address: &ObjectCommentAddress,
-    ) -> Result<(), CassieError> {
+    pub fn delete_object_comment(&self, address: &ObjectCommentAddress) -> Result<(), CassieError> {
         let database = address.database.to_ascii_lowercase();
         let key = key_encoding::object_comment_key(
             address.class_oid,

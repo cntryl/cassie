@@ -2,16 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-
 use cassie_core::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RollupMeta {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
-    #[serde(
-        default,
-        skip_serializing_if = "crate::definition_guard::is_legacy"
-    )]
+    #[serde(default, skip_serializing_if = "crate::definition_guard::is_legacy")]
     pub definition_semantics_version: u32,
     pub name: String,
     pub source_collection: String,
@@ -147,6 +143,9 @@ mod tests {
         assert_eq!(rollup.output_collection, "__cassie_rollup_hourly");
         assert_eq!(encoded["definition_semantics_version"], 1);
         assert_eq!(encoded["bucket_expr"], "date_bin('1 hour', created_at)");
-        assert_eq!(output_collection_name("db.public.Hourly"), "db.public.__cassie_rollup_hourly");
+        assert_eq!(
+            output_collection_name("db.public.Hourly"),
+            "db.public.__cassie_rollup_hourly"
+        );
     }
 }

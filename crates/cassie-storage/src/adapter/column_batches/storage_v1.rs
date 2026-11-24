@@ -13,11 +13,11 @@ use crate::column_batch_format_v1::{
     encode_column_chunk, encode_plain_column_chunk, encode_row_ids, summary_checksum, LogicalType,
 };
 use crate::row_blob::RowSchema;
-use cassie_core::types::semantic::compare_values;
 use alp_scan::{
     alp_selection_for_filter, load_alp_field_chunk, materialize_selected_alp_rows,
     selected_alp_json_values, single_alp_predicate_field,
 };
+use cassie_core::types::semantic::compare_values;
 
 pub struct EncodedSegment {
     pub(super) metadata: ColumnBatchSegmentMeta,
@@ -95,7 +95,9 @@ pub(super) fn scan_aggregate_segment(
             let (_, values) = decoded
                 .iter()
                 .find(|(stored, _)| {
-                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                        field, stored,
+                    )
                 })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             Ok((
@@ -309,7 +311,10 @@ pub(super) fn load_segment(
     let mut values_decoded = 0usize;
     for wanted_field in wanted {
         let Some((field, chunk_meta)) = segment.field_chunks.iter().find(|(field, _)| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                wanted_field,
+                field,
+            )
         }) else {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         };
@@ -468,8 +473,9 @@ fn load_predicate_fields(
             alp_selection_for_filter(&loaded.values, loaded.scale, filter)
         {
             let projects_alp_field = wanted.iter().any(|wanted_field| {
-                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(wanted_field)
-                    == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
+                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(
+                    wanted_field,
+                ) == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
             });
             if wanted.len() == 1 && projects_alp_field {
                 result.alp_projection = Some((field.clone(), loaded.scale, loaded.values));
@@ -497,7 +503,10 @@ fn load_predicate_fields(
     }
     for predicate in &filter.predicates {
         if result.decoded.keys().any(|field| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                &predicate.field,
+                field,
+            )
         }) {
             continue;
         }
@@ -586,7 +595,10 @@ fn load_projection_fields(
     let mut chunks_read = 0usize;
     for wanted_field in wanted {
         if decoded_fields.keys().any(|field| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                wanted_field,
+                field,
+            )
         }) {
             continue;
         }
@@ -625,7 +637,10 @@ fn encoded_selection(
             let (_, values) = decoded_fields
                 .iter()
                 .find(|(field, _)| {
-                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                        &predicate.field,
+                        field,
+                    )
                 })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             for (selected, value) in selection.iter_mut().zip(values) {
@@ -683,10 +698,9 @@ fn find_field_chunk<'a>(
     segment: &'a ColumnBatchSegmentMeta,
     field: &str,
 ) -> Option<(&'a String, &'a ColumnBatchChunkMeta)> {
-    segment
-        .field_chunks
-        .iter()
-        .find(|(stored, _)| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored))
+    segment.field_chunks.iter().find(|(stored, _)| {
+        cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored)
+    })
 }
 
 pub(super) fn load_field_chunk(

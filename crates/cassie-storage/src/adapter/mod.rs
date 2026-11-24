@@ -8,16 +8,6 @@ use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOpti
 use uuid::Uuid;
 
 pub mod error;
-pub(crate) use error::{
-    decode_projected_row_matching_with_aliases_and_hooks,
-    decode_projected_row_with_aliases_and_hooks, decode_projected_row_with_hooks,
-    decode_row_with_hooks,
-};
-pub use error::{
-    CatalogObjectKind, RetryableStorageError, StorageError, StorageRetryKind,
-    TransactionErrorKind,
-};
-pub(crate) use error::StorageError as CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
     CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchChunkMeta,
@@ -27,11 +17,18 @@ use crate::catalog::{
     RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
-use crate::row_blob::{
-    encode_row, RowSchema,
-};
-use cassie_core::types::{DataType, FieldSchema, Schema};
+use crate::row_blob::{encode_row, RowSchema};
 use crate::vector::normalize as normalize_vector;
+use cassie_core::types::{DataType, FieldSchema, Schema};
+pub(crate) use error::StorageError as CassieError;
+pub(crate) use error::{
+    decode_projected_row_matching_with_aliases_and_hooks,
+    decode_projected_row_with_aliases_and_hooks, decode_projected_row_with_hooks,
+    decode_row_with_hooks,
+};
+pub use error::{
+    CatalogObjectKind, RetryableStorageError, StorageError, StorageRetryKind, TransactionErrorKind,
+};
 
 pub use crate::column_batch_format_v1::NumericValues;
 mod collection_gates;
@@ -395,15 +392,13 @@ pub mod graph_catalog_entries;
 mod native_memory;
 pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;
-#[doc(hidden)]
-pub use storage_conversion::ConversionReport;
 pub use column_store::field_selection::ColumnFieldReadSnapshot;
 pub use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSelection};
+#[cfg(feature = "storage-test-hooks")]
+pub use column_store::vector_scan::test_support as column_vector_test_support;
 pub use column_store::ColumnPruningSnapshot;
 pub use column_store::ColumnStoreScanRequest;
 pub use column_store::ColumnVectorReadSnapshot;
-#[cfg(feature = "storage-test-hooks")]
-pub use column_store::vector_scan::test_support as column_vector_test_support;
 pub use column_store::{
     identity_lanes, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
     ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
@@ -414,6 +409,8 @@ pub use database_catalog_rewrite::{
 };
 pub(super) use databases::DatabaseFamily;
 pub use databases::StagedDatabaseFamily;
+#[doc(hidden)]
+pub use storage_conversion::ConversionReport;
 pub mod documents;
 #[cfg(feature = "storage-test-hooks")]
 pub use databases::create_retry_test_hooks;
@@ -495,9 +492,7 @@ mod row_id;
 mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
-pub use streaming_scans::{
-    AccountedDocument, AccountedDocumentPage, MidgeRowCursor, RowTraversal,
-};
+pub use streaming_scans::{AccountedDocument, AccountedDocumentPage, MidgeRowCursor, RowTraversal};
 pub mod time_series_indexes;
 mod vector_indexes;
 pub use vector_indexes::PersistedIvfFlatTrainingSnapshot;
@@ -506,10 +501,7 @@ mod verification;
 #[path = "verification_tests.rs"]
 mod verification_tests;
 
-pub fn benchmark_row_key_round_trip(
-    relation_id: u64,
-    id: &str,
-) -> Option<(Vec<u8>, String)> {
+pub fn benchmark_row_key_round_trip(relation_id: u64, id: &str) -> Option<(Vec<u8>, String)> {
     let prefix = key_encoding::row_prefix(relation_id);
     let key = key_encoding::row_key(relation_id, id);
     let decoded = key_encoding::utf8_suffix_after_prefix(&key, &prefix)?;
@@ -677,7 +669,9 @@ impl Midge {
         for field in &mut row_schema.fields {
             if field.normalized_name.is_empty() {
                 field.normalized_name =
-                    cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name);
+                    cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
+                        &field.name,
+                    );
             }
         }
         Ok(Some(row_schema))
@@ -789,12 +783,11 @@ impl Midge {
 }
 
 mod statement_read;
+pub use cassie_core::request::RequestMemoryReservation as QueryMemoryReservation;
 use statement_read::DataReadTransaction;
 pub use statement_read::{
-    NativeRequestControls, NativeStatementReadScope, NativeStatementSnapshot,
-    StorageRequestContext,
+    NativeRequestControls, NativeStatementReadScope, NativeStatementSnapshot, StorageRequestContext,
 };
-pub use cassie_core::request::RequestMemoryReservation as QueryMemoryReservation;
 
 #[cfg(all(
     feature = "replay-benchmark-observation",

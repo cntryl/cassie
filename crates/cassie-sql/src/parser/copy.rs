@@ -78,9 +78,7 @@ fn split_copy_source(raw: &str) -> (&str, Option<&str>) {
     (raw.trim(), None)
 }
 
-fn parse_copy_options(
-    options: Option<&str>,
-) -> Result<(crate::ast::CopyFormat, bool), SqlError> {
+fn parse_copy_options(options: Option<&str>) -> Result<(crate::ast::CopyFormat, bool), SqlError> {
     let Some(options) = options else {
         return Ok((crate::ast::CopyFormat::Csv, false));
     };

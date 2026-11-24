@@ -5,22 +5,19 @@ use bytes::Bytes;
 
 use crate::adapter::streaming_scans::provisional_controlled_document_bytes;
 use crate::adapter::AccountedDocument;
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use crate::row_blob::{RowFieldMeta, RowSchema};
 use cassie_core::request::accounted::Accounted;
-use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::DataType;
 
-use super::{
-    CassieError, DocumentRef,
-    Midge, OrderedRowBound, OrderedRowScanRequest, Query,
-};
+use super::{CassieError, DocumentRef, Midge, OrderedRowBound, OrderedRowScanRequest, Query};
 
 #[cfg(test)]
 #[path = "controlled/tests.rs"]
 mod tests;
 
 pub struct ControlledOrderedRowCursor {
-    tx:crate::adapter::DataReadTransaction,
+    tx: crate::adapter::DataReadTransaction,
     row_schema: RowSchema,
     projection: Option<HashSet<String>>,
     include_historical_aliases: bool,
@@ -67,9 +64,9 @@ impl Midge {
         let row_schema = descriptor.clone();
         drop(descriptor);
         let projection_bytes = match &request.decode {
-crate::adapter::RowDecode::Full => 0,
-crate::adapter::RowDecode::Projected(fields)
-            |crate::adapter::RowDecode::ProjectedHistorical(fields) => {
+            crate::adapter::RowDecode::Full => 0,
+            crate::adapter::RowDecode::Projected(fields)
+            | crate::adapter::RowDecode::ProjectedHistorical(fields) => {
                 fields.iter().try_fold(0usize, |bytes, field| {
                     add(
                         bytes,
@@ -276,12 +273,12 @@ impl OrderedSource {
             };
             check_controls(controls)?;
             midge.record_query_scan_entry();
-            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(
-                controls,
-            ) {
+            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCanceled);
             }
-            self.last_key = Some(Accounted::try_new(controls.memory(), key.len(), || key.clone())?);
+            self.last_key = Some(Accounted::try_new(controls.memory(), key.len(), || {
+                key.clone()
+            })?);
             let Some(suffix) = key.strip_prefix(self.prefix.as_slice()) else {
                 continue;
             };

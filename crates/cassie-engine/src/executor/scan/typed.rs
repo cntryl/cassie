@@ -119,10 +119,11 @@ impl<'a> TypedScanStream<'a> {
                 .all(|field| !is_identity_reference(field, catalog_schema.declares_id()))
             && super::has_covering_column_index(cassie, collection, fields)
         {
-            match cassie
-                .midge
-                .controlled_encoded_source(collection, fields, &controls.storage_request())
-            {
+            match cassie.midge.controlled_encoded_source(
+                collection,
+                fields,
+                &controls.storage_request(),
+            ) {
                 Ok(crate::midge::adapter::EncodedSourceDecision::Hit(source)) => {
                     cassie.runtime.record_column_batch_scan(&source.metrics);
                     cassie.runtime.record_storage_access("data", false, true);

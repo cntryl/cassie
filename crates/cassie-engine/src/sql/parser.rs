@@ -6,8 +6,8 @@ pub use cassie_sql::parser::{
     dollar_quoted_content, dollar_quoted_end, escape_string_prefix,
     is_concurrent_materialized_view_refresh, max_positional_parameter, parse_data_type_in_scope,
     parse_terminal_transaction_control, preflight_sql, substitute_positional_parameters,
-    with_domain_scope, with_enum_scope, with_type_scope, DomainResolver, EnumResolver,
-    SqlError, SqlErrorKind, TypeResolver,
+    with_domain_scope, with_enum_scope, with_type_scope, DomainResolver, EnumResolver, SqlError,
+    SqlErrorKind, TypeResolver,
 };
 
 /// Parses SQL syntax and rebinds its runtime-only subquery attachment type.

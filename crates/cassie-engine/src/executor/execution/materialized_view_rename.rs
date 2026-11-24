@@ -22,9 +22,10 @@ pub(super) fn rename(
                 .catalog
                 .get_materialized_projection(&statement.name)
                 .filter(|projection| {
-                    projection.materialized.as_ref().is_some_and(
-                        crate::catalog::is_sql_materialized_view,
-                    )
+                    projection
+                        .materialized
+                        .as_ref()
+                        .is_some_and(crate::catalog::is_sql_materialized_view)
                 })
                 .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?;
             cassie.catalog.reject_relation_move_target(new_name)?;

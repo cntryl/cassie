@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn should_fail_closed_when_restoring_composite_type_records() {
         // Arrange
-        let key =crate::adapter::key_encoding::composite_type_key("analytics.public.t");
+        let key = crate::adapter::key_encoding::composite_type_key("analytics.public.t");
 
         // Act
         let result = rewrite_database_data_entry(&key, b"{}", "restored");
@@ -401,14 +401,14 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err( crate::adapter::CassieError::Unsupported(_))
+            Err(crate::adapter::CassieError::Unsupported(_))
         ));
     }
 
     #[test]
     fn should_fail_closed_when_restoring_domain_type_records() {
         // Arrange
-        let key =crate::adapter::key_encoding::domain_type_key("analytics.public.d");
+        let key = crate::adapter::key_encoding::domain_type_key("analytics.public.d");
 
         // Act
         let result = rewrite_database_data_entry(&key, b"{}", "restored");
@@ -416,14 +416,14 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err( crate::adapter::CassieError::Unsupported(_))
+            Err(crate::adapter::CassieError::Unsupported(_))
         ));
     }
 
     #[test]
     fn should_fail_closed_when_restoring_enum_type_records() {
         // Arrange
-        let key =crate::adapter::key_encoding::enum_type_key("analytics.public.e");
+        let key = crate::adapter::key_encoding::enum_type_key("analytics.public.e");
 
         // Act
         let result = rewrite_database_data_entry(&key, b"{}", "restored");
@@ -431,7 +431,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err( crate::adapter::CassieError::Unsupported(_))
+            Err(crate::adapter::CassieError::Unsupported(_))
         ));
     }
 
@@ -584,10 +584,8 @@ mod tests {
     #[test]
     fn should_rewrite_pending_schema_cleanup_for_database_restore() {
         // Arrange
-        let key =crate::adapter::key_encoding::schema_cleanup_key(
-            "analytics.public.items",
-            "cleanup-1",
-        );
+        let key =
+            crate::adapter::key_encoding::schema_cleanup_key("analytics.public.items", "cleanup-1");
         let value = serde_json::json!({
             "cleanup_id": "cleanup-1",
             "blocked_by_epoch": 18_446_744_073_709_551_615_u64,
@@ -630,10 +628,9 @@ mod tests {
     #[test]
     fn should_rewrite_unique_publication_for_database_restore() {
         // Arrange
-        let publication_key =
-crate::adapter::key_encoding::unique_constraint_publication_key(
-                "analytics.public.items",
-            );
+        let publication_key = crate::adapter::key_encoding::unique_constraint_publication_key(
+            "analytics.public.items",
+        );
         let publication = serde_json::json!({
             "collection": "analytics.public.items",
             "constraints": [{
@@ -672,7 +669,7 @@ crate::adapter::key_encoding::unique_constraint_publication_key(
     #[test]
     fn should_keep_unique_reservation_key_database_local_during_restore() {
         // Arrange
-        let reservation =crate::adapter::key_encoding::unique_constraint_reservation_key(
+        let reservation = crate::adapter::key_encoding::unique_constraint_reservation_key(
             "analytics.public.items",
             "email",
             &serde_json::json!("person@example.com"),
@@ -696,7 +693,7 @@ crate::adapter::key_encoding::unique_constraint_publication_key(
     #[test]
     fn should_rewrite_maintenance_debt_for_database_restore() {
         // Arrange
-        let key =crate::adapter::key_encoding::maintenance_debt_key(
+        let key = crate::adapter::key_encoding::maintenance_debt_key(
             "analytics.public.items",
             "projection",
         );

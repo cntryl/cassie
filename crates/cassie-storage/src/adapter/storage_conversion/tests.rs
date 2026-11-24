@@ -3,9 +3,9 @@
 use std::cell::RefCell;
 
 use super::{CassieError, CollectionStorageMode, Midge};
-use crate::catalog::CollectionMeta;
 use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::{RawStorageEntry, StorageFamily};
+use crate::catalog::CollectionMeta;
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

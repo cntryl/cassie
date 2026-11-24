@@ -1,7 +1,7 @@
 //! Portable named enum type declarations.
-use serde::{Deserialize, Serialize};
 use crate::catalog::scope::{local_name, relation_schema_name};
 use crate::types::enum_type::{sort_order_at, EnumMember, EnumRef, EnumType, EnumValuePlacement};
+use serde::{Deserialize, Serialize};
 
 use super::object_identity::normal_oid;
 
@@ -45,7 +45,10 @@ fn already_exists(label: &str) -> super::composite_type::TypeAlterError {
 }
 
 fn not_an_existing_label(label: &str) -> super::composite_type::TypeAlterError {
-    alter_error("22023", format!("\"{label}\" is not an existing enum label"))
+    alter_error(
+        "22023",
+        format!("\"{label}\" is not an existing enum label"),
+    )
 }
 
 impl EnumTypeMeta {
@@ -103,13 +106,23 @@ impl EnumTypeMeta {
         if self.members.iter().any(|member| member.label == label) {
             return Err(already_exists(label));
         }
-        let sort_order = self.descriptor().sort_order_for(placement)
+        let sort_order = self
+            .descriptor()
+            .sort_order_for(placement)
             .map_err(|neighbour| not_an_existing_label(&neighbour))?;
-        let neighbour_index = |neighbour: &str| self.members.iter().position(|member| member.label == neighbour);
+        let neighbour_index = |neighbour: &str| {
+            self.members
+                .iter()
+                .position(|member| member.label == neighbour)
+        };
         let index = match placement {
             None => self.members.len(),
-            Some(EnumValuePlacement::Before(neighbour)) => neighbour_index(neighbour).ok_or_else(|| not_an_existing_label(neighbour))?,
-            Some(EnumValuePlacement::After(neighbour)) => neighbour_index(neighbour).ok_or_else(|| not_an_existing_label(neighbour))? + 1,
+            Some(EnumValuePlacement::Before(neighbour)) => {
+                neighbour_index(neighbour).ok_or_else(|| not_an_existing_label(neighbour))?
+            }
+            Some(EnumValuePlacement::After(neighbour)) => {
+                neighbour_index(neighbour).ok_or_else(|| not_an_existing_label(neighbour))? + 1
+            }
         };
         Ok(AddValuePlan { index, sort_order })
     }
@@ -125,12 +138,15 @@ impl EnumTypeMeta {
     ) -> Self {
         let mut next = self.clone();
         next.revision += 1;
-        next.members.insert(plan.index, EnumMember {
-            member_id,
-            label,
-            sort_order: plan.sort_order.unwrap_or(0.0),
-            uncommitted,
-        });
+        next.members.insert(
+            plan.index,
+            EnumMember {
+                member_id,
+                label,
+                sort_order: plan.sort_order.unwrap_or(0.0),
+                uncommitted,
+            },
+        );
         if plan.sort_order.is_none() {
             for (position, member) in next.members.iter_mut().enumerate() {
                 member.sort_order = sort_order_at(position);
@@ -146,7 +162,10 @@ impl EnumTypeMeta {
         from: &str,
         to: &str,
     ) -> Result<Self, super::composite_type::TypeAlterError> {
-        let index = self.members.iter().position(|member| member.label == from)
+        let index = self
+            .members
+            .iter()
+            .position(|member| member.label == from)
             .ok_or_else(|| not_an_existing_label(from))?;
         if self.members.iter().any(|member| member.label == to) {
             return Err(already_exists(to));

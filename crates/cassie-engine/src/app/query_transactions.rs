@@ -292,9 +292,11 @@ impl Cassie {
             .map(|_| (database.as_str(), &storage_overlay));
         #[cfg(test)]
         output_admission_tests::cancel_before_index_guard_if_armed();
-        let index_guard =
-            crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, &controls.storage_request())
-                .inspect_err(|_| session.mark_transaction_failed())?;
+        let index_guard = crate::midge::adapter::IndexCleanupCommitGuard::capture(
+            &storage_overlay,
+            &controls.storage_request(),
+        )
+        .inspect_err(|_| session.mark_transaction_failed())?;
         let (row_collections, referential) = self.transaction_commit_write_gates(session)?;
         let gate_names = if index_guard.is_empty() {
             None
@@ -320,14 +322,18 @@ impl Cassie {
             )
         };
         let committed = if repeatable_write {
-            self.midge
-                .with_transaction_write_gates(collections, referential, &controls.storage_request(), || {
+            self.midge.with_transaction_write_gates(
+                collections,
+                referential,
+                &controls.storage_request(),
+                || {
                     if referential {
                         self.validate_staged_foreign_keys(session)?;
                         self.validate_staged_parent_references(session)?;
                     }
                     publish()
-                })
+                },
+            )
         } else if referential {
             self.midge.with_collection_write_gates(collections, || {
                 self.validate_staged_foreign_keys(session)?;

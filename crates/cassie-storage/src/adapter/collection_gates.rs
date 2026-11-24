@@ -5,8 +5,8 @@ use std::time::Duration;
 use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
 
 use super::{CassieError, Midge, NativePublicationControlScope};
-use cassie_core::request::accounted::allocation::try_reserve_vec;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use cassie_core::request::accounted::allocation::try_reserve_vec;
 
 struct Directory<T> {
     values: Vec<T>,
@@ -31,14 +31,16 @@ where
 {
     NativePublicationControlScope::check_interruption(controls)?;
     let names = admitted_names(collections, controls)?;
-    let (values, memory) = try_reserve_vec(names.values.len(), &names.memory).map_err(CassieError::from)?;
+    let (values, memory) =
+        try_reserve_vec(names.values.len(), &names.memory).map_err(CassieError::from)?;
     let mut gates = Directory { values, memory };
     for name in &names.values {
         NativePublicationControlScope::check_interruption(controls)?;
         gates.values.push(midge.collection_write_gate(name));
     }
     drop(names);
-    let (values, memory) = try_reserve_vec(gates.values.len(), &gates.memory).map_err(CassieError::from)?;
+    let (values, memory) =
+        try_reserve_vec(gates.values.len(), &gates.memory).map_err(CassieError::from)?;
     let mut guards = Directory { values, memory };
     let _referential = referential
         .map(|gate| lock(gate, controls, WaitBoundary::Referential))

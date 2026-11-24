@@ -1,9 +1,8 @@
 //! Local persistence witness for a replay spanning retained Data snapshots.
 
 use super::{
-    Arc, Cassie, CassieRuntimeConfig, QueryExecutionControls, StatementDataRead,
-    StatementReadScope, controls, replay_snapshot_batch, replay_snapshot_has_event,
-    replay_snapshot_index_ids,
+    controls, replay_snapshot_batch, replay_snapshot_has_event, replay_snapshot_index_ids, Arc,
+    Cassie, CassieRuntimeConfig, QueryExecutionControls, StatementDataRead, StatementReadScope,
 };
 use crate::catalog::IndexMeta;
 

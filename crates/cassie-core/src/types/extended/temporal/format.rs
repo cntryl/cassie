@@ -178,11 +178,7 @@ pub fn to_char_with_hour_checked<E>(
     Ok(out)
 }
 
-pub fn workspace_bytes(
-    template_bytes: usize,
-    input_bytes: usize,
-    renders: bool,
-) -> Option<usize> {
+pub fn workspace_bytes(template_bytes: usize, input_bytes: usize, renders: bool) -> Option<usize> {
     let template = template::workspace_bytes(template_bytes)?.checked_add(template_bytes)?;
     let input = input_bytes.checked_mul(std::mem::size_of::<char>().checked_add(1)?)?;
     let output = if renders {

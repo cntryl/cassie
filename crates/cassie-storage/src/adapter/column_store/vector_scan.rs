@@ -29,8 +29,8 @@ use super::validation::decode_marker;
 use super::{CassieError, Midge, Query, RowSchema};
 use crate::adapter::ColumnFieldSelection;
 use crate::adapter::{key_encoding, DataReadTransaction, RowTraversal};
-use crate::row_blob::RowFieldMeta;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::row_blob::RowFieldMeta;
 use cassie_core::types::lanes::{LaneValidity, RawLanes};
 use decode::{LaneBuilder, LaneKind};
 use merge::{merge_batch, FieldStream, MergeInput};
@@ -292,9 +292,7 @@ impl ColumnVectorScan {
             let (key, value) = entry.map_err(CassieError::from)?;
             seen += 1;
             midge.record_query_scan_entry();
-            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(
-                controls,
-            ) {
+            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCanceled);
             }
             let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
@@ -437,7 +435,8 @@ impl Midge {
                 outputs.push(ColumnVectorOutput::Identity);
                 continue;
             };
-            let Ok(reference) = cassie_sql::column_identifier::ColumnIdentifierPath::parse(name) else {
+            let Ok(reference) = cassie_sql::column_identifier::ColumnIdentifierPath::parse(name)
+            else {
                 return Ok(None);
             };
             let Some(index) = row_schema
@@ -467,8 +466,10 @@ impl Midge {
         let projection = order
             .iter()
             .map(|index| {
-                cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&row_schema.fields[*index].name)
-                    .lookup_key()
+                cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(
+                    &row_schema.fields[*index].name,
+                )
+                .lookup_key()
             })
             .collect::<std::collections::HashSet<String>>();
         let selection = ColumnFieldSelection::new(&row_schema, Some(&projection));

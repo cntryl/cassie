@@ -44,10 +44,7 @@ impl std::fmt::Display for TextArrayError {
 }
 
 #[doc(hidden)]
-pub fn parse_text_array(
-    input: &str,
-    element_type: &DataType,
-) -> Result<JsonValue, TextArrayError> {
+pub fn parse_text_array(input: &str, element_type: &DataType) -> Result<JsonValue, TextArrayError> {
     let parsed = parse_text_array_with_dimensions(input, element_type)?;
     if !input.trim_start().starts_with('[')
         && matches!(element_type, DataType::Json | DataType::Jsonb)
@@ -214,10 +211,7 @@ fn parsed_json_array(value: JsonValue) -> Result<ParsedTextArray, TextArrayError
 }
 
 impl ParsedTextArray {
-    pub fn into_sql_array(
-        self,
-        element_type: &DataType,
-    ) -> Result<crate::types::SqlArray, String> {
+    pub fn into_sql_array(self, element_type: &DataType) -> Result<crate::types::SqlArray, String> {
         let mut element_type = element_type;
         while let DataType::Array(inner) = element_type {
             element_type = inner;

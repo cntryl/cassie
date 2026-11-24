@@ -124,7 +124,8 @@ impl StatementDataRead {
         current_catalog: bool,
     ) -> Result<Arc<Self>, CassieError> {
         let context = controls.storage_request();
-        let snapshot = NativeStatementSnapshot::capture(midge, database, &context, current_catalog)?;
+        let snapshot =
+            NativeStatementSnapshot::capture(midge, database, &context, current_catalog)?;
         let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
             snapshot,
@@ -178,7 +179,9 @@ impl StatementDataRead {
     pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
         let command = cassie_core::request::accounted::retained::add(
             self.memory.bytes(),
-            self.overlay.as_ref().map_or(0, |owner| owner.accounted_bytes()),
+            self.overlay
+                .as_ref()
+                .map_or(0, |owner| owner.accounted_bytes()),
         )
         .map_err(|error| CassieError::ResourceLimit(error.to_string()))?;
         cassie_core::request::accounted::retained::add(
@@ -206,10 +209,7 @@ impl StatementDataRead {
         if let Some(outputs) = private_outputs {
             Arc::get_mut(owner)
                 .expect("new private command owner")
-                .private_outputs = outputs
-                .get(logical)
-                .cloned()
-                .map(MaterializedReads::One);
+                .private_outputs = outputs.get(logical).cloned().map(MaterializedReads::One);
         }
     }
 
@@ -222,7 +222,8 @@ impl StatementDataRead {
         let mut owner = Self::with_overlay(retained, Some(overlay), controls)?;
         Arc::get_mut(&mut owner)
             .expect("new command owner")
-            .private_outputs = private_outputs.map(|outputs| MaterializedReads::All(Arc::clone(outputs)));
+            .private_outputs =
+            private_outputs.map(|outputs| MaterializedReads::All(Arc::clone(outputs)));
         Ok(owner)
     }
 
@@ -231,7 +232,11 @@ impl StatementDataRead {
         logical: &str,
         output: &str,
     ) -> Option<StatementReadScope> {
-        let private = controls.statement_read()?.private_outputs.as_ref()?.get(logical)?;
+        let private = controls
+            .statement_read()?
+            .private_outputs
+            .as_ref()?
+            .get(logical)?;
         (private.name == output).then(|| StatementReadScope::enter(Some(&private.read)))
     }
 }

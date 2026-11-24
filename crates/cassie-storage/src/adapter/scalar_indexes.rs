@@ -1,8 +1,8 @@
+use super::StorageValueHooks;
 use super::{
     check_document_write_failure_point, key_encoding, CassieError, DataType,
     DocumentWriteFailurePoint, Midge, RowDecode, RowSchema,
 };
-use super::StorageValueHooks;
 use crate::{ScalarExpressionEvaluationError, ScalarExpressionEvaluator};
 use cassie_core::catalog::declarations::IndexKind;
 use cassie_core::types::{self, Value};
@@ -37,8 +37,7 @@ pub struct ScalarIndexScanHit {
     pub fields: serde_json::Map<String, serde_json::Value>,
 }
 
-type EvaluateScalarExpression =
-    fn(&str, &str, &[(String, Value)]) -> Result<Value, CassieError>;
+type EvaluateScalarExpression = fn(&str, &str, &[(String, Value)]) -> Result<Value, CassieError>;
 
 struct ScalarExpressionHook<'a> {
     index_name: &'a str,
@@ -71,7 +70,9 @@ impl From<ScalarExpressionEvaluationError<CassieError>> for CassieError {
     fn from(error: ScalarExpressionEvaluationError<CassieError>) -> Self {
         match error {
             ScalarExpressionEvaluationError::Evaluation(error) => error,
-            ScalarExpressionEvaluationError::UnsupportedValue(message) => Self::Unsupported(message),
+            ScalarExpressionEvaluationError::UnsupportedValue(message) => {
+                Self::Unsupported(message)
+            }
         }
     }
 }
@@ -118,11 +119,15 @@ impl Midge {
 
         for index in indexes {
             let old_entry = match old_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?,
+                Some(payload) => {
+                    Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?
+                }
                 None => None,
             };
             let new_entry = match new_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?,
+                Some(payload) => {
+                    Self::scalar_index_entry(index, id, payload, row_schema, tx.value_hooks())?
+                }
                 None => None,
             };
 
@@ -172,10 +177,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the current scalar index cannot be read or rebuilt.
-    pub fn rebuild_scalar_index_for_index(
-        &self,
-        index: &IndexMeta,
-    ) -> Result<(), CassieError> {
+    pub fn rebuild_scalar_index_for_index(&self, index: &IndexMeta) -> Result<(), CassieError> {
         let write_gate = self.collection_write_gate(&index.collection);
         let _write_guard = write_gate.lock();
         let Some(current_index) = self.get_index(&index.collection, &index.name)? else {
@@ -200,9 +202,13 @@ impl Midge {
         )?;
 
         for row in rows {
-            if let Some((key, value)) =
-                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema, &self.value_hooks())?
-            {
+            if let Some((key, value)) = Self::scalar_index_entry(
+                index,
+                &row.id,
+                &row.payload,
+                &row_schema,
+                &self.value_hooks(),
+            )? {
                 tx.put(key, value, None).map_err(CassieError::from)?;
             }
         }
@@ -231,7 +237,9 @@ impl Midge {
                 &index.collection,
                 &key_encoding::unique_index_reservation_prefix_for(
                     &index.collection,
-                    index.reservation_identity_details().map_err(CassieError::Parse)?,
+                    index
+                        .reservation_identity_details()
+                        .map_err(CassieError::Parse)?,
                 ),
             )?;
         }
@@ -250,8 +258,7 @@ impl Midge {
                         &canonical,
                         &row_schema,
                         self.value_hooks().evaluate_scalar_predicate,
-                    )?
-                {
+                    )? {
                     let evaluator = scalar_expression_evaluator(&index.name, &self.value_hooks());
                     Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
                 } else {
@@ -260,15 +267,21 @@ impl Midge {
                 if let Some(values) = reservation_values {
                     let reservation = key_encoding::unique_index_reservation_key_for(
                         &index.collection,
-                        index.reservation_identity_details().map_err(CassieError::Parse)?,
+                        index
+                            .reservation_identity_details()
+                            .map_err(CassieError::Parse)?,
                         &values,
                     )?;
                     tx.put(reservation, row.id.as_bytes().to_vec(), None)
                         .map_err(CassieError::from)?;
                 }
-                if let Some((key, value)) =
-                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema, &self.value_hooks())?
-                {
+                if let Some((key, value)) = Self::scalar_index_entry(
+                    index,
+                    &row.id,
+                    &canonical,
+                    &row_schema,
+                    &self.value_hooks(),
+                )? {
                     tx.put(key, value, None).map_err(CassieError::from)?;
                 }
             }
@@ -291,11 +304,11 @@ impl Midge {
         for row in rows {
             let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
             if !Self::payload_matches_scalar_index_predicate(
-                        index,
-                        &canonical,
-                        &row_schema,
-                        self.value_hooks().evaluate_scalar_predicate,
-                    )? {
+                index,
+                &canonical,
+                &row_schema,
+                self.value_hooks().evaluate_scalar_predicate,
+            )? {
                 continue;
             }
             let evaluator = scalar_expression_evaluator(&index.name, &self.value_hooks());
@@ -306,7 +319,9 @@ impl Midge {
             };
             let key = key_encoding::unique_index_reservation_key_for(
                 &index.collection,
-                index.reservation_identity_details().map_err(CassieError::Parse)?,
+                index
+                    .reservation_identity_details()
+                    .map_err(CassieError::Parse)?,
                 &values,
             )?;
             if owners.insert(key, row.id.clone()).is_some() {
@@ -510,7 +525,11 @@ impl Midge {
         let Some(raw_predicate) = index.predicate.as_ref() else {
             return Ok(true);
         };
-        evaluate(&index.name, raw_predicate, payload_to_row(payload, row_schema))
+        evaluate(
+            &index.name,
+            raw_predicate,
+            payload_to_row(payload, row_schema),
+        )
     }
 }
 

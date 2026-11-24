@@ -1,5 +1,5 @@
-use super::controlled_directory::{Directory, Progress};
 use super::super::*;
+use super::controlled_directory::{Directory, Progress};
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use std::time::Instant;

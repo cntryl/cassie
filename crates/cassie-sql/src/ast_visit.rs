@@ -420,7 +420,9 @@ impl<A> Expr<A> {
     /// column names are untouched because the walk is structural.
     pub fn rename_column_references(&mut self, current_key: &str, next: &str) {
         if let Self::Column(column) = self {
-            if crate::column_identifier::ColumnIdentifierPath::reference_field_key(column) == current_key {
+            if crate::column_identifier::ColumnIdentifierPath::reference_field_key(column)
+                == current_key
+            {
                 next.clone_into(column);
             }
             return;
@@ -684,7 +686,10 @@ fn unary_structurally_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) ->
     }
 }
 
-fn optional_structurally_eq<A: std::fmt::Debug>(left: Option<&Expr<A>>, right: Option<&Expr<A>>) -> bool {
+fn optional_structurally_eq<A: std::fmt::Debug>(
+    left: Option<&Expr<A>>,
+    right: Option<&Expr<A>>,
+) -> bool {
     match (left, right) {
         (Some(left), Some(right)) => left.structurally_eq(right),
         (None, None) => true,

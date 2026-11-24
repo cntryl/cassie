@@ -1,7 +1,7 @@
 pub use cassie_core::catalog::declarations::{IdentityGeneration, UniqueNullPolicy};
 pub use cassie_sql::declarations::{
-    generated_constraint_name, merge_constraint_set, ConstraintOperator,
-    DefaultSequenceOwnership, NotNullOwnership,
+    generated_constraint_name, merge_constraint_set, ConstraintOperator, DefaultSequenceOwnership,
+    NotNullOwnership,
 };
 pub type ConstraintCheck = cassie_sql::declarations::ConstraintCheck<crate::sql::SubqueryOutcome>;
 pub type FieldConstraint = cassie_sql::declarations::FieldConstraint<crate::sql::SubqueryOutcome>;

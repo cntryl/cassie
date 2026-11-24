@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
 use super::{find_field_chunk, valid_chunk_bytes};
-use crate::column_batch_format_v1::{
-    alp_scaled_to_f64, decode_alp_scaled, scale_alp_value, Codec, LogicalType,
-};
 use crate::adapter::column_batches::{
     CassieError, ColumnBatchChunkMeta, ColumnBatchRow, ColumnBatchScanFallbackReason,
     ColumnBatchScanFilter, ColumnBatchScanOp, ColumnBatchSegmentMeta, Midge,
     CURRENT_COLUMN_BATCH_CODEC_VERSION,
+};
+use crate::column_batch_format_v1::{
+    alp_scaled_to_f64, decode_alp_scaled, scale_alp_value, Codec, LogicalType,
 };
 
 pub(super) struct LoadedAlpField {
@@ -24,7 +24,9 @@ pub(super) fn single_alp_predicate_field<'a>(
     let first = filter.predicates.first()?;
     if !filter.predicates.iter().all(|predicate| {
         cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(&predicate.field)
-            == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(&first.field)
+            == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(
+                &first.field,
+            )
     }) {
         return None;
     }

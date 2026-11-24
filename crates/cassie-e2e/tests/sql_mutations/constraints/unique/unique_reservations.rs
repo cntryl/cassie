@@ -623,10 +623,11 @@ fn should_replay_unique_reservations_after_interrupted_column_rename() {
     set_field_rename_failure_point(true);
 
     // Act
-    let interrupted =
-        cassie
-            .midge
-            .alter_collection_rename_column("unique_reservation_rename_recovery", "k", "kk");
+    let interrupted = cassie.midge.alter_collection_rename_column(
+        "unique_reservation_rename_recovery",
+        "k",
+        "kk",
+    );
     drop(session);
     drop(cassie);
     let recovered =

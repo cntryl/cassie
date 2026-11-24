@@ -1,10 +1,10 @@
 use crate::StorageCodecError;
 
-use super::binary::{Reader, invalid};
+use super::binary::{invalid, Reader};
 use super::chunk::{
-    self, Codec, DecodedChunk, FORMAT_VERSION, LogicalType, MAGIC, MAX_CHUNK_BYTES,
-    MAX_DECODED_BYTES, MAX_SCALAR_BYTES, bit_is_set, checked_count, checked_length,
-    checked_u64_length, decode_for_blocks, scalar_from_bytes, validate_validity,
+    self, bit_is_set, checked_count, checked_length, checked_u64_length, decode_for_blocks,
+    scalar_from_bytes, validate_validity, Codec, DecodedChunk, LogicalType, FORMAT_VERSION, MAGIC,
+    MAX_CHUNK_BYTES, MAX_DECODED_BYTES, MAX_SCALAR_BYTES,
 };
 
 pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, StorageCodecError> {

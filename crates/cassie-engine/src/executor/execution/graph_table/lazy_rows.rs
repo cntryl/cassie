@@ -137,12 +137,13 @@ fn pending_of(
                         crate::runtime::accounted::json::retained_bytes(payload)?,
                     )?,
                 )?;
-                let document = AccountedDocument::try_build(&env.controls.storage_request(), bytes, || {
-                    Ok(DocumentRef {
-                        id: id.clone(),
-                        payload: payload.clone(),
-                    })
-                })?;
+                let document =
+                    AccountedDocument::try_build(&env.controls.storage_request(), bytes, || {
+                        Ok(DocumentRef {
+                            id: id.clone(),
+                            payload: payload.clone(),
+                        })
+                    })?;
                 let row = hydrate(
                     env,
                     document.document(),
@@ -187,10 +188,11 @@ pub(super) fn lookup_rows(
         equality_prefix: index.probe(key),
         ..ScalarIndexScanRequest::default()
     };
-    let hits =
-        env.cassie
-            .midge
-            .scan_scalar_index_controlled(&index.index, &request, &env.controls.storage_request())?;
+    let hits = env.cassie.midge.scan_scalar_index_controlled(
+        &index.index,
+        &request,
+        &env.controls.storage_request(),
+    )?;
     let (hits, _hits_memory) = hits.into_parts();
     reads.index_entries += hits.len() as u64;
     let schema = env.cassie.catalog.get_schema(table);

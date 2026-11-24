@@ -435,9 +435,7 @@ fn parse_projection_diff_target(
     Ok(target)
 }
 
-fn parse_projection_repair_scope(
-    raw: &str,
-) -> Result<crate::ast::ProjectionRepairScope, SqlError> {
+fn parse_projection_repair_scope(raw: &str) -> Result<crate::ast::ProjectionRepairScope, SqlError> {
     match raw.to_ascii_lowercase().replace('-', "_").as_str() {
         "row" => Ok(crate::ast::ProjectionRepairScope::Row),
         "range" => Ok(crate::ast::ProjectionRepairScope::Range),

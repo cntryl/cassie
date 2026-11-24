@@ -17,21 +17,20 @@ pub(super) fn resolve_order_ordinals(
         .map(|item| {
             let Expr::IntegerLiteral(position) = item.expr else {
                 if let Expr::Column(name) = &item.expr {
-                    let reference = crate::column_identifier::ColumnIdentifierPath::parse(name).ok();
+                    let reference =
+                        crate::column_identifier::ColumnIdentifierPath::parse(name).ok();
                     if reference
                         .as_ref()
                         .is_some_and(crate::column_identifier::ColumnIdentifierPath::is_qualified)
                     {
                         return Ok(item);
                     }
-                    let matching = projection
-                        .iter()
-                        .filter(|output| {
-                            reference.as_ref().map_or_else(
-                                || output.output_name().eq_ignore_ascii_case(name),
-                                |reference| reference.matches_field_name(&output.output_name()),
-                            )
-                        });
+                    let matching = projection.iter().filter(|output| {
+                        reference.as_ref().map_or_else(
+                            || output.output_name().eq_ignore_ascii_case(name),
+                            |reference| reference.matches_field_name(&output.output_name()),
+                        )
+                    });
                     let mut matching = matching;
                     let first = matching.next();
                     let ambiguous = first.is_some_and(|first| {

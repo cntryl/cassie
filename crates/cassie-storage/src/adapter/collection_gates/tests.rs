@@ -5,9 +5,9 @@ use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use super::*;
-use crate::catalog::SequenceMeta;
 use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::NativePublicationControlScope;
+use crate::catalog::SequenceMeta;
 use cassie_core::request::RequestCancellation;
 use cassie_core::types::DataType;
 
@@ -41,8 +41,12 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
     let worker = std::thread::spawn(move || {
         let controls = controls(1024 * 1024, worker_cancel);
         WAITING.with(|slot| slot.replace(Some(waiting_tx)));
-        let result =
-            other.with_transaction_write_gates(&["items".to_owned()], false, &controls.context(), || Ok::<(), CassieError>(()));
+        let result = other.with_transaction_write_gates(
+            &["items".to_owned()],
+            false,
+            &controls.context(),
+            || Ok::<(), CassieError>(()),
+        );
         result_tx
             .send((result, controls.current_query_memory_bytes()))
             .expect("canceled result");
@@ -165,7 +169,9 @@ fn should_preserve_rest_cancellation_while_waiting_for_the_referential_gate() {
                 Instant::now() + Duration::from_secs(5),
             );
             WAITING.with(|slot| slot.replace(Some(waiting_tx)));
-            let result = other.with_transaction_write_gates(&[], true, &controls.context(), || Ok::<(), CassieError>(()));
+            let result = other.with_transaction_write_gates(&[], true, &controls.context(), || {
+                Ok::<(), CassieError>(())
+            });
             result_tx
                 .send((result, controls.current_query_memory_bytes()))
                 .expect("REST wait result");
@@ -198,7 +204,9 @@ fn should_admit_gate_directories_before_running_the_operation() {
     let name = ["items".to_owned()];
     let measured = controls(1024 * 1024, RequestCancellation::new());
     midge
-        .with_transaction_write_gates(&name, false, &measured.context(), || Ok::<(), CassieError>(()))
+        .with_transaction_write_gates(&name, false, &measured.context(), || {
+            Ok::<(), CassieError>(())
+        })
         .expect("measure directories");
     let peak = measured.peak_query_memory_bytes();
     let below = controls(peak - 1, RequestCancellation::new());
@@ -210,7 +218,8 @@ fn should_admit_gate_directories_before_running_the_operation() {
         ran.set(true);
         Ok::<(), CassieError>(())
     });
-    let admitted = midge.with_transaction_write_gates(&name, false, &exact.context(), || Ok::<(), CassieError>(()));
+    let admitted = midge
+        .with_transaction_write_gates(&name, false, &exact.context(), || Ok::<(), CassieError>(()));
 
     // Assert
     assert!(matches!(denied, Err(CassieError::ResourceLimit(_))));

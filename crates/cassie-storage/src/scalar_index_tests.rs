@@ -1,5 +1,5 @@
 use super::{
-    ScalarExpressionEvaluationError, ScalarExpressionEvaluator, evaluate_expression_index_values,
+    evaluate_expression_index_values, ScalarExpressionEvaluationError, ScalarExpressionEvaluator,
 };
 use cassie_core::types::Value;
 

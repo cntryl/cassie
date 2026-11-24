@@ -8,9 +8,7 @@ use getrandom::fill;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::app::{
-    AuthenticatedPrincipal, Cassie, CassieError, CassieSession, NetworkPrincipal,
-};
+use crate::app::{AuthenticatedPrincipal, Cassie, CassieError, CassieSession, NetworkPrincipal};
 use crate::catalog::{normalize_role_name, RoleMeta};
 use crate::midge::StorageFamily;
 
@@ -196,10 +194,7 @@ fn issue_transaction(
     Ok(token)
 }
 
-pub fn authenticate(
-    cassie: &Cassie,
-    token: &str,
-) -> Result<NetworkPrincipal, CassieError> {
+pub fn authenticate(cassie: &Cassie, token: &str) -> Result<NetworkPrincipal, CassieError> {
     let key = session_key(token);
     let Some(value) = cassie.midge.raw_get(StorageFamily::Schema, &key)? else {
         return Err(CassieError::Unauthorized);
@@ -218,7 +213,10 @@ pub fn authenticate(
         Err(error) => return Err(error),
     };
     let session = CassieSession::authenticated(role.name.clone(), None, role.is_admin);
-    Ok(NetworkPrincipal::from(AuthenticatedPrincipal { session, role }))
+    Ok(NetworkPrincipal::from(AuthenticatedPrincipal {
+        session,
+        role,
+    }))
 }
 
 pub fn revoke(cassie: &Cassie, token: &str) -> Result<(), CassieError> {

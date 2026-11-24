@@ -171,33 +171,35 @@ impl Cassie {
         };
         let database = session.current_database().unwrap_or(&self.default_database);
         let request = controls.storage_request();
-        let (data, catalog, fence, history) =
-            self.midge
-                .with_database_publication(database, &request, || -> Result<_, CassieError> {
-                    let history = session
-                        .is_repeatable_read_write()
-                        .then(|| {
-                            self.midge
-                                .capture_repeatable_row_history(database, &request)
-                                .map_err(CassieError::from)
-                        })
-                        .transpose()?;
-                    let fence = session
-                        .is_repeatable_read_write()
-                        .then(|| {
-                            crate::midge::adapter::RetainedRowFence::capture(
-                                &self.midge,
-                                database,
-                                &request,
-                            )
+        let (data, catalog, fence, history) = self.midge.with_database_publication(
+            database,
+            &request,
+            || -> Result<_, CassieError> {
+                let history = session
+                    .is_repeatable_read_write()
+                    .then(|| {
+                        self.midge
+                            .capture_repeatable_row_history(database, &request)
                             .map_err(CassieError::from)
-                        })
-                        .transpose()?;
-                    let data = session.capture_statement_read(&self.midge, database, controls)?;
-                    let catalog = self.publication_catalog.snapshot_with_controls(controls)?;
-                    controls.check_interruption()?;
-                    Ok((data, catalog, fence, history))
-                })?;
+                    })
+                    .transpose()?;
+                let fence = session
+                    .is_repeatable_read_write()
+                    .then(|| {
+                        crate::midge::adapter::RetainedRowFence::capture(
+                            &self.midge,
+                            database,
+                            &request,
+                        )
+                        .map_err(CassieError::from)
+                    })
+                    .transpose()?;
+                let data = session.capture_statement_read(&self.midge, database, controls)?;
+                let catalog = self.publication_catalog.snapshot_with_controls(controls)?;
+                controls.check_interruption()?;
+                Ok((data, catalog, fence, history))
+            },
+        )?;
         session
             .install_repeatable_read_snapshot(generation, data, catalog, fence, history, controls)
     }

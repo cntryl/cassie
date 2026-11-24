@@ -88,8 +88,8 @@ pub fn open_portal_page(
     let _read_scope = StatementReadScope::enter(owner.as_ref());
     if retained.is_none()
         && (crate::catalog::virtual_views::schema(&spec.collection).is_some()
-        || cassie.catalog.get_view(&spec.collection).is_some()
-        || session.has_collection_changes(&spec.collection))
+            || cassie.catalog.get_view(&spec.collection).is_some()
+            || session.has_collection_changes(&spec.collection))
     {
         return Ok(PortalCursorDecision::Fallback(None));
     }
@@ -114,12 +114,16 @@ pub fn open_portal_page(
             &spec.collection,
             RowDecode::ProjectedHistorical(spec.source_fields.clone()),
             spec.traversal,
-        )? else {
+        )?
+        else {
             return Ok(PortalCursorDecision::Fallback(None));
         };
         cursor
     };
-    Ok(PortalCursorDecision::Cursor(PortalReadPage { spec, cursor }))
+    Ok(PortalCursorDecision::Cursor(PortalReadPage {
+        spec,
+        cursor,
+    }))
 }
 
 /// Fetches and projects one admitted page while preserving the cursor owner.
@@ -148,16 +152,16 @@ pub fn fetch_portal_page(
             "streaming portal requires a select statement".to_owned(),
         ));
     };
-    let result = portal_document_result(
-        cassie,
-        &page.spec,
-        select,
-        columns,
-        documents,
-        controls,
-    )?;
+    let result = portal_document_result(cassie, &page.spec, select, columns, documents, controls)?;
     let peak_bytes = controls.peak_query_memory_bytes();
-    Ok((RetainedPortal { cursor: page.cursor }, result, has_more, peak_bytes))
+    Ok((
+        RetainedPortal {
+            cursor: page.cursor,
+        },
+        result,
+        has_more,
+        peak_bytes,
+    ))
 }
 
 fn portal_document_result(
@@ -176,11 +180,8 @@ fn portal_document_result(
     builder.try_set_command("SELECT")?;
     // Identifier parsing and lookup builders allocate bounded scratch during
     // both the sizing pass and conversion, so admit it before either runs.
-    let _identifiers = controls.reserve_query_memory(portal_identifier_bytes(
-        spec,
-        select,
-        schema.as_ref(),
-    )?)?;
+    let _identifiers =
+        controls.reserve_query_memory(portal_identifier_bytes(spec, select, schema.as_ref())?)?;
     while let Some(document) = documents.pop_document() {
         controls.check_interruption()?;
         let document = document.document();
@@ -190,10 +191,7 @@ fn portal_document_result(
                 &spec.source_fields,
                 schema.as_ref(),
             )?,
-            crate::executor::scan::projected_lookup_bytes(
-                &spec.source_fields,
-                schema.as_ref(),
-            )?,
+            crate::executor::scan::projected_lookup_bytes(&spec.source_fields, schema.as_ref())?,
         )?;
         let _projection = controls.reserve_query_memory(scratch)?;
         let row = crate::executor::scan::projected_document_to_row(

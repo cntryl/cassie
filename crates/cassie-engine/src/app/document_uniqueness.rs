@@ -1,8 +1,8 @@
 //! Reconcile committed unique reservation owners with the session's staged view.
-use crate::midge::scalar_expression;
-use crate::catalog::EngineIndexMetaExt;
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
+use crate::catalog::EngineIndexMetaExt;
 use crate::catalog::{IndexKind, IndexMeta};
+use crate::midge::scalar_expression;
 
 impl Cassie {
     pub(super) fn validate_uniques(

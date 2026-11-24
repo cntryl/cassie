@@ -33,10 +33,7 @@ impl SqlArray {
     ///
     /// # Errors
     /// Returns an error for non-rectangular or unsupported nested values.
-    pub fn from_constructor_values(
-        values: Vec<Value>,
-        nested: bool,
-    ) -> Result<Self, String> {
+    pub fn from_constructor_values(values: Vec<Value>, nested: bool) -> Result<Self, String> {
         if !nested {
             return Self::from_nested_values(values);
         }
@@ -81,10 +78,7 @@ impl SqlArray {
     /// the exact shape of arrays read from older serialized data.
     #[doc(hidden)]
     #[must_use]
-    pub const fn from_copied_parts(
-        dimensions: Vec<ArrayDimension>,
-        elements: Vec<Value>,
-    ) -> Self {
+    pub const fn from_copied_parts(dimensions: Vec<ArrayDimension>, elements: Vec<Value>) -> Self {
         Self {
             dimensions,
             elements,
@@ -705,10 +699,7 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
     })
 }
 
-fn enum_element(
-    descriptor: &super::EnumType,
-    value: &JsonValue,
-) -> Result<JsonValue, String> {
+fn enum_element(descriptor: &super::EnumType, value: &JsonValue) -> Result<JsonValue, String> {
     use super::{EnumRef, EnumValue};
 
     if let Some(member_id) = EnumValue::storage_member_id(value) {

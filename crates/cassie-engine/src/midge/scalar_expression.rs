@@ -33,7 +33,9 @@ pub(crate) fn key_values(
     payload: &serde_json::Value,
     row_schema: &RowSchema,
 ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {
-    let evaluator = EngineScalarExpressionEvaluator { index_name: &index.name };
+    let evaluator = EngineScalarExpressionEvaluator {
+        index_name: &index.name,
+    };
     Midge::scalar_index_key_values(index, payload, row_schema, &evaluator).map_err(|error| {
         match error {
             ScalarExpressionEvaluationError::Evaluation(error) => error,
@@ -76,7 +78,9 @@ fn evaluate_expression(
     row: &[(String, Value)],
 ) -> Result<Value, CassieError> {
     let expression: Expr = serde_json::from_str(raw).map_err(|error| {
-        CassieError::Parse(format!("invalid scalar index expression for '{index_name}': {error}"))
+        CassieError::Parse(format!(
+            "invalid scalar index expression for '{index_name}': {error}"
+        ))
     })?;
     filter::evaluate_expr_value(row, &expression, &[], None, &HashMap::new(), None, None)
         .map_err(CassieError::from)
@@ -88,7 +92,9 @@ fn evaluate_predicate(
     row: Vec<(String, Value)>,
 ) -> Result<bool, CassieError> {
     let predicate: Expr = serde_json::from_str(raw).map_err(|error| {
-        CassieError::Parse(format!("invalid scalar index predicate for '{index_name}': {error}"))
+        CassieError::Parse(format!(
+            "invalid scalar index predicate for '{index_name}': {error}"
+        ))
     })?;
     let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
         .map_err(CassieError::from)?

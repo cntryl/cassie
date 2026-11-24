@@ -91,8 +91,7 @@ pub(super) struct SessionState {
         HashMap<u64, std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>>,
     pub(super) portals: HashMap<String, Portal>,
     pub(super) portal_owners: PortalOwners,
-    pub(super) portal_cursors:
-        HashMap<String, crate::app::transport::portal::RetainedPortal>,
+    pub(super) portal_cursors: HashMap<String, crate::app::transport::portal::RetainedPortal>,
     pub(super) portal_frames: super::result_frames::PortalFrameOwners,
     pub(super) portal_memory_controls: QueryExecutionControls,
     pub(super) portal_reads: super::portal_reads::PortalReadOwners,

@@ -8,8 +8,8 @@ use super::{
     codec, LoadedCandidatePostings, PersistedFulltextCandidateSet, PersistedFulltextDocumentStats,
     STATE_VERSION,
 };
-use crate::adapter::CassieError;
 use crate::adapter::column_store::validation as column_validation;
+use crate::adapter::CassieError;
 use crate::adapter::{DocumentRef, Midge, StorageRequestContext};
 use cassie_core::request::accounted::json;
 use cassie_core::request::RequestMemoryReservation;
@@ -437,7 +437,10 @@ impl Midge {
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
         record_controlled_read(self, controls)?;
-        grow_memory(&mut memory, metadata_key.len().saturating_add(metadata_raw.len()))?;
+        grow_memory(
+            &mut memory,
+            metadata_key.len().saturating_add(metadata_raw.len()),
+        )?;
         grow_memory(&mut memory, metadata_raw.len().saturating_mul(2))?;
         let metadata = codec::decode_metadata(&metadata_raw)?;
         if metadata.version != STATE_VERSION
@@ -544,13 +547,22 @@ impl Midge {
                     }
                     continue;
                 };
-                grow_memory(&mut memory, provisional_column_field_bytes(
-                    &field.data_type,
-                    &field.name,
-                    field_key.len(),
-                    super::super::column_store::column_payload_logical_len(&raw),
-                )?)?;
-                let Some(value) = column_validation::decode_field(&collection, id, field, &raw, tx.value_hooks())?
+                grow_memory(
+                    &mut memory,
+                    provisional_column_field_bytes(
+                        &field.data_type,
+                        &field.name,
+                        field_key.len(),
+                        super::super::column_store::column_payload_logical_len(&raw),
+                    )?,
+                )?;
+                let Some(value) = column_validation::decode_field(
+                    &collection,
+                    id,
+                    field,
+                    &raw,
+                    tx.value_hooks(),
+                )?
                 else {
                     continue;
                 };

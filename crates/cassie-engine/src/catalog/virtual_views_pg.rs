@@ -200,9 +200,10 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             .into_iter()
             .filter(|projection| {
                 projection.kind == crate::catalog::ProjectionKind::Materialized
-                    && projection.materialized.as_ref().is_some_and(
-                        crate::catalog::is_sql_materialized_view,
-                    )
+                    && projection
+                        .materialized
+                        .as_ref()
+                        .is_some_and(crate::catalog::is_sql_materialized_view)
                     && current_database.is_none_or(|database| {
                         relation_belongs_to_database(&projection.collection, database)
                     })

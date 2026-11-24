@@ -149,7 +149,9 @@ impl IdentifierPath {
     pub fn from_components(components: Vec<IdentifierComponent>) -> Self {
         let rendered = components
             .iter()
-            .map(|component| cassie_core::catalog::scope::canonical_identifier_component(&component.value))
+            .map(|component| {
+                cassie_core::catalog::scope::canonical_identifier_component(&component.value)
+            })
             .collect::<Vec<_>>()
             .join(".");
         Self {
@@ -239,16 +241,20 @@ impl IdentifierPath {
     /// Returns an error when the path has an unsupported number of parts.
     pub fn parsed_name(&self) -> Result<cassie_core::catalog::scope::ParsedName, String> {
         match self.components.as_slice() {
-            [name] => Ok(cassie_core::catalog::scope::ParsedName::Unqualified(name.value.clone())),
+            [name] => Ok(cassie_core::catalog::scope::ParsedName::Unqualified(
+                name.value.clone(),
+            )),
             [schema, name] => Ok(cassie_core::catalog::scope::ParsedName::SchemaQualified {
                 schema: schema.value.clone(),
                 name: name.value.clone(),
             }),
-            [database, schema, name] => Ok(cassie_core::catalog::scope::ParsedName::DatabaseQualified {
-                database: database.value.clone(),
-                schema: schema.value.clone(),
-                name: name.value.clone(),
-            }),
+            [database, schema, name] => {
+                Ok(cassie_core::catalog::scope::ParsedName::DatabaseQualified {
+                    database: database.value.clone(),
+                    schema: schema.value.clone(),
+                    name: name.value.clone(),
+                })
+            }
             _ => Err(format!("unsupported qualified name '{self}'")),
         }
     }

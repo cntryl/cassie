@@ -328,11 +328,13 @@ fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
             serde_json::json!({"value": 1}),
         )
         .expect("seed");
-    let identity = midge.row_schema("fenced_rows").expect("row schema").relation_id;
+    let identity = midge
+        .row_schema("fenced_rows")
+        .expect("row schema")
+        .relation_id;
     let origin = TestRequest::default();
-    let fence =
-crate::adapter::RetainedRowFence::capture(&midge, "postgres", &origin.context())
-            .expect("old row fence");
+    let fence = crate::adapter::RetainedRowFence::capture(&midge, "postgres", &origin.context())
+        .expect("old row fence");
     let request = TestRequest::default();
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let (waiting_tx, waiting_rx) = mpsc::channel();

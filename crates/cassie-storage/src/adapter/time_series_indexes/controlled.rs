@@ -4,10 +4,9 @@ use std::mem::size_of;
 use cntryl_midge::Query;
 
 use super::{
-    key_encoding, metadata, time_series_scan_query,
-    BucketIdentity, CassieError, DocumentRef, IndexMeta, Midge, TimeSeriesIndexScanHit,
-    CORRUPT_BUCKET_METADATA, DANGLING_BUCKET_MEMBERSHIP, INCOMPLETE_BUCKET_MEMBERSHIP,
-    MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,
+    key_encoding, metadata, time_series_scan_query, BucketIdentity, CassieError, DocumentRef,
+    IndexMeta, Midge, TimeSeriesIndexScanHit, CORRUPT_BUCKET_METADATA, DANGLING_BUCKET_MEMBERSHIP,
+    INCOMPLETE_BUCKET_MEMBERSHIP, MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,
 };
 use crate::adapter::column_store::validation as column_validation;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
@@ -255,7 +254,9 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| {
+                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
+            })
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut memory = controls.reserve_query_memory(0)?;
@@ -283,7 +284,8 @@ impl Midge {
                     .saturating_add(hit.id.len())
                     .saturating_add(size_of::<DocumentRef>()),
             )?;
-            let full_payload = super::super::decode_row_with_hooks(&row_schema, &raw, tx.value_hooks())?;
+            let full_payload =
+                super::super::decode_row_with_hooks(&row_schema, &raw, tx.value_hooks())?;
             let Some(expected_entry) =
                 Self::time_series_index_entry(&index, &hit.id, &full_payload)?
             else {
@@ -328,7 +330,9 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| {
+                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
+            })
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut memory = controls.reserve_query_memory(0)?;
@@ -356,8 +360,10 @@ impl Midge {
             for field in row_schema.fields.iter().filter(|field| {
                 !field.retired
                     && projection.contains(
-                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name)
-                            .lookup_key(),
+                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(
+                            &field.name,
+                        )
+                        .lookup_key(),
                     )
             }) {
                 check_controls(controls)?;
@@ -376,15 +382,13 @@ impl Midge {
                     field_key.len(),
                     super::super::column_store::column_payload_logical_len(&raw),
                 )?)?;
-                if let Some(value) =
-                    column_validation::decode_field(
-                        collection,
-                        &hit.id,
-                        field,
-                        &raw,
-                        &self.value_hooks(),
-                    )?
-                {
+                if let Some(value) = column_validation::decode_field(
+                    collection,
+                    &hit.id,
+                    field,
+                    &raw,
+                    &self.value_hooks(),
+                )? {
                     payload.insert(field.name.clone(), value);
                 }
             }

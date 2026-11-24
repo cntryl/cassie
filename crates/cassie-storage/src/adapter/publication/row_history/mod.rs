@@ -6,8 +6,8 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use super::{AdapterCommitError, CassieError, DatabasePublication};
-use cassie_core::request::accounted::allocation::{grow_vec, try_reserve_vec};
 use crate::adapter::QueryMemoryReservation;
+use cassie_core::request::accounted::allocation::{grow_vec, try_reserve_vec};
 
 pub(in crate::adapter) struct RowHistory {
     state: Mutex<HistoryState>,
@@ -262,7 +262,7 @@ impl RetainedRowHistory {
         controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         let (collection, relation_id, id) = row;
-        let (keys, _memory) =crate::adapter::transactions::admitted_row_keys(
+        let (keys, _memory) = crate::adapter::transactions::admitted_row_keys(
             midge,
             database,
             collection,
@@ -294,7 +294,7 @@ impl RetainedRowHistory {
                 .is_ok_and(|index| state.entries[index].sequence > self.sequence)
             {
                 return Err(CassieError::Transaction {
-                    kind:crate::adapter::TransactionErrorKind::SerializationFailure,
+                    kind: crate::adapter::TransactionErrorKind::SerializationFailure,
                     message: "could not serialize access due to concurrent row update".to_owned(),
                 });
             }

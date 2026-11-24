@@ -5,7 +5,10 @@ pub(super) fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&Row
     row.values
         .iter()
         .find(|(field, _)| {
-            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&filter.field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                &filter.field,
+                field,
+            )
         })
         .is_some_and(|(_, value)| value == &filter.value)
 }

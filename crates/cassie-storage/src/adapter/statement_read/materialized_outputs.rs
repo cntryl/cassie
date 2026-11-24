@@ -1,9 +1,13 @@
 //! Copies transaction-private materialized rows into an opaque native snapshot.
 
-use super::{CassieError, DescriptorAuthority, Midge, NativeStatementSnapshot, StorageRequestContext};
-use crate::adapter::{key_encoding as key, transactions::ExpectedStorageValue, AdapterTransaction, StorageOverlay};
-use cassie_core::request::RequestMemoryReservation;
+use super::{
+    CassieError, DescriptorAuthority, Midge, NativeStatementSnapshot, StorageRequestContext,
+};
+use crate::adapter::{
+    key_encoding as key, transactions::ExpectedStorageValue, AdapterTransaction, StorageOverlay,
+};
 use cassie_core::request::accounted::retained::add;
+use cassie_core::request::RequestMemoryReservation;
 use std::mem::size_of;
 use std::sync::Arc;
 

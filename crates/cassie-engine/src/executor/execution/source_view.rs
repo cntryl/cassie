@@ -1,6 +1,6 @@
 use super::super::{
-    build_logical_plan_in_context, build_logical_plan_in_session,
-    execute_plan_with_parameter_oids, plan_execution_env_with_binding_context,
+    build_logical_plan_in_context, build_logical_plan_in_session, execute_plan_with_parameter_oids,
+    plan_execution_env_with_binding_context,
 };
 use super::{
     batch, finalize_source_batches, schema_text_fields, source_rows::project_rows_to_schema,

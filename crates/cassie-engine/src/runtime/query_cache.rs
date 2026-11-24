@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cntryl_lexkey::{Encoder, LexKey};
 use cassie_storage::native::TransactionMode;
+use cntryl_lexkey::{Encoder, LexKey};
 use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;

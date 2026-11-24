@@ -27,7 +27,9 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
     }
     let argument_names: &[&str] = match function.id {
         crate::registry::functions::FunctionId::RegexpLike => &["string", "pattern", "flags"],
-        crate::registry::functions::FunctionId::RegexpCount => &["string", "pattern", "start", "flags"],
+        crate::registry::functions::FunctionId::RegexpCount => {
+            &["string", "pattern", "start", "flags"]
+        }
         crate::registry::functions::FunctionId::RegexpReplace => {
             &["string", "pattern", "replacement", "start", "N", "flags"]
         }
@@ -98,7 +100,9 @@ fn ordered_named_arguments(
             "function '{function_name}' requires named arguments 'string' and 'pattern'"
         )));
     }
-    if function_id == crate::registry::functions::FunctionId::RegexpReplace && arguments[2].is_none() {
+    if function_id == crate::registry::functions::FunctionId::RegexpReplace
+        && arguments[2].is_none()
+    {
         return Err(SqlError::syntax(format!(
             "function '{function_name}' requires named argument 'replacement'"
         )));

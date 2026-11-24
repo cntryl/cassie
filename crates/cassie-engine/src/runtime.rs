@@ -109,16 +109,17 @@ pub(crate) use vector_filtered_metrics::FilteredVectorWork;
 pub use vector_filtered_metrics::VectorFilteredSnapshot;
 
 use cache_state::ExecutionResultCacheState;
-pub(crate) use controls::OrderedJoinCounts;
-pub use controls::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
+pub(crate) use cassie_storage::operation_stats::ProjectionWriteStats;
 pub(crate) use cassie_storage::runtime_feedback::{stable_fingerprint, RuntimeFeedbackMutation};
 pub use cassie_storage::runtime_feedback::{RuntimeFeedbackKey, RuntimeFeedbackRecord};
+pub(crate) use controls::OrderedJoinCounts;
+pub use controls::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
+pub use feedback::RuntimeFeedbackObservation;
 pub(crate) use feedback::{
     normalized_feedback_key, observation_is_outlier, recompute_feedback_confidence,
     OperatorFeedbackEstimate, RuntimeFeedbackLookup, RuntimeFeedbackLookupState,
     OPERATOR_FEEDBACK_CONFIDENCE_FLOOR_BPS, OPERATOR_FEEDBACK_MIN_STABLE_SAMPLES,
 };
-pub use feedback::RuntimeFeedbackObservation;
 pub use fulltext::{FulltextIndexOptions, FulltextIndexOptionsCacheKey};
 use helpers::{
     adjust_signed, apply_feedback_observation, current_time_millis, duration_ms,
@@ -130,7 +131,6 @@ pub(crate) use join_metrics::VectorizedJoinInputRows;
 pub use pgwire_state::PgwireSessionGuard;
 #[doc(hidden)]
 pub use pgwire_state::{PgwireBackendRegistration, PgwireQueryCancellationGuard};
-pub(crate) use cassie_storage::operation_stats::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
 use schema_epochs::SchemaEpochTracker;
 pub use snapshots::*;

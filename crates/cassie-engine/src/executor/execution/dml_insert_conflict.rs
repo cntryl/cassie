@@ -1,7 +1,7 @@
 //! Finding the existing row an `INSERT ... ON CONFLICT` proposal conflicts with.
 
-use crate::midge::scalar_expression;
 use super::{json_to_value, Cassie, CassieSession, CollectionSchema, HashMap, QueryError, Value};
+use crate::midge::scalar_expression;
 
 fn find_target_field_conflict_row_id(
     cassie: &Cassie,
@@ -241,10 +241,7 @@ pub(super) fn expression_index_key_matches(
     if !scalar_expression::matches_predicate(index, payload, row_schema)? {
         return Ok(false);
     }
-    Ok(
-        scalar_expression::key_values(index, payload, row_schema)?.as_deref()
-            == Some(key),
-    )
+    Ok(scalar_expression::key_values(index, payload, row_schema)?.as_deref() == Some(key))
 }
 
 /// The first row conflicting on any unique key, for an untargeted

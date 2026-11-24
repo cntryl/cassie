@@ -5,8 +5,8 @@
 //! architecture.
 
 use super::validation::{decode_marker_parts, encode_deleted_marker, encode_marker};
-use crate::catalog::collections::{CollectionMeta, CollectionStorageMode};
 use crate::adapter::{Midge, StorageFamily};
+use crate::catalog::collections::{CollectionMeta, CollectionStorageMode};
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
 const HEADER: &[u8] = b"cassie\0\x01\0\x18\0";

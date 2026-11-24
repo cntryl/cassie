@@ -58,7 +58,7 @@ impl Midge {
             match self.allocate_object_id_once() {
                 Err(error)
                     if error.storage_retry_kind()
-                        == Some( crate::adapter::StorageRetryKind::WriteConflict)
+                        == Some(crate::adapter::StorageRetryKind::WriteConflict)
                         && attempt < MAX_ATTEMPTS =>
                 {
                     attempt += 1;
@@ -203,7 +203,12 @@ impl Midge {
         let expressions = metadata
             .group_keys
             .iter()
-            .chain(metadata.aggregates.iter().map(|aggregate| &aggregate.expression))
+            .chain(
+                metadata
+                    .aggregates
+                    .iter()
+                    .map(|aggregate| &aggregate.expression),
+            )
             .chain(&metadata.filter_expr)
             .map(String::as_str);
         cassie_sql::definition_guard::rollup(
@@ -790,7 +795,10 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
-        cassie_sql::definition_guard::query(metadata.definition_semantics_version, &metadata.query)?;
+        cassie_sql::definition_guard::query(
+            metadata.definition_semantics_version,
+            &metadata.query,
+        )?;
         self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);

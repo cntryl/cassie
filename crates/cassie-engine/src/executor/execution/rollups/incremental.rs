@@ -570,7 +570,12 @@ fn scan_selected_group(
     let fields = fields.into_iter().collect::<Vec<_>>();
     match cassie
         .midge
-        .scan_time_series_hit_documents_controlled(index, &hits, &fields, &controls.storage_request())
+        .scan_time_series_hit_documents_controlled(
+            index,
+            &hits,
+            &fields,
+            &controls.storage_request(),
+        )
         .map_err(QueryError::from)?
     {
         ControlledTimeSeriesDocumentScanOutcome::Native(report) => {

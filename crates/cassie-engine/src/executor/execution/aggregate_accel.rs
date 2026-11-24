@@ -116,7 +116,12 @@ fn execute_summary_aggregate(
     }
     let controlled = match cassie
         .midge
-        .prepare_column_batch_summaries_controlled(collection, index, fields, &controls.storage_request())
+        .prepare_column_batch_summaries_controlled(
+            collection,
+            index,
+            fields,
+            &controls.storage_request(),
+        )
         .map_err(QueryError::from)?
     {
         ControlledColumnBatchSummaryDecision::Ready(controlled) => controlled,

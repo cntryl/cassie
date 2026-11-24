@@ -124,11 +124,8 @@ impl FulltextRequestReads for Midge {
         id: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Option<RetrievalDocument>, CassieError> {
-        let document = self.get_retrieval_document_with_request(
-            collection,
-            id,
-            &controls.storage_request(),
-        )?;
+        let document =
+            self.get_retrieval_document_with_request(collection, id, &controls.storage_request())?;
         Ok(document.map(RetrievalDocument))
     }
 }

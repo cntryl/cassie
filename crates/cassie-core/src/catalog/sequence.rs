@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::declarations::{SequenceOptions, SequencePersistence};
 use crate::types::DataType;
 
-
 /// A sequence failure with PostgreSQL's SQLSTATE and message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SequenceError {
@@ -276,7 +275,6 @@ impl SequenceCursor {
         Ok(())
     }
 }
-
 
 /// The column that owns a sequence (`OWNED BY table.column`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

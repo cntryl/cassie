@@ -28,8 +28,10 @@ impl ColumnFieldSelection {
             .filter(|(_, field)| {
                 projection.is_none_or(|selected| {
                     selected.contains(
-                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name)
-                            .lookup_key(),
+                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(
+                            &field.name,
+                        )
+                        .lookup_key(),
                     )
                 })
             })
@@ -108,14 +110,14 @@ impl crate::adapter::Midge {
         tx: &crate::adapter::AdapterTransaction,
         row: ColumnRowRef<'_>,
         field: &RowFieldMeta,
-    ) -> Result<Option<serde_json::Value>,crate::adapter::CassieError> {
+    ) -> Result<Option<serde_json::Value>, crate::adapter::CassieError> {
         let raw = tx
             .get(&Self::column_store_field_key(
                 row.row_schema.relation_id,
                 field.field_id,
                 row.id,
             ))
-            .map_err( crate::adapter::CassieError::from)?;
+            .map_err(crate::adapter::CassieError::from)?;
         let counters = self.column_field_reads();
         match raw {
             Some(raw) => {

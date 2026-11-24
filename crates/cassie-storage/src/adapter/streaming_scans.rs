@@ -1,6 +1,5 @@
 use super::{
-    key_encoding, CassieError,
-    DocumentRef, HashSet, Midge, OrderedRowScanRequest, Query, RowDecode,
+    key_encoding, CassieError, DocumentRef, HashSet, Midge, OrderedRowScanRequest, Query, RowDecode,
 };
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
@@ -55,10 +54,10 @@ impl CursorStorage {
 }
 
 pub struct MidgeRowCursor {
-    tx:crate::adapter::DataReadTransaction,
+    tx: crate::adapter::DataReadTransaction,
     prefix: Vec<u8>,
     last_key: Option<Vec<u8>>,
-    row_schema:crate::row_blob::RowSchema,
+    row_schema: crate::row_blob::RowSchema,
     projection: Option<HashSet<String>>,
     column_fields: super::ColumnFieldSelection,
     include_historical_aliases: bool,
@@ -87,11 +86,7 @@ impl MidgeRowCursor {
     /// Lets a column-table scan skip whole segments that a conjunctive filter
     /// excludes. Skipping is purely an optimization: only verified summaries
     /// skip, and every other segment is read as usual.
-    pub fn set_column_pruning(
-        &mut self,
-        midge: &Midge,
-        filter: &super::ColumnBatchScanFilter,
-    ) {
+    pub fn set_column_pruning(&mut self, midge: &Midge, filter: &super::ColumnBatchScanFilter) {
         if self.storage == CursorStorage::Row || !midge.column_pruning_enabled() {
             return;
         }
@@ -259,15 +254,17 @@ impl MidgeRowCursor {
                                 self.tx.value_hooks(),
                             )?
                         }
-                        Some(projection) => {
-                            crate::adapter::decode_projected_row_with_hooks(
-                                &self.row_schema,
-                                &raw_value,
-                                projection,
-                                self.tx.value_hooks(),
-                            )?
-                        }
-                        None => super::decode_row_with_hooks(&self.row_schema, &raw_value, self.tx.value_hooks())?,
+                        Some(projection) => crate::adapter::decode_projected_row_with_hooks(
+                            &self.row_schema,
+                            &raw_value,
+                            projection,
+                            self.tx.value_hooks(),
+                        )?,
+                        None => super::decode_row_with_hooks(
+                            &self.row_schema,
+                            &raw_value,
+                            self.tx.value_hooks(),
+                        )?,
                     };
                     Ok(Some(DocumentRef { id, payload }))
                 },

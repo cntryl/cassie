@@ -3,8 +3,8 @@
 use std::io::{self, Read};
 
 use super::{CassieError, Midge};
-use crate::adapter::{StorageOverlay, TransactionMode};
 use crate::adapter::StorageRequestContext;
+use crate::adapter::{StorageOverlay, TransactionMode};
 
 #[cfg(test)]
 #[path = "copy_identity_tests.rs"]
@@ -103,9 +103,17 @@ impl Midge {
         id: &str,
         bytes: Vec<u8>,
     ) -> Result<(), CassieError> {
-        let mut tx = self.transaction(crate::adapter::StorageFamily::Data, TransactionMode::ReadWrite)?;
-        tx.put(crate::adapter::key_encoding::doc_key(collection, id), bytes, None)?;
-        tx.commit(self.write_options_sync()).map_err(CassieError::from)
+        let mut tx = self.transaction(
+            crate::adapter::StorageFamily::Data,
+            TransactionMode::ReadWrite,
+        )?;
+        tx.put(
+            crate::adapter::key_encoding::doc_key(collection, id),
+            bytes,
+            None,
+        )?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// Returns the exact persisted row key prefix for a retained-read fixture.

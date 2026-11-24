@@ -10,17 +10,16 @@ mod routine_body;
 #[path = "access_table_privilege.rs"]
 mod table_privilege_checks;
 pub use table_privilege_checks::relation_readable;
-pub(crate) use table_privilege_checks::{require_table_read, session_is_unprivileged, table_privilege};
+pub(crate) use table_privilege_checks::{
+    require_table_read, session_is_unprivileged, table_privilege,
+};
 
 #[path = "access_graph_table.rs"]
 mod graph_table;
 
 impl CassieSession {
     #[doc(hidden)]
-    pub fn authorize_statement(
-        &self,
-        statement: &QueryStatement,
-    ) -> Result<(), CassieError> {
+    pub fn authorize_statement(&self, statement: &QueryStatement) -> Result<(), CassieError> {
         if self.is_authenticated_read_only()
             && matches!(statement, QueryStatement::Set(setting) if setting.variable.eq_ignore_ascii_case("role"))
         {

@@ -1,8 +1,8 @@
 //! Admitted immutable storage overlay for a COPY command owner.
 
 use super::{Arc, CassieError, ExpectedStorageValue, StorageMutation, StorageOverlay};
-use cassie_core::request::accounted::retained::{add, mul};
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use cassie_core::request::accounted::retained::{add, mul};
 use std::collections::BTreeMap;
 use std::mem::size_of;
 

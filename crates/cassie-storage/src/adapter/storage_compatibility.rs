@@ -1,7 +1,7 @@
 //! Monotonic minimum-reader admission using the existing schema-family marker.
 use super::Midge;
-use crate::adapter::CassieError;
 use crate::adapter::key_encoding;
+use crate::adapter::CassieError;
 use cntryl_midge::TransactionMode;
 
 pub(super) const V020_LAYOUT_VERSION: &str = "cassie-midge-layout-v2-0.2.0";
@@ -117,9 +117,7 @@ impl Midge {
         let marker = read
             .get(&key_encoding::layout_marker_key())
             .map_err(CassieError::from)?
-            .ok_or_else(|| {
-                Self::missing_layout_marker( crate::adapter::SCHEMA_FAMILY_NAME)
-            })?;
+            .ok_or_else(|| Self::missing_layout_marker(crate::adapter::SCHEMA_FAMILY_NAME))?;
         Compatibility::parse(&marker)
             .map(Compatibility::as_str)
             .ok_or_else(|| Self::incompatible_layout_marker(&marker))
@@ -142,9 +140,7 @@ impl Midge {
         let marker = transaction
             .get(&key)
             .map_err(CassieError::from)?
-            .ok_or_else(|| {
-                Self::missing_layout_marker( crate::adapter::SCHEMA_FAMILY_NAME)
-            })?;
+            .ok_or_else(|| Self::missing_layout_marker(crate::adapter::SCHEMA_FAMILY_NAME))?;
         let current = Compatibility::parse(&marker)
             .ok_or_else(|| Self::incompatible_layout_marker(&marker))?;
         if required == Compatibility::V1 || required < current {

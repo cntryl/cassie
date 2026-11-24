@@ -1,7 +1,10 @@
-pub use cassie_core::catalog::enum_type::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
 use super::domain_types::same_stored_relation;
-use super::{canonical_relation_name, local_name, name_matches, parse_name, relation_database_name, relation_schema_name, Catalog, ParsedName};
+use super::{
+    canonical_relation_name, local_name, name_matches, parse_name, relation_database_name,
+    relation_schema_name, Catalog, ParsedName,
+};
 use crate::types::DataType;
+pub use cassie_core::catalog::enum_type::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
 
 /// One object that keeps an enum type alive.
 #[derive(Debug, Clone, PartialEq, Eq)]

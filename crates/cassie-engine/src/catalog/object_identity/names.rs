@@ -4,7 +4,9 @@ use std::borrow::Cow;
 
 use crate::catalog::builtin_identity::builtin_identities;
 use crate::types::ObjectIdentifierError;
-pub(super) use cassie_core::catalog::identifier::{leading_qualified_name, qualified_name, Identifier};
+pub(super) use cassie_core::catalog::identifier::{
+    leading_qualified_name, qualified_name, Identifier,
+};
 
 /// Splits `name(arg, arg)` into the name and its argument texts.
 pub(super) fn signature(text: &str) -> Result<(String, Vec<String>), ObjectIdentifierError> {

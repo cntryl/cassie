@@ -22,7 +22,9 @@ struct ProjectionPauseCleanup(Option<cassie::runtime::test_sync::TestBarrierClea
 impl ProjectionPauseCleanup {
     fn arm(pairs: impl IntoIterator<Item = (Arc<Barrier>, Arc<Barrier>)>) -> Self {
         Self(Some(cassie::runtime::test_sync::TestBarrierCleanup::arm(
-            pairs.into_iter().flat_map(|(ready, resume)| [ready, resume]),
+            pairs
+                .into_iter()
+                .flat_map(|(ready, resume)| [ready, resume]),
         )))
     }
 

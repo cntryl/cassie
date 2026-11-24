@@ -159,7 +159,10 @@ fn should_reclaim_only_retired_rows_after_a_recreated_target_commits() {
         fixture
             .cassie
             .midge
-            .raw_scan_prefix(StorageFamily::Data, &Midge::row_prefix_for_copy_identity_test(old_id))
+            .raw_scan_prefix(
+                StorageFamily::Data,
+                &Midge::row_prefix_for_copy_identity_test(old_id)
+            )
             .expect("retired rows"),
         Vec::new()
     );

@@ -1,6 +1,6 @@
 use super::{
-    check_document_write_failure_point, encode_row, key_encoding, CassieError,
-    DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
+    check_document_write_failure_point, encode_row, key_encoding, CassieError, DataType,
+    DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
     RowSchema, Schema, Uuid,
 };
 use std::collections::BTreeMap;
@@ -287,12 +287,7 @@ impl Midge {
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        self.apply_document_write_batches_with_storage_overlay::<()>(
-            writes,
-            options,
-            None,
-            None,
-        )
+        self.apply_document_write_batches_with_storage_overlay::<()>(writes, options, None, None)
     }
 
     pub fn apply_document_write_batches_with_transactional_ddl(
@@ -765,9 +760,11 @@ impl Midge {
         let legacy_raw = tx.get(&legacy_key).map_err(CassieError::from)?;
         let payload = if context.needs_existing_payload {
             match (row_raw.as_ref(), legacy_raw.as_ref()) {
-                (Some(raw), _) | (None, Some(raw)) => Some(
-                    super::decode_row_with_hooks(&context.row_schema, raw, tx.value_hooks())?,
-                ),
+                (Some(raw), _) | (None, Some(raw)) => Some(super::decode_row_with_hooks(
+                    &context.row_schema,
+                    raw,
+                    tx.value_hooks(),
+                )?),
                 (None, None) => None,
             }
         } else {
@@ -1023,8 +1020,7 @@ impl Midge {
             }
         }
         let needs_graph_validation = schema.fields.iter().any(|field| {
-            map.get(&field.name)
-                .is_some_and(|value| !value.is_null())
+            map.get(&field.name).is_some_and(|value| !value.is_null())
                 && cassie_core::types::graph_identity::mentions_reserved(&field.data_type)
         });
         if needs_graph_validation {

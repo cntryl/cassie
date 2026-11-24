@@ -419,9 +419,10 @@ fn should_replay_field_rename_data_after_schema_commit_interruption() {
 
     // Act
     set_field_rename_failure_point(true);
-    let interrupted = cassie
-        .midge
-        .alter_collection_rename_column("field_rename_recovery", "before", "after");
+    let interrupted =
+        cassie
+            .midge
+            .alter_collection_rename_column("field_rename_recovery", "before", "after");
     drop(cassie);
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("replay field rename");

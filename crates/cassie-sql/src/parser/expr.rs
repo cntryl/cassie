@@ -849,7 +849,8 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
 
-    let path = crate::column_identifier::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
+    let path =
+        crate::column_identifier::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     Ok(Expr::Column(path.lookup_key()))
 }
 
@@ -892,9 +893,9 @@ fn bit_string_literal(raw: &str, quote: usize) -> Result<Option<Expr>, SqlError>
         .map_err(|error| SqlError::new(error.message))?;
     Ok(Some(Expr::Cast {
         expr: Box::new(Expr::StringLiteral(text)),
-        data_type: cassie_core::types::DataType::Extended(cassie_core::types::extended::ExtendedType::Bit {
-            length: None,
-        }),
+        data_type: cassie_core::types::DataType::Extended(
+            cassie_core::types::extended::ExtendedType::Bit { length: None },
+        ),
         source_type: None,
         identity: crate::ast::CastIdentity::Scalar,
     }))
@@ -958,7 +959,9 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
 fn exact_numeric_operand(operand: Expr, raw: &str, target: &cassie_core::types::DataType) -> Expr {
     if !matches!(
         target,
-        cassie_core::types::DataType::Extended(cassie_core::types::extended::ExtendedType::Numeric(_))
+        cassie_core::types::DataType::Extended(
+            cassie_core::types::extended::ExtendedType::Numeric(_)
+        )
     ) || !matches!(operand, Expr::NumberLiteral(_))
     {
         return operand;

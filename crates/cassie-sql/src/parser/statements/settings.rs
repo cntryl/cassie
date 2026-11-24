@@ -28,9 +28,7 @@ pub(in crate::parser) fn parse_show_statement(sql: &str) -> Result<ParsedStateme
     })
 }
 
-pub(in crate::parser) fn parse_reset_statement(
-    sql: &str,
-) -> Result<ParsedStatement, SqlError> {
+pub(in crate::parser) fn parse_reset_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let sql = sql.trim().trim_end_matches(';').trim();
     let variable = lexical::trim_separators(&sql[5..]);
     if variable.is_empty() || variable.split_whitespace().count() != 1 {

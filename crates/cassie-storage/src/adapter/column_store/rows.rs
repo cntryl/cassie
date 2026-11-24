@@ -159,7 +159,9 @@ impl Midge {
             // D1: validate the fields this scan reads (selection plus the
             // filter field) and the markers, not every field of the table.
             let filter_field = request.filter.and_then(|filter| {
-                let reference = cassie_sql::column_identifier::ColumnIdentifierPath::parse(&filter.field).ok()?;
+                let reference =
+                    cassie_sql::column_identifier::ColumnIdentifierPath::parse(&filter.field)
+                        .ok()?;
                 request
                     .row_schema
                     .fields

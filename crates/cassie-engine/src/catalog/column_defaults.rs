@@ -10,21 +10,30 @@
 use crate::types::DataType;
 use serde_json::Value;
 
-use cassie_sql::default_expression::VolatileDefault;
 pub use cassie_sql::default_expression::parse_volatile_default_expression;
+use cassie_sql::default_expression::VolatileDefault;
 
 /// Whether `expression` is a supported volatile default whose value a column
 /// of `data_type` can hold.
 #[must_use]
 pub fn volatile_default_accepts(expression: &str, data_type: &DataType) -> bool {
-    let Some(default) = VolatileDefault::parse(expression) else { return false; };
+    let Some(default) = VolatileDefault::parse(expression) else {
+        return false;
+    };
     let textual = matches!(data_type, DataType::Text | DataType::Varchar { .. });
     match default {
-        VolatileDefault::Now | VolatileDefault::CurrentTimestamp | VolatileDefault::LocalTimestamp => {
-            textual || matches!(data_type, DataType::Timestamp | DataType::Extended(
-                crate::types::extended::ExtendedType::Timestamp { .. }
-                    | crate::types::extended::ExtendedType::TimestampTz { .. }
-            ))
+        VolatileDefault::Now
+        | VolatileDefault::CurrentTimestamp
+        | VolatileDefault::LocalTimestamp => {
+            textual
+                || matches!(
+                    data_type,
+                    DataType::Timestamp
+                        | DataType::Extended(
+                            crate::types::extended::ExtendedType::Timestamp { .. }
+                                | crate::types::extended::ExtendedType::TimestampTz { .. }
+                        )
+                )
         }
         VolatileDefault::CurrentDate => textual || matches!(data_type, DataType::Date),
         VolatileDefault::RandomUuid => textual || matches!(data_type, DataType::Uuid),
@@ -37,16 +46,21 @@ pub fn volatile_default_accepts(expression: &str, data_type: &DataType) -> bool 
 #[must_use]
 pub fn evaluate_volatile_default(expression: &str) -> Option<Value> {
     match VolatileDefault::parse(expression)? {
-        VolatileDefault::Now | VolatileDefault::CurrentTimestamp | VolatileDefault::LocalTimestamp => {
+        VolatileDefault::Now
+        | VolatileDefault::CurrentTimestamp
+        | VolatileDefault::LocalTimestamp => {
             let now = time::OffsetDateTime::now_utc();
             Some(Value::String(format!(
                 "{}T{:02}:{:02}:{:02}.{:06}Z",
                 crate::types::temporal::format_date(now.date()),
-                now.hour(), now.minute(), now.second(), now.microsecond()
+                now.hour(),
+                now.minute(),
+                now.second(),
+                now.microsecond()
             )))
         }
         VolatileDefault::CurrentDate => Some(Value::String(crate::types::temporal::format_date(
-            time::OffsetDateTime::now_utc().date()
+            time::OffsetDateTime::now_utc().date(),
         ))),
         VolatileDefault::RandomUuid => Some(Value::String(uuid::Uuid::new_v4().to_string())),
     }

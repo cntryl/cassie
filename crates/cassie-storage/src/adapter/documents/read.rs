@@ -1,7 +1,6 @@
 use super::super::{
-    key_encoding, CassieError,
-    ColumnStoreScanRequest, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, Query,
-    RowDecode, RowFilter, RowSchema,
+    key_encoding, CassieError, ColumnStoreScanRequest, DocumentRef, HashSet, Instant, Midge,
+    MidgeScanTimings, Query, RowDecode, RowFilter, RowSchema,
 };
 use std::time::Duration;
 
@@ -276,15 +275,17 @@ impl Midge {
 
                 let decode_started = Instant::now();
                 let payload = match (projection, filter) {
-                    (Some(projection), Some(filter)) => crate::adapter::decode_projected_row_matching_with_aliases_and_hooks(
-                        row_schema,
-                        &raw_value,
-                        projection,
-                        &filter.field,
-                        &filter.value,
-                        include_historical_aliases,
-                        &self.value_hooks(),
-                    )?,
+                    (Some(projection), Some(filter)) => {
+                        crate::adapter::decode_projected_row_matching_with_aliases_and_hooks(
+                            row_schema,
+                            &raw_value,
+                            projection,
+                            &filter.field,
+                            &filter.value,
+                            include_historical_aliases,
+                            &self.value_hooks(),
+                        )?
+                    }
                     (Some(projection), None) => Some(if include_historical_aliases {
                         crate::adapter::decode_projected_row_with_aliases_and_hooks(
                             row_schema,
@@ -300,7 +301,11 @@ impl Midge {
                             &self.value_hooks(),
                         )?
                     }),
-                    (None, _) => Some(super::super::decode_row_with_hooks(row_schema, &raw_value, &self.value_hooks())?),
+                    (None, _) => Some(super::super::decode_row_with_hooks(
+                        row_schema,
+                        &raw_value,
+                        &self.value_hooks(),
+                    )?),
                 };
                 row_decode += decode_started.elapsed();
                 let Some(payload) = payload else {

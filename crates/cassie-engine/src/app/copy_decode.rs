@@ -45,7 +45,10 @@ pub fn copy_text(
         controls.request_memory(),
     );
     let (text, memory) = cassie_core::request::text::copy_text(value, &request)?;
-    Ok((text, crate::runtime::QueryMemoryReservation::from_core(memory)))
+    Ok((
+        text,
+        crate::runtime::QueryMemoryReservation::from_core(memory),
+    ))
 }
 
 impl From<cassie_core::request::text::TextError> for CassieError {

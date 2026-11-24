@@ -105,12 +105,7 @@ fn should_preserve_durable_state_when_create_retry_cannot_be_proven() {
         let cassie = open(&path);
         cassie.startup().unwrap();
         let (seed, replacement) = retry_create(&cassie);
-        hooks::persist_ambiguity(
-            &cassie.midge,
-            &seed,
-            &replacement.physical_family,
-            problem,
-        );
+        hooks::persist_ambiguity(&cassie.midge, &seed, &replacement.physical_family, problem);
         let before = hooks::snapshot(&cassie.midge);
         drop(cassie);
 

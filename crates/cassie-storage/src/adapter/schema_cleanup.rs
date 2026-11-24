@@ -482,8 +482,8 @@ impl Midge {
 #[cfg(test)]
 mod tests {
     use super::{key_encoding, Midge, PendingSchemaCleanup, PendingSchemaCleanupAction, Uuid};
-    use crate::catalog::{IndexKind, IndexMeta};
     use crate::adapter::StorageFamily;
+    use crate::catalog::{IndexKind, IndexMeta};
 
     #[test]
     fn should_preserve_ambiguous_cleanup_publication_pair_after_restart() {
@@ -517,9 +517,9 @@ mod tests {
             options: std::collections::BTreeMap::new(),
         };
         midge.put_index(&index).expect("index");
-crate::adapter::set_index_publication_failure_point(true);
+        crate::adapter::set_index_publication_failure_point(true);
         let prepared = midge.put_index(&index);
-crate::adapter::set_index_publication_failure_point(false);
+        crate::adapter::set_index_publication_failure_point(false);
         assert!(prepared.is_err(), "leave journal for recovery");
         let collection = midge.canonical_collection_name(&index.collection);
         let cleanup = PendingSchemaCleanup {
@@ -654,9 +654,12 @@ crate::adapter::set_index_publication_failure_point(false);
             .expect("row");
         let controls = crate::adapter::request_test_support::TestRequest::default();
         let snapshot = crate::adapter::NativeStatementSnapshot::capture(
-            &midge, "postgres", &controls.context(), false,
+            &midge,
+            "postgres",
+            &controls.context(),
+            false,
         )
-                .expect("old snapshot");
+        .expect("old snapshot");
         let index = IndexMeta {
             definition_semantics_version: 0,
             collection: "cleanup_snapshot".to_owned(),
@@ -696,7 +699,7 @@ crate::adapter::set_index_publication_failure_point(false);
 
         // Act
         {
-            let _scope =crate::adapter::NativeStatementReadScope::enter(Some(&snapshot), None);
+            let _scope = crate::adapter::NativeStatementReadScope::enter(Some(&snapshot), None);
             midge
                 .complete_pending_schema_cleanup(&cleanup)
                 .expect("current cleanup");
@@ -754,7 +757,7 @@ crate::adapter::set_index_publication_failure_point(false);
             .pop()
             .expect("cleanup");
         let overlay = std::sync::Arc::new(parking_lot::Mutex::new(
-crate::adapter::StorageOverlay::default(),
+            crate::adapter::StorageOverlay::default(),
         ));
         let scoped = {
             let _scope = midge

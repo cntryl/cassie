@@ -186,14 +186,15 @@ impl CassieSession {
     ) -> Result<(), CassieError> {
         let transaction = self.transaction.lock();
         let overlay = transaction.storage_overlay.lock();
-        overlay.prune_sequence_cursors_with(
-            transaction
-                .savepoints
-                .iter()
-                .map(|savepoint| &savepoint.storage_overlay),
-            &controls.storage_request(),
-        )
-        .map_err(CassieError::from)
+        overlay
+            .prune_sequence_cursors_with(
+                transaction
+                    .savepoints
+                    .iter()
+                    .map(|savepoint| &savepoint.storage_overlay),
+                &controls.storage_request(),
+            )
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn transaction_storage_overlay(

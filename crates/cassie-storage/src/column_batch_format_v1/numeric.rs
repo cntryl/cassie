@@ -1,8 +1,8 @@
 //! Primitive CBC1 numeric decode. Framing and validity share the existing parser.
-use super::binary::{Reader, invalid};
+use super::binary::{invalid, Reader};
 use super::chunk::{
-    BLOCK_LEN, Codec, LogicalType, MAX_CHUNK_BYTES, MAX_SCALAR_BYTES, bit_is_set, checked_count,
-    decode_for_blocks, parse_chunk,
+    bit_is_set, checked_count, decode_for_blocks, parse_chunk, Codec, LogicalType, BLOCK_LEN,
+    MAX_CHUNK_BYTES, MAX_SCALAR_BYTES,
 };
 use crate::StorageCodecError;
 

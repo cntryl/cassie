@@ -38,7 +38,9 @@ pub fn with_type_scope<R>(resolver: TypeResolver, parse: impl FnOnce() -> R) -> 
 /// # Errors
 ///
 /// Returns the parse error when `raw` names neither a built-in nor a scoped type.
-pub fn parse_data_type_in_scope(raw: &str) -> Result<cassie_core::types::DataType, super::SqlError> {
+pub fn parse_data_type_in_scope(
+    raw: &str,
+) -> Result<cassie_core::types::DataType, super::SqlError> {
     super::domain_scope::parse_declared_data_type(raw)
 }
 

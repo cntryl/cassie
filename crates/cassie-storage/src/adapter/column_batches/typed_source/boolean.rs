@@ -3,9 +3,9 @@ use super::super::storage_v1;
 use super::super::CURRENT_COLUMN_BATCH_CODEC_VERSION;
 use super::numeric::Loaded;
 use crate::adapter::CassieError;
+use crate::adapter::{ColumnBatchScanFallbackReason, Midge};
 use crate::catalog::{ColumnBatchChunkMeta, ColumnBatchSegmentMeta};
 use crate::column_batch_format_v1::decode_boolean_column_chunk;
-use crate::adapter::{ColumnBatchScanFallbackReason, Midge};
 
 pub(super) fn load(
     tx: &crate::adapter::AdapterTransaction,

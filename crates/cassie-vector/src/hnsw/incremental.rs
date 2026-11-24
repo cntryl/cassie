@@ -25,10 +25,8 @@ use super::{
     deterministic_level, graph_distance, pop_nearest, GraphDistanceQuery, OrderedCandidateSet,
     SearchCandidate,
 };
+use crate::source_fingerprint::{fold_record_fingerprint, normalized_vector_record_fingerprint};
 use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord};
-use crate::source_fingerprint::{
-    fold_record_fingerprint, normalized_vector_record_fingerprint,
-};
 
 /// Why localized maintenance stopped.
 #[derive(Debug)]
@@ -38,7 +36,6 @@ pub enum MaintainError<E> {
     /// The persisted graph contradicts itself; repair it by a full rebuild.
     Inconsistent(&'static str),
 }
-
 
 /// Persisted graph header a maintenance run starts from.
 pub struct MaintainerSeed {

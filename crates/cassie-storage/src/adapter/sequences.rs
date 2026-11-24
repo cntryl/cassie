@@ -165,7 +165,7 @@ impl Midge {
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind:crate::adapter::CatalogObjectKind::Sequence,
+                kind: crate::adapter::CatalogObjectKind::Sequence,
                 name: name.to_string(),
             })?
             .name;
@@ -174,7 +174,7 @@ impl Midge {
             .get(&key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind:crate::adapter::CatalogObjectKind::Sequence,
+                kind: crate::adapter::CatalogObjectKind::Sequence,
                 name: name.to_string(),
             })?;
         let mut metadata: crate::catalog::SequenceMeta =

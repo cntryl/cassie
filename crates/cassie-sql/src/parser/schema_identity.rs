@@ -68,5 +68,7 @@ pub(super) fn attach_identity_sequence(constraint: &mut FieldConstraint, table: 
     constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
     constraint.default_sequence = Some(sequence.clone());
     constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
-    constraint.default_expression = Some(crate::sequence_default::canonical_nextval_expression(&sequence));
+    constraint.default_expression = Some(crate::sequence_default::canonical_nextval_expression(
+        &sequence,
+    ));
 }

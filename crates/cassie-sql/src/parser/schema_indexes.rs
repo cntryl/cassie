@@ -382,9 +382,7 @@ pub(in crate::parser) fn parse_index_kind(
     Err(SqlError::new("unsupported index method".to_string()))
 }
 
-pub(in crate::parser) fn parse_index_fields(
-    raw: &str,
-) -> Result<ParsedIndexFields<'_>, SqlError> {
+pub(in crate::parser) fn parse_index_fields(raw: &str) -> Result<ParsedIndexFields<'_>, SqlError> {
     let raw = raw.trim();
     if !raw.starts_with('(') {
         return Err(SqlError::new(
@@ -668,9 +666,7 @@ fn reject_reserved_index_options(
     Ok(())
 }
 
-pub(in crate::parser) fn parse_reindex_statement(
-    sql: &str,
-) -> Result<ParsedStatement, SqlError> {
+pub(in crate::parser) fn parse_reindex_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let mut remainder = trimmed["reindex".len()..].trim();
 

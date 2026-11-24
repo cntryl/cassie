@@ -46,6 +46,7 @@ pub use cardinality::{
     vector_index_cardinality_key, CollectionCardinalityStats, FieldCardinalityStats,
     FieldHeavyHitter, FieldHistogramBucket, IndexCardinalityStats,
 };
+pub(crate) use collections::is_sql_materialized_view;
 pub use collections::{
     materialized_output_collection, CollectionMeta, CollectionStorageMode,
     MaterializedProjectionMeta, MaterializedProjectionSpec, MaterializedProjectionState,
@@ -55,7 +56,6 @@ pub use collections::{
     ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
     ProjectionVersionMeta, ProjectionVersionState,
 };
-pub(crate) use collections::is_sql_materialized_view;
 pub use column_defaults::{
     coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
     volatile_default_accepts,
@@ -80,11 +80,11 @@ pub use constraints::{
 };
 pub use domain_types::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
 pub use enum_types::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
+pub(crate) use indexes::EngineIndexMetaExt;
 pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
     ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind, IndexMeta,
 };
-pub(crate) use indexes::EngineIndexMetaExt;
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
 pub(crate) use metadata::ControlledCatalogSnapshot;
@@ -98,6 +98,9 @@ pub use property_graphs::{
 };
 pub use user_type_resolution::UserType;
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
+pub use cassie_sql::sequence_default::{
+    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
+};
 pub use programs::{
     ExtensionMeta, FunctionArgMeta, FunctionMeta, ProcedureMeta, VectorAnnCatalogIdentityIds,
     VectorCatalogIdentitySet, VectorDistanceOperatorIds, ViewMeta, Volatility,
@@ -125,7 +128,4 @@ pub use scope::{
 pub use sequences::{
     SequenceCursor, SequenceError, SequenceMeta, SequenceOptions, SequenceOwner,
     SequenceParameters, SequencePersistence,
-};
-pub use cassie_sql::sequence_default::{
-    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
 };

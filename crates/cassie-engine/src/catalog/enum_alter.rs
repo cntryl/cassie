@@ -4,8 +4,8 @@
 //! one; the previous value is never mutated. Member identities and the
 //! relative order of existing members never change, so stored rows and index
 //! keys stay valid across `ADD VALUE`, `RENAME VALUE` and a renumbering.
-pub use cassie_core::catalog::enum_type::AddValuePlan;
 pub use cassie_core::catalog::composite_type::TypeAlterError;
+pub use cassie_core::catalog::enum_type::AddValuePlan;
 use cassie_core::catalog::enum_type::EnumTypeMeta;
 
 #[cfg(test)]

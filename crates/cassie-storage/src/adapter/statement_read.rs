@@ -141,7 +141,8 @@ impl<'a> StorageRequestContext<'a> {
 
     #[must_use]
     pub fn is_timed_out(&self) -> bool {
-        self.deadline().is_some_and(|deadline| Instant::now() >= deadline)
+        self.deadline()
+            .is_some_and(|deadline| Instant::now() >= deadline)
     }
 
     #[must_use]
@@ -165,7 +166,10 @@ impl<'a> StorageRequestContext<'a> {
         self.memory.reserve(bytes).map_err(CassieError::from)
     }
 
-    pub fn reserve_query_memory(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
+    pub fn reserve_query_memory(
+        &self,
+        bytes: usize,
+    ) -> Result<RequestMemoryReservation, CassieError> {
         self.reserve(bytes)
     }
 
@@ -174,9 +178,7 @@ impl<'a> StorageRequestContext<'a> {
         reservation: &mut RequestMemoryReservation,
         bytes: usize,
     ) -> Result<(), CassieError> {
-        reservation
-            .try_grow(bytes)
-            .map_err(CassieError::from)
+        reservation.try_grow(bytes).map_err(CassieError::from)
     }
 }
 
@@ -266,8 +268,10 @@ impl NativeStatementSnapshot {
         midge: &Arc<Midge>,
         database: &str,
     ) -> Result<bool, CassieError> {
-        Ok(self.matches(midge, database)
-            && midge.database_family(database)?.id() == self.family_id)
+        Ok(
+            self.matches(midge, database)
+                && midge.database_family(database)?.id() == self.family_id,
+        )
     }
 
     #[must_use]
@@ -312,9 +316,7 @@ pub struct DataReadTransaction {
 }
 
 impl DataReadTransaction {
-    pub(super) fn checkpoint_storage(
-        &self,
-    ) -> Option<&Arc<super::CheckpointStorageSnapshot>> {
+    pub(super) fn checkpoint_storage(&self) -> Option<&Arc<super::CheckpointStorageSnapshot>> {
         self.shared.as_ref()?.checkpoint_storage.as_ref()
     }
 

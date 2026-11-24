@@ -13,7 +13,11 @@ struct Controls {
 
 impl Controls {
     fn context(&self) -> StorageRequestContext<'_> {
-        StorageRequestContext::new(None, Interruption::new(None, &self.cancellation), &self.memory)
+        StorageRequestContext::new(
+            None,
+            Interruption::new(None, &self.cancellation),
+            &self.memory,
+        )
     }
 }
 
@@ -46,7 +50,10 @@ fn fixture(column_store: bool) -> (Arc<Midge>, u64) {
             &CollectionMeta::new_with_storage_mode("row_fence", None, storage_mode),
         )
         .expect("table");
-    let identity = midge.row_schema("row_fence").expect("row schema").relation_id;
+    let identity = midge
+        .row_schema("row_fence")
+        .expect("row schema")
+        .relation_id;
     midge
         .put_document(
             "row_fence",
@@ -95,7 +102,8 @@ fn should_allow_disjoint_rows_to_change_the_shared_data_epoch() {
     // Arrange
     let (midge, identity) = fixture(false);
     let origin = controls(1024 * 1024);
-    let fence = RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
+    let fence =
+        RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
     let before = midge.data_epoch().expect("old epoch");
     midge
         .put_document(
@@ -121,7 +129,8 @@ fn should_allow_a_new_row_after_completed_insert_delete() {
     // Arrange
     let (midge, identity) = fixture(false);
     let origin = controls(1024 * 1024);
-    let fence = RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
+    let fence =
+        RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
     midge
         .put_document(
             "row_fence",
@@ -148,16 +157,20 @@ fn should_cancel_after_the_final_row_assertions_are_retained() {
     // Arrange
     let (midge, identity) = fixture(false);
     let origin = controls(1024 * 1024);
-    let fence = RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
+    let fence =
+        RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
     let current = controls(1024 * 1024);
     let mut retained = false;
 
     // Act
-    let result =
-        fence.validate_rows_observed([Ok(("row_fence", identity, "one"))], &current.context(), || {
+    let result = fence.validate_rows_observed(
+        [Ok(("row_fence", identity, "one"))],
+        &current.context(),
+        || {
             retained = current.memory.current_bytes() > 0;
             current.cancellation.cancel();
-        });
+        },
+    );
 
     // Assert
     assert!(retained);
@@ -171,7 +184,8 @@ fn should_release_admitted_inputs_after_a_small_commit_budget_rejects_the_row() 
     // Arrange
     let (midge, identity) = fixture(false);
     let origin = controls(1024 * 1024);
-    let fence = RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
+    let fence =
+        RetainedRowFence::capture(&midge, "postgres", &origin.context()).expect("old fence");
     let current = controls(1);
 
     // Act
@@ -213,12 +227,12 @@ fn should_reject_a_legacy_row_rewrite_after_the_retained_start() {
 
     // Assert
     assert!(matches!(
-            result,
-            Err(CassieError::Transaction {
-                kind: TransactionErrorKind::SerializationFailure,
-                ..
-            })
-        ));
+        result,
+        Err(CassieError::Transaction {
+            kind: TransactionErrorKind::SerializationFailure,
+            ..
+        })
+    ));
     assert_eq!(origin.memory.current_bytes(), 0);
     assert_eq!(current.memory.current_bytes(), 0);
 }

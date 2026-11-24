@@ -18,7 +18,10 @@ pub enum TextError {
 impl<'a> TextRequest<'a> {
     #[must_use]
     pub const fn new(interruption: Interruption<'a>, memory: &'a RequestMemory) -> Self {
-        Self { interruption, memory }
+        Self {
+            interruption,
+            memory,
+        }
     }
 
     pub(crate) fn check_interruption(&self) -> Result<(), TextError> {

@@ -20,9 +20,7 @@ impl MapAttachment for JsonTableColumn<()> {
     type Rebound<B> = JsonTableColumn<B>;
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
-            Self::Ordinality { name } => JsonTableColumn::<B>::Ordinality {
-                name,
-            },
+            Self::Ordinality { name } => JsonTableColumn::<B>::Ordinality { name },
             Self::Value(value0) => JsonTableColumn::<B>::Value(value0.rebind_attachment::<B>()),
             Self::Exists(value0) => JsonTableColumn::<B>::Exists(value0),
             Self::Nested(value0) => JsonTableColumn::<B>::Nested(value0.rebind_attachment::<B>()),
@@ -74,13 +72,20 @@ impl MapAttachment for MergeAction<()> {
     type Rebound<B> = MergeAction<B>;
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
-            Self::Update { assignments, row_subqueries } => MergeAction::<B>::Update {
+            Self::Update {
+                assignments,
+                row_subqueries,
+            } => MergeAction::<B>::Update {
                 assignments: assignments.rebind_attachment::<B>(),
                 row_subqueries: row_subqueries.rebind_attachment::<B>(),
             },
             Self::Delete => MergeAction::<B>::Delete,
             Self::DoNothing => MergeAction::<B>::DoNothing,
-            Self::Insert { columns, values, overriding } => MergeAction::<B>::Insert {
+            Self::Insert {
+                columns,
+                values,
+                overriding,
+            } => MergeAction::<B>::Insert {
                 columns,
                 values: values.rebind_attachment::<B>(),
                 overriding,
@@ -169,30 +174,54 @@ impl MapAttachment for QuerySource<()> {
             },
             Self::Collection(value0) => QuerySource::<B>::Collection(value0),
             Self::Cte(value0) => QuerySource::<B>::Cte(value0),
-            Self::TableSample { source, method, rate, repeatable } => QuerySource::<B>::TableSample {
+            Self::TableSample {
+                source,
+                method,
+                rate,
+                repeatable,
+            } => QuerySource::<B>::TableSample {
                 source: source.rebind_attachment::<B>(),
                 method,
                 rate: rate.rebind_attachment::<B>(),
                 repeatable: repeatable.rebind_attachment::<B>(),
             },
-            Self::Aliased { source, alias, column_aliases } => QuerySource::<B>::Aliased {
+            Self::Aliased {
+                source,
+                alias,
+                column_aliases,
+            } => QuerySource::<B>::Aliased {
                 source: source.rebind_attachment::<B>(),
                 alias,
                 column_aliases,
             },
-            Self::TableFunction { name, function, lateral, with_ordinality, form } => QuerySource::<B>::TableFunction {
+            Self::TableFunction {
+                name,
+                function,
+                lateral,
+                with_ordinality,
+                form,
+            } => QuerySource::<B>::TableFunction {
                 name,
                 function: function.rebind_attachment::<B>(),
                 lateral,
                 with_ordinality,
                 form: form.rebind_attachment::<B>(),
             },
-            Self::Subquery { alias, select, lateral } => QuerySource::<B>::Subquery {
+            Self::Subquery {
+                alias,
+                select,
+                lateral,
+            } => QuerySource::<B>::Subquery {
                 alias,
                 select: select.rebind_attachment::<B>(),
                 lateral,
             },
-            Self::Join { left, right, kind, on } => QuerySource::<B>::Join {
+            Self::Join {
+                left,
+                right,
+                kind,
+                on,
+            } => QuerySource::<B>::Join {
                 left: left.rebind_attachment::<B>(),
                 right: right.rebind_attachment::<B>(),
                 kind,
@@ -218,10 +247,16 @@ impl MapAttachment for QueryStatement<()> {
             Self::Truncate(value0) => QueryStatement::<B>::Truncate(value0),
             Self::Merge(value0) => QueryStatement::<B>::Merge(value0.rebind_attachment::<B>()),
             Self::Transaction(value0) => QueryStatement::<B>::Transaction(value0),
-            Self::SessionObject(value0) => QueryStatement::<B>::SessionObject(value0.rebind_attachment::<B>()),
-            Self::CreateTable(value0) => QueryStatement::<B>::CreateTable(value0.rebind_attachment::<B>()),
+            Self::SessionObject(value0) => {
+                QueryStatement::<B>::SessionObject(value0.rebind_attachment::<B>())
+            }
+            Self::CreateTable(value0) => {
+                QueryStatement::<B>::CreateTable(value0.rebind_attachment::<B>())
+            }
             Self::DropTable(value0) => QueryStatement::<B>::DropTable(value0),
-            Self::AlterTable(value0) => QueryStatement::<B>::AlterTable(value0.rebind_attachment::<B>()),
+            Self::AlterTable(value0) => {
+                QueryStatement::<B>::AlterTable(value0.rebind_attachment::<B>())
+            }
             Self::CreateSequence(value0) => QueryStatement::<B>::CreateSequence(value0),
             Self::AlterSequence(value0) => QueryStatement::<B>::AlterSequence(value0),
             Self::DropSequence(value0) => QueryStatement::<B>::DropSequence(value0),
@@ -235,37 +270,65 @@ impl MapAttachment for QueryStatement<()> {
             Self::AlterRole(value0) => QueryStatement::<B>::AlterRole(value0),
             Self::DropRole(value0) => QueryStatement::<B>::DropRole(value0),
             Self::GrantDatabaseConnect(value0) => QueryStatement::<B>::GrantDatabaseConnect(value0),
-            Self::RevokeDatabaseConnect(value0) => QueryStatement::<B>::RevokeDatabaseConnect(value0),
-            Self::CreateIndex(value0) => QueryStatement::<B>::CreateIndex(value0.rebind_attachment::<B>()),
+            Self::RevokeDatabaseConnect(value0) => {
+                QueryStatement::<B>::RevokeDatabaseConnect(value0)
+            }
+            Self::CreateIndex(value0) => {
+                QueryStatement::<B>::CreateIndex(value0.rebind_attachment::<B>())
+            }
             Self::DropIndex(value0) => QueryStatement::<B>::DropIndex(value0),
             Self::AlterIndex(value0) => QueryStatement::<B>::AlterIndex(value0),
             Self::Reindex(value0) => QueryStatement::<B>::Reindex(value0),
-            Self::CreateRollup(value0) => QueryStatement::<B>::CreateRollup(value0.rebind_attachment::<B>()),
+            Self::CreateRollup(value0) => {
+                QueryStatement::<B>::CreateRollup(value0.rebind_attachment::<B>())
+            }
             Self::RefreshRollup(value0) => QueryStatement::<B>::RefreshRollup(value0),
             Self::DropRollup(value0) => QueryStatement::<B>::DropRollup(value0),
-            Self::CreateMaterializedProjection(value0) => QueryStatement::<B>::CreateMaterializedProjection(value0),
-            Self::RefreshMaterializedProjection(value0) => QueryStatement::<B>::RefreshMaterializedProjection(value0),
-            Self::DropMaterializedProjection(value0) => QueryStatement::<B>::DropMaterializedProjection(value0),
-            Self::CreateMaterializedView(value0) => QueryStatement::<B>::CreateMaterializedView(value0),
-            Self::RefreshMaterializedView(value0) => QueryStatement::<B>::RefreshMaterializedView(value0),
+            Self::CreateMaterializedProjection(value0) => {
+                QueryStatement::<B>::CreateMaterializedProjection(value0)
+            }
+            Self::RefreshMaterializedProjection(value0) => {
+                QueryStatement::<B>::RefreshMaterializedProjection(value0)
+            }
+            Self::DropMaterializedProjection(value0) => {
+                QueryStatement::<B>::DropMaterializedProjection(value0)
+            }
+            Self::CreateMaterializedView(value0) => {
+                QueryStatement::<B>::CreateMaterializedView(value0)
+            }
+            Self::RefreshMaterializedView(value0) => {
+                QueryStatement::<B>::RefreshMaterializedView(value0)
+            }
             Self::DropMaterializedView(value0) => QueryStatement::<B>::DropMaterializedView(value0),
-            Self::RenameMaterializedView(value0) => QueryStatement::<B>::RenameMaterializedView(value0),
-            Self::AlterMaterializedProjection(value0) => QueryStatement::<B>::AlterMaterializedProjection(value0),
-            Self::DropMaterializedProjectionVersion(value0) => QueryStatement::<B>::DropMaterializedProjectionVersion(value0),
+            Self::RenameMaterializedView(value0) => {
+                QueryStatement::<B>::RenameMaterializedView(value0)
+            }
+            Self::AlterMaterializedProjection(value0) => {
+                QueryStatement::<B>::AlterMaterializedProjection(value0)
+            }
+            Self::DropMaterializedProjectionVersion(value0) => {
+                QueryStatement::<B>::DropMaterializedProjectionVersion(value0)
+            }
             Self::VerifyProjection(value0) => QueryStatement::<B>::VerifyProjection(value0),
             Self::DiffProjection(value0) => QueryStatement::<B>::DiffProjection(value0),
             Self::CompareProjection(value0) => QueryStatement::<B>::CompareProjection(value0),
             Self::PlanRepairProjection(value0) => QueryStatement::<B>::PlanRepairProjection(value0),
             Self::RepairProjection(value0) => QueryStatement::<B>::RepairProjection(value0),
-            Self::CreateRetentionPolicy(value0) => QueryStatement::<B>::CreateRetentionPolicy(value0),
+            Self::CreateRetentionPolicy(value0) => {
+                QueryStatement::<B>::CreateRetentionPolicy(value0)
+            }
             Self::AlterRetentionPolicy(value0) => QueryStatement::<B>::AlterRetentionPolicy(value0),
             Self::DropRetentionPolicy(value0) => QueryStatement::<B>::DropRetentionPolicy(value0),
-            Self::EnforceRetentionPolicy(value0) => QueryStatement::<B>::EnforceRetentionPolicy(value0),
+            Self::EnforceRetentionPolicy(value0) => {
+                QueryStatement::<B>::EnforceRetentionPolicy(value0)
+            }
             Self::CreateFunction(value0) => QueryStatement::<B>::CreateFunction(value0),
             Self::DropFunction(value0) => QueryStatement::<B>::DropFunction(value0),
             Self::CreateProcedure(value0) => QueryStatement::<B>::CreateProcedure(value0),
             Self::DropProcedure(value0) => QueryStatement::<B>::DropProcedure(value0),
-            Self::CallProcedure(value0) => QueryStatement::<B>::CallProcedure(value0.rebind_attachment::<B>()),
+            Self::CallProcedure(value0) => {
+                QueryStatement::<B>::CallProcedure(value0.rebind_attachment::<B>())
+            }
             Self::Extension(value0) => QueryStatement::<B>::Extension(value0),
             Self::Type(value0) => QueryStatement::<B>::Type(value0),
             Self::PropertyGraph(value0) => QueryStatement::<B>::PropertyGraph(value0),
@@ -301,10 +364,7 @@ impl MapAttachment for SelectItem<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::Wildcard => SelectItem::<B>::Wildcard,
-            Self::Column { name, alias } => SelectItem::<B>::Column {
-                name,
-                alias,
-            },
+            Self::Column { name, alias } => SelectItem::<B>::Column { name, alias },
             Self::Function { function, alias } => SelectItem::<B>::Function {
                 function: function.rebind_attachment::<B>(),
                 alias,
@@ -358,10 +418,14 @@ impl MapAttachment for SessionObjectStatement<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::Discard(value0) => SessionObjectStatement::<B>::Discard(value0),
-            Self::Prepare(value0) => SessionObjectStatement::<B>::Prepare(value0.rebind_attachment::<B>()),
+            Self::Prepare(value0) => {
+                SessionObjectStatement::<B>::Prepare(value0.rebind_attachment::<B>())
+            }
             Self::Execute(value0) => SessionObjectStatement::<B>::Execute(value0),
             Self::Deallocate(value0) => SessionObjectStatement::<B>::Deallocate(value0),
-            Self::DeclareCursor(value0) => SessionObjectStatement::<B>::DeclareCursor(value0.rebind_attachment::<B>()),
+            Self::DeclareCursor(value0) => {
+                SessionObjectStatement::<B>::DeclareCursor(value0.rebind_attachment::<B>())
+            }
             Self::Fetch(value0) => SessionObjectStatement::<B>::Fetch(value0),
             Self::CloseCursor(value0) => SessionObjectStatement::<B>::CloseCursor(value0),
         }
@@ -390,7 +454,13 @@ impl MapAttachment for SubqueryKind<()> {
                 left: left.rebind_attachment::<B>(),
                 op,
             },
-            Self::Quantified { left, op, all, membership, negated } => SubqueryKind::<B>::Quantified {
+            Self::Quantified {
+                left,
+                op,
+                all,
+                membership,
+                negated,
+            } => SubqueryKind::<B>::Quantified {
                 left: left.rebind_attachment::<B>(),
                 op,
                 all,
@@ -406,7 +476,9 @@ impl MapAttachment for TableFunctionForm<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::Columns(value0) => TableFunctionForm::<B>::Columns(value0),
-            Self::JsonTable(value0) => TableFunctionForm::<B>::JsonTable(value0.rebind_attachment::<B>()),
+            Self::JsonTable(value0) => {
+                TableFunctionForm::<B>::JsonTable(value0.rebind_attachment::<B>())
+            }
             Self::GraphTable(value0) => {
                 TableFunctionForm::<B>::GraphTable(value0.rebind_attachment::<B>())
             }

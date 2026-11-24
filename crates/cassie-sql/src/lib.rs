@@ -3,16 +3,16 @@
 pub mod ast;
 pub mod attachment;
 pub use cassie_core::{catalog, types};
+pub mod catalog_declarations;
 pub mod column_identifier;
 pub mod composite_unique;
-pub mod catalog_declarations;
-pub mod definition_guard;
 pub mod default_expression;
+pub mod definition_guard;
 pub mod identifier_text;
 pub mod index_options;
 pub mod maintenance_declarations;
-pub mod parser;
 mod parameter_count;
+pub mod parser;
 pub mod rollup_declarations;
 pub mod routine_declarations;
 pub mod sequence_default;
@@ -37,7 +37,7 @@ pub mod sql {
     pub use crate::ast::*;
     pub use crate::column_identifier::ColumnIdentifierPath;
     pub use crate::functions;
-    pub use crate::parser;
-    pub use crate::parse_statement;
     pub use crate::parameter_count;
+    pub use crate::parse_statement;
+    pub use crate::parser;
 }

@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 
 use super::super::key_encoding;
 use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord};
-use cassie_core::request::accounted::AccountedVec;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use cassie_core::request::accounted::AccountedVec;
 
 #[path = "vector_retrieval/accounting.rs"]
 mod accounting;
@@ -737,11 +737,7 @@ impl Midge {
             options,
             limit,
             |id| {
-                let node_key = key_encoding::hnsw_graph_node_key(
-                        relation_id,
-                        field_id,
-                        id,
-                    );
+                let node_key = key_encoding::hnsw_graph_node_key(relation_id, field_id, id);
                 let node = match tx.get(&node_key) {
                     Ok(Some(raw)) => super::codec::decode_hnsw_node(&raw, id).ok(),
                     Ok(None) => None,
@@ -826,28 +822,38 @@ impl Midge {
                 controlled_hnsw::decode_node(&raw, id, controls)
                     .map(|(node, memory)| Some((node, memory)))
             },
-        ).map_err(|error| match error {
+        )
+        .map_err(|error| match error {
             crate::vector::hnsw::HnswSearchError::Loader(error) => error,
             crate::vector::hnsw::HnswSearchError::GraphRepair(reason) => {
                 let label = match reason {
-                    crate::vector::hnsw::HnswGraphRepairReason::MissingEntryPoint => "missing-entry-point",
-                    crate::vector::hnsw::HnswGraphRepairReason::InconsistentMaxLayer => "inconsistent-max-layer",
+                    crate::vector::hnsw::HnswGraphRepairReason::MissingEntryPoint => {
+                        "missing-entry-point"
+                    }
+                    crate::vector::hnsw::HnswGraphRepairReason::InconsistentMaxLayer => {
+                        "inconsistent-max-layer"
+                    }
                 };
                 CassieError::Execution(format!("hnsw fallback:{label}"))
             }
             crate::vector::hnsw::HnswSearchError::Interruption(error) => match error {
                 cassie_core::request::InterruptionError::Canceled => CassieError::QueryCanceled,
-                cassie_core::request::InterruptionError::DeadlineExceeded => CassieError::DeadlineExceeded,
+                cassie_core::request::InterruptionError::DeadlineExceeded => {
+                    CassieError::DeadlineExceeded
+                }
             },
-            crate::vector::hnsw::HnswSearchError::Memory(error) => CassieError::ResourceLimit(
-                format!("query memory budget exceeded: {} > {}", error.requested, error.budget),
-            ),
-            crate::vector::hnsw::HnswSearchError::Allocation => CassieError::ResourceLimit(
-                "unable to retain controlled HNSW candidate".to_owned(),
-            ),
-            crate::vector::hnsw::HnswSearchError::AccountingOverflow => CassieError::ResourceLimit(
-                "controlled HNSW retained memory overflow".to_owned(),
-            ),
+            crate::vector::hnsw::HnswSearchError::Memory(error) => {
+                CassieError::ResourceLimit(format!(
+                    "query memory budget exceeded: {} > {}",
+                    error.requested, error.budget
+                ))
+            }
+            crate::vector::hnsw::HnswSearchError::Allocation => {
+                CassieError::ResourceLimit("unable to retain controlled HNSW candidate".to_owned())
+            }
+            crate::vector::hnsw::HnswSearchError::AccountingOverflow => {
+                CassieError::ResourceLimit("controlled HNSW retained memory overflow".to_owned())
+            }
         })?;
         if missing_node {
             return Err(CassieError::Execution(

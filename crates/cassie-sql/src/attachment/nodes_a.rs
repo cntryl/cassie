@@ -11,7 +11,10 @@ impl MapAttachment for (String, Expr<()>) {
 impl MapAttachment for (Expr<()>, Expr<()>) {
     type Rebound<B> = (Expr<B>, Expr<B>);
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
-        (self.0.rebind_attachment::<B>(), self.1.rebind_attachment::<B>())
+        (
+            self.0.rebind_attachment::<B>(),
+            self.1.rebind_attachment::<B>(),
+        )
     }
 }
 
@@ -22,7 +25,12 @@ impl MapAttachment for AlterTableOperation<()> {
             Self::Multiple { operations } => AlterTableOperation::<B>::Multiple {
                 operations: operations.rebind_attachment::<B>(),
             },
-            Self::AddColumn { field, data_type, if_not_exists, constraints } => AlterTableOperation::<B>::AddColumn {
+            Self::AddColumn {
+                field,
+                data_type,
+                if_not_exists,
+                constraints,
+            } => AlterTableOperation::<B>::AddColumn {
                 field,
                 data_type,
                 if_not_exists,
@@ -31,55 +39,56 @@ impl MapAttachment for AlterTableOperation<()> {
             Self::AddConstraint { constraints } => AlterTableOperation::<B>::AddConstraint {
                 constraints: constraints.rebind_attachment::<B>(),
             },
-            Self::AddUniqueConstraintUsingIndex { constraint_name, index_name } => AlterTableOperation::<B>::AddUniqueConstraintUsingIndex {
+            Self::AddUniqueConstraintUsingIndex {
+                constraint_name,
+                index_name,
+            } => AlterTableOperation::<B>::AddUniqueConstraintUsingIndex {
                 constraint_name,
                 index_name,
             },
-            Self::DropConstraint { name, if_exists } => AlterTableOperation::<B>::DropConstraint {
-                name,
-                if_exists,
-            },
-            Self::DropColumn { field, cascade } => AlterTableOperation::<B>::DropColumn {
+            Self::DropConstraint { name, if_exists } => {
+                AlterTableOperation::<B>::DropConstraint { name, if_exists }
+            }
+            Self::DropColumn { field, cascade } => {
+                AlterTableOperation::<B>::DropColumn { field, cascade }
+            }
+            Self::RenameColumn { from, to } => AlterTableOperation::<B>::RenameColumn { from, to },
+            Self::RenameTo { table } => AlterTableOperation::<B>::RenameTo { table },
+            Self::SetSchema { schema } => AlterTableOperation::<B>::SetSchema { schema },
+            Self::SetAccessMethod { access_method } => {
+                AlterTableOperation::<B>::SetAccessMethod { access_method }
+            }
+            Self::AlterColumnSetDefault {
                 field,
-                cascade,
-            },
-            Self::RenameColumn { from, to } => AlterTableOperation::<B>::RenameColumn {
-                from,
-                to,
-            },
-            Self::RenameTo { table } => AlterTableOperation::<B>::RenameTo {
-                table,
-            },
-            Self::SetSchema { schema } => AlterTableOperation::<B>::SetSchema {
-                schema,
-            },
-            Self::SetAccessMethod { access_method } => AlterTableOperation::<B>::SetAccessMethod {
-                access_method,
-            },
-            Self::AlterColumnSetDefault { field, default_value, default_expression, default_sequence } => AlterTableOperation::<B>::AlterColumnSetDefault {
+                default_value,
+                default_expression,
+                default_sequence,
+            } => AlterTableOperation::<B>::AlterColumnSetDefault {
                 field,
                 default_value,
                 default_expression,
                 default_sequence,
             },
-            Self::AlterColumnDropDefault { field } => AlterTableOperation::<B>::AlterColumnDropDefault {
+            Self::AlterColumnDropDefault { field } => {
+                AlterTableOperation::<B>::AlterColumnDropDefault { field }
+            }
+            Self::AlterColumnSetNotNull { field } => {
+                AlterTableOperation::<B>::AlterColumnSetNotNull { field }
+            }
+            Self::AlterColumnStorage { field, setting } => {
+                AlterTableOperation::<B>::AlterColumnStorage { field, setting }
+            }
+            Self::AlterColumnDropNotNull { field } => {
+                AlterTableOperation::<B>::AlterColumnDropNotNull { field }
+            }
+            Self::AlterColumnIdentity { field, action } => {
+                AlterTableOperation::<B>::AlterColumnIdentity { field, action }
+            }
+            Self::AlterColumnType {
                 field,
-            },
-            Self::AlterColumnSetNotNull { field } => AlterTableOperation::<B>::AlterColumnSetNotNull {
-                field,
-            },
-            Self::AlterColumnStorage { field, setting } => AlterTableOperation::<B>::AlterColumnStorage {
-                field,
-                setting,
-            },
-            Self::AlterColumnDropNotNull { field } => AlterTableOperation::<B>::AlterColumnDropNotNull {
-                field,
-            },
-            Self::AlterColumnIdentity { field, action } => AlterTableOperation::<B>::AlterColumnIdentity {
-                field,
-                action,
-            },
-            Self::AlterColumnType { field, data_type, using } => AlterTableOperation::<B>::AlterColumnType {
+                data_type,
+                using,
+            } => AlterTableOperation::<B>::AlterColumnType {
                 field,
                 data_type,
                 using: using.rebind_attachment::<B>(),
@@ -212,7 +221,11 @@ impl MapAttachment for CteQuery<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::Simple(value0) => CteQuery::<B>::Simple(value0.rebind_attachment::<B>()),
-            Self::Recursive { operator, base, recursive } => CteQuery::<B>::Recursive {
+            Self::Recursive {
+                operator,
+                base,
+                recursive,
+            } => CteQuery::<B>::Recursive {
                 operator,
                 base: base.rebind_attachment::<B>(),
                 recursive: recursive.rebind_attachment::<B>(),
@@ -272,7 +285,11 @@ impl MapAttachment for Expr<()> {
             Self::NumericLiteral(value0) => Expr::<B>::NumericLiteral(value0),
             Self::BoolLiteral(value0) => Expr::<B>::BoolLiteral(value0),
             Self::Null => Expr::<B>::Null,
-            Self::Case { operand, branches, else_expr } => Expr::<B>::Case {
+            Self::Case {
+                operand,
+                branches,
+                else_expr,
+            } => Expr::<B>::Case {
                 operand: operand.rebind_attachment::<B>(),
                 branches: branches.rebind_attachment::<B>(),
                 else_expr: else_expr.rebind_attachment::<B>(),
@@ -282,7 +299,11 @@ impl MapAttachment for Expr<()> {
                 op,
                 right: right.rebind_attachment::<B>(),
             },
-            Self::TruthTest { expr, truth, negated } => Expr::<B>::TruthTest {
+            Self::TruthTest {
+                expr,
+                truth,
+                negated,
+            } => Expr::<B>::TruthTest {
                 expr: expr.rebind_attachment::<B>(),
                 truth,
                 negated,
@@ -291,18 +312,33 @@ impl MapAttachment for Expr<()> {
                 expr: expr.rebind_attachment::<B>(),
                 negated,
             },
-            Self::InList { expr, values, negated } => Expr::<B>::InList {
+            Self::InList {
+                expr,
+                values,
+                negated,
+            } => Expr::<B>::InList {
                 expr: expr.rebind_attachment::<B>(),
                 values: values.rebind_attachment::<B>(),
                 negated,
             },
-            Self::Like { expr, pattern, escape, case_insensitive } => Expr::<B>::Like {
+            Self::Like {
+                expr,
+                pattern,
+                escape,
+                case_insensitive,
+            } => Expr::<B>::Like {
                 expr: expr.rebind_attachment::<B>(),
                 pattern: pattern.rebind_attachment::<B>(),
                 escape: escape.rebind_attachment::<B>(),
                 case_insensitive,
             },
-            Self::Between { expr, low, high, negated, symmetric } => Expr::<B>::Between {
+            Self::Between {
+                expr,
+                low,
+                high,
+                negated,
+                symmetric,
+            } => Expr::<B>::Between {
                 expr: expr.rebind_attachment::<B>(),
                 low: low.rebind_attachment::<B>(),
                 high: high.rebind_attachment::<B>(),
@@ -312,7 +348,12 @@ impl MapAttachment for Expr<()> {
             Self::Not { expr } => Expr::<B>::Not {
                 expr: expr.rebind_attachment::<B>(),
             },
-            Self::Cast { expr, data_type, source_type, identity } => Expr::<B>::Cast {
+            Self::Cast {
+                expr,
+                data_type,
+                source_type,
+                identity,
+            } => Expr::<B>::Cast {
                 expr: expr.rebind_attachment::<B>(),
                 data_type,
                 source_type,
@@ -430,7 +471,10 @@ impl MapAttachment for InsertConflictAction<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::DoNothing => InsertConflictAction::<B>::DoNothing,
-            Self::DoUpdate { assignments, filter } => InsertConflictAction::<B>::DoUpdate {
+            Self::DoUpdate {
+                assignments,
+                filter,
+            } => InsertConflictAction::<B>::DoUpdate {
                 assignments: assignments.rebind_attachment::<B>(),
                 filter: filter.rebind_attachment::<B>(),
             },

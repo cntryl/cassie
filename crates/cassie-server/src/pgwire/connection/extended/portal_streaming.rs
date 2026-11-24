@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use tokio::io::AsyncWrite;
 
-use crate::app::transport::portal::{PortalCursorDecision, PortalReadPage};
 use super::portal_state::{
     write_materialized_result, write_streaming_result, write_suspended_result,
     MaterializedPortalWriteRequest, PortalExecution, PortalFetchWindow, StreamingPortalResult,
@@ -12,6 +11,7 @@ use super::{
     describe_prepared, run_pgwire_blocking, Cassie, CassieSession, ExecutionMode,
     ExtendedQueryError, PortalSuspended, PreparedStatement, SessionState,
 };
+use crate::app::transport::portal::{PortalCursorDecision, PortalReadPage};
 use crate::runtime::QueryExecutionControls;
 
 pub(super) struct SuspendedPortalRequest<'a> {

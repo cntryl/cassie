@@ -257,23 +257,26 @@ impl Cassie {
         let columns = copy_columns(&statement, schema.fields.as_slice())?;
 
         let collections = self.referential_write_collections(&statement.table);
-        let (affected, report, skipped) =
-            self.midge
-                .with_transaction_write_gates(&collections, true, &controls.storage_request(), || {
-                    self.stage_and_apply_copy_rows(
-                        rows,
-                        &CopyRowsContext {
-                            session,
-                            statement: &statement,
-                            columns: &columns,
-                            cancellation,
-                            options,
-                            owner,
-                            publication: publication.as_ref(),
-                            controls: &controls,
-                        },
-                    )
-                })?;
+        let (affected, report, skipped) = self.midge.with_transaction_write_gates(
+            &collections,
+            true,
+            &controls.storage_request(),
+            || {
+                self.stage_and_apply_copy_rows(
+                    rows,
+                    &CopyRowsContext {
+                        session,
+                        statement: &statement,
+                        columns: &columns,
+                        cancellation,
+                        options,
+                        owner,
+                        publication: publication.as_ref(),
+                        controls: &controls,
+                    },
+                )
+            },
+        )?;
         let Some(report) = report else {
             return Ok(CopyIngestResult {
                 count: affected,

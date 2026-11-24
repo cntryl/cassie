@@ -4,19 +4,19 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::app::{
-    Cassie, CassieError, CassieSession, CopyColumn, CopyIngestOptions, CopyIngestResult,
-    CopyCommandOwner, FailureAuthority,
+    Cassie, CassieError, CassieSession, CopyColumn, CopyCommandOwner, CopyIngestOptions,
+    CopyIngestResult, FailureAuthority,
 };
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{CopyStatement, QueryStatement};
 
+#[cfg(any(test, feature = "transport-test-hooks"))]
+#[path = "copy/binding_accounting_test_hooks.rs"]
+mod binding_accounting_test_hooks;
 #[path = "copy/filter.rs"]
 mod filter;
 #[path = "copy/filter_text.rs"]
 mod filter_text;
-#[cfg(any(test, feature = "transport-test-hooks"))]
-#[path = "copy/binding_accounting_test_hooks.rs"]
-mod binding_accounting_test_hooks;
 #[cfg(any(test, feature = "transport-test-hooks"))]
 #[path = "copy/owner_check_test_hooks.rs"]
 mod owner_check_test_hooks;
@@ -30,9 +30,7 @@ pub mod test_hooks {
         cancel_after_validation, expire_after_validation, leave_before_charge, Observation,
         Remaining,
     };
-    pub use super::owner_check_test_hooks::{
-        install_after_owner_check, Guard,
-    };
+    pub use super::owner_check_test_hooks::{install_after_owner_check, Guard};
     pub use super::publication_memory_test_hooks::{observe_before_ingest, Guard as MemoryGuard};
 }
 
@@ -164,12 +162,7 @@ impl CopyFromOperation {
             .get_schema(&statement.table)
             .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".into()))?;
         validate_force_columns(&statement, &schema.fields, force_null, "FORCE_NULL")?;
-        validate_force_columns(
-            &statement,
-            &schema.fields,
-            force_not_null,
-            "FORCE_NOT_NULL",
-        )?;
+        validate_force_columns(&statement, &schema.fields, force_not_null, "FORCE_NOT_NULL")?;
         let owner_bytes = if owner.is_some() {
             std::mem::size_of::<CopyCommandOwner>()
         } else {
@@ -325,13 +318,19 @@ impl CopyFromOperation {
 
     /// Column positions forced to null by CSV decoding.
     #[must_use]
-    pub fn force_null_indices(&self, selection: &CopyForceSelection) -> Result<Vec<usize>, CassieError> {
+    pub fn force_null_indices(
+        &self,
+        selection: &CopyForceSelection,
+    ) -> Result<Vec<usize>, CassieError> {
         Ok(force_indices(selection, &self.target_columns()?))
     }
 
     /// Column positions forced to non-null by CSV decoding.
     #[must_use]
-    pub fn force_not_null_indices(&self, selection: &CopyForceSelection) -> Result<Vec<usize>, CassieError> {
+    pub fn force_not_null_indices(
+        &self,
+        selection: &CopyForceSelection,
+    ) -> Result<Vec<usize>, CassieError> {
         Ok(force_indices(selection, &self.target_columns()?))
     }
 
@@ -357,9 +356,8 @@ impl CopyFromOperation {
         };
         let (mut metadata, _metadata_memory) =
             crate::runtime::owned_memory::try_reserve_vec(count, &base)?;
-        let declares_id = crate::types::row_identity::declares_id(
-            fields.iter().map(|field| field.name.as_str()),
-        );
+        let declares_id =
+            crate::types::row_identity::declares_id(fields.iter().map(|field| field.name.as_str()));
         if self.statement.columns.is_empty() {
             for field in fields {
                 controls.check_interruption()?;
@@ -401,7 +399,9 @@ impl CopyFromOperation {
         data_type: &crate::types::DataType,
     ) -> Result<CopyBinaryColumn, CassieError> {
         let (oid, is_vector, expected_vector_dimensions) = match data_type {
-            crate::types::DataType::Enum(_) => (crate::types::DataType::Text.type_oid(), false, None),
+            crate::types::DataType::Enum(_) => {
+                (crate::types::DataType::Text.type_oid(), false, None)
+            }
             crate::types::DataType::Vector(dimensions) => {
                 let oid = crate::catalog::object_identity::type_oid_for_database(
                     &self.cassie.catalog,
@@ -508,9 +508,7 @@ pub struct CopyBinaryColumn {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CopyExecutionOptions, CopyForceSelection, CopyFromOperation, CopyHeaderMode,
-    };
+    use super::{CopyExecutionOptions, CopyForceSelection, CopyFromOperation, CopyHeaderMode};
     use crate::app::Cassie;
     use crate::config::CassieRuntimeConfig;
     use std::sync::Arc;
@@ -523,7 +521,11 @@ mod tests {
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
-            .execute_sql(&session, "CREATE TABLE copy_filter_lease (id INT)", Vec::new())
+            .execute_sql(
+                &session,
+                "CREATE TABLE copy_filter_lease (id INT)",
+                Vec::new(),
+            )
             .expect("target table");
         cassie
             .execute_sql(&session, "BEGIN", Vec::new())

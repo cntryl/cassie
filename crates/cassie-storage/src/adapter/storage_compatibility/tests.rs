@@ -256,7 +256,7 @@ fn should_reopen_an_upgraded_store_after_no_feature_was_published() {
                 .build()
                 .expect("local options"),
             "postgres",
-crate::adapter::storage_config::WritePolicy::Local,
+            crate::adapter::storage_config::WritePolicy::Local,
         )
         .expect("local store")
     };
@@ -348,7 +348,7 @@ fn should_reject_marker_admission_after_storage_requires_recovery() {
     // Assert
     for result in [read.map(|_| ()), baseline, upgrade] {
         assert!(matches!(
-            result         .expect_err("already quarantined"),
+            result.expect_err("already quarantined"),
             CassieError::RecoveryRequired(_)
         ));
     }
@@ -379,7 +379,7 @@ fn should_recheck_recovery_after_waiting_for_marker_admission() {
 
     // Assert
     assert!(matches!(
-        result       .expect_err("latched while waiting"),
+        result.expect_err("latched while waiting"),
         CassieError::RecoveryRequired(_)
     ));
     assert_eq!(retained, V1.as_bytes());
@@ -399,9 +399,8 @@ fn should_recheck_recovery_at_marker_publication_gate() {
         .with_current_operation(|| {
             let worker = std::thread::spawn(move || {
                 let controls = crate::adapter::request_test_support::TestRequest::default();
-                let _scope =crate::adapter::NativePublicationControlScope::enter(
-                    Some(&controls.context()),
-                );
+                let _scope =
+                    crate::adapter::NativePublicationControlScope::enter(Some(&controls.context()));
                 let _observer = Midge::observe_next_publication_wait_for_test(move || {
                     waiting_tx
                         .send(())
@@ -420,7 +419,7 @@ fn should_recheck_recovery_at_marker_publication_gate() {
 
     // Assert
     assert!(matches!(
-        result       .expect_err("recovery latched before publication"),
+        result.expect_err("recovery latched before publication"),
         CassieError::RecoveryRequired(_)
     ));
     assert_eq!(raw_marker_after_quarantine(&store), V1.as_bytes());

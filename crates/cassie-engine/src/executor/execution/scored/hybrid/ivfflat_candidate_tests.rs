@@ -1,4 +1,3 @@
-
 use std::time::Instant;
 
 use super::rank_ivfflat_candidate_ids;

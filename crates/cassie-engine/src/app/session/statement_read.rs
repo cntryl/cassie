@@ -74,7 +74,7 @@ impl StatementDataRead {
         &self,
         projection: &str,
     ) -> Result<Option<cassie_sql::catalog_declarations::ProjectionMeta>, CassieError> {
-        self.snapshot.projection_metadata_for_test(projection)
+        Ok(self.snapshot.projection_metadata_for_test(projection)?)
     }
 
     pub(crate) fn from_native_snapshot(

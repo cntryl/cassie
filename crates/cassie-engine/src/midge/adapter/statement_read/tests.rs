@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use crate::app::{Cassie, CassieError, CassieSession, SessionReadScope};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
-use crate::midge::adapter::{Midge, ScalarIndexScanRequest, StatementDataRead, StatementReadScope};
-use crate::runtime::{ExecutionMode, QueryExecutionControls};
+use crate::midge::adapter::{Midge, StatementDataRead, StatementReadScope};
+use crate::runtime::QueryExecutionControls;
 
 #[path = "tests/replay_cloud_cache_loss.rs"]
 mod replay_cloud_cache_loss;
@@ -347,7 +347,7 @@ fn replay_snapshot_batch(
 
 fn replay_snapshot_has_event(
     midge: &Midge,
-    owner: &StatementDataRead,
+    owner: &Arc<StatementDataRead>,
     projection: &str,
     event: &str,
 ) -> bool {

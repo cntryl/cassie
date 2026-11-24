@@ -795,10 +795,38 @@ impl Midge {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use cntryl_midge::{OpenOptions, WriteOptions};
 
     use super::Midge;
     use crate::adapter::storage_config::WritePolicy;
+
+    #[test]
+    fn should_propagate_native_busy_when_an_owned_baseline_has_an_active_transaction() {
+        // Arrange
+        let midge = Arc::new(Midge::new_in_memory("postgres").unwrap());
+        let family = midge
+            .engine
+            .create_column_family("owned_shutdown_probe")
+            .unwrap();
+        let transaction = midge
+            .engine
+            .begin_tx(family.id(), cntryl_midge::TransactionMode::ReadWrite)
+            .unwrap();
+        assert_eq!(Arc::strong_count(&midge), 1);
+
+        // Act
+        let result = midge.shutdown_owned_for_test(Duration::from_secs(30));
+
+        // Assert
+        assert!(
+            matches!(result, Err(cntryl_midge::MidgeError::Busy(message))
+            if !message.starts_with("owned fixture shutdown requires exclusive adapter ownership"))
+        );
+        drop(transaction);
+    }
 
     #[test]
     fn should_bootstrap_a_fresh_cloud_backed_namespace() {

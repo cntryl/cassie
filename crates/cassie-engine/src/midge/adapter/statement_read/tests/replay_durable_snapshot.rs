@@ -50,8 +50,10 @@ impl ReplayFixture {
                 .unwrap()
                 .payload
         };
-        let first = replay_snapshot_has_event(owner, &self.projection, "event-1");
-        let second = replay_snapshot_has_event(owner, &self.projection, "event-2");
+        let first =
+            replay_snapshot_has_event(&self.cassie.midge, owner, &self.projection, "event-1");
+        let second =
+            replay_snapshot_has_event(&self.cassie.midge, owner, &self.projection, "event-2");
         let old_index =
             replay_snapshot_index_ids(&self.cassie, &self.index, &self.controls, owner, 1);
         let new_index =

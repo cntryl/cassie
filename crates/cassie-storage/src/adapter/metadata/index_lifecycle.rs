@@ -77,8 +77,8 @@ impl Midge {
             let gate = self.collection_write_gate(&collection);
             let _guard = gate.lock();
             self.ensure_no_observed_prepared_index_publications(&collection)?;
-            #[cfg(test)]
-            tests::after_journal_check();
+            #[cfg(any(test, feature = "storage-test-hooks"))]
+            journal_observation::after_journal_check();
             let publication = self.prepare_index_for_publication(metadata)?;
             check_index_publication_failure_point()?;
             self.publish_prepared_index_locked(publication)?;
@@ -220,3 +220,55 @@ impl Midge {
 #[cfg(test)]
 #[path = "index_lifecycle_tests.rs"]
 mod tests;
+
+#[cfg(any(test, feature = "storage-test-hooks"))]
+mod journal_observation {
+    type Observer = Box<dyn FnOnce()>;
+
+    thread_local! {
+        static NEXT: std::cell::RefCell<Option<Observer>> = const {
+            std::cell::RefCell::new(None)
+        };
+    }
+
+    pub(super) fn after_journal_check() {
+        if let Some(observer) = NEXT.with(|slot| slot.borrow_mut().take()) {
+            observer();
+        }
+    }
+
+    #[cfg(feature = "storage-test-hooks")]
+    pub(super) fn observe(observer: impl FnOnce() + 'static) {
+        NEXT.with(|slot| {
+            assert!(
+                slot.borrow_mut().replace(Box::new(observer)).is_none(),
+                "index journal observers must not nest"
+            );
+        });
+    }
+}
+
+#[cfg(feature = "storage-test-hooks")]
+impl Midge {
+    /// Observes the current thread's next index publication after journal validation.
+    ///
+    /// # Panics
+    /// Panics when another observer is armed on this thread.
+    #[doc(hidden)]
+    pub fn observe_next_index_journal_check_for_test(observer: impl FnOnce() + 'static) {
+        journal_observation::observe(observer);
+    }
+
+    /// Reports whether a named index has a prepared publication record.
+    ///
+    /// # Errors
+    /// Returns a storage error when the journal cannot be read.
+    #[doc(hidden)]
+    pub fn has_prepared_index_publication_for_test(
+        &self,
+        collection: &str,
+        index: &str,
+    ) -> Result<bool, CassieError> {
+        self.has_prepared_index_publication(collection, index)
+    }
+}

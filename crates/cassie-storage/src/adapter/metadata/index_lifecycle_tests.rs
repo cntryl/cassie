@@ -3,22 +3,11 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use crate::catalog::{Catalog, IndexKind, IndexMeta};
+use crate::catalog::{IndexKind, IndexMeta};
 use crate::adapter::{FieldSchema, Midge, Schema};
 use cassie_core::types::DataType;
 
-thread_local! {
-    static AFTER_JOURNAL_CHECK: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = std::cell::RefCell::new(None);
-}
-
-pub(super) fn after_journal_check() {
-    let observer = AFTER_JOURNAL_CHECK.with(|slot| slot.borrow_mut().take());
-    if let Some(observer) = observer {
-        observer();
-    }
-}
-
-fn index_metadata_fixture() -> (Arc<Midge>, Arc<Catalog>, String, String) {
+fn index_metadata_fixture() -> (Arc<Midge>, Arc<parking_lot::Mutex<IndexMeta>>, String, String) {
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("create Midge"));
     midge
         .create_collection(
@@ -52,86 +41,8 @@ fn index_metadata_fixture() -> (Arc<Midge>, Arc<Catalog>, String, String) {
         .expect("index should exist");
     let collection = initial.collection.clone();
     let name = initial.name.clone();
-    let catalog = Arc::new(Catalog::new());
-    catalog.register_index(initial);
-    (midge, catalog, collection, name)
-}
-
-#[test]
-fn should_publish_target_index_when_unrelated_journal_appears_after_the_check() {
-    // Arrange
-    let cassie = crate::app::Cassie::new_in_memory_with_config(
-        crate::config::CassieRuntimeConfig::default(),
-    )
-    .expect("Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("tester", None);
-    cassie
-        .execute_sql(&session, "CREATE TABLE target_rows (id INT)", vec![])
-        .expect("target");
-    cassie
-        .execute_sql(&session, "CREATE TABLE other_rows (id INT)", vec![])
-        .expect("other");
-    let other = IndexMeta {
-        definition_semantics_version: 0,
-        collection: "other_rows".to_owned(),
-        name: "other_idx".to_owned(),
-        field: "id".to_owned(),
-        fields: vec!["id".to_owned()],
-        expressions: Vec::new(),
-        include_fields: Vec::new(),
-        predicate: None,
-        kind: IndexKind::Scalar,
-        unique: false,
-        options: BTreeMap::new(),
-    };
-    let midge = Arc::clone(&cassie.midge);
-    AFTER_JOURNAL_CHECK.with(|slot| {
-        assert!(slot
-            .borrow_mut()
-            .replace(Box::new(move || {
-                std::thread::spawn(move || {
-crate::adapter::set_index_publication_failure_point(true);
-                    let result = midge.put_index(&other);
-crate::adapter::set_index_publication_failure_point(false);
-                    assert!(result.is_err(), "leave an unrelated prepared journal");
-                })
-                .join()
-                .expect("journal worker");
-            }))
-            .is_none());
-    });
-
-    // Act
-    let target = cassie.execute_sql(
-        &session,
-        "CREATE INDEX target_idx ON target_rows (id)",
-        vec![],
-    );
-
-    // Assert
-    target.expect("target publication remains successful");
-    assert!(cassie
-        .catalog
-        .get_index("target_rows", "target_idx")
-        .is_some());
-    assert!(cassie
-        .midge
-        .get_index("target_rows", "target_idx")
-        .expect("durable target")
-        .is_some());
-    assert!(cassie
-        .midge
-        .has_prepared_index_publication("other_rows", "other_idx")
-        .expect("journal remains"));
-    cassie
-        .midge
-        .replay_pending_index_publications()
-        .expect("explicit recovery");
-    assert!(!cassie
-        .midge
-        .has_prepared_index_publication("other_rows", "other_idx")
-        .expect("journal removed"));
+    let published = Arc::new(parking_lot::Mutex::new(initial));
+    (midge, published, collection, name)
 }
 
 #[test]
@@ -247,7 +158,7 @@ crate::adapter::set_index_publication_failure_point(false);
 
 fn update_and_publish_fillfactor(
     midge: &Midge,
-    catalog: &Catalog,
+    published: &parking_lot::Mutex<IndexMeta>,
     collection: &str,
     name: &str,
     fillfactor: &str,
@@ -264,7 +175,7 @@ fn update_and_publish_fillfactor(
         },
         |updated| {
             before_publish();
-            catalog.register_index(updated);
+            *published.lock() = updated;
         },
     )
 }
@@ -353,9 +264,7 @@ fn should_serialize_index_metadata_publication_order() {
         .get_index(&collection, &name)
         .expect("read durable metadata")
         .expect("index should remain present");
-    let cached = catalog
-        .get_index(&collection, &name)
-        .expect("read catalog cache");
+    let cached = catalog.lock();
 
     // Assert
     assert!(second_observed_first_gate);

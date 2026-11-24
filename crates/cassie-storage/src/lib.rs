@@ -5,6 +5,7 @@ mod error;
 pub use error::StorageCodecError;
 
 pub mod adapter;
+pub mod cardinality;
 pub mod native;
 pub mod operation_stats;
 pub mod runtime_feedback;
@@ -12,6 +13,7 @@ pub mod column_batch_format_v1;
 pub mod key_codec;
 pub mod row_blob;
 pub use adapter::error::StorageError;
+mod catalog;
 
 mod scalar_index;
 pub use scalar_index::{

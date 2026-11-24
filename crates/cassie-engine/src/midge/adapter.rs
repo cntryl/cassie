@@ -9,6 +9,13 @@ pub use column_batch_format_v1::{
 };
 
 #[cfg(test)]
+#[path = "adapter/native_memory_tests.rs"]
+mod native_memory_tests;
+#[cfg(test)]
+#[path = "adapter/legacy_graph_state_tests.rs"]
+mod legacy_graph_state_tests;
+
+#[cfg(test)]
 pub(crate) mod statement_read {
     #[path = "adapter/statement_read/tests.rs"]
     mod tests;

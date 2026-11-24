@@ -396,6 +396,10 @@ pub use failure_points::{
 };
 mod fresh_documents;
 mod key_encoding;
+#[doc(hidden)]
+pub use key_encoding::{
+    legacy_graph_prefixes_for_diagnostics, legacy_graph_sample_keys_for_diagnostics,
+};
 mod layout;
 mod legacy_graph_state;
 mod property_graphs;

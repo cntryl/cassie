@@ -34,6 +34,9 @@ pub(crate) use fulltext::{
 #[cfg(test)]
 pub(super) use graph::legacy_graph_sample_keys;
 pub(super) use graph::{
+    legacy_graph_prefixes_for_diagnostics, legacy_graph_sample_keys_for_diagnostics,
+};
+pub(super) use graph::{
     database_identity_key, legacy_graph_prefixes, property_graph_key, property_graph_prefix,
 };
 pub(super) use hot_indexes::{

@@ -410,6 +410,7 @@ dependencies = [
  "cassie-core",
  "cassie-search",
  "cassie-sql",
+ "cassie-vector",
  "cntryl-lexkey",
  "cntryl-midge",
  "lz4_flex",

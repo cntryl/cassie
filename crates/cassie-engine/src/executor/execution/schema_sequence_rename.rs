@@ -405,7 +405,9 @@ fn rewrite_constraint_references(
             .get(&collection.name)
             .cloned()
             .unwrap_or(collection.name);
-        let mut constraints = cassie.midge.load_constraints(&stored_name)?;
+        let mut constraints = crate::catalog::constraints::attach_storage_constraints(
+            cassie.midge.load_constraints(&stored_name)?,
+        );
         let mut changed = false;
         for constraint in &mut constraints {
             changed |= rewrite_default_sequence(cassie, constraint, sequence_renames);

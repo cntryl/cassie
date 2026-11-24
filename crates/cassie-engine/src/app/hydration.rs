@@ -78,10 +78,14 @@ impl Cassie {
         let Some(schema) = self.midge.collection_schema(name) else {
             return Ok(());
         };
-        let constraints = self.midge.load_constraints(name).map_err(|error| {
-            self.runtime.record_storage_access("schema", false, false);
-            CassieError::Storage(format!("load constraints for collection '{name}': {error}"))
-        })?;
+        let constraints = self
+            .midge
+            .load_constraints(name)
+            .map(crate::catalog::constraints::attach_storage_constraints)
+            .map_err(|error| {
+                self.runtime.record_storage_access("schema", false, false);
+                CassieError::Storage(format!("load constraints for collection '{name}': {error}"))
+            })?;
         let metadata = self.midge.collection_metadata(name).map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("load collection metadata for '{name}': {error}"))

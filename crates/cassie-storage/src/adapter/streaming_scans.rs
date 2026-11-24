@@ -25,7 +25,7 @@ pub enum RowTraversal {
 }
 
 impl RowTraversal {
-    pub(crate) fn from_limit(limit: Option<usize>) -> Self {
+    pub fn from_limit(limit: Option<usize>) -> Self {
         if limit.is_some() {
             Self::VisitedRows
         } else {
@@ -87,7 +87,7 @@ impl MidgeRowCursor {
     /// Lets a column-table scan skip whole segments that a conjunctive filter
     /// excludes. Skipping is purely an optimization: only verified summaries
     /// skip, and every other segment is read as usual.
-    pub(crate) fn set_column_pruning(
+    pub fn set_column_pruning(
         &mut self,
         midge: &Midge,
         filter: &super::ColumnBatchScanFilter,
@@ -107,7 +107,7 @@ impl MidgeRowCursor {
         Ok(documents.pop())
     }
 
-    pub(crate) fn next_documents(
+    pub fn next_documents(
         &mut self,
         midge: &Midge,
         limit: usize,

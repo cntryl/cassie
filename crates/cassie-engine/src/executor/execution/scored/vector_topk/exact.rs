@@ -302,7 +302,7 @@ fn stream_exact_vector_candidates(
     } else {
         let page_rows = exact_page_rows(spec.query.len());
         loop {
-            let documents = cursor.next_documents(&cassie.midge, page_rows, request.controls)?;
+            let documents = cursor.next_documents(&cassie.midge, page_rows, &request.controls.storage_request())?;
             if documents.is_empty() {
                 break;
             }

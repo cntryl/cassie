@@ -739,7 +739,8 @@ fn prefilter_hybrid_rows(
             break;
         }
         for document in accounted {
-            let (document, mut reservation) = document.into_parts();
+            let (document, reservation) = document.into_parts();
+            let mut reservation = QueryMemoryReservation::from_core(reservation);
             reservation.try_grow(projected_hybrid_row_bytes(&document, &fields))?;
             let row = scan::projected_document_to_row(&document, &fields, Some(context.schema));
             let row = scan::hydrate_character_arrays(row, controls)?;

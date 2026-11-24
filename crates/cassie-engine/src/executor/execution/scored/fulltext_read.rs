@@ -299,7 +299,7 @@ fn load_tokenized_read_documents(
                 ),
                 payload: document.payload,
             });
-            memory.push(source_memory);
+            memory.push(QueryMemoryReservation::from_core(source_memory));
             memory.push(token_memory);
         }
     }

@@ -56,6 +56,14 @@ impl<T> Accounted<T> {
         self.0.get()
     }
 
+    pub(crate) fn get_mut(&mut self) -> &mut T {
+        self.0.get_mut()
+    }
+
+    pub(crate) fn shares_tracker(&self, controls: &QueryExecutionControls) -> bool {
+        self.0.belongs_to(controls.request_memory())
+    }
+
     #[must_use]
     pub(crate) const fn accounted_bytes(&self) -> usize {
         self.0.accounted_bytes()

@@ -6,7 +6,7 @@ use super::{
     CassieSession, FulltextCandidateScoringRequest, FulltextSearchTuning, FulltextTopKSpec,
     HashSet, Instant, QueryError, TokenizedFulltextDocument,
 };
-use crate::runtime::{QueryExecutionControls, QueryScoringTestBoundary};
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation, QueryScoringTestBoundary};
 
 pub(super) fn execute_fulltext_top_k(
     cassie: &Cassie,
@@ -161,7 +161,7 @@ fn scan_exact_fulltext_documents(
         for document in accounted {
             let (document, reservation) = document.into_parts();
             documents.push(document);
-            memory.push(reservation);
+            memory.push(QueryMemoryReservation::from_core(reservation));
         }
     }
     Ok((documents, memory))

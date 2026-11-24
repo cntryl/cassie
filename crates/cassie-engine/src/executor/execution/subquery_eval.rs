@@ -1,4 +1,3 @@
-use crate::sql::SubqueryExprWidthError;
 //! Runs a scalar, array, row or quantified subquery and attaches its rows.
 //!
 //! Binding errors propagate, so a correlated subquery that cannot bind
@@ -18,6 +17,7 @@ use super::{
     LogicalPlan, QueryError,
 };
 use crate::sql::ast::{SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows};
+use crate::sql::SubqueryExprWidthError;
 
 #[cfg(test)]
 #[path = "subquery_eval_tests.rs"]

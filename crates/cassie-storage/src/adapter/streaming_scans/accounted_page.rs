@@ -152,12 +152,12 @@ impl AccountedDocumentPage {
     }
 
     #[must_use]
-    pub(crate) fn pop_document(&mut self) -> Option<AccountedDocument> {
+    pub fn pop_document(&mut self) -> Option<AccountedDocument> {
         self.documents.pop_front()
     }
 
     #[must_use]
-    pub(crate) const fn has_more(&self) -> bool {
+    pub const fn has_more(&self) -> bool {
         self.has_more
     }
 }

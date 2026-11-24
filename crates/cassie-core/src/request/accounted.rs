@@ -71,6 +71,17 @@ impl<T> Accounted<T> {
         &self.value
     }
 
+    /// Borrows the retained value for mutation under the same reservation.
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+
+    /// Checks that this value is charged to the supplied request.
+    #[must_use]
+    pub fn belongs_to(&self, memory: &RequestMemory) -> bool {
+        self.reservation.belongs_to(memory)
+    }
+
     #[must_use]
     pub const fn accounted_bytes(&self) -> usize {
         self.reservation.bytes()

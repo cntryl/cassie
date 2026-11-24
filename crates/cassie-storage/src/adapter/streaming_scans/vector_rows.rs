@@ -15,19 +15,19 @@ use cassie_core::request::accounted::json;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext, StorageValueHooks};
 
 /// One row read for vector ranking, with the reservation that covers what it retains.
-pub(crate) struct AccountedVectorRow {
-    pub(crate) id: String,
+pub struct AccountedVectorRow {
+    pub id: String,
     /// `None` when the row has no vector value.
-    pub(crate) vector: Option<Vec<f32>>,
+    pub vector: Option<Vec<f32>>,
     /// The other fields, present only when the caller asked for them.
-    pub(crate) payload: Option<serde_json::Value>,
+    pub payload: Option<serde_json::Value>,
     _memory: QueryMemoryReservation,
 }
 
 impl MidgeRowCursor {
     /// The vector field to decode directly, or `None` when this cursor reads column storage or
     /// the field is not a stored `VECTOR` column, so the caller keeps the generic reader.
-    pub(crate) fn vector_column(&self, field: &str) -> Option<VectorColumn> {
+    pub fn vector_column(&self, field: &str) -> Option<VectorColumn> {
         (self.storage == CursorStorage::Row && self.pending.is_none())
             .then(|| VectorColumn::resolve(&self.row_schema, field))
             .flatten()
@@ -35,7 +35,7 @@ impl MidgeRowCursor {
 
     /// Reads up to `limit` rows, decoding `column` directly and, with `with_payload`, the other
     /// fields as the generic decoder would.
-    pub(crate) fn next_vector_rows(
+    pub fn next_vector_rows(
         &mut self,
         midge: &Midge,
         limit: usize,

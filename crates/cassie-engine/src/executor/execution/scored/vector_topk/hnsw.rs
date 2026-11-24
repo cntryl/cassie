@@ -72,7 +72,7 @@ pub(super) fn execute_hnsw_vector_top_k(
         }
         Err(error) => return handle_hnsw_storage_error(cassie, error.into()),
     };
-    let source_row_count = batch.source_row_count;
+    let source_row_count = batch.source_row_count();
     let (built_generation, candidates, candidate_count, ann_reads, candidate_memory) =
         batch.into_parts();
 

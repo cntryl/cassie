@@ -1,3 +1,4 @@
+use cassie_core::request::accounted::Accounted as StorageAccounted;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -31,10 +32,10 @@ enum Storage {
     Scalar(Vec<Value>),
     Encoded {
         parent: Column,
-        _source: Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>,
+        _source: Arc<StorageAccounted<crate::midge::adapter::ValidatedEncodedField>>,
     },
-    EncodedNumeric(Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>),
-    EncodedBoolean(Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>),
+    EncodedNumeric(Arc<StorageAccounted<crate::midge::adapter::ValidatedEncodedField>>),
+    EncodedBoolean(Arc<StorageAccounted<crate::midge::adapter::ValidatedEncodedField>>),
     Constant(Value),
     Sequence {
         start: i64,
@@ -510,7 +511,7 @@ impl Column {
     pub(crate) fn from_encoded(
         controls: &QueryExecutionControls,
         data_type: &DataType,
-        source: &Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>,
+        source: &Arc<StorageAccounted<crate::midge::adapter::ValidatedEncodedField>>,
     ) -> Result<Self, QueryError> {
         check_controls(controls)?;
         let field = source.get();

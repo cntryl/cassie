@@ -2,6 +2,7 @@
 use std::sync::Arc;
 
 use super::{batch, Batch, BatchRow, QueryError, SourceExecutionEnv};
+use crate::runtime::QueryMemoryReservation;
 use crate::types::Value;
 
 fn text(name: &str, value: String) -> (String, Value) {
@@ -66,7 +67,7 @@ pub(super) fn materialize(env: &SourceExecutionEnv<'_>) -> Result<Vec<Batch>, Qu
             text("freshness", checkpoint.freshness.as_str().to_owned()),
             text("last_error", checkpoint.last_error.unwrap_or_default()),
         ];
-        rows.push(BatchRow::new(fields).with_query_memory(Some(Arc::new(memory))));
+        rows.push(BatchRow::new(fields).with_query_memory(Some(Arc::new(QueryMemoryReservation::from_core(memory)))));
     }
     Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
 }

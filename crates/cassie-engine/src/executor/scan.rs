@@ -391,6 +391,7 @@ pub(crate) fn try_controlled_column_batch_scan(
     request: &ProjectedFilteredScanRequest<'_>,
     storage_filter: Option<&RowFilter>,
 ) -> Result<Option<EncodedProjectedScan>, crate::executor::QueryError> {
+    let storage_request = request.controls.storage_request();
     let outcome = cassie.midge.scan_column_batch_projected_rows_controlled(
         &ControlledColumnBatchScanRequest {
             collection: request.collection,
@@ -399,9 +400,9 @@ pub(crate) fn try_controlled_column_batch_scan(
             filter: storage_filter,
             segment_filter: request.column_filter,
             limit: request.limit,
-            controls: request.controls,
+            controls: &storage_request,
         },
-    );
+    ).map_err(CassieError::from);
     match outcome {
         Ok(ColumnBatchScanDecision::Hit(outcome)) => {
             let query_memory = outcome.query_memory;

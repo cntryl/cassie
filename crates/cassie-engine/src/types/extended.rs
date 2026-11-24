@@ -9,6 +9,6 @@ pub use cassie_core::types::extended::{
 pub use crate::types::context::parameter_from_text_with_controls as temporal_parameter_from_text_with_controls;
 
 pub use cassie_core::types::extended::{
-    temporal_column_value, temporal_display_name, temporal_legacy_text, temporal_parameter_from_text,
+    convert_temporal, temporal_column_value, temporal_display_name, temporal_legacy_text, temporal_parameter_from_text,
     temporal_type_name,
 };

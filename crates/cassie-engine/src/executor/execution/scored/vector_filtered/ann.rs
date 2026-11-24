@@ -121,7 +121,7 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
             Ok(None) => return Ok(AnnOutcome::Declined("missing-graph".to_string())),
             Err(error) => return storage_decline(error.into(), "hnsw fallback:"),
         };
-        let source_rows = batch.source_row_count;
+        let source_rows = batch.source_row_count();
         let (generation, candidates, _, reads, candidate_memory) = batch.into_parts();
         windows += 1;
         ann_reads = ann_reads.saturating_add(reads);

@@ -32,6 +32,12 @@ pub struct PersistedHnswCandidateBatch {
 }
 
 impl PersistedHnswCandidateBatch {
+    /// Returns the source row count recorded by the persisted graph.
+    #[must_use]
+    pub const fn source_row_count(&self) -> usize {
+        self.source_row_count
+    }
+
     pub fn into_parts(
         self,
     ) -> (

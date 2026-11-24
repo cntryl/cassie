@@ -65,7 +65,7 @@ impl ColumnVectorReadCounters {
     }
 
     /// A staged transaction row replaced or joined a persisted lane.
-    pub(crate) fn record_staged_row(&self) {
+    pub fn record_staged_row(&self) {
         Self::add(&self.staged_rows_merged, 1);
     }
 
@@ -75,13 +75,13 @@ impl ColumnVectorReadCounters {
     }
 
     /// A scan ran its partitions on `workers` threads per wave.
-    pub(crate) fn record_parallel_scan(&self, workers: usize) {
+    pub fn record_parallel_scan(&self, workers: usize) {
         Self::add(&self.parallel_scans, 1);
         Self::add(&self.workers, workers as u64);
     }
 
     /// A scan that could have run in parallel ran serially for `label`.
-    pub(crate) fn record_fallback(&self, label: &'static str) {
+    pub fn record_fallback(&self, label: &'static str) {
         Self::add(&self.serial_scans, 1);
         *self.last_serial_label.lock() = label;
     }

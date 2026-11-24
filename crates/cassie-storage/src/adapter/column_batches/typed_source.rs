@@ -30,22 +30,22 @@ pub struct ValidatedEncodedField {
 }
 
 impl ValidatedEncodedField {
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
-    pub(crate) fn raw(&self) -> &[u8] {
+    pub fn raw(&self) -> &[u8] {
         &self.raw
     }
     pub fn values(&self) -> &[serde_json::Value] {
         &self.values
     }
-    pub(crate) fn numeric_values(&self) -> Option<&super::super::NumericValues> {
+    pub fn numeric_values(&self) -> Option<&super::super::NumericValues> {
         self.numeric.as_ref()
     }
     pub fn boolean_values(&self) -> Option<&[Option<bool>]> {
         self.boolean.as_deref()
     }
-    pub(crate) fn storage_type(&self) -> &str {
+    pub fn storage_type(&self) -> &str {
         &self.metadata.get().segments[self.segment].field_chunks[&self.name].logical_type
     }
 }

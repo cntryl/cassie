@@ -68,7 +68,7 @@ pub(super) fn open(
     let Some(reader) = cassie
         .midge
         .open_column_vector_reader(collection, &requested, traversal)
-        .map_err(|error| controlled_storage_error(cassie, error))?
+        .map_err(|error| controlled_storage_error(cassie, error.into()))?
     else {
         return Ok(None);
     };

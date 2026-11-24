@@ -4,28 +4,28 @@ use super::{
 };
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ProjectionCheckpoint {
+pub struct ProjectionCheckpoint {
     #[serde(default)]
-    pub(crate) projection_id: String,
-    pub(crate) collection: String,
+    pub projection_id: String,
+    pub collection: String,
     #[serde(default)]
-    pub(crate) kind: crate::catalog::ProjectionKind,
+    pub kind: crate::catalog::ProjectionKind,
     #[serde(default)]
-    pub(crate) source_identity: Option<String>,
+    pub source_identity: Option<String>,
     #[serde(default)]
-    pub(crate) source_checkpoint: Option<String>,
+    pub source_checkpoint: Option<String>,
     #[serde(default)]
-    pub(crate) source_position: Option<u64>,
+    pub source_position: Option<u64>,
     #[serde(default)]
-    pub(crate) last_applied_event_id: Option<String>,
+    pub last_applied_event_id: Option<String>,
     #[serde(default)]
-    pub(crate) replay_batch_id: Option<String>,
+    pub replay_batch_id: Option<String>,
     #[serde(default)]
-    pub(crate) lag: u64,
+    pub lag: u64,
     #[serde(default)]
-    pub(crate) freshness: crate::catalog::ProjectionFreshness,
+    pub freshness: crate::catalog::ProjectionFreshness,
     #[serde(default)]
-    pub(crate) last_error: Option<String>,
+    pub last_error: Option<String>,
     #[serde(default)]
     materialized: Option<CheckpointDefinition>,
 }

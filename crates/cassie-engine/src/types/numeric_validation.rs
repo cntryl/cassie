@@ -2,7 +2,7 @@
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-use super::numeric::{MAX_DSCALE, MAX_INTEGER_DIGITS};
+use super::extended::numeric::{MAX_DSCALE, MAX_INTEGER_DIGITS};
 
 #[cfg(test)]
 #[path = "numeric_validation_tests.rs"]

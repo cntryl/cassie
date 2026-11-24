@@ -103,7 +103,7 @@ impl<T> ValueSlots<T> {
     ) -> Result<NodeId, CassieError> {
         self.ensure_usable()?;
         self.controls.check_interruption()?;
-        if !value.reservation.shares_tracker(&self.controls) {
+        if !value.shares_tracker(&self.controls) {
             return Err(CassieError::Execution(
                 "JSON arena value uses a different query tracker".into(),
             ));
@@ -155,7 +155,7 @@ impl<T> ValueSlots<T> {
             .slot_at_mut(id.index)
             .filter(|slot| slot.generation == id.generation && slot.value.is_some())
             .ok_or_else(invalid_handle)?;
-        Ok(&mut slot.value.as_mut().expect("live slot").value)
+        Ok(slot.value.as_mut().expect("live slot").get_mut())
     }
 
     #[cfg(test)]

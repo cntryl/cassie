@@ -143,7 +143,7 @@ impl<'a> TypedScanStream<'a> {
                 Ok(crate::midge::adapter::EncodedSourceDecision::TransportBudget) => {
                     return Ok(None);
                 }
-                Err(error) => return Err(controlled_storage_error(cassie, error)),
+                Err(error) => return Err(controlled_storage_error(cassie, error.into())),
             }
         }
         if let Some(source) = authoritative::open(

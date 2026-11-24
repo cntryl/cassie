@@ -42,7 +42,8 @@ struct ArrayKey {
 
 impl RecordKey {
     /// Owned key backing; the descriptor and source value are separate owners.
-    pub(crate) fn retained_bytes(&self) -> usize {
+    #[must_use]
+    pub fn retained_bytes(&self) -> usize {
         self.0.iter().fold(
             self.0.capacity().saturating_mul(size_of::<FieldKey>()),
             |bytes, field| bytes.saturating_add(field.retained_bytes()),

@@ -1,18 +1,16 @@
-use crate::embeddings::provider::{
-    controlled_backoff, controlled_request_timeout, run_controlled_request,
-};
-use crate::embeddings::response::read_response;
-use crate::embeddings::EmbeddingProvider;
-use crate::runtime::QueryExecutionControls;
+use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
+use crate::response::read_response;
+use crate::EmbeddingProvider;
+use cassie_core::request::Interruption;
 use std::time::Duration;
 
 use reqwest::Client;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::embeddings::{Embedding, EmbeddingError};
+use crate::{Embedding, EmbeddingError};
 
 #[derive(Debug, Clone)]
-pub struct TeiProviderConfig {
+pub struct OllamaProviderConfig {
     pub base_url: String,
     pub model: String,
     pub dimensions: usize,
@@ -22,7 +20,7 @@ pub struct TeiProviderConfig {
 }
 
 #[derive(Debug)]
-pub struct TeiProvider {
+pub struct OllamaProvider {
     base_url: String,
     model: String,
     dimensions: usize,
@@ -34,28 +32,34 @@ pub struct TeiProvider {
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct TeiRequest {
-    inputs: Vec<String>,
+struct OllamaRequest {
+    model: String,
+    input: Vec<String>,
 }
 
-impl TeiProvider {
+#[derive(Debug, Deserialize)]
+struct OllamaResponse {
+    embeddings: Vec<Vec<f32>>,
+}
+
+impl OllamaProvider {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn with_config(config: TeiProviderConfig) -> Result<Self, EmbeddingError> {
+    pub fn with_config(config: OllamaProviderConfig) -> Result<Self, EmbeddingError> {
         if config.base_url.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
-                "TEI base URL is required".to_string(),
+                "Ollama base URL is required".to_string(),
             ));
         }
         if config.model.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
-                "TEI model is required".to_string(),
+                "Ollama model is required".to_string(),
             ));
         }
         if config.dimensions == 0 {
             return Err(EmbeddingError::InvalidConfiguration(
-                "TEI dimensions must be greater than zero".to_string(),
+                "Ollama dimensions must be greater than zero".to_string(),
             ));
         }
 
@@ -64,7 +68,7 @@ impl TeiProvider {
             .build()
             .map_err(|error| {
                 EmbeddingError::InvalidConfiguration(format!(
-                    "failed to configure TEI client: {error}"
+                    "failed to configure Ollama client: {error}"
                 ))
             })?;
 
@@ -76,7 +80,7 @@ impl TeiProvider {
             request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
-            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
+            max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
 
@@ -88,60 +92,72 @@ impl TeiProvider {
     fn embed_documents_batch(
         &self,
         inputs: &[String],
-        controls: Option<&QueryExecutionControls>,
+        interruption: Option<Interruption<'_>>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }
 
-        let request = TeiRequest {
-            inputs: inputs.to_vec(),
+        let request = OllamaRequest {
+            model: self.model.clone(),
+            input: inputs.to_vec(),
         };
-        let endpoint = format!("{}/embed", self.base_url.trim_end_matches('/'));
+        let endpoint = format!("{}/api/embed", self.base_url.trim_end_matches('/'));
 
         let mut attempt = 0usize;
         loop {
             attempt += 1;
-            let timeout =
-                controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
+            let timeout = controlled_request_timeout(
+                self.provider_name(),
+                self.request_timeout,
+                interruption,
+            )?;
             let client = self.client.clone();
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let max_response_bytes = self.max_response_bytes;
-            let response = run_controlled_request(self.provider_name(), controls, async move {
-                let response = client
-                    .post(endpoint)
-                    .timeout(timeout)
-                    .json(&request_snapshot)
-                    .send()
-                    .await?;
-                read_response(response, max_response_bytes).await
-            })?;
+            let response =
+                run_controlled_request(self.provider_name(), interruption, async move {
+                    let response = client
+                        .post(endpoint)
+                        .timeout(timeout)
+                        .json(&request_snapshot)
+                        .send()
+                        .await?;
+                    read_response(response, max_response_bytes).await
+                })?;
 
             match response {
                 Ok((status, body)) if status.is_success() => {
-                    let vectors: Vec<Vec<f32>> = serde_json::from_str(&body).map_err(|error| {
-                        EmbeddingError::ParseError(format!("TEI response parse failure: {error}"))
+                    let parsed: OllamaResponse = serde_json::from_str(&body).map_err(|error| {
+                        EmbeddingError::ParseError(format!(
+                            "Ollama response parse failure: {error}"
+                        ))
                     })?;
-                    return validate_vectors("TEI", vectors, inputs.len(), self.dimensions);
+                    return validate_vectors(
+                        "Ollama",
+                        parsed.embeddings,
+                        inputs.len(),
+                        self.dimensions,
+                    );
                 }
                 Ok((status, _)) if is_transient_status(status) && attempt < self.max_retries => {
                     controlled_backoff(
                         self.provider_name(),
                         Duration::from_millis(50 * attempt as u64),
-                        controls,
+                        interruption,
                     )?;
                 }
                 Ok((status, body)) if is_transient_status(status) => {
                     return Err(EmbeddingError::RetryExhausted {
                         provider: self.provider_name().to_string(),
                         attempts: attempt,
-                        message: format!("TEI request failed with status {status}: {body}"),
+                        message: format!("Ollama request failed with status {status}: {body}"),
                     });
                 }
                 Ok((status, body)) => {
                     return Err(EmbeddingError::RequestError(format!(
-                        "TEI request failed with status {status}: {body}"
+                        "Ollama request failed with status {status}: {body}"
                     )));
                 }
                 Err(error)
@@ -150,7 +166,7 @@ impl TeiProvider {
                     controlled_backoff(
                         self.provider_name(),
                         Duration::from_millis(50 * attempt as u64),
-                        controls,
+                        interruption,
                     )?;
                 }
                 Err(error) if error.is_timeout() => {
@@ -167,9 +183,9 @@ impl TeiProvider {
     }
 }
 
-impl EmbeddingProvider for TeiProvider {
+impl EmbeddingProvider for OllamaProvider {
     fn provider_name(&self) -> &'static str {
-        "tei"
+        "ollama"
     }
 
     fn model_name(&self) -> &str {
@@ -188,14 +204,14 @@ impl EmbeddingProvider for TeiProvider {
         Ok(out)
     }
 
-    fn embed_documents_with_controls(
+    fn embed_documents_with_interruption(
         &self,
         inputs: &[String],
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_documents_batch(chunk, Some(controls))?);
+            out.extend(self.embed_documents_batch(chunk, Some(interruption))?);
         }
         Ok(out)
     }

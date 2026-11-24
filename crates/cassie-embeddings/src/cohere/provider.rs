@@ -3,16 +3,14 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::embeddings::provider::{
-    controlled_backoff, controlled_request_timeout, run_controlled_request,
-};
-use crate::embeddings::response::{read_response, validate_response_indices};
-use crate::embeddings::EmbeddingProvider;
-use crate::embeddings::{Embedding, EmbeddingError};
-use crate::runtime::QueryExecutionControls;
+use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
+use crate::response::read_response;
+use crate::EmbeddingProvider;
+use crate::{Embedding, EmbeddingError};
+use cassie_core::request::Interruption;
 
 #[derive(Debug, Clone)]
-pub struct VoyageProviderConfig {
+pub struct CohereProviderConfig {
     pub api_key: String,
     pub model: String,
     pub dimensions: usize,
@@ -23,7 +21,7 @@ pub struct VoyageProviderConfig {
 }
 
 #[derive(Debug)]
-pub struct VoyageProvider {
+pub struct CohereProvider {
     api_key: String,
     model: String,
     dimensions: usize,
@@ -36,49 +34,47 @@ pub struct VoyageProvider {
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct VoyageEmbeddingRequest {
-    input: Vec<String>,
+struct CohereEmbedRequest {
     model: String,
     input_type: &'static str,
+    texts: Vec<String>,
+    embedding_types: Vec<&'static str>,
     output_dimension: usize,
-    output_dtype: &'static str,
-    truncation: bool,
 }
 
 #[derive(Debug, Deserialize)]
-struct VoyageEmbeddingResponse {
-    data: Vec<VoyageEmbeddingData>,
+struct CohereEmbedResponse {
+    embeddings: CohereEmbeddings,
 }
 
 #[derive(Debug, Deserialize)]
-struct VoyageEmbeddingData {
-    index: usize,
-    embedding: Vec<f32>,
+struct CohereEmbeddings {
+    float: Vec<Vec<f32>>,
 }
 
-impl VoyageProvider {
+impl CohereProvider {
     /// # Errors
     ///
     /// Returns an error when the provider configuration is invalid.
-    pub fn with_config(config: VoyageProviderConfig) -> Result<Self, EmbeddingError> {
+    pub fn with_config(config: CohereProviderConfig) -> Result<Self, EmbeddingError> {
         if config.api_key.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
-                "Voyage API key is required".to_string(),
+                "Cohere API key is required".to_string(),
             ));
         }
         if config.model.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
-                "Voyage model is required".to_string(),
+                "Cohere model is required".to_string(),
             ));
         }
         if config.dimensions == 0 {
             return Err(EmbeddingError::InvalidConfiguration(
-                "Voyage dimensions must be greater than zero".to_string(),
+                "Cohere dimensions must be greater than zero".to_string(),
             ));
         }
         if config.base_url.trim().is_empty() {
             return Err(EmbeddingError::InvalidConfiguration(
-                "Voyage base URL is required".to_string(),
+                "Cohere base URL is required".to_string(),
             ));
         }
 
@@ -87,7 +83,7 @@ impl VoyageProvider {
             .build()
             .map_err(|error| {
                 EmbeddingError::InvalidConfiguration(format!(
-                    "failed to configure Voyage client: {error}"
+                    "failed to configure Cohere client: {error}"
                 ))
             })?;
 
@@ -100,7 +96,7 @@ impl VoyageProvider {
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
             base_url: config.base_url,
-            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
+            max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
 
@@ -113,66 +109,73 @@ impl VoyageProvider {
         &self,
         inputs: &[String],
         input_type: &'static str,
-        controls: Option<&QueryExecutionControls>,
+        interruption: Option<Interruption<'_>>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }
 
-        let request = VoyageEmbeddingRequest {
-            input: inputs.to_vec(),
+        let request = CohereEmbedRequest {
             model: self.model.clone(),
             input_type,
+            texts: inputs.to_vec(),
+            embedding_types: vec!["float"],
             output_dimension: self.dimensions,
-            output_dtype: "float",
-            truncation: true,
         };
-        let endpoint = format!("{}/v1/embeddings", self.base_url.trim_end_matches('/'));
+        let endpoint = format!("{}/v2/embed", self.base_url.trim_end_matches('/'));
 
         let mut attempt = 0usize;
         loop {
             attempt += 1;
-            let timeout =
-                controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
+            let timeout = controlled_request_timeout(
+                self.provider_name(),
+                self.request_timeout,
+                interruption,
+            )?;
             let client = self.client.clone();
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
             let max_response_bytes = self.max_response_bytes;
 
-            let response = run_controlled_request(self.provider_name(), controls, async move {
-                let response = client
-                    .post(endpoint)
-                    .timeout(timeout)
-                    .header("Authorization", format!("Bearer {api_key}"))
-                    .json(&request_snapshot)
-                    .send()
-                    .await?;
-                read_response(response, max_response_bytes).await
-            })?;
+            let response =
+                run_controlled_request(self.provider_name(), interruption, async move {
+                    let response = client
+                        .post(endpoint)
+                        .timeout(timeout)
+                        .header("Authorization", format!("Bearer {api_key}"))
+                        .json(&request_snapshot)
+                        .send()
+                        .await?;
+                    read_response(response, max_response_bytes).await
+                })?;
 
             match response {
                 Ok((status, body)) if status.is_success() => {
-                    let parsed: VoyageEmbeddingResponse =
+                    let parsed: CohereEmbedResponse =
                         serde_json::from_str(&body).map_err(|error| {
                             EmbeddingError::ParseError(format!(
-                                "Voyage response parse failure: {error}"
+                                "Cohere response parse failure: {error}"
                             ))
                         })?;
-                    return validate_embeddings(parsed.data, inputs.len(), self.dimensions);
+                    return validate_embeddings(
+                        parsed.embeddings.float,
+                        inputs.len(),
+                        self.dimensions,
+                    );
                 }
                 Ok((status, body)) if is_transient_status(status) && attempt < self.max_retries => {
                     controlled_backoff(
                         self.provider_name(),
                         Duration::from_millis(50 * attempt as u64),
-                        controls,
+                        interruption,
                     )?;
                     tracing::warn!(
                         provider = %self.provider_name(),
                         model = %self.model,
                         status = %status,
                         attempt,
-                        "retrying Voyage embedding request"
+                        "retrying Cohere embedding request"
                     );
                     let _ = body;
                 }
@@ -180,12 +183,12 @@ impl VoyageProvider {
                     return Err(EmbeddingError::RetryExhausted {
                         provider: self.provider_name().to_string(),
                         attempts: attempt,
-                        message: format!("Voyage request failed with status {status}: {body}"),
+                        message: format!("Cohere request failed with status {status}: {body}"),
                     });
                 }
                 Ok((status, body)) => {
                     return Err(EmbeddingError::RequestError(format!(
-                        "Voyage request failed with status {status}: {body}"
+                        "Cohere request failed with status {status}: {body}"
                     )));
                 }
                 Err(error)
@@ -194,7 +197,7 @@ impl VoyageProvider {
                     controlled_backoff(
                         self.provider_name(),
                         Duration::from_millis(50 * attempt as u64),
-                        controls,
+                        interruption,
                     )?;
                 }
                 Err(error) if error.is_timeout() => {
@@ -211,9 +214,9 @@ impl VoyageProvider {
     }
 }
 
-impl EmbeddingProvider for VoyageProvider {
+impl EmbeddingProvider for CohereProvider {
     fn provider_name(&self) -> &'static str {
-        "voyage"
+        "cohere"
     }
 
     fn model_name(&self) -> &str {
@@ -227,37 +230,41 @@ impl EmbeddingProvider for VoyageProvider {
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_batch(chunk, "document", None)?);
+            out.extend(self.embed_batch(chunk, "search_document", None)?);
         }
         Ok(out)
     }
 
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
-        self.embed_batch(std::slice::from_ref(&input.to_string()), "query", None)
-            .map(|mut embeddings| embeddings.remove(0))
+        self.embed_batch(
+            std::slice::from_ref(&input.to_string()),
+            "search_query",
+            None,
+        )
+        .map(|mut embeddings| embeddings.remove(0))
     }
 
-    fn embed_documents_with_controls(
+    fn embed_documents_with_interruption(
         &self,
         inputs: &[String],
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_batch(chunk, "document", Some(controls))?);
+            out.extend(self.embed_batch(chunk, "search_document", Some(interruption))?);
         }
         Ok(out)
     }
 
-    fn embed_query_with_controls(
+    fn embed_query_with_interruption(
         &self,
         input: &str,
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Embedding, EmbeddingError> {
         self.embed_batch(
             std::slice::from_ref(&input.to_string()),
-            "query",
-            Some(controls),
+            "search_query",
+            Some(interruption),
         )
         .map(|mut embeddings| embeddings.remove(0))
     }
@@ -268,60 +275,28 @@ fn is_transient_status(status: reqwest::StatusCode) -> bool {
 }
 
 fn validate_embeddings(
-    mut data: Vec<VoyageEmbeddingData>,
+    embeddings: Vec<Vec<f32>>,
     expected_count: usize,
     expected_dimensions: usize,
 ) -> Result<Vec<Embedding>, EmbeddingError> {
-    data.sort_by_key(|entry| entry.index);
-    if data.len() != expected_count {
+    if embeddings.len() != expected_count {
         return Err(EmbeddingError::ParseError(format!(
-            "Voyage response length {} does not match request length {expected_count}",
-            data.len()
+            "Cohere response length {} does not match request length {expected_count}",
+            embeddings.len()
         )));
     }
-    validate_response_indices("Voyage", data.iter().map(|entry| entry.index))?;
 
-    for item in &data {
-        if item.embedding.len() != expected_dimensions {
+    for embedding in &embeddings {
+        if embedding.len() != expected_dimensions {
             return Err(EmbeddingError::ParseError(format!(
-                "Voyage embedding dimension {} does not match expected {expected_dimensions}",
-                item.embedding.len()
+                "Cohere embedding dimension {} does not match expected {expected_dimensions}",
+                embedding.len()
             )));
         }
     }
 
-    Ok(data
+    Ok(embeddings
         .into_iter()
-        .map(|entry| Embedding {
-            values: entry.embedding,
-        })
+        .map(|values| Embedding { values })
         .collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn should_reject_voyage_response_with_noncontiguous_indices() {
-        // Arrange
-        let data = vec![
-            VoyageEmbeddingData {
-                index: 0,
-                embedding: vec![0.1, 0.2],
-            },
-            VoyageEmbeddingData {
-                index: 0,
-                embedding: vec![0.3, 0.4],
-            },
-        ];
-
-        // Act
-        let error =
-            validate_embeddings(data, 2, 2).expect_err("duplicate response index should fail");
-
-        // Assert
-        assert!(matches!(error, EmbeddingError::ParseError(_)));
-        assert!(error.to_string().contains("index"));
-    }
 }

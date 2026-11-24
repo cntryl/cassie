@@ -1,5 +1,5 @@
-use crate::embeddings::{Embedding, EmbeddingError};
-use crate::runtime::QueryExecutionControls;
+use crate::{Embedding, EmbeddingError};
+use cassie_core::request::{Interruption, InterruptionError};
 use std::future::Future;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -38,14 +38,14 @@ pub trait EmbeddingProvider: Send + Sync {
     /// # Errors
     ///
     /// Returns an error when the query is canceled, its deadline expires, or the provider fails.
-    fn embed_documents_with_controls(
+    fn embed_documents_with_interruption(
         &self,
         inputs: &[String],
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
-        check_controls(self.provider_name(), controls)?;
+        check_controls(self.provider_name(), interruption)?;
         let embeddings = self.embed_documents(inputs)?;
-        check_controls(self.provider_name(), controls)?;
+        check_controls(self.provider_name(), interruption)?;
         Ok(embeddings)
     }
     /// # Errors
@@ -63,54 +63,55 @@ pub trait EmbeddingProvider: Send + Sync {
     /// # Errors
     ///
     /// Returns an error when the query is canceled, its deadline expires, or the provider fails.
-    fn embed_query_with_controls(
+    fn embed_query_with_interruption(
         &self,
         input: &str,
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Embedding, EmbeddingError> {
-        self.embed_documents_with_controls(std::slice::from_ref(&input.to_string()), controls)
-            .map(|batch| {
-                batch
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(|| Embedding { values: Vec::new() })
-            })
+        self.embed_documents_with_interruption(
+            std::slice::from_ref(&input.to_string()),
+            interruption,
+        )
+        .map(|batch| {
+            batch
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Embedding { values: Vec::new() })
+        })
     }
 }
 
 pub(crate) fn check_controls(
     provider: &str,
-    controls: &QueryExecutionControls,
+    interruption: Interruption<'_>,
 ) -> Result<(), EmbeddingError> {
-    if controls.is_canceled() {
-        return Err(EmbeddingError::Canceled {
+    match interruption.check() {
+        Ok(()) => Ok(()),
+        Err(InterruptionError::Canceled) => Err(EmbeddingError::Canceled {
             provider: provider.to_string(),
-        });
-    }
-    if controls.is_timed_out() {
-        return Err(EmbeddingError::Timeout {
+        }),
+        Err(InterruptionError::DeadlineExceeded) => Err(EmbeddingError::Timeout {
             provider: provider.to_string(),
             message: "query deadline exceeded".to_string(),
-        });
+        }),
     }
-    Ok(())
 }
 
 pub(crate) fn controlled_request_timeout(
     provider: &str,
     configured: Duration,
-    controls: Option<&QueryExecutionControls>,
+    interruption: Option<Interruption<'_>>,
 ) -> Result<Duration, EmbeddingError> {
-    let Some(controls) = controls else {
+    let Some(interruption) = interruption else {
         return Ok(configured);
     };
-    check_controls(provider, controls)?;
-    let Some(deadline) = controls.deadline else {
+    check_controls(provider, interruption)?;
+    let Some(deadline) = interruption.deadline() else {
         return Ok(configured);
     };
     let remaining = deadline.saturating_duration_since(Instant::now());
     if remaining.is_zero() {
-        check_controls(provider, controls)?;
+        check_controls(provider, interruption)?;
     }
     Ok(configured.min(remaining))
 }
@@ -118,23 +119,23 @@ pub(crate) fn controlled_request_timeout(
 pub(crate) fn controlled_backoff(
     provider: &str,
     delay: Duration,
-    controls: Option<&QueryExecutionControls>,
+    interruption: Option<Interruption<'_>>,
 ) -> Result<(), EmbeddingError> {
-    let Some(controls) = controls else {
+    let Some(interruption) = interruption else {
         std::thread::sleep(delay);
         return Ok(());
     };
     let started = Instant::now();
     while started.elapsed() < delay {
-        check_controls(provider, controls)?;
+        check_controls(provider, interruption)?;
         let remaining = delay.saturating_sub(started.elapsed());
-        let deadline_remaining = controls
-            .deadline
+        let deadline_remaining = interruption
+            .deadline()
             .map(|deadline| deadline.saturating_duration_since(Instant::now()));
         let sleep_for = next_backoff_sleep(remaining, deadline_remaining);
         std::thread::sleep(sleep_for);
     }
-    check_controls(provider, controls)
+    check_controls(provider, interruption)
 }
 
 fn next_backoff_sleep(
@@ -170,7 +171,7 @@ fn join_controlled_request_worker(
 
 pub(crate) fn run_controlled_request<T, E, F>(
     provider: &str,
-    controls: Option<&QueryExecutionControls>,
+    interruption: Option<Interruption<'_>>,
     request: F,
 ) -> Result<Result<T, E>, EmbeddingError>
 where
@@ -178,8 +179,8 @@ where
     E: Send + 'static,
     F: Future<Output = Result<T, E>> + Send + 'static,
 {
-    if let Some(controls) = controls {
-        check_controls(provider, controls)?;
+    if let Some(interruption) = interruption {
+        check_controls(provider, interruption)?;
     }
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
@@ -227,8 +228,8 @@ where
                 )));
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                if let Some(controls) = controls {
-                    if let Err(control_error) = check_controls(provider, controls) {
+                if let Some(interruption) = interruption {
+                    if let Err(control_error) = check_controls(provider, interruption) {
                         if let Some(cancel_sender) = cancel_sender.take() {
                             let _ = cancel_sender.send(());
                         }
@@ -250,8 +251,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::CassieRuntimeLimits;
-    use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+    use cassie_core::request::RequestCancellation;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Instant;
 
@@ -279,21 +279,31 @@ mod tests {
     #[test]
     fn should_reject_canceled_controlled_embedding_before_provider_call() {
         // Arrange
-        let cancellation = QueryCancellationHandle::new();
+        let cancellation = RequestCancellation::new();
         cancellation.cancel();
-        let controls = QueryExecutionControls::with_cancellation(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-            cancellation,
-        );
+        let interruption = Interruption::new(None, &cancellation);
         let provider = RecordingProvider(AtomicBool::new(false));
 
         // Act
-        let result = provider.embed_query_with_controls("hello", &controls);
+        let result = provider.embed_query_with_interruption("hello", interruption);
 
         // Assert
         assert!(matches!(result, Err(EmbeddingError::Canceled { .. })));
         assert!(!provider.0.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn should_report_cancellation_before_an_expired_deadline() {
+        // Arrange
+        let cancellation = RequestCancellation::new();
+        cancellation.cancel();
+        let interruption = Interruption::new(Some(Instant::now()), &cancellation);
+
+        // Act
+        let result = check_controls("recording", interruption);
+
+        // Assert
+        assert!(matches!(result, Err(EmbeddingError::Canceled { .. })));
     }
 
     #[test]

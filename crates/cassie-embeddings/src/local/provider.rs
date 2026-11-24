@@ -1,8 +1,8 @@
 use sha2::{Digest, Sha256};
 
-use crate::embeddings::EmbeddingProvider;
-use crate::embeddings::{Embedding, EmbeddingError};
-use crate::runtime::QueryExecutionControls;
+use crate::EmbeddingProvider;
+use crate::{Embedding, EmbeddingError};
+use cassie_core::request::Interruption;
 
 #[derive(Debug, Clone)]
 pub struct LocalProviderConfig {
@@ -93,14 +93,14 @@ impl EmbeddingProvider for LocalProvider {
         Ok(self.derive_embedding(input, "query"))
     }
 
-    fn embed_query_with_controls(
+    fn embed_query_with_interruption(
         &self,
         input: &str,
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Embedding, EmbeddingError> {
-        crate::embeddings::provider::check_controls(self.provider_name(), controls)?;
+        crate::provider::check_controls(self.provider_name(), interruption)?;
         let embedding = self.embed_query(input)?;
-        crate::embeddings::provider::check_controls(self.provider_name(), controls)?;
+        crate::provider::check_controls(self.provider_name(), interruption)?;
         Ok(embedding)
     }
 }

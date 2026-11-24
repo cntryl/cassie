@@ -1,15 +1,13 @@
-use crate::embeddings::provider::{
-    controlled_backoff, controlled_request_timeout, run_controlled_request,
-};
-use crate::embeddings::response::{read_response, validate_response_indices, ResponseReadError};
-use crate::embeddings::EmbeddingProvider;
-use crate::runtime::QueryExecutionControls;
+use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
+use crate::response::{read_response, validate_response_indices, ResponseReadError};
+use crate::EmbeddingProvider;
+use cassie_core::request::Interruption;
 use std::time::{Duration, Instant};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::embeddings::{Embedding, EmbeddingError};
+use crate::{Embedding, EmbeddingError};
 
 pub const DEFAULT_OPENAI_TIMEOUT_SECONDS: u64 = 30;
 pub const DEFAULT_OPENAI_MAX_RETRIES: usize = 3;
@@ -118,7 +116,7 @@ impl OpenAiProvider {
             base_url: config.base_url,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
-            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
+            max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
 
@@ -152,15 +150,15 @@ impl OpenAiProvider {
         &self,
         endpoint: &str,
         request: EmbeddingRequest,
-        controls: Option<&QueryExecutionControls>,
+        interruption: Option<Interruption<'_>>,
     ) -> Result<Result<(reqwest::StatusCode, String), ResponseReadError>, EmbeddingError> {
         let timeout =
-            controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
+            controlled_request_timeout(self.provider_name(), self.request_timeout, interruption)?;
         let endpoint = endpoint.to_string();
         let client = self.client.clone();
         let api_key = self.api_key.clone();
         let max_response_bytes = self.max_response_bytes;
-        run_controlled_request(self.provider_name(), controls, async move {
+        run_controlled_request(self.provider_name(), interruption, async move {
             let response = client
                 .post(&endpoint)
                 .timeout(timeout)
@@ -175,7 +173,7 @@ impl OpenAiProvider {
     fn embed_documents_batch(
         &self,
         inputs: &[String],
-        controls: Option<&QueryExecutionControls>,
+        interruption: Option<Interruption<'_>>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
@@ -191,7 +189,8 @@ impl OpenAiProvider {
         loop {
             attempt += 1;
             let started = Instant::now();
-            let response = self.request_embedding_batch(&endpoint, request.clone(), controls)?;
+            let response =
+                self.request_embedding_batch(&endpoint, request.clone(), interruption)?;
 
             match response {
                 Ok((status, response_body)) => {
@@ -215,7 +214,7 @@ impl OpenAiProvider {
                             "transient OpenAI response; retrying"
                         );
                         let delay = Duration::from_millis(50 * attempt as u64);
-                        controlled_backoff(self.provider_name(), delay, controls)?;
+                        controlled_backoff(self.provider_name(), delay, interruption)?;
                         continue;
                     }
 
@@ -240,7 +239,7 @@ impl OpenAiProvider {
                         controlled_backoff(
                             self.provider_name(),
                             Duration::from_millis(50 * attempt as u64),
-                            controls,
+                            interruption,
                         )?;
                         continue;
                     }
@@ -343,14 +342,14 @@ impl EmbeddingProvider for OpenAiProvider {
         Ok(out)
     }
 
-    fn embed_documents_with_controls(
+    fn embed_documents_with_interruption(
         &self,
         inputs: &[String],
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_documents_batch(chunk, Some(controls))?);
+            out.extend(self.embed_documents_batch(chunk, Some(interruption))?);
         }
         Ok(out)
     }

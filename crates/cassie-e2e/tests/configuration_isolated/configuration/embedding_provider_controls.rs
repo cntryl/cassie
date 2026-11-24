@@ -183,8 +183,10 @@ fn run_deadline_probe(provider: Box<dyn EmbeddingProvider>) -> (EmbeddingError, 
         let started = Instant::now();
         let controls =
             QueryExecutionControls::with_cancellation(&limits, started, query_cancellation);
-        let result =
-            provider.embed_documents_with_controls(&["bounded input".to_string()], &controls);
+        let result = provider.embed_documents_with_interruption(
+            &["bounded input".to_string()],
+            controls.interruption(),
+        );
         let _ = result_tx.send((result, started.elapsed()));
     });
     let outcome = match result_rx.recv_timeout(PROBE_HANG_GUARD) {
@@ -397,7 +399,10 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
             Instant::now(),
             query_cancellation,
         );
-        provider.embed_documents_with_controls(&["bounded input".to_string()], &controls)
+        provider.embed_documents_with_interruption(
+            &["bounded input".to_string()],
+            controls.interruption(),
+        )
     });
     accepted.recv().expect("provider request accepted");
     let started = Instant::now();

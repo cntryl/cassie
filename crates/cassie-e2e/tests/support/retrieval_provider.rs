@@ -1,6 +1,6 @@
 use cassie::app::Cassie;
+use cassie::embeddings::Interruption;
 use cassie::embeddings::{Embedding, EmbeddingError, EmbeddingProvider};
-use cassie::runtime::QueryExecutionControls;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -46,13 +46,14 @@ impl EmbeddingProvider for CountingEmbeddingProvider {
         self.inner.embed_documents(inputs)
     }
 
-    fn embed_documents_with_controls(
+    fn embed_documents_with_interruption(
         &self,
         inputs: &[String],
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        self.inner.embed_documents_with_controls(inputs, controls)
+        self.inner
+            .embed_documents_with_interruption(inputs, interruption)
     }
 
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
@@ -60,12 +61,13 @@ impl EmbeddingProvider for CountingEmbeddingProvider {
         self.inner.embed_query(input)
     }
 
-    fn embed_query_with_controls(
+    fn embed_query_with_interruption(
         &self,
         input: &str,
-        controls: &QueryExecutionControls,
+        interruption: Interruption<'_>,
     ) -> Result<Embedding, EmbeddingError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        self.inner.embed_query_with_controls(input, controls)
+        self.inner
+            .embed_query_with_interruption(input, interruption)
     }
 }

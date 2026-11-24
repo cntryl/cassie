@@ -98,3 +98,37 @@ fn should_report_an_expired_absolute_deadline() {
         Err(InterruptionError::DeadlineExceeded)
     );
 }
+
+#[test]
+fn should_keep_the_existing_lease_when_an_accounted_vector_builder_fails() {
+    // Arrange
+    use super::accounted::{AccountedVec, AccountingError};
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct DecodeFailure;
+
+    impl From<AccountingError> for DecodeFailure {
+        fn from(_: AccountingError) -> Self {
+            Self
+        }
+    }
+
+    let budget = 64;
+    let memory = super::RequestMemory::new(budget);
+    let mut values = AccountedVec::try_new(&memory).expect("empty accounted vector");
+    values.try_push_with(0, || 42_u64).expect("existing value");
+    let original_bytes = memory.current_bytes();
+
+    // Act
+    let failed = values.try_push_with_result(8, || Err(DecodeFailure));
+    let (values, lease) = values.into_parts();
+
+    // Assert
+    assert_eq!(failed, Err(DecodeFailure));
+    assert_eq!(values, [42]);
+    assert_eq!(lease.bytes(), original_bytes);
+    assert!(lease.belongs_to(&memory));
+    assert_eq!(memory.current_bytes(), original_bytes);
+    drop(lease);
+    assert_eq!(memory.current_bytes(), 0);
+}

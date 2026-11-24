@@ -1,4 +1,6 @@
-use std::mem::size_of;
+use cassie_core::request::accounted::{
+    Accounted as CoreAccounted, AccountedVec as CoreAccountedVec, AccountingError,
+};
 
 use crate::app::CassieError;
 
@@ -14,20 +16,21 @@ pub mod json;
 #[doc(hidden)]
 pub mod json_arena;
 
+impl From<AccountingError> for CassieError {
+    fn from(error: AccountingError) -> Self {
+        Self::ResourceLimit(error.to_string())
+    }
+}
+
 /// A retained value paired with the query-memory reservation that owns its budget.
-///
-/// The value intentionally cannot be separated from its reservation. Consumers can move the
-/// container or borrow the value, but the accounted bytes are released only when both are dropped.
 #[doc(hidden)]
 #[derive(Debug)]
-pub struct Accounted<T> {
-    value: T,
-    reservation: QueryMemoryReservation,
-}
+#[repr(transparent)]
+pub struct Accounted<T>(CoreAccounted<T>);
 
 impl<T> Accounted<T> {
     pub(crate) fn from_admitted(value: T, reservation: QueryMemoryReservation) -> Self {
-        Self { value, reservation }
+        Self(CoreAccounted::from_admitted(value, reservation.into_core()))
     }
 
     /// Reserves the complete retained-size estimate before constructing the value.
@@ -40,114 +43,57 @@ impl<T> Accounted<T> {
         retained_bytes: usize,
         build: impl FnOnce() -> T,
     ) -> Result<Self, CassieError> {
-        let reservation = controls.reserve_query_memory(retained_bytes)?;
-        let value = build();
-        Ok(Self { value, reservation })
+        Ok(Self(CoreAccounted::try_new(
+            controls.request_memory(),
+            retained_bytes,
+            build,
+        )?))
     }
 
     #[must_use]
     #[doc(hidden)]
     pub const fn get(&self) -> &T {
-        &self.value
+        self.0.get()
     }
 
     #[must_use]
     pub(crate) const fn accounted_bytes(&self) -> usize {
-        self.reservation.bytes()
+        self.0.accounted_bytes()
     }
 
     #[doc(hidden)]
     pub fn into_parts(self) -> (T, QueryMemoryReservation) {
-        (self.value, self.reservation)
+        let (value, reservation) = self.0.into_parts();
+        (value, QueryMemoryReservation::from_core(reservation))
     }
 }
 
-/// A grow-only retained vector whose logical values stay coupled to one query reservation.
-///
-/// Callers supply the variable-size retained estimate for each value. The container also accounts
-/// for the inline `T` slot before growing the backing vector. Borrowed access keeps the values and
-/// reservation coupled; consuming access transfers both parts to compatibility callers.
+/// A retained vector and its growable reservation on the shared request tracker.
 #[derive(Debug)]
-pub(crate) struct AccountedVec<T> {
-    values: Vec<T>,
-    reservation: QueryMemoryReservation,
-}
+#[repr(transparent)]
+pub(crate) struct AccountedVec<T>(CoreAccountedVec<T>);
 
 impl<T> AccountedVec<T> {
-    /// # Errors
-    ///
-    /// Returns a resource-limit error if even the empty reservation cannot be created.
     pub(crate) fn try_new(controls: &QueryExecutionControls) -> Result<Self, CassieError> {
-        Ok(Self {
-            values: Vec::new(),
-            reservation: controls.reserve_query_memory(0)?,
-        })
+        Ok(Self(CoreAccountedVec::try_new(controls.request_memory())?))
     }
 
-    /// Reserves before growing the vector and before constructing its new retained value.
-    ///
-    /// `variable_bytes` is the allocation owned by `T` in addition to its inline representation.
-    ///
-    /// # Errors
-    ///
-    /// Returns a resource-limit error without invoking `build` if the query budget is too small.
     pub(crate) fn try_push_with(
         &mut self,
         variable_bytes: usize,
         build: impl FnOnce() -> T,
     ) -> Result<(), CassieError> {
-        let retained_bytes = retained_value_bytes::<T>(variable_bytes)?;
-        let previous_bytes = self.reservation.bytes();
-        self.reservation.try_grow(retained_bytes)?;
-
-        if let Err(error) = self.values.try_reserve_exact(1) {
-            self.reservation.shrink_to(previous_bytes);
-            return Err(CassieError::ResourceLimit(format!(
-                "unable to retain accounted query value: {error}"
-            )));
-        }
-
-        self.values.push(build());
-        Ok(())
+        Ok(self.0.try_push_with(variable_bytes, build)?)
     }
 
-    /// Reserves before growing the vector and before attempting to construct its new value.
-    ///
-    /// # Errors
-    ///
-    /// Returns the builder error or a resource-limit error without retaining a partial value.
     pub(crate) fn try_push_with_result(
         &mut self,
         variable_bytes: usize,
         build: impl FnOnce() -> Result<T, CassieError>,
     ) -> Result<(), CassieError> {
-        let retained_bytes = retained_value_bytes::<T>(variable_bytes)?;
-        let previous_bytes = self.reservation.bytes();
-        self.reservation.try_grow(retained_bytes)?;
-
-        if let Err(error) = self.values.try_reserve_exact(1) {
-            self.reservation.shrink_to(previous_bytes);
-            return Err(CassieError::ResourceLimit(format!(
-                "unable to retain accounted query value: {error}"
-            )));
-        }
-
-        let value = match build() {
-            Ok(value) => value,
-            Err(error) => {
-                self.reservation.shrink_to(previous_bytes);
-                return Err(error);
-            }
-        };
-        self.values.push(value);
-        Ok(())
+        self.0.try_push_with_result(variable_bytes, build)
     }
 
-    /// Reserves before growing the vector and before cloning its new retained value.
-    ///
-    /// # Errors
-    ///
-    /// Returns a resource-limit error without cloning if the query budget is too small.
     pub(crate) fn try_push_clone(
         &mut self,
         value: &T,
@@ -156,45 +102,38 @@ impl<T> AccountedVec<T> {
     where
         T: Clone,
     {
-        self.try_push_with(variable_bytes, || value.clone())
+        Ok(self.0.try_push_clone(value, variable_bytes)?)
     }
 
     #[must_use]
     pub(crate) fn as_slice(&self) -> &[T] {
-        &self.values
+        self.0.as_slice()
     }
 
     #[must_use]
-    pub(crate) fn len(&self) -> usize {
-        self.values.len()
+    pub(crate) const fn len(&self) -> usize {
+        self.0.len()
     }
 
     #[must_use]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.values.is_empty()
+    pub(crate) const fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     #[must_use]
     pub(crate) const fn accounted_bytes(&self) -> usize {
-        self.reservation.bytes()
+        self.0.accounted_bytes()
     }
 
     #[must_use]
     pub(crate) fn into_parts(self) -> (Vec<T>, QueryMemoryReservation) {
-        (self.values, self.reservation)
+        let (values, reservation) = self.0.into_parts();
+        (values, QueryMemoryReservation::from_core(reservation))
     }
 
     pub(crate) fn clear(&mut self) {
-        self.values.clear();
-        self.values.shrink_to_fit();
-        self.reservation.shrink_to(0);
+        self.0.clear();
     }
-}
-
-fn retained_value_bytes<T>(variable_bytes: usize) -> Result<usize, CassieError> {
-    size_of::<T>()
-        .checked_add(variable_bytes)
-        .ok_or_else(|| CassieError::ResourceLimit("accounted query value size overflow".to_owned()))
 }
 
 #[cfg(test)]

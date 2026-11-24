@@ -186,6 +186,15 @@ impl QueryMemoryReservation {
     pub(crate) fn into_core(self) -> RequestMemoryReservation {
         self.core
     }
+
+    pub(crate) const fn as_core(&self) -> &RequestMemoryReservation {
+        &self.core
+    }
+
+    pub(crate) const fn as_core_mut(&mut self) -> &mut RequestMemoryReservation {
+        &mut self.core
+    }
+
     #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn bytes_for_test(&self) -> usize {
         self.core.bytes()

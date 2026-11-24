@@ -44,7 +44,7 @@ pub(super) fn admit(
             &scoped_cassie.binding_context_for_session(Some(session)),
             controls,
         )?;
-        Ok(admitted)
+        Ok::<_, ExtendedQueryError>(admitted)
     })?;
     admitted
         .final_check()

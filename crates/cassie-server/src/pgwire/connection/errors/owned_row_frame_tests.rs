@@ -33,7 +33,7 @@ impl PrivateExecutionError {
 }
 
 fn simulated_execution(controls: &QueryExecutionControls) -> Result<(), PrivateExecutionError> {
-    match crate::midge::row_blob::tests::owned_row_diagnostic(controls) {
+    match crate::midge::transport_test_fixtures::owned_row_diagnostic(controls) {
         Ok(diagnostic) => Err(PrivateExecutionError::Row(diagnostic)),
         Err(error) => Err(PrivateExecutionError::Cassie(error)),
     }
@@ -127,7 +127,8 @@ fn should_preserve_fatal_severity_for_owned_row_diagnostic() {
     // Arrange
     let controls = controls(1_048_576);
     let diagnostic =
-        crate::midge::row_blob::tests::owned_row_diagnostic(&controls).expect("diagnostic");
+        crate::midge::transport_test_fixtures::owned_row_diagnostic(&controls)
+            .expect("diagnostic");
     // Act
     let frame = PgWireError::controlled_diagnostic(
         PgWireSeverity::Fatal,
@@ -153,7 +154,8 @@ fn should_enforce_measured_worker_diagnostic_frame_overlap_budget() {
     // Arrange
     let baseline = controls(1_048_576);
     let diagnostic =
-        crate::midge::row_blob::tests::owned_row_diagnostic(&baseline).expect("diagnostic");
+        crate::midge::transport_test_fixtures::owned_row_diagnostic(&baseline)
+            .expect("diagnostic");
     let filler = baseline.reserve_query_memory(4096).expect("filler");
     let frame = PgWireError::controlled_diagnostic(
         PgWireSeverity::Error,
@@ -170,7 +172,8 @@ fn should_enforce_measured_worker_diagnostic_frame_overlap_budget() {
     let outcomes = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
         let controls = controls(budget);
         let diagnostic =
-            crate::midge::row_blob::tests::owned_row_diagnostic(&controls).expect("diagnostic");
+            crate::midge::transport_test_fixtures::owned_row_diagnostic(&controls)
+                .expect("diagnostic");
         let filler = controls.reserve_query_memory(4096).expect("filler");
         let frame = PgWireError::controlled_diagnostic(
             PgWireSeverity::Error,
@@ -203,7 +206,8 @@ fn should_release_partial_frame_after_actual_copy_cancellation() {
         cancel.clone(),
     );
     let diagnostic =
-        crate::midge::row_blob::tests::owned_row_diagnostic(&controls).expect("diagnostic");
+        crate::midge::transport_test_fixtures::owned_row_diagnostic(&controls)
+            .expect("diagnostic");
     let text = diagnostic.as_str();
     let memory = controls
         .reserve_query_memory(std::mem::size_of::<PgWireError>() + text.len())

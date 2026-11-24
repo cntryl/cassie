@@ -7,7 +7,7 @@ use cassie::catalog::DatabaseMeta;
 use cassie::config::CassieRuntimeConfig;
 use cassie::midge::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
-    set_schema_write_commit_barriers, SchemaWritePausePoint,
+    set_schema_write_commit_barriers, SchemaWritePausePoint, StorageError,
 };
 use cntryl_midge::{TransactionMode, WriteOptions};
 
@@ -213,6 +213,7 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
         }
         other => panic!("expected one successful create and one conflict or stall: {other:?}"),
     };
+    let error = CassieError::from(error);
     let CassieError::StorageRetryable(retry) = error else {
         panic!("unexpected database creation error: {error}");
     };
@@ -230,7 +231,7 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
     assert!(cassie.midge.get_database(loser).unwrap().is_none());
     assert!(matches!(
         cassie.midge.database_family(loser),
-        Err(CassieError::NotFound(_))
+        Err(StorageError::NotFound(_))
     ));
 
     let winner_owner = write_database_sentinel(&cassie, winner);

@@ -578,11 +578,11 @@ fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
 }
 
 fn is_qualified_digest(name: &str) -> bool {
-    crate::catalog::parse_name(name).is_ok_and(|parsed| {
+    crate::catalog::scope::parse_name(name).is_ok_and(|parsed| {
         matches!(
             parsed,
-            crate::catalog::ParsedName::SchemaQualified { name, .. }
-                | crate::catalog::ParsedName::DatabaseQualified { name, .. }
+            crate::catalog::scope::ParsedName::SchemaQualified { name, .. }
+                | crate::catalog::scope::ParsedName::DatabaseQualified { name, .. }
                 if name.eq_ignore_ascii_case("digest")
         )
     })

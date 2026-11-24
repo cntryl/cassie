@@ -1,6 +1,8 @@
 //! Resolved operator metadata is part of expression identity.
-use super::super::{BinaryOp, Expr};
+use super::super::BinaryOp;
 use cassie_core::types::{IntegerOperation, IntegerWidth};
+
+type Expr = super::super::Expr<()>;
 
 #[test]
 fn should_preserve_array_subscript_child_order_during_mapping() {

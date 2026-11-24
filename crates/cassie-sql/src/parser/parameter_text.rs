@@ -5,7 +5,7 @@ use super::lexical;
 
 /// The highest `$n` placeholder in `sql`, ignoring quoted text and comments.
 #[must_use]
-pub(crate) fn max_positional_parameter(sql: &str) -> usize {
+pub fn max_positional_parameter(sql: &str) -> usize {
     let mut highest = 0;
     rewrite(sql, |index| {
         highest = highest.max(index);
@@ -17,7 +17,7 @@ pub(crate) fn max_positional_parameter(sql: &str) -> usize {
 /// Replaces each `$n` placeholder with `replacement(n)`; a `None`
 /// replacement leaves the placeholder as written.
 #[must_use]
-pub(crate) fn substitute_positional_parameters(
+pub fn substitute_positional_parameters(
     sql: &str,
     replacement: impl FnMut(usize) -> Option<String>,
 ) -> String {

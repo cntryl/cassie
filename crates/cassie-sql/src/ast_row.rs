@@ -25,7 +25,9 @@ pub struct RowComparison<A = ()> {
 }
 
 impl RowComparisonOp {
-    pub(crate) const fn symbol(self) -> &'static str {
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn symbol(self) -> &'static str {
         match self {
             Self::Eq => "=",
             Self::NotEq => "<>",
@@ -38,7 +40,9 @@ impl RowComparisonOp {
         }
     }
 
-    pub(crate) fn from_binary(op: &BinaryOp) -> Option<Self> {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn from_binary(op: &BinaryOp) -> Option<Self> {
         Some(match op {
             BinaryOp::Eq => Self::Eq,
             BinaryOp::NotEq => Self::NotEq,
@@ -51,7 +55,9 @@ impl RowComparisonOp {
             _ => return None,
         })
     }
-    pub(crate) fn binary(self) -> BinaryOp {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn binary(self) -> BinaryOp {
         match self {
             Self::Eq => BinaryOp::Eq,
             Self::NotEq => BinaryOp::NotEq,
@@ -63,7 +69,9 @@ impl RowComparisonOp {
             Self::IsNotDistinctFrom => BinaryOp::IsNotDistinctFrom,
         }
     }
-    pub(crate) fn null_safe(self) -> bool {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn null_safe(self) -> bool {
         matches!(self, Self::IsDistinctFrom | Self::IsNotDistinctFrom)
     }
 }

@@ -8,7 +8,9 @@ pub enum TruthValue {
     Unknown,
 }
 impl TruthValue {
-    pub(crate) fn evaluate(self, value: Option<bool>, negated: bool) -> bool {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn evaluate(self, value: Option<bool>, negated: bool) -> bool {
         let expected = match self {
             Self::True => Some(true),
             Self::False => Some(false),
@@ -16,7 +18,9 @@ impl TruthValue {
         };
         (value == expected) != negated
     }
-    pub(crate) const fn label(self, negated: bool) -> &'static str {
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn label(self, negated: bool) -> &'static str {
         match (self, negated) {
             (Self::True, false) => "IS TRUE",
             (Self::True, true) => "IS NOT TRUE",

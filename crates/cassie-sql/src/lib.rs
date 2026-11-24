@@ -12,6 +12,7 @@ pub mod parser;
 mod parameter_count;
 pub mod sequence_default;
 
+#[cfg(test)]
 mod ast_attachment_tests;
 pub mod declarations;
 pub mod registry;

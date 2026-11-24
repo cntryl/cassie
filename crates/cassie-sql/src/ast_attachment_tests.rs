@@ -24,21 +24,23 @@ fn should_omit_runtime_attachment_when_syntax_ast_is_serialized() {
             },
         )),
     };
-    let expression = SubqueryExpr::<String> {
+    struct RuntimeOnly;
+
+    let expression = SubqueryExpr::<RuntimeOnly> {
         kind: SubqueryKind::Scalar,
         query: Box::new(query),
         data_type: None,
-        outcome: Some("attached runtime outcome".to_string()),
+        outcome: Some(RuntimeOnly),
     };
 
     // Act
     let encoded = serde_json::to_value(&expression).expect("serialize syntax AST");
-    let decoded: SubqueryExpr<String> = serde_json::from_value(encoded.clone())
+    let decoded: SubqueryExpr<RuntimeOnly> = serde_json::from_value(encoded.clone())
         .expect("deserialize syntax AST without runtime attachment");
 
     // Assert
     assert!(encoded.get("outcome").is_none());
-    assert_eq!(decoded.outcome, None);
+    assert!(decoded.outcome.is_none());
 }
 
 #[test]
@@ -68,7 +70,7 @@ fn should_rebind_nested_query_ast_given_runtime_attachment_type_when_syntax_is_p
             },
         )),
     };
-    let parsed = ParsedStatement {
+    let parsed: ParsedStatement = ParsedStatement {
         raw_sql: "SELECT (SELECT 1)".to_string(),
         statement: crate::ast::QueryStatement::Select(Box::new(crate::ast::SelectStatement {
             source: crate::ast::QuerySource::SingleRow,

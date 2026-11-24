@@ -223,9 +223,14 @@ impl CopyFromOperation {
 
     /// Runs transport decoding and semantic execution under this operation's
     /// publication controls without exposing the storage adapter scope.
-    pub fn with_publication_scope<T>(&self, operation: impl FnOnce() -> T) -> T {
+    pub fn with_publication_scope<T>(
+        &self,
+        operation: impl FnOnce(&QueryExecutionControls) -> T,
+    ) -> T {
         let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(&self.controls));
-        operation()
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+            .unwrap_or_else(|| self.controls.clone());
+        operation(&controls)
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
@@ -335,6 +340,7 @@ impl CopyFromOperation {
     /// remains admitted until the callback returns.
     pub fn with_binary_columns<T>(
         &self,
+        controls: &QueryExecutionControls,
         decode: impl FnOnce(&[CopyBinaryColumn]) -> T,
     ) -> Result<T, CassieError> {
         let schema = self
@@ -342,7 +348,7 @@ impl CopyFromOperation {
             .catalog
             .get_schema(&self.statement.table)
             .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".into()))?;
-        let base = self.controls.reserve_query_memory(0)?;
+        let base = controls.reserve_query_memory(0)?;
         let fields = schema.fields.as_slice();
         let count = if self.statement.columns.is_empty() {
             fields.len()
@@ -356,12 +362,12 @@ impl CopyFromOperation {
         );
         if self.statement.columns.is_empty() {
             for field in fields {
-                self.controls.check_interruption()?;
+                controls.check_interruption()?;
                 metadata.push(self.binary_column(&field.data_type)?);
             }
         } else {
             for column in &self.statement.columns {
-                self.controls.check_interruption()?;
+                controls.check_interruption()?;
                 if crate::types::row_identity::is_identity_reference(column, declares_id) {
                     metadata.push(self.binary_column(&crate::types::DataType::Text)?);
                     continue;
@@ -425,9 +431,27 @@ impl CopyFromOperation {
     pub fn execute_decoded_rows(
         &self,
         session: &CassieSession,
+        rows: Vec<Vec<Option<String>>>,
+        options: CopyExecutionOptions<'_>,
+        cancellation: Option<&QueryCancellationHandle>,
+    ) -> Result<CopyIngestResult, CopyOperationError> {
+        self.execute_decoded_rows_with_controls(
+            session,
+            rows,
+            options,
+            cancellation,
+            &self.controls,
+        )
+    }
+
+    /// Executes rows using the controls active in the originating request scope.
+    pub fn execute_decoded_rows_with_controls(
+        &self,
+        session: &CassieSession,
         mut rows: Vec<Vec<Option<String>>>,
         options: CopyExecutionOptions<'_>,
         cancellation: Option<&QueryCancellationHandle>,
+        controls: &QueryExecutionControls,
     ) -> Result<CopyIngestResult, CopyOperationError> {
         let columns = self.target_columns()?;
         validate_header(&columns, options.header, &rows)?;
@@ -436,7 +460,7 @@ impl CopyFromOperation {
         }
         let operation_session = session.with_operation_failure_authority(Some(&self.authority));
         if let Some(owner) = &self.owner {
-            owner.ensure_current_transaction(&operation_session, &self.controls)?;
+            owner.ensure_current_transaction(&operation_session, controls)?;
             #[cfg(any(test, feature = "transport-test-hooks"))]
             owner_check_test_hooks::after_owner_check(&self.cassie, session);
         }
@@ -448,7 +472,7 @@ impl CopyFromOperation {
                 &self.statement,
                 rows,
                 predicate,
-                (&self.controls, Some(&self.authority)),
+                (controls, Some(&self.authority)),
             )?;
             rows = accepted;
             _filter_rows_memory = Some(memory);
@@ -456,7 +480,7 @@ impl CopyFromOperation {
             _filter_rows_memory = None;
         }
         #[cfg(any(test, feature = "transport-test-hooks"))]
-        publication_memory_test_hooks::before_ingest(&self.controls);
+        publication_memory_test_hooks::before_ingest(controls);
         let result = self.cassie.ingest_copy_rows_with_default_marker(
             &operation_session,
             &self.statement,
@@ -518,8 +542,8 @@ mod tests {
         let (_guard, observed) = super::test_hooks::observe_before_ingest();
 
         // Act
-        let result = operation.with_publication_scope(|| {
-            operation.execute_decoded_rows(
+        let result = operation.with_publication_scope(|active_controls| {
+            operation.execute_decoded_rows_with_controls(
                 &session,
                 vec![vec![Some("41".to_owned())]],
                 CopyExecutionOptions {
@@ -530,6 +554,7 @@ mod tests {
                     reject_limit: None,
                 },
                 None,
+                active_controls,
             )
         });
         let retained_during_publication = observed.recv().expect("pre-ingest memory observation");

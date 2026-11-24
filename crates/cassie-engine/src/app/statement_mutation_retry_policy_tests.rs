@@ -3,10 +3,109 @@ use super::*;
 use crate::app::ProjectionCommitPolicy;
 use crate::catalog::SequenceCursor;
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::data_policy_test_observer::{self, Report};
+use crate::midge::adapter::{
+    arm_existing_unknown_on_next_data_submission, clear_existing_unknown_on_next_data_submission,
+    install_data_submission_observer, observe_native_commits, DataSubmission,
+    NativeCommitObservation,
+};
 use crate::types::Value;
 use cassie_storage::native::{DurabilityPolicy, WriteOptions};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::ThreadId;
+use tokio::sync::oneshot;
+
+#[derive(Debug)]
+struct Report {
+    worker: ThreadId,
+    data: Vec<DataSubmission>,
+    native: NativeCommitObservation,
+}
+
+type Registration = (&'static str, oneshot::Sender<Report>);
+static NEXT: OnceLock<Mutex<HashMap<usize, Registration>>> = OnceLock::new();
+thread_local! {
+    static DATA: RefCell<Option<Vec<DataSubmission>>> = const { RefCell::new(None) };
+}
+
+struct RegistrationGuard(usize);
+impl Drop for RegistrationGuard {
+    fn drop(&mut self) {
+        if let Some(registry) = NEXT.get() {
+            registry.lock().unwrap().remove(&self.0);
+        }
+    }
+}
+
+struct DataGuard;
+impl Drop for DataGuard {
+    fn drop(&mut self) {
+        DATA.with(|slot| slot.borrow_mut().take());
+        clear_existing_unknown_on_next_data_submission();
+    }
+}
+
+struct Observation {
+    report: oneshot::Receiver<Report>,
+    _guard: RegistrationGuard,
+}
+
+fn record_data_submission(submission: DataSubmission) {
+    DATA.with(|slot| {
+        if let Some(data) = slot.borrow_mut().as_mut() {
+            data.push(submission);
+        }
+    });
+}
+
+fn arm(cassie: &Cassie, operation: &'static str) -> Observation {
+    install_data_submission_observer(record_data_submission);
+    let key = Arc::as_ptr(&cassie.runtime) as usize;
+    let (sender, report) = oneshot::channel();
+    assert!(NEXT
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap()
+        .insert(key, (operation, sender))
+        .is_none());
+    Observation {
+        report,
+        _guard: RegistrationGuard(key),
+    }
+}
+
+fn observe_worker<T>(cassie: &Cassie, name: &str, operation: impl FnOnce() -> T) -> T {
+    let key = Arc::as_ptr(&cassie.runtime) as usize;
+    let sender = NEXT.get().and_then(|registry| {
+        let mut registry = registry.lock().unwrap();
+        if registry
+            .get(&key)
+            .is_some_and(|(operation, _)| *operation == name)
+        {
+            registry.remove(&key).map(|(_, sender)| sender)
+        } else {
+            None
+        }
+    });
+    let Some(sender) = sender else {
+        return operation();
+    };
+    DATA.with(|slot| assert!(slot.replace(Some(Vec::new())).is_none()));
+    let _guard = DataGuard;
+    let (output, native) = observe_native_commits(operation);
+    let data = DATA.with(|slot| slot.borrow_mut().take().unwrap());
+    let _ = sender.send(Report {
+        worker: std::thread::current().id(),
+        data,
+        native,
+    });
+    output
+}
+
+fn current_data_submission_count() -> Option<usize> {
+    DATA.with(|slot| slot.borrow().as_ref().map(Vec::len))
+}
 
 #[derive(Debug, PartialEq, Eq)]
 enum Outcome {
@@ -68,7 +167,7 @@ pub(super) fn after_initial<T>(
         witness.events.push(Event::Initial {
             policy: options.policy(),
             outcome,
-            data: data_policy_test_observer::current_data_submission_count().unwrap(),
+            data: current_data_submission_count().unwrap(),
         });
         if unique {
             witness.after_unique.take()
@@ -85,7 +184,7 @@ pub(super) fn resolver_entered() {
     WITNESS.with(|slot| {
         if let Some(witness) = slot.borrow_mut().as_mut() {
             witness.events.push(Event::ResolverEntered {
-                data: data_policy_test_observer::current_data_submission_count().unwrap(),
+                data: current_data_submission_count().unwrap(),
             });
         }
     });
@@ -119,7 +218,7 @@ pub(super) fn before_retry(options: WriteOptions) {
         if let Some(witness) = slot.borrow_mut().as_mut() {
             witness.events.push(Event::Retry {
                 policy: options.policy(),
-                data: data_policy_test_observer::current_data_submission_count().unwrap(),
+                data: current_data_submission_count().unwrap(),
             });
         }
     });
@@ -226,16 +325,15 @@ fn commit(
             .is_none());
     });
     let _guard = WitnessGuard;
-    let observation = data_policy_test_observer::arm(&fixture.cassie, "retry_policy_unit");
-    let result =
-        data_policy_test_observer::observe_worker(&fixture.cassie, "retry_policy_unit", || {
-            if unknown_after_success {
-                data_policy_test_observer::arm_existing_unknown_on_next_data_submission();
-            }
-            fixture
-                .cassie
-                .execute_sql(&fixture.session, "COMMIT", vec![])
-        });
+    let observation = arm(&fixture.cassie, "retry_policy_unit");
+    let result = observe_worker(&fixture.cassie, "retry_policy_unit", || {
+        if unknown_after_success {
+            arm_existing_unknown_on_next_data_submission();
+        }
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, "COMMIT", vec![])
+    });
     let report = observation.report.blocking_recv().unwrap();
     let events = WITNESS.with(|slot| slot.borrow_mut().take().unwrap().events);
     (result, report, events)

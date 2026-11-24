@@ -254,7 +254,7 @@ impl Midge {
         // Keep the original metadata preimage in the same staged overlay as
         // the name-only cleanup. A later direct publisher must conflict with
         // that preimage before the cleanup can become durable.
-        let _fresh_reads = super::StatementReadScope::enter(None);
+        let _fresh_reads = super::NativeStatementReadScope::enter(None, None);
         let metadata = self.get_index(&table, index)?.ok_or_else(|| {
             CassieError::Unsupported("staged index cleanup requires existing metadata".to_owned())
         })?;
@@ -334,7 +334,7 @@ impl Midge {
                         "collection cleanup requires a persisted relation identity".to_string(),
                     ));
                 }
-                let _fresh_reads = super::StatementReadScope::enter(None);
+                let _fresh_reads = super::NativeStatementReadScope::enter(None, None);
                 let gate = self.collection_write_gate(table);
                 let _guard = gate.lock();
                 let current_identity = self.current_collection_relation_id_for_cleanup(table)?;
@@ -397,7 +397,7 @@ impl Midge {
                 "deferred index cleanup requires a nontransactional storage scope".to_owned(),
             ));
         }
-        let _fresh_reads = super::StatementReadScope::enter(None);
+        let _fresh_reads = super::NativeStatementReadScope::enter(None, None);
         let canonical = self.canonical_collection_name(table);
         let gate = self.collection_write_gate(&canonical);
         let _guard = gate.lock();

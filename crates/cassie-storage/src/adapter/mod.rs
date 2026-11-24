@@ -28,14 +28,13 @@ use crate::catalog::{
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::row_blob::{
-    decode_projected_row, decode_projected_row_matching_with_aliases,
-    decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
+    decode_projected_row, decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
 };
 use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
-mod column_batch_format_v1;
-pub use column_batch_format_v1::NumericValues;
+use crate::column_batch_format_v1;
+pub use crate::column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod commit_source;
 mod core;
@@ -60,7 +59,7 @@ pub use transactions::{
 };
 
 #[doc(hidden)]
-pub use column_batch_format_v1::{
+pub use crate::column_batch_format_v1::{
     column_chunk_codec_for_test, decode_column_batch_manifest_for_test,
     decode_column_chunk_for_test, decode_row_id_chunk_for_test,
     decode_selected_column_chunk_for_test, encode_column_batch_manifest_for_test,
@@ -321,12 +320,10 @@ pub fn set_namespace_metadata_rename_failure_point(enabled: bool) {
 
 pub(crate) fn check_namespace_metadata_rename_failure_point() -> Result<(), CassieError> {
     if NAMESPACE_METADATA_RENAME_FAILPOINT.replace(false) {
-        return Err(CassieError::Diagnostic(Box::new(
-            crate::app::DiagnosticError::new(
-                "XX000",
-                "injected test failure before namespace metadata commit",
-            ),
-        )));
+        return Err(CassieError::diagnostic(
+            "XX000",
+            "injected test failure before namespace metadata commit",
+        ));
     }
     Ok(())
 }

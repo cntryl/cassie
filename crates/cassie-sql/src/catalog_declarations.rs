@@ -648,6 +648,16 @@ mod tests {
 }
 
 impl IndexMeta {
+    pub fn preserve_identity_before_name_change(&mut self) {
+        let name = self.name.clone();
+        self.set_catalog_oid_if_missing(cassie_core::catalog::object_identity::stable_index_oid(
+            &name,
+        ));
+        if self.unique {
+            self.set_unique_reservation_name_if_missing(&name);
+        }
+    }
+
     #[must_use]
     pub fn reservation_identity_details(&self) -> Result<ReservationIdentity<'_>, String> {
         let Some(raw) = self.options.get(Self::UNIQUE_RESERVATION_GENERATION_OPTION) else {

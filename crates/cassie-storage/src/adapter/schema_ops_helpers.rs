@@ -1,9 +1,8 @@
-use crate::catalog::EngineIndexMetaExt;
 use super::{
     collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
     RetentionPolicyMeta,
 };
-use crate::catalog::{canonical_relation_name, local_name, RelationId};
+use cassie_core::catalog::scope::{canonical_relation_name, local_name, RelationId};
 
 #[cfg(test)]
 #[path = "schema_ops_identity_tests.rs"]
@@ -138,11 +137,14 @@ pub(super) fn drop_referencing_indexes_in_tx(
         if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
             scalar_storage_ids.push((relation_id, index_id));
         }
-        match index.reservation_identity()? {
-            crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+        match index
+            .reservation_identity_details()
+            .map_err(CassieError::Parse)?
+        {
+            cassie_sql::catalog_declarations::ReservationIdentity::Legacy(name) => {
                 scalar_names.push(name.to_string());
             }
-            crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+            cassie_sql::catalog_declarations::ReservationIdentity::Generation(id) => {
                 scalar_reservation_generations.push(id);
             }
         }
@@ -183,7 +185,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
 }
 
 pub(super) fn validate_drop_column_index_metadata(
-    tx: &crate::midge::adapter::DataReadTransaction,
+    tx: &crate::adapter::DataReadTransaction,
     collection: &str,
     field: &str,
 ) -> Result<(), CassieError> {

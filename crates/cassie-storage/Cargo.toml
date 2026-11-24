@@ -24,6 +24,8 @@ sha2 = "0.11"
 thiserror = "2.0"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tokio = { version = "1.54", features = ["sync"] }
+tracing = "0.1"
+url = "2.5"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
 
 [lints]

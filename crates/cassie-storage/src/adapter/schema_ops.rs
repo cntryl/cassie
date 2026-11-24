@@ -240,7 +240,10 @@ impl Midge {
         }
         for (current, view) in view_renames {
             let mut view = view.clone();
-            crate::sql::definition_guard::view(&view)?;
+            cassie_sql::definition_guard::query(
+                view.definition_semantics_version,
+                &view.query,
+            )?;
             self.require_definition_version(view.definition_semantics_version)?;
             view.name = self.canonical_collection_name(&view.name);
             tx.delete(Self::view_key(&self.canonical_collection_name(current)))
@@ -515,7 +518,10 @@ impl Midge {
         .map_err(CassieError::from)?;
 
         for view in views {
-            crate::sql::definition_guard::view(view)?;
+            cassie_sql::definition_guard::query(
+                view.definition_semantics_version,
+                &view.query,
+            )?;
             self.require_definition_version(view.definition_semantics_version)?;
             let canonical = self.canonical_collection_name(&view.name);
             tx.put(

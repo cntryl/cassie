@@ -282,6 +282,8 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "tracing",
+ "url",
  "uuid",
 ]
 

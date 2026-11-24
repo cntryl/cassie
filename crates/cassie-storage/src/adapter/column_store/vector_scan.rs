@@ -490,7 +490,7 @@ impl Midge {
 }
 
 /// Text lanes carrying the row ids of a batch.
-pub(crate) fn identity_lanes(ids: &[String]) -> RawLanes {
+pub fn identity_lanes(ids: &[String]) -> RawLanes {
     let mut bytes = String::with_capacity(ids.iter().map(String::len).sum());
     let mut offsets = Vec::with_capacity(ids.len() + 1);
     offsets.push(0);

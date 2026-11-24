@@ -1,4 +1,3 @@
-use crate::catalog::EngineIndexMetaExt;
 use super::super::{key_encoding, CassieError, Midge};
 
 impl Midge {
@@ -11,7 +10,9 @@ impl Midge {
         let collection = self.canonical_collection_name(collection);
         let key = key_encoding::unique_index_reservation_key_for(
             &collection,
-            index.reservation_identity()?,
+            index
+                .reservation_identity_details()
+                .map_err(CassieError::Parse)?,
             values,
         )?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;

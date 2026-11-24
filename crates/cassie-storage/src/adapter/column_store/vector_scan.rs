@@ -16,6 +16,8 @@ mod counters;
 mod decode;
 mod merge;
 mod partitions;
+#[cfg(feature = "storage-test-hooks")]
+pub mod test_support;
 #[cfg(test)]
 mod tests;
 

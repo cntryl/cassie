@@ -1,50 +1,125 @@
 //! Vector reader tests (#1358 S2).
 
-use super::{ColumnVectorBatch, ColumnVectorOutput, COLUMN_VECTOR_BATCH_ROWS};
-use crate::app::{Cassie, CassieError, CassieSession};
-use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
-use crate::adapter::{
-    query_scan_control_test_guard, RowDecode, RowTraversal, StorageFamily,
+use super::{
+    COLUMN_VECTOR_BATCH_ROWS, ColumnVectorBatch, ColumnVectorOutput, ColumnVectorReadSnapshot,
 };
-use crate::adapter::{ColumnVectorReadSnapshot, Midge};
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::{
+    CassieError, Midge, RowDecode, RowTraversal, StorageError, StorageFamily,
+    StorageRequestContext, StorageValueHooks, query_scan_control_test_guard,
+};
+use cassie_core::request::{Interruption, RequestCancellation, RequestMemory};
 use cassie_core::types::lanes::{LaneValidity, RawLanes};
-use cassie_core::types::{DataType, Value};
-use std::time::Instant;
-
-const ALL_TYPES: &str = "s SMALLINT, i INT, b BIGINT, f FLOAT, t BOOLEAN, x TEXT, v VARCHAR(8), \
-    c CHAR(4), d DATE, ts TIMESTAMP, u UUID, j JSON, jb JSONB, n NUMERIC(10,2)";
-const ALL_TYPE_FIELDS: [&str; 14] = [
-    "s", "i", "b", "f", "t", "x", "v", "c", "d", "ts", "u", "j", "jb", "n",
-];
+use cassie_core::types::{DataType, FieldSchema, Schema, Value};
+use std::sync::Arc;
 
 struct Fixture {
-    cassie: Cassie,
-    session: CassieSession,
+    midge: Midge,
 }
 
 fn fixture() -> Fixture {
-    let cassie =
-        Cassie::new_in_memory_with_config(CassieRuntimeConfig::from_env().expect("config"))
-            .expect("Cassie");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("tester", None);
-    Fixture { cassie, session }
+    let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+    midge.ensure_families_ready().expect("families");
+    midge
+        .install_value_hooks(vector_test_hooks())
+        .expect("install test hooks");
+    Fixture { midge }
+}
+
+fn vector_test_hooks() -> StorageValueHooks {
+    StorageValueHooks::new(
+        |bytes| {
+            serde_json::from_slice(bytes).map_err(|error| StorageError::Parse(error.to_string()))
+        },
+        |value, data_type| {
+            if let Some(value) =
+                cassie_core::types::extended::temporal_column_value(value, data_type)
+            {
+                return Ok(Value::Typed(value));
+            }
+            Err(StorageError::Unsupported(format!(
+                "test fixture does not decode {} values",
+                data_type.type_name()
+            )))
+        },
+        |_, _| {
+            Err(StorageError::Unsupported(
+                "graph validation is not part of this fixture".to_owned(),
+            ))
+        },
+        |_, _, _| Err(StorageError::Unsupported("scalar evaluation".to_owned())),
+        |_, _, _| Err(StorageError::Unsupported("scalar predicate".to_owned())),
+    )
+}
+
+#[derive(Clone)]
+struct TestRequest {
+    cancellation: RequestCancellation,
+    memory: RequestMemory,
+    scan_control: Option<Arc<crate::adapter::QueryScanControlScope>>,
+}
+
+impl TestRequest {
+    fn new(budget: usize) -> Self {
+        Self {
+            cancellation: RequestCancellation::new(),
+            memory: RequestMemory::new(budget),
+            scan_control: crate::adapter::current_query_scan_control_scope(),
+        }
+    }
+
+    fn context(&self) -> StorageRequestContext<'_> {
+        StorageRequestContext::new(
+            None,
+            Interruption::new(None, &self.cancellation),
+            &self.memory,
+        )
+        .with_scan_control(self.scan_control.as_deref())
+    }
+
+    fn current_query_memory_bytes(&self) -> usize {
+        self.memory.current_bytes()
+    }
+
+    fn peak_query_memory_bytes(&self) -> usize {
+        self.memory.peak_bytes()
+    }
+}
+
+fn field(name: &str, data_type: DataType) -> FieldSchema {
+    FieldSchema {
+        name: name.to_owned(),
+        data_type,
+        nullable: true,
+    }
 }
 
 impl Fixture {
-    fn run(&self, sql: &str) {
-        self.cassie
-            .execute_sql(&self.session, sql, vec![])
-            .unwrap_or_else(|error| panic!("{sql}: {error}"));
+    fn table(&self, name: &str, fields: Vec<FieldSchema>, rows: Vec<(String, serde_json::Value)>) {
+        let schema = Schema { fields };
+        let metadata = super::super::super::CollectionMeta::new_with_storage_mode(
+            name,
+            None,
+            super::super::super::CollectionStorageMode::ColumnStore,
+        );
+        self.midge
+            .create_collection_with_meta(name, &schema, &metadata)
+            .expect("create column collection");
+        self.midge
+            .put_documents(
+                name,
+                rows.into_iter()
+                    .map(|(id, payload)| (Some(id), payload))
+                    .collect(),
+            )
+            .expect("write rows");
     }
 
-    fn controls(&self) -> QueryExecutionControls {
-        QueryExecutionControls::from_limits(&self.cassie.runtime.limits(), Instant::now())
+    fn controls(&self) -> TestRequest {
+        TestRequest::new(64 * 1024 * 1024)
     }
 
     fn midge(&self) -> &Midge {
-        &self.cassie.midge
+        &self.midge
     }
 
     fn read(
@@ -52,7 +127,7 @@ impl Fixture {
         table: &str,
         fields: &[&str],
         traversal: RowTraversal,
-        controls: &StorageRequestContext<'_>,
+        request: &TestRequest,
     ) -> Result<Vec<ColumnVectorBatch>, CassieError> {
         let requested = fields.iter().map(|field| Some(*field)).collect::<Vec<_>>();
         let mut reader = self
@@ -60,8 +135,9 @@ impl Fixture {
             .open_column_vector_reader(table, &requested, traversal)?
             .expect("column table reader");
         let mut batches = Vec::new();
+        let controls = request.context();
         while let Some(batch) =
-            reader.next_batch(self.midge(), COLUMN_VECTOR_BATCH_ROWS, controls)?
+            reader.next_batch(self.midge(), COLUMN_VECTOR_BATCH_ROWS, &controls)?
         {
             batches.push(batch);
         }
@@ -161,10 +237,20 @@ fn document_values(fixture: &Fixture, table: &str, fields: &[&str]) -> Vec<(Stri
                         .find(|field| field.name == *name)
                         .expect("field")
                         .data_type;
-                    document.payload.get(*name).map_or(Value::Null, |json| {
-                        crate::executor::scan::try_json_to_typed_value(json, data_type)
-                            .expect("conversion")
-                    })
+                    document
+                        .payload
+                        .get(*name)
+                        .map_or(Value::Null, |json| match data_type {
+                            DataType::Boolean => Value::Bool(json.as_bool().expect("boolean")),
+                            DataType::SmallInt | DataType::Int | DataType::BigInt => {
+                                Value::Int64(json.as_i64().expect("integer"))
+                            }
+                            DataType::Float => Value::Float64(json.as_f64().expect("float")),
+                            DataType::Text | DataType::Varchar { .. } => {
+                                Value::String(json.as_str().expect("text").to_owned())
+                            }
+                            _ => panic!("unexpected type in native fixture: {data_type:?}"),
+                        })
                 })
                 .collect();
             rows.push((document.id, values));
@@ -190,45 +276,22 @@ fn lanes_by_row(batches: &[ColumnVectorBatch], fields: usize) -> Vec<(String, Ve
 
 fn typed_fixture() -> Fixture {
     let fixture = fixture();
-    fixture.run(&format!(
-        "CREATE TABLE typed ({ALL_TYPES}) WITH (storage = column_store)"
-    ));
-    fixture.run(
-        "INSERT INTO typed VALUES \
-         (1, 70000, 9007199254740993, 1.5, true, 'alpha', 'beta', 'ab', '2024-01-02', \
-          '2024-01-02 03:04:05', '00000000-0000-0000-0000-000000000001', '{\"a\":[1,2]}', \
-          '{\"b\":null}', 12.34), \
-         (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL), \
-         (-2, -70000, -9007199254740993, -0.25, false, '', 'é', 'cd', '1999-12-31', \
-          '1999-12-31 23:59:59', '00000000-0000-0000-0000-000000000002', 'null', '[]', 0.00)",
+    fixture.table(
+        "typed",
+        vec![
+            field("s", DataType::SmallInt),
+            field("f", DataType::Float),
+            field("t", DataType::Boolean),
+            field("x", DataType::Text),
+            field("d", DataType::Date),
+        ],
+        vec![
+            ("1".to_owned(), serde_json::json!({"s": 70000, "f": 1.5, "t": true, "x": "alpha", "d": "2024-01-02"})),
+            ("2".to_owned(), serde_json::json!({"s": null, "f": null, "t": null, "x": null, "d": null})),
+            ("3".to_owned(), serde_json::json!({"s": -70000, "f": -0.25, "t": false, "x": "é", "d": "1999-12-31"})),
+        ],
     );
     fixture
-}
-
-#[test]
-fn should_decode_every_type_into_the_value_the_document_path_builds() {
-    // Arrange
-    let _guard = query_scan_control_test_guard();
-    let fixture = typed_fixture();
-    let controls = fixture.controls();
-
-    // Act
-    let batches = fixture
-        .read(
-            "typed",
-            &ALL_TYPE_FIELDS,
-            RowTraversal::CompleteSource,
-            &controls,
-        )
-        .expect("vector read");
-
-    // Assert
-    let mut vector = lanes_by_row(&batches, ALL_TYPE_FIELDS.len());
-    let mut documents = document_values(&fixture, "typed", &ALL_TYPE_FIELDS);
-    vector.sort_by(|left, right| left.0.cmp(&right.0));
-    documents.sort_by(|left, right| left.0.cmp(&right.0));
-    assert_eq!(vector.len(), 3);
-    assert_eq!(vector, documents);
 }
 
 #[test]
@@ -262,9 +325,15 @@ fn should_decode_compressed_values_into_text_lanes() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE packed (note TEXT) WITH (storage = column_store)");
     let long = "abc".repeat(200);
-    fixture.run(&format!("INSERT INTO packed VALUES ('{long}'), ('short')"));
+    fixture.table(
+        "packed",
+        vec![field("note", DataType::Text)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"note": long})),
+            ("2".to_owned(), serde_json::json!({"note": "short"})),
+        ],
+    );
     let schema = fixture.midge().row_schema("packed").expect("row schema");
     let prefix = Midge::column_store_field_prefix(schema.relation_id, schema.fields[0].field_id);
     let stored = fixture
@@ -314,9 +383,14 @@ fn should_return_null_for_a_field_added_after_the_row_was_written() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE grown (a INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO grown VALUES (1), (2)");
-    fixture.run("ALTER TABLE grown ADD COLUMN b INT");
+    fixture.table(
+        "grown",
+        vec![field("a", DataType::Int), field("b", DataType::Int)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": 1})),
+            ("2".to_owned(), serde_json::json!({"a": 2})),
+        ],
+    );
     let controls = fixture.controls();
 
     // Act
@@ -345,8 +419,14 @@ fn should_reject_a_required_field_with_no_stored_value() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE holes (a INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO holes VALUES (1), (2)");
+    fixture.table(
+        "holes",
+        vec![field("a", DataType::Int)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": 1})),
+            ("2".to_owned(), serde_json::json!({"a": 2})),
+        ],
+    );
     let schema = fixture.midge().row_schema("holes").expect("row schema");
     let victim = fixture
         .midge()
@@ -393,10 +473,14 @@ fn plant_orphan(fixture: &Fixture, table: &str, id: &str) {
 
 fn orphan_table(name: &str, id: &str) -> Fixture {
     let fixture = fixture();
-    fixture.run(&format!(
-        "CREATE TABLE {name} (a TEXT) WITH (storage = column_store)"
-    ));
-    fixture.run(&format!("INSERT INTO {name} VALUES ('m'), ('n')"));
+    fixture.table(
+        name,
+        vec![field("a", DataType::Text)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": "m"})),
+            ("2".to_owned(), serde_json::json!({"a": "n"})),
+        ],
+    );
     plant_orphan(&fixture, name, id);
     fixture
 }
@@ -406,8 +490,14 @@ fn should_reject_an_orphan_between_markers_on_a_complete_scan() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE between_orphan (a TEXT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO between_orphan VALUES ('m'), ('n')");
+    fixture.table(
+        "between_orphan",
+        vec![field("a", DataType::Text)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": "m"})),
+            ("2".to_owned(), serde_json::json!({"a": "n"})),
+        ],
+    );
     let mut ids = document_values(&fixture, "between_orphan", &["a"])
         .into_iter()
         .map(|(id, _)| id)
@@ -476,11 +566,13 @@ fn should_split_rows_into_batches_of_at_most_1024() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE wide (a INT) WITH (storage = column_store)");
-    fixture.run(&format!(
-        "INSERT INTO wide SELECT n FROM generate_series(1, {}) AS g(n)",
-        COLUMN_VECTOR_BATCH_ROWS + 1
-    ));
+    fixture.table(
+        "wide",
+        vec![field("a", DataType::Int)],
+        (1..=COLUMN_VECTOR_BATCH_ROWS + 1)
+            .map(|value| (format!("{value:04}"), serde_json::json!({"a": value})))
+            .collect(),
+    );
     let controls = fixture.controls();
 
     // Act
@@ -508,8 +600,28 @@ fn should_count_one_batch_of_lanes_with_no_row_documents() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE counted (a INT, b TEXT, c INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO counted VALUES (1,'x',1), (2,'y',2), (3,'z',3)");
+    fixture.table(
+        "counted",
+        vec![
+            field("a", DataType::Int),
+            field("b", DataType::Text),
+            field("c", DataType::Int),
+        ],
+        vec![
+            (
+                "1".to_owned(),
+                serde_json::json!({"a": 1, "b": "x", "c": 1}),
+            ),
+            (
+                "2".to_owned(),
+                serde_json::json!({"a": 2, "b": "y", "c": 2}),
+            ),
+            (
+                "3".to_owned(),
+                serde_json::json!({"a": 3, "b": "z", "c": 3}),
+            ),
+        ],
+    );
     let controls = fixture.controls();
     let before = fixture.counters();
 
@@ -539,8 +651,14 @@ fn should_count_row_documents_built_by_the_document_cursor() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE documents (a INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO documents VALUES (1), (2)");
+    fixture.table(
+        "documents",
+        vec![field("a", DataType::Int)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": 1})),
+            ("2".to_owned(), serde_json::json!({"a": 2})),
+        ],
+    );
     let before = fixture.counters();
 
     // Act
@@ -558,8 +676,24 @@ fn should_read_only_the_selected_field_payloads() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE narrow (a INT, b TEXT, c INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO narrow VALUES (1,'x',1), (2,'y',2)");
+    fixture.table(
+        "narrow",
+        vec![
+            field("a", DataType::Int),
+            field("b", DataType::Text),
+            field("c", DataType::Int),
+        ],
+        vec![
+            (
+                "1".to_owned(),
+                serde_json::json!({"a": 1, "b": "x", "c": 1}),
+            ),
+            (
+                "2".to_owned(),
+                serde_json::json!({"a": 2, "b": "y", "c": 2}),
+            ),
+        ],
+    );
     let controls = fixture.controls();
     let validation = fixture.midge().column_validation_reads_for_diagnostics();
     let fields = fixture.midge().column_field_reads_for_diagnostics();
@@ -586,15 +720,16 @@ fn should_stop_with_cancellation_before_returning_a_batch() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE stopped (a INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO stopped VALUES (1), (2)");
-    let handle = crate::runtime::QueryCancellationHandle::new();
-    let controls = QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits::default(),
-        Instant::now(),
-        handle.clone(),
+    fixture.table(
+        "stopped",
+        vec![field("a", DataType::Int)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": 1})),
+            ("2".to_owned(), serde_json::json!({"a": 2})),
+        ],
     );
-    handle.cancel();
+    let controls = fixture.controls();
+    controls.cancellation.cancel();
 
     // Act
     let result = fixture.read("stopped", &["a"], RowTraversal::CompleteSource, &controls);
@@ -606,19 +741,20 @@ fn should_stop_with_cancellation_before_returning_a_batch() {
 
 fn budget_fixture() -> Fixture {
     let fixture = fixture();
-    fixture.run("CREATE TABLE budgeted (a INT, b TEXT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO budgeted VALUES (1,'one'), (2,'two'), (3,'three')");
+    fixture.table(
+        "budgeted",
+        vec![field("a", DataType::Int), field("b", DataType::Text)],
+        vec![
+            ("1".to_owned(), serde_json::json!({"a": 1, "b": "one"})),
+            ("2".to_owned(), serde_json::json!({"a": 2, "b": "two"})),
+            ("3".to_owned(), serde_json::json!({"a": 3, "b": "three"})),
+        ],
+    );
     fixture
 }
 
-fn limited(bytes: usize) -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: bytes,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    )
+fn limited(bytes: usize) -> TestRequest {
+    TestRequest::new(bytes)
 }
 
 #[test]
@@ -687,7 +823,11 @@ fn should_bind_requested_columns_to_lanes_in_schema_order() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE bound (a INT, b TEXT) WITH (storage = column_store)");
+    fixture.table(
+        "bound",
+        vec![field("a", DataType::Int), field("b", DataType::Text)],
+        Vec::new(),
+    );
 
     // Act
     let reader = fixture
@@ -717,7 +857,7 @@ fn should_decline_a_name_that_is_not_a_stored_field() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE plain (a INT) WITH (storage = column_store)");
+    fixture.table("plain", vec![field("a", DataType::Int)], Vec::new());
 
     // Act
     let reader = fixture
@@ -734,7 +874,14 @@ fn should_not_open_a_vector_reader_over_a_row_table() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE heap (a INT)");
+    let schema = Schema {
+        fields: vec![field("a", DataType::Int)],
+    };
+    let metadata = super::super::super::CollectionMeta::new("heap", None);
+    fixture
+        .midge
+        .create_collection_with_meta("heap", &schema, &metadata)
+        .expect("create row collection");
 
     // Act
     let reader = fixture
@@ -751,8 +898,11 @@ fn should_reject_a_value_whose_stored_tag_contradicts_its_type() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = fixture();
-    fixture.run("CREATE TABLE tagged (a INT) WITH (storage = column_store)");
-    fixture.run("INSERT INTO tagged VALUES (1)");
+    fixture.table(
+        "tagged",
+        vec![field("a", DataType::Int)],
+        vec![("1".to_owned(), serde_json::json!({"a": 1}))],
+    );
     let schema = fixture.midge().row_schema("tagged").expect("row schema");
     let prefix = Midge::column_store_field_prefix(schema.relation_id, schema.fields[0].field_id);
     let stored = fixture

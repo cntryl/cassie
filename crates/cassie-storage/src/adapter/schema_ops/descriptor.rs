@@ -4,7 +4,7 @@ use super::{CassieError, Midge, RowSchema, Schema};
 
 impl Midge {
     /// Delayed work checks published identity, never an enclosing stale view.
-    pub(crate) fn current_row_schema_identity(
+    pub fn current_row_schema_identity(
         &self,
         collection: &str,
     ) -> Result<Option<u64>, CassieError> {
@@ -22,7 +22,7 @@ impl Midge {
             .map(|_| 0))
     }
 
-    pub(crate) fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
+    pub fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let statement_read = self.begin_data_readonly_tx_for(&collection)?;
         // RR keeps current name/encoding descriptors distinct from retained
@@ -50,7 +50,7 @@ impl Midge {
         Ok(RowSchema::from_schema(&schema))
     }
 
-    pub(crate) fn alter_collection_column_type(
+    pub fn alter_collection_column_type(
         &self,
         collection: &str,
         field: &str,

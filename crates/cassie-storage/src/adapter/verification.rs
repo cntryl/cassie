@@ -325,7 +325,7 @@ impl Midge {
         Ok(root)
     }
 
-    pub(crate) fn write_fresh_projection_output_rows(
+    pub fn write_fresh_projection_output_rows(
         &self,
         collection: &str,
         documents: Vec<(String, serde_json::Value)>,

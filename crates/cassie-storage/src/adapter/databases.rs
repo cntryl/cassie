@@ -28,9 +28,9 @@ pub struct DatabaseFamily {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct StagedDatabaseFamily {
-    pub(crate) metadata: DatabaseMeta,
-    pub(crate) handle: ColumnFamilyHandle,
+pub struct StagedDatabaseFamily {
+    pub metadata: DatabaseMeta,
+    pub handle: ColumnFamilyHandle,
     operation_id: String,
 }
 
@@ -334,7 +334,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn database_catalog_entries(
+    pub fn database_catalog_entries(
         &self,
         database: &str,
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
@@ -365,7 +365,7 @@ impl Midge {
         Ok(scoped_entries)
     }
 
-    pub(crate) fn stage_database_family(
+    pub fn stage_database_family(
         &self,
         name: &str,
     ) -> Result<StagedDatabaseFamily, CassieError> {
@@ -399,7 +399,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn write_staged_database_entries(
+    pub fn write_staged_database_entries(
         &self,
         staged: &StagedDatabaseFamily,
         entries: &[(Vec<u8>, Vec<u8>)],
@@ -416,7 +416,7 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    pub(crate) fn commit_staged_database_family(
+    pub fn commit_staged_database_family(
         &self,
         staged: StagedDatabaseFamily,
         source_database: &str,
@@ -495,7 +495,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn abort_staged_database_family(
+    pub fn abort_staged_database_family(
         &self,
         staged: &StagedDatabaseFamily,
     ) -> Result<(), CassieError> {

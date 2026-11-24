@@ -134,7 +134,7 @@ impl CapacityReport {
 }
 
 impl Midge {
-    pub(crate) fn capacity_report(&self) -> CapacityReport {
+    pub fn capacity_report(&self) -> CapacityReport {
         let prefixes = key_encoding::capacity_key_prefixes();
         let mut report = CapacityReport::empty();
 

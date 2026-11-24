@@ -19,7 +19,7 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(crate) struct ValidatedEncodedField {
+pub struct ValidatedEncodedField {
     name: String,
     raw: bytes::Bytes,
     values: Vec<serde_json::Value>,
@@ -36,13 +36,13 @@ impl ValidatedEncodedField {
     pub(crate) fn raw(&self) -> &[u8] {
         &self.raw
     }
-    pub(crate) fn values(&self) -> &[serde_json::Value] {
+    pub fn values(&self) -> &[serde_json::Value] {
         &self.values
     }
     pub(crate) fn numeric_values(&self) -> Option<&super::super::NumericValues> {
         self.numeric.as_ref()
     }
-    pub(crate) fn boolean_values(&self) -> Option<&[Option<bool>]> {
+    pub fn boolean_values(&self) -> Option<&[Option<bool>]> {
         self.boolean.as_deref()
     }
     pub(crate) fn storage_type(&self) -> &str {
@@ -50,26 +50,26 @@ impl ValidatedEncodedField {
     }
 }
 
-pub(crate) struct EncodedSegment {
-    pub(crate) row_ids: Vec<String>,
-    pub(crate) fields: Vec<Arc<Accounted<ValidatedEncodedField>>>,
+pub struct EncodedSegment {
+    pub row_ids: Vec<String>,
+    pub fields: Vec<Arc<Accounted<ValidatedEncodedField>>>,
     _memory: QueryMemoryReservation,
 }
 
-pub(crate) struct EncodedSource {
-    pub(crate) segments: Vec<EncodedSegment>,
-    pub(crate) metrics: ColumnBatchScanMetrics,
+pub struct EncodedSource {
+    pub segments: Vec<EncodedSegment>,
+    pub metrics: ColumnBatchScanMetrics,
     _memory: QueryMemoryReservation,
 }
 
-pub(crate) enum EncodedSourceDecision {
+pub enum EncodedSourceDecision {
     Hit(EncodedSource),
     Fallback(ColumnBatchScanFallbackReason),
     TransportBudget,
 }
 
 impl Midge {
-    pub(crate) fn controlled_encoded_source(
+    pub fn controlled_encoded_source(
         &self,
         collection: &str,
         fields: &[String],

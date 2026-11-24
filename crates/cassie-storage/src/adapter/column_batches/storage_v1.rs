@@ -19,7 +19,7 @@ use alp_scan::{
     selected_alp_json_values, single_alp_predicate_field,
 };
 
-pub(super) struct EncodedSegment {
+pub struct EncodedSegment {
     pub(super) metadata: ColumnBatchSegmentMeta,
     pub(super) row_ids: Vec<u8>,
     pub(super) fields: BTreeMap<String, Vec<u8>>,

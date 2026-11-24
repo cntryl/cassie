@@ -19,7 +19,7 @@ struct MissingIndexSource {
     _memory: QueryMemoryReservation,
 }
 
-pub(crate) struct IndexCleanupCommitGuard<'a> {
+pub struct IndexCleanupCommitGuard<'a> {
     indexes: Vec<IndexEntry<'a>>,
     markers: Vec<guard_decode::Decoded<PendingSchemaCleanup>>,
     sources: Vec<MissingIndexSource>,
@@ -35,11 +35,11 @@ pub(crate) struct IndexCleanupGateNames {
 }
 
 impl<'a> IndexCleanupCommitGuard<'a> {
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.indexes.is_empty() && self.markers.is_empty() && self.sources.is_empty()
     }
 
-    pub(crate) fn capture(
+    pub fn capture(
         overlay: &'a StorageOverlay,
         controls: &StorageRequestContext<'_>,
     ) -> Result<Self, CassieError> {

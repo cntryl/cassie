@@ -19,9 +19,9 @@ mod partitions;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use counters::ColumnVectorReadCounters;
+pub use counters::ColumnVectorReadCounters;
 pub use counters::ColumnVectorReadSnapshot;
-pub(crate) use partitions::ColumnPartitionReader;
+pub use partitions::ColumnPartitionReader;
 
 use super::validation::decode_marker;
 use super::{CassieError, Midge, Query, RowSchema};
@@ -35,7 +35,7 @@ use merge::{merge_batch, FieldStream, MergeInput};
 use std::mem::size_of;
 
 /// Rows per vector batch (owner decision D8).
-pub(crate) const COLUMN_VECTOR_BATCH_ROWS: usize = 1024;
+pub const COLUMN_VECTOR_BATCH_ROWS: usize = 1024;
 
 pub(super) fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
@@ -50,7 +50,7 @@ pub(super) fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(),
 /// A half-open range of row ids: `start` inclusive, `end` exclusive, `None`
 /// meaning unbounded on that side.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ColumnIdRange {
+pub struct ColumnIdRange {
     pub start: Option<String>,
     pub end: Option<String>,
 }
@@ -63,7 +63,7 @@ pub(super) struct Marker {
 
 /// The rows of one batch: ids, then one lane carrier per selected field.
 #[derive(Debug)]
-pub(crate) struct ColumnVectorBatch {
+pub struct ColumnVectorBatch {
     pub ids: Vec<String>,
     pub lanes: Vec<RawLanes>,
     /// Admission of the decoded batch; drop it once a column retains the lanes.
@@ -175,7 +175,7 @@ impl ColumnVectorScan {
     ///
     /// Returns `XX001` for corrupt column data, a resource-limit error when the
     /// query budget cannot hold the batch, and cancellation errors.
-    pub(in crate::adapter) fn next_batch(
+    pub fn next_batch(
         &mut self,
         midge: &Midge,
         tx: &DataReadTransaction,
@@ -347,7 +347,7 @@ impl ColumnVectorScan {
 
 /// Where a requested output column comes from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ColumnVectorOutput {
+pub enum ColumnVectorOutput {
     /// The row identity, as text.
     Identity,
     /// The lane at this index of [`ColumnVectorBatch::lanes`].
@@ -355,7 +355,7 @@ pub(crate) enum ColumnVectorOutput {
 }
 
 /// A vector scan together with the snapshot it reads and its output binding.
-pub(crate) struct ColumnVectorReader {
+pub struct ColumnVectorReader {
     tx: DataReadTransaction,
     scan: ColumnVectorScan,
     outputs: Vec<ColumnVectorOutput>,
@@ -367,7 +367,7 @@ impl ColumnVectorReader {
     /// hold a staged id of the open transaction are always read. An untrusted
     /// summary, a table without summaries, or a failed summary read leaves the
     /// whole table in scope, so pruning can only remove work.
-    pub(crate) fn set_pruning(
+    pub fn set_pruning(
         &mut self,
         midge: &Midge,
         filter: &crate::adapter::ColumnBatchScanFilter,
@@ -387,7 +387,7 @@ impl ColumnVectorReader {
         }
     }
 
-    pub(crate) fn outputs(&self) -> &[ColumnVectorOutput] {
+    pub fn outputs(&self) -> &[ColumnVectorOutput] {
         &self.outputs
     }
 
@@ -396,7 +396,7 @@ impl ColumnVectorReader {
     /// # Errors
     ///
     /// See [`ColumnVectorScan::next_batch`].
-    pub(crate) fn next_batch(
+    pub fn next_batch(
         &mut self,
         midge: &Midge,
         max_rows: usize,
@@ -416,7 +416,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns storage errors; an unknown collection is an error.
-    pub(crate) fn open_column_vector_reader(
+    pub fn open_column_vector_reader(
         &self,
         collection: &str,
         requested: &[Option<&str>],

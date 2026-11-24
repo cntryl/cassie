@@ -30,7 +30,7 @@ pub(super) use metrics::VectorIndexMaintenanceMetrics;
 #[path = "vector_retrieval.rs"]
 mod vector_retrieval;
 
-pub(crate) use vector_retrieval::PersistedIvfFlatTrainingSnapshot;
+pub use vector_retrieval::PersistedIvfFlatTrainingSnapshot;
 
 use self::codec::{
     decode_hnsw_node, decode_normalized_vector, decode_vector_index_state, encode_hnsw_node,
@@ -504,7 +504,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn list_vector_indexes_canonical(
+    pub fn list_vector_indexes_canonical(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
         let mut out = self.list_vector_index_definitions_canonical()?;

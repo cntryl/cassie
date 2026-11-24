@@ -11,7 +11,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the address is unsupported or durable publication fails.
-    pub(crate) fn put_object_comment(
+    pub fn put_object_comment(
         &self,
         metadata: &ObjectCommentMeta,
     ) -> Result<(), CassieError> {
@@ -92,7 +92,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the family cannot be written or publication fails.
-    pub(crate) fn delete_object_comment(
+    pub fn delete_object_comment(
         &self,
         address: &ObjectCommentAddress,
     ) -> Result<(), CassieError> {
@@ -113,7 +113,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the family cannot be written or publication fails.
-    pub(crate) fn delete_object_comments_for_object(
+    pub fn delete_object_comments_for_object(
         &self,
         database: &str,
         class_oid: u32,
@@ -130,7 +130,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error instead of hiding malformed or unsupported durable records.
-    pub(crate) fn list_object_comments(&self) -> Result<Vec<ObjectCommentMeta>, CassieError> {
+    pub fn list_object_comments(&self) -> Result<Vec<ObjectCommentMeta>, CassieError> {
         let mut comments = Vec::new();
         let prefix = key_encoding::object_comment_prefix();
         for database in self.database_names() {

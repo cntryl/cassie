@@ -13,13 +13,13 @@ mod vector_rows;
 pub(super) use accounted_page::decode_expansion_factor;
 use accounted_page::provisional_document_bytes;
 pub(crate) use accounted_page::provisional_document_bytes as provisional_controlled_document_bytes;
-pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
+pub use accounted_page::{AccountedDocument, AccountedDocumentPage};
 
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
 
 /// Whether the caller consumes the complete source or may stop at visited rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RowTraversal {
+pub enum RowTraversal {
     CompleteSource,
     VisitedRows,
 }
@@ -54,7 +54,7 @@ impl CursorStorage {
     }
 }
 
-pub(crate) struct MidgeRowCursor {
+pub struct MidgeRowCursor {
     tx:crate::adapter::DataReadTransaction,
     prefix: Vec<u8>,
     last_key: Option<Vec<u8>>,
@@ -98,7 +98,7 @@ impl MidgeRowCursor {
         self.pruning = super::ColumnPruning::resolve(&self.collection, &self.row_schema, filter);
     }
 
-    pub(crate) fn next_accounted_document(
+    pub fn next_accounted_document(
         &mut self,
         midge: &Midge,
         controls: &StorageRequestContext<'_>,
@@ -120,7 +120,7 @@ impl MidgeRowCursor {
             .collect())
     }
 
-    pub(crate) fn next_accounted_page(
+    pub fn next_accounted_page(
         &mut self,
         midge: &Midge,
         max_rows: usize,
@@ -303,7 +303,7 @@ fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieErro
 }
 
 impl Midge {
-    pub(crate) fn open_row_cursor(
+    pub fn open_row_cursor(
         &self,
         collection: &str,
         decode: RowDecode,
@@ -311,7 +311,7 @@ impl Midge {
         self.open_row_cursor_with_traversal(collection, decode, RowTraversal::CompleteSource)
     }
 
-    pub(crate) fn open_row_cursor_with_traversal(
+    pub fn open_row_cursor_with_traversal(
         &self,
         collection: &str,
         decode: RowDecode,
@@ -350,7 +350,7 @@ impl Midge {
 
     /// Callback scans may stop after any visited row. Full-input callers must
     /// opt into complete-source validation before their first callback.
-    pub(crate) fn scan_rows_until<E, F>(
+    pub fn scan_rows_until<E, F>(
         &self,
         collection: &str,
         decode: RowDecode,
@@ -370,7 +370,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn scan_rows_until_with_traversal<E, F>(
+    pub fn scan_rows_until_with_traversal<E, F>(
         &self,
         collection: &str,
         decode: RowDecode,

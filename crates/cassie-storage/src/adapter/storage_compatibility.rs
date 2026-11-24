@@ -45,7 +45,7 @@ impl Compatibility {
 impl Midge {
     /// A new pinned expression contract requires a reader that understands it.
     /// Validate the record before calling; this fence precedes feature mutation.
-    pub(crate) fn require_definition_version(&self, version: u32) -> Result<(), CassieError> {
+    pub fn require_definition_version(&self, version: u32) -> Result<(), CassieError> {
         cassie_sql::definition_guard::version(version)?;
         if version == 1 {
             self.require_storage_layout_version(V020_LAYOUT_VERSION)?;
@@ -100,11 +100,11 @@ impl Midge {
     }
 
     #[must_use]
-    pub(crate) fn supports_storage_layout_version(version: &str) -> bool {
+    pub fn supports_storage_layout_version(version: &str) -> bool {
         Self::supports_storage_layout_marker(version.as_bytes())
     }
 
-    pub(crate) fn storage_layout_version(&self) -> Result<&'static str, CassieError> {
+    pub fn storage_layout_version(&self) -> Result<&'static str, CassieError> {
         self.publication.ensure_recovered()?;
         let schema = self.ensure_families_ready()?.schema.id();
         let read = self
@@ -124,7 +124,7 @@ impl Midge {
 
     /// Acknowledges the minimum reader before a separate feature transaction publishes.
     /// A failure never authorizes that feature publication, even if the marker is visible.
-    pub(crate) fn require_storage_layout_version(&self, version: &str) -> Result<(), CassieError> {
+    pub fn require_storage_layout_version(&self, version: &str) -> Result<(), CassieError> {
         self.publication.ensure_recovered()?;
         let required = Compatibility::parse(version.as_bytes()).ok_or_else(|| {
             CassieError::Unsupported(format!("unsupported required storage layout '{version}'"))

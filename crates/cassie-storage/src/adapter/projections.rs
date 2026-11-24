@@ -69,18 +69,18 @@ fn checkpoint_value<'a>(
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ReplayBatchCommit {
-    pub(crate) expected_metadata: Option<ProjectionMeta>,
-    pub(crate) metadata: ProjectionMeta,
-    pub(crate) source_identity: String,
-    pub(crate) batch_id: String,
-    pub(crate) observed_events: Vec<(String, bool)>,
-    pub(crate) new_event_ids: Vec<String>,
+pub struct ReplayBatchCommit {
+    pub expected_metadata: Option<ProjectionMeta>,
+    pub metadata: ProjectionMeta,
+    pub source_identity: String,
+    pub batch_id: String,
+    pub observed_events: Vec<(String, bool)>,
+    pub new_event_ids: Vec<String>,
 }
 
 impl Midge {
     /// Resolve the publication from the same statement Data view as its output.
-    pub(crate) fn statement_materialized_view(
+    pub fn statement_materialized_view(
         &self,
         collection: &str,
     ) -> Result<Option<ProjectionMeta>, CassieError> {
@@ -100,7 +100,7 @@ impl Midge {
             .transpose()
     }
 
-    pub(crate) fn published_scalar_index(
+    pub fn published_scalar_index(
         &self,
         output: &str,
         candidate: &crate::catalog::IndexMeta,
@@ -119,7 +119,7 @@ impl Midge {
         }))
     }
 
-    pub(crate) fn checkpoint_rows_for_statement(
+    pub fn checkpoint_rows_for_statement(
         &self,
         database: &str,
         controls: &crate::adapter::StorageRequestContext<'_>,
@@ -317,7 +317,7 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    pub(crate) fn put_replay_failure_if_unchanged(
+    pub fn put_replay_failure_if_unchanged(
         &self,
         expected: Option<&ProjectionMeta>,
         metadata: &ProjectionMeta,
@@ -474,7 +474,7 @@ impl Midge {
 
 impl Midge {
     /// Rekeys one SQL materialized-view definition in the owning database family.
-    pub(crate) fn rename_sql_materialized_view_metadata(
+    pub fn rename_sql_materialized_view_metadata(
         &self,
         previous: &str,
         metadata: &ProjectionMeta,

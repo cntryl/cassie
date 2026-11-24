@@ -140,7 +140,7 @@ mod value_hook_tests {
 }
 
 impl Midge {
-    pub(crate) fn configure_repeatable_history_budget(
+    pub fn configure_repeatable_history_budget(
         &self,
         bytes: usize,
     ) -> Result<(), CassieError> {
@@ -173,7 +173,7 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
     }
 
-    pub(crate) fn new_with_data_dir_database_and_memory_limits(
+    pub fn new_with_data_dir_database_and_memory_limits(
         data_dir: &Path,
         database: &str,
         budget: Option<usize>,
@@ -184,7 +184,7 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, database, config.write_policy)
     }
 
-    pub(crate) fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
+    pub fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::in_memory()
             .build()
             .map_err(CassieError::from)?;
@@ -195,7 +195,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn new_in_memory_with_limits(
+    pub fn new_in_memory_with_limits(
         default_database: impl Into<String>,
         budget: Option<usize>,
         memtable: Option<usize>,
@@ -258,7 +258,7 @@ impl Midge {
     }
 
     #[cfg(test)]
-    pub(crate) fn new_cloud_simulated_for_test(
+    pub fn new_cloud_simulated_for_test(
         cache_path: impl AsRef<Path>,
         default_database: impl Into<String>,
         strict: bool,
@@ -336,7 +336,7 @@ impl Midge {
     /// kills a child process can reopen the store without waiting out the
     /// default 30 second lease.
     #[cfg(test)]
-    pub(crate) fn new_local_short_lease_for_test(
+    pub fn new_local_short_lease_for_test(
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,
         ttl: std::time::Duration,
@@ -353,22 +353,22 @@ impl Midge {
     }
 
     #[must_use]
-    pub(crate) fn write_options_sync(&self) -> WriteOptions {
+    pub fn write_options_sync(&self) -> WriteOptions {
         self.write_policy.sync()
     }
 
     #[must_use]
-    pub(crate) fn write_options_replayable(&self) -> WriteOptions {
+    pub fn write_options_replayable(&self) -> WriteOptions {
         self.write_policy.replayable()
     }
 
     #[must_use]
-    pub(crate) fn write_options_strict_replay(&self) -> WriteOptions {
+    pub fn write_options_strict_replay(&self) -> WriteOptions {
         self.write_policy.strict_replay()
     }
 
     #[must_use]
-    pub(crate) fn write_options_buffered(&self) -> WriteOptions {
+    pub fn write_options_buffered(&self) -> WriteOptions {
         self.write_policy.buffered()
     }
 
@@ -386,7 +386,7 @@ impl Midge {
         self.graph_reference_reads.load(Ordering::Relaxed)
     }
 
-    pub(crate) fn record_graph_reference_reads(&self, reads: u64) {
+    pub fn record_graph_reference_reads(&self, reads: u64) {
         self.graph_reference_reads
             .fetch_add(reads, Ordering::Relaxed);
     }
@@ -417,7 +417,7 @@ impl Midge {
     }
 
     /// Whether column scans may read vector batches.
-    pub(crate) fn column_vector_enabled(&self) -> bool {
+    pub fn column_vector_enabled(&self) -> bool {
         self.column_vector_reads.enabled()
     }
 
@@ -428,7 +428,7 @@ impl Midge {
         self.column_vector_reads.set_enabled(enabled);
     }
 
-    pub(crate) fn column_vector_counters(&self) -> &super::ColumnVectorReadCounters {
+    pub fn column_vector_counters(&self) -> &super::ColumnVectorReadCounters {
         &self.column_vector_reads
     }
 
@@ -656,7 +656,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn with_transaction_write_gates<T, E>(
+    pub fn with_transaction_write_gates<T, E>(
         &self,
         collections: &[String],
         referential: bool,
@@ -676,11 +676,11 @@ impl Midge {
     }
 
     /// Serializes a SQL sequence update through its catalog cursor publication.
-    pub(crate) fn with_sequence_update_gate<T>(
+    pub fn with_sequence_update_gate<T, E: From<CassieError>>(
         &self,
         sequence: &str,
-        operation: impl FnOnce() -> Result<T, CassieError>,
-    ) -> Result<T, CassieError> {
+        operation: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
         let canonical = self.canonical_collection_name(sequence);
         let sequences = [canonical];
         if let Some(controls) = NativePublicationControlScope::current_request_controls() {
@@ -691,7 +691,7 @@ impl Midge {
         }
     }
 
-    pub(crate) fn with_collection_write_gates<T>(
+    pub fn with_collection_write_gates<T>(
         &self,
         collections: &[String],
         operation: impl FnOnce() -> T,
@@ -703,12 +703,12 @@ impl Midge {
     /// Like [`Self::with_collection_write_gates`], but waits for each gate in
     /// bounded steps and returns the first interruption `check` reports. No gate
     /// is retained when the wait is interrupted.
-    pub(crate) fn with_collection_write_gates_interruptible<T>(
+    pub fn with_collection_write_gates_interruptible<T, E>(
         &self,
         collections: &[String],
-        check: impl Fn() -> Result<(), CassieError>,
-        operation: impl FnOnce() -> Result<T, CassieError>,
-    ) -> Result<T, CassieError> {
+        check: impl Fn() -> Result<(), E>,
+        operation: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
         const STEP: std::time::Duration = std::time::Duration::from_millis(2);
         let _referential_guard = loop {
             check()?;
@@ -761,7 +761,7 @@ impl Midge {
         operation()
     }
 
-    pub(crate) fn collection_write_gate(&self, collection: &str) -> Arc<ReentrantMutex<()>> {
+    pub fn collection_write_gate(&self, collection: &str) -> Arc<ReentrantMutex<()>> {
         let mut gates = self.collection_write_gates.lock();
         gates
             .entry(collection.to_ascii_lowercase())

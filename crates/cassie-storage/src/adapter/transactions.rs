@@ -33,7 +33,7 @@ thread_local! {
     feature = "replay-benchmark-observation",
     any(test, feature = "storage-test-hooks")
 ))]
-pub(crate) fn inject_native_commit_unknown_after_success() {
+pub fn inject_native_commit_unknown_after_success() {
     INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.set(true));
 }
 
@@ -41,7 +41,7 @@ pub(crate) fn inject_native_commit_unknown_after_success() {
     feature = "replay-benchmark-observation",
     any(test, feature = "storage-test-hooks")
 ))]
-pub(crate) fn inject_native_commit_unknown_before_commit() {
+pub fn inject_native_commit_unknown_before_commit() {
     INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.set(true));
 }
 
@@ -58,25 +58,25 @@ use native_commit::commit_native_transaction;
 
 #[path = "transactions/copy_snapshot.rs"]
 mod copy_snapshot;
-pub(crate) use copy_snapshot::{
+pub use copy_snapshot::{
     CheckpointStorageSnapshot, CopyStorageSnapshot, StagedCheckpointChange,
 };
 
 #[path = "transactions/index_cleanup_guard.rs"]
 mod index_cleanup_guard;
-pub(crate) use index_cleanup_guard::IndexCleanupCommitGuard;
+pub use index_cleanup_guard::IndexCleanupCommitGuard;
 
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;
 #[path = "transactions/sequence_owner.rs"]
 pub(super) mod sequence_owner;
 pub use sequence_owner::PreparedSequenceCursorMetadata;
-use mutation_error::AdapterMutationError;
+pub use mutation_error::AdapterMutationError;
 
 #[path = "transactions/row_fence/mod.rs"]
 mod row_fence;
 pub(super) use row_fence::admitted_row_keys;
-pub(crate) use row_fence::RetainedRowFence;
+pub use row_fence::RetainedRowFence;
 
 #[derive(Debug, Clone, Default)]
 pub struct StorageOverlay {
@@ -100,13 +100,18 @@ impl PartialEq for StorageOverlay {
 impl Eq for StorageOverlay {}
 
 impl StorageOverlay {
+    #[must_use]
+    pub fn has_changes(&self) -> bool {
+        !self.changes.is_empty()
+    }
+
     /// Routes later allocations of a restarted published sequence through the
     /// transaction's staged cursor instead of the native, non-transactional one.
-    pub(crate) fn mark_sequence_restarted(&mut self, object_id: u64) {
+    pub fn mark_sequence_restarted(&mut self, object_id: u64) {
         self.restarted_sequences.insert(object_id);
     }
 
-    pub(crate) fn schema_write_collections(&self) -> Vec<String> {
+    pub fn schema_write_collections(&self) -> Vec<String> {
         let prefix = Midge::schema_collection_prefix();
         self.changes
             .keys()
@@ -114,7 +119,7 @@ impl StorageOverlay {
             .collect()
     }
 
-    pub(crate) fn drops_collection(&self, collection: &str, default_database: &str) -> bool {
+    pub fn drops_collection(&self, collection: &str, default_database: &str) -> bool {
         let canonical = match parse_name(collection) {
             Ok(ParsedName::Unqualified(name)) => {
                 canonical_relation_name(default_database, crate::catalog::DEFAULT_SCHEMA, &name)
@@ -145,7 +150,7 @@ impl StorageOverlay {
         })
     }
 
-    pub(crate) fn with_sequence_cursors(
+    pub fn with_sequence_cursors(
         mut self,
         controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<
@@ -188,7 +193,7 @@ thread_local! {
     static ACTIVE_STORAGE_SCOPE: RefCell<Option<ActiveStorageScope>> = const { RefCell::new(None) };
 }
 
-pub(crate) struct StorageScopeGuard {
+pub struct StorageScopeGuard {
     previous: Option<ActiveStorageScope>,
     _thread: PhantomData<Rc<()>>,
 }
@@ -209,7 +214,7 @@ impl Drop for StorageScopeGuard {
     }
 }
 
-pub(crate) struct AdapterTransaction {
+pub struct AdapterTransaction {
     inner: Option<cntryl_midge::Transaction>,
     overlay: Option<Arc<Mutex<StorageOverlay>>>,
     stage_writes: bool,
@@ -311,11 +316,11 @@ impl AdapterTransaction {
         );
     }
 
-    pub(crate) fn get(&self, key: &[u8]) -> Result<Option<bytes::Bytes>, cntryl_midge::MidgeError> {
+    pub fn get(&self, key: &[u8]) -> Result<Option<bytes::Bytes>, cntryl_midge::MidgeError> {
         self.inner().get(key)
     }
 
-    pub(crate) fn put(
+    pub fn put(
         &mut self,
         key: Vec<u8>,
         value: Vec<u8>,
@@ -336,7 +341,7 @@ impl AdapterTransaction {
         Ok(())
     }
 
-    pub(crate) fn delete(&mut self, key: Vec<u8>) -> Result<(), AdapterMutationError> {
+    pub fn delete(&mut self, key: Vec<u8>) -> Result<(), AdapterMutationError> {
         let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
             self.expected_value_before_change(&key)?
@@ -378,18 +383,18 @@ impl AdapterTransaction {
         }
     }
 
-    pub(crate) fn scan(
+    pub fn scan(
         &self,
         query: &Query,
     ) -> Result<cntryl_midge::ScanIterator<'_>, cntryl_midge::MidgeError> {
         self.inner().scan(query)
     }
 
-    pub(crate) fn set_conflict_policy(&mut self, policy: ConflictPolicy) {
+    pub fn set_conflict_policy(&mut self, policy: ConflictPolicy) {
         self.inner_mut().set_conflict_policy(policy);
     }
 
-    pub(crate) fn assert_value(
+    pub fn assert_value(
         &mut self,
         key: Vec<u8>,
         expected: Option<Vec<u8>>,
@@ -411,7 +416,7 @@ impl AdapterTransaction {
         }
     }
 
-    pub(crate) fn commit(mut self, options: WriteOptions) -> Result<(), AdapterCommitError> {
+    pub fn commit(mut self, options: WriteOptions) -> Result<(), AdapterCommitError> {
         let inner = self.inner.take().expect("commit consumes its transaction");
         if self.suppress_commit {
             drop(inner);
@@ -458,7 +463,7 @@ impl AdapterTransaction {
         }
     }
 
-    pub(crate) fn rollback(mut self) -> Result<(), cntryl_midge::MidgeError> {
+    pub fn rollback(mut self) -> Result<(), cntryl_midge::MidgeError> {
         let inner = self
             .inner
             .take()
@@ -498,7 +503,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn enter_transactional_ddl_scope(
+    pub fn enter_transactional_ddl_scope(
         &self,
         database: &str,
         overlay: Arc<Mutex<StorageOverlay>>,
@@ -644,7 +649,7 @@ impl Midge {
         Ok(transaction)
     }
 
-    pub(crate) fn begin_raw_family_adapter_tx(
+    pub fn begin_raw_family_adapter_tx(
         &self,
         family: StorageFamily,
         mode: TransactionMode,
@@ -658,7 +663,7 @@ impl Midge {
         self.begin_raw_adapter_tx(family_id, mode)
     }
 
-    pub(crate) fn commit_storage_overlay(
+    pub fn commit_storage_overlay(
         &self,
         database: &str,
         overlay: &StorageOverlay,
@@ -865,11 +870,11 @@ impl Midge {
     }
 
     #[cfg(test)]
-    pub(crate) fn take_collection_flush_family_for_test() -> Option<u32> {
+    pub fn take_collection_flush_family_for_test() -> Option<u32> {
         COLLECTION_FLUSH_FAMILY.take()
     }
 
-    pub(crate) fn flush_data_family_for_collection(
+    pub fn flush_data_family_for_collection(
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {

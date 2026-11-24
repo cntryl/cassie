@@ -256,7 +256,7 @@ impl Cassie {
             // Publishing it would overwrite unrelated newer metadata and make
             // repeated IF NOT EXISTS commands advance the global schema epoch.
             session.transaction_catalog_base_version() != Some(catalog.version())
-                || !storage_overlay.changes.is_empty()
+                || storage_overlay.has_changes()
         });
         let removed_role_grant_targets = catalog_overlay
             .as_ref()

@@ -17,16 +17,16 @@ pub(super) fn require_single_database<'a>(
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct DocumentWriteBatchOptions {
-    pub(crate) commit: WriteOptions,
-    pub(crate) data_database: Option<String>,
-    pub(crate) additional_data_writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
-    pub(crate) rollup_change_fields: Vec<String>,
-    pub(crate) publication_marker: Option<(Vec<u8>, Vec<u8>)>,
-    pub(crate) refresh_after_commit: bool,
-    pub(crate) normalized_vector_collection: Option<String>,
-    pub(crate) record_rollup_maintenance_debt: bool,
-    pub(crate) record_materialized_projection_maintenance_debt: bool,
+pub struct DocumentWriteBatchOptions {
+    pub commit: WriteOptions,
+    pub data_database: Option<String>,
+    pub additional_data_writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    pub rollup_change_fields: Vec<String>,
+    pub publication_marker: Option<(Vec<u8>, Vec<u8>)>,
+    pub refresh_after_commit: bool,
+    pub normalized_vector_collection: Option<String>,
+    pub record_rollup_maintenance_debt: bool,
+    pub record_materialized_projection_maintenance_debt: bool,
     pub(super) replay: Option<super::super::projections::ReplayBatchCommit>,
 }
 
@@ -62,7 +62,7 @@ impl DocumentWriteBatchOptions {
             .unwrap_or_else(|| default.to_owned())
     }
 
-    pub(crate) fn sync(commit: WriteOptions) -> Self {
+    pub fn sync(commit: WriteOptions) -> Self {
         Self {
             commit,
             data_database: None,
@@ -77,7 +77,7 @@ impl DocumentWriteBatchOptions {
         }
     }
 
-    pub(crate) fn buffered(commit: WriteOptions) -> Self {
+    pub fn buffered(commit: WriteOptions) -> Self {
         Self {
             commit,
             data_database: None,

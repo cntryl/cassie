@@ -6,7 +6,7 @@ use super::super::{
     Midge, OrderedRowBound, Query, RowDecode,
 };
 
-pub(crate) struct OrderedRowScanRequest<'a> {
+pub struct OrderedRowScanRequest<'a> {
     pub collection: &'a str,
     pub decode: RowDecode,
     pub start_bound: Option<&'a OrderedRowBound>,

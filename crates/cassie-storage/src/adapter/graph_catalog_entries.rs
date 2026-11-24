@@ -6,7 +6,7 @@ use super::RawStorageEntry;
 use crate::catalog::{CompositeTypeMeta, NamespaceMeta};
 use cassie_core::types::graph_identity::GRAPH_SCHEMA_OWNER;
 
-pub(crate) fn owns_reserved_schema(entries: &[RawStorageEntry]) -> bool {
+pub fn owns_reserved_schema(entries: &[RawStorageEntry]) -> bool {
     entries
         .iter()
         .filter(|(key, _)| key_family(key) == Some("namespace"))
@@ -14,7 +14,7 @@ pub(crate) fn owns_reserved_schema(entries: &[RawStorageEntry]) -> bool {
         .any(|namespace| namespace.system_owner.as_deref() == Some(GRAPH_SCHEMA_OWNER))
 }
 
-pub(crate) fn is_reserved_entry(key: &[u8], value: &[u8]) -> bool {
+pub fn is_reserved_entry(key: &[u8], value: &[u8]) -> bool {
     match key_family(key) {
         Some("namespace") => serde_json::from_slice::<NamespaceMeta>(value)
             .is_ok_and(|namespace| namespace.system_owner.as_deref() == Some(GRAPH_SCHEMA_OWNER)),
@@ -31,7 +31,7 @@ pub(crate) fn is_reserved_entry(key: &[u8], value: &[u8]) -> bool {
 /// A distinct clone must not inherit them: it allocates its own database
 /// identity, and graphs are recreated there with fresh graph and mapping
 /// identities, so a copied reference never resolves in the clone (#1268).
-pub(crate) fn is_clone_excluded_identity_entry(key: &[u8]) -> bool {
+pub fn is_clone_excluded_identity_entry(key: &[u8]) -> bool {
     matches!(
         key_family(key),
         Some("database-identity" | "property-graph")
@@ -52,7 +52,7 @@ fn without_reserved_namespace(value: &[u8]) -> Vec<u8> {
 
 /// `entries` without the reserved schema's namespace and types, when the
 /// system owns that schema. A user-owned schema of the same name is user data.
-pub(crate) fn without_reserved_objects(entries: Vec<RawStorageEntry>) -> Vec<RawStorageEntry> {
+pub fn without_reserved_objects(entries: Vec<RawStorageEntry>) -> Vec<RawStorageEntry> {
     if !owns_reserved_schema(&entries) {
         return entries;
     }

@@ -20,14 +20,14 @@ mod replay;
 mod report;
 #[path = "documents/unique_reservations.rs"]
 mod unique_reservations;
-pub(crate) use super::projections::ReplayBatchCommit;
+pub use super::projections::ReplayBatchCommit;
 pub(super) use commit::document_write_retry_delay;
-pub(crate) use options::DocumentWriteBatchOptions;
-pub(crate) use ordered_scan::OrderedRowScanRequest;
-pub(crate) use report::{DocumentWriteBatchReport, RollupSourceChangeReport};
+pub use options::DocumentWriteBatchOptions;
+pub use ordered_scan::OrderedRowScanRequest;
+pub use report::{DocumentWriteBatchReport, RollupSourceChangeReport};
 
 #[derive(Debug, Clone)]
-pub(crate) enum DocumentWriteOp {
+pub enum DocumentWriteOp {
     Put {
         id: String,
         payload: serde_json::Value,
@@ -183,7 +183,7 @@ impl Midge {
         Ok(report.row_delta < 0)
     }
 
-    pub(crate) fn put_document_with_stats_and_options(
+    pub fn put_document_with_stats_and_options(
         &self,
         collection: &str,
         id: Option<String>,
@@ -205,7 +205,7 @@ impl Midge {
         Ok((doc_id, report.stats, report.row_delta))
     }
 
-    pub(crate) fn delete_document_with_stats_and_options(
+    pub fn delete_document_with_stats_and_options(
         &self,
         collection: &str,
         id: &str,
@@ -232,7 +232,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn apply_document_write_batch_with_options(
+    pub fn apply_document_write_batch_with_options(
         &self,
         collection: &str,
         operations: Vec<DocumentWriteOp>,
@@ -248,7 +248,7 @@ impl Midge {
         Ok(reports.remove(&collection).unwrap_or_default())
     }
 
-    pub(crate) fn apply_document_write_batches_with_options(
+    pub fn apply_document_write_batches_with_options(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
@@ -261,7 +261,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn apply_document_write_batches_with_transactional_ddl(
+    pub fn apply_document_write_batches_with_transactional_ddl(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,

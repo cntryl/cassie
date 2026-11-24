@@ -8,7 +8,7 @@ use super::{
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 impl Midge {
-    pub(crate) fn list_normalized_vectors_controlled(
+    pub fn list_normalized_vectors_controlled(
         &self,
         collection: &str,
         field: &str,
@@ -80,7 +80,7 @@ impl Midge {
         Ok((records, memory))
     }
 
-    pub(crate) fn get_normalized_vector_controlled(
+    pub fn get_normalized_vector_controlled(
         &self,
         collection: &str,
         field: &str,

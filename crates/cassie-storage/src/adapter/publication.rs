@@ -15,13 +15,13 @@ use cassie_core::request::{Interruption, RequestCancellation};
 
 mod native_access;
 mod row_history;
-pub(crate) use row_history::RetainedRowHistory;
+pub use row_history::RetainedRowHistory;
 pub(super) use row_history::{MutationKeys, PreparedKey};
 
 const RECOVERY_REQUIRED: &str = "storage recovery required after an earlier unconfirmed write; this operation was not submitted; recover and reconcile before retrying";
 
 #[derive(Debug)]
-pub(crate) enum AdapterCommitError {
+pub enum AdapterCommitError {
     Native(cntryl_midge::MidgeError),
     Cassie(CassieError),
     RecoveryRequired,
@@ -420,24 +420,24 @@ impl Drop for NativePublicationControlScope {
 }
 
 impl Midge {
-    pub(crate) fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
+    pub fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
         self.publication.ensure_recovered()
     }
 
     #[cfg(test)]
-    pub(crate) fn observe_next_publication_wait_for_test(
+    pub fn observe_next_publication_wait_for_test(
         callback: impl FnOnce() + 'static,
     ) -> impl Drop {
         tests::next_wait(callback)
     }
 
     #[cfg(test)]
-    pub(crate) fn observe_next_row_commit_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
+    pub fn observe_next_row_commit_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
         tests::next_confirmation(callback)
     }
 
     #[cfg(test)]
-    pub(crate) fn latch_storage_recovery_required_for_test(&self) {
+    pub fn latch_storage_recovery_required_for_test(&self) {
         let result =
             self.publication
                 .observe_native::<()>(Err(cntryl_midge::MidgeError::OutcomeUnknown(
@@ -446,7 +446,7 @@ impl Midge {
         assert!(result.is_err());
     }
 
-    pub(crate) fn capture_repeatable_row_history(
+    pub fn capture_repeatable_row_history(
         &self,
         database: &str,
         controls: &StorageRequestContext<'_>,
@@ -460,7 +460,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn with_database_publication<T, E>(
+    pub fn with_database_publication<T, E>(
         &self,
         database: &str,
         controls: &StorageRequestContext<'_>,

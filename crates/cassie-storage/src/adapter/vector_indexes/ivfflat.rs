@@ -13,7 +13,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when index definitions or source rows cannot be read or repaired.
-    pub(crate) fn reconcile_ivfflat_indexes(&self) -> Result<(), CassieError> {
+    pub fn reconcile_ivfflat_indexes(&self) -> Result<(), CassieError> {
         for index in self
             .list_vector_index_definitions_canonical()?
             .into_iter()

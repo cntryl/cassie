@@ -61,7 +61,7 @@ impl Midge {
         self.list_namespaces_raw()
     }
 
-    pub(crate) fn list_namespaces_canonical(&self) -> Vec<String> {
+    pub fn list_namespaces_canonical(&self) -> Vec<String> {
         self.list_namespaces_raw()
             .into_iter()
             .map(|namespace| self.canonical_namespace_name(&namespace))
@@ -217,7 +217,7 @@ impl Midge {
         self.alter_collection_add_column_with_default(collection, field, None)
     }
 
-    pub(crate) fn alter_collection_add_column_with_default(
+    pub fn alter_collection_add_column_with_default(
         &self,
         collection: &str,
         field: FieldSchema,

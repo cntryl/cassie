@@ -47,7 +47,7 @@ impl ColumnPruningCounters {
 /// switch that forces unpruned reads, and tables whose summaries a scan found
 /// stale and the next maintenance pass should rebuild completely.
 #[derive(Debug, Default)]
-pub(crate) struct ColumnPruningState {
+pub struct ColumnPruningState {
     counters: ColumnPruningCounters,
     disabled: AtomicBool,
     stale_tables: parking_lot::Mutex<HashSet<String>>,
@@ -192,7 +192,7 @@ struct SegmentIndex {
 }
 
 /// A scan's resolved filter and its lazily loaded view of the summaries.
-pub(crate) struct ColumnPruning {
+pub struct ColumnPruning {
     collection: String,
     relation_id: u64,
     schema_version: u32,

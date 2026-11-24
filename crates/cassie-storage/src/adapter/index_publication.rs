@@ -134,7 +134,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when a journal is malformed or its publication fails.
-    pub(crate) fn recover_prepared_index_with_held_collection_gate(
+    pub fn recover_prepared_index_with_held_collection_gate(
         &self,
         collection: &str,
         name: &str,

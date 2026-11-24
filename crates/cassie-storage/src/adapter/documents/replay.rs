@@ -4,7 +4,7 @@ use super::{
 };
 
 impl Midge {
-    pub(crate) fn apply_projection_replay_batch(
+    pub fn apply_projection_replay_batch(
         &self,
         collection: &str,
         operations: Vec<DocumentWriteOp>,

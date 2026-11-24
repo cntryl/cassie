@@ -87,7 +87,7 @@ impl Midge {
         values
     }
 
-    pub(crate) fn raw_scan_database_page(
+    pub fn raw_scan_database_page(
         &self,
         database: &str,
         prefix: &[u8],
@@ -109,7 +109,7 @@ impl Midge {
             .collect())
     }
 
-    pub(crate) fn raw_scan_prefix_for_collection(
+    pub fn raw_scan_prefix_for_collection(
         &self,
         collection: &str,
         prefix: &[u8],

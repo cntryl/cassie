@@ -23,7 +23,7 @@ pub(crate) struct ControlledTimeSeriesIndexScanReport {
 }
 
 #[derive(Debug)]
-pub(crate) enum ControlledTimeSeriesIndexScanOutcome {
+pub enum ControlledTimeSeriesIndexScanOutcome {
     Native(ControlledTimeSeriesIndexScanReport),
     Fallback(&'static str),
 }
@@ -35,7 +35,7 @@ pub(crate) struct ControlledTimeSeriesDocumentScanReport {
 }
 
 #[derive(Debug)]
-pub(crate) enum ControlledTimeSeriesDocumentScanOutcome {
+pub enum ControlledTimeSeriesDocumentScanOutcome {
     Native(ControlledTimeSeriesDocumentScanReport),
     Fallback(&'static str),
 }
@@ -69,7 +69,7 @@ enum ControlledIntegrityOutcome {
 }
 
 impl Midge {
-    pub(crate) fn scan_time_series_index_controlled(
+    pub fn scan_time_series_index_controlled(
         &self,
         index: &IndexMeta,
         partition_key: Option<&str>,
@@ -237,7 +237,7 @@ impl Midge {
         }))
     }
 
-    pub(crate) fn scan_time_series_hit_documents_controlled(
+    pub fn scan_time_series_hit_documents_controlled(
         &self,
         index: &IndexMeta,
         hits: &[TimeSeriesIndexScanHit],

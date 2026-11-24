@@ -19,11 +19,11 @@ impl StorageOverlay {
 }
 
 impl Midge {
-    pub(crate) fn legacy_field_add_failure_injected() -> bool {
+    pub fn legacy_field_add_failure_injected() -> bool {
         super::super::FIELD_ADD_FAILPOINT.get() || super::super::FIELD_ADD_BACKFILL_FAILPOINT.get()
     }
 
-    pub(crate) fn alter_collection_add_column_atomically<A: Clone>(
+    pub fn alter_collection_add_column_atomically<A: Clone>(
         &self,
         collection: &str,
         field: FieldSchema,
@@ -185,7 +185,7 @@ impl Midge {
         Ok(operations)
     }
 
-    pub(crate) fn resume_pending_field_add_matching(
+    pub fn resume_pending_field_add_matching(
         &self,
         collection: &str,
         field: &FieldSchema,
@@ -219,7 +219,7 @@ impl Midge {
         Ok(true)
     }
 
-    pub(crate) fn has_pending_field_add(
+    pub fn has_pending_field_add(
         &self,
         collection: &str,
         field: &str,

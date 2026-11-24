@@ -35,11 +35,11 @@ impl PendingSchemaCleanup {
 impl Midge {
     /// Reports whether this thread is inside a transactional DDL scope, where
     /// pending cleanups are not completable and must wait for a later statement.
-    pub(crate) fn defers_schema_cleanup(&self) -> bool {
+    pub fn defers_schema_cleanup(&self) -> bool {
         self.has_active_transactional_ddl_scope()
     }
 
-    pub(crate) fn ensure_no_pending_index_cleanup(
+    pub fn ensure_no_pending_index_cleanup(
         &self,
         collection: &str,
         index: &str,
@@ -309,7 +309,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn pending_schema_cleanups(&self) -> Result<Vec<PendingSchemaCleanup>, CassieError> {
+    pub fn pending_schema_cleanups(&self) -> Result<Vec<PendingSchemaCleanup>, CassieError> {
         let entries = self.scan_database_families(&Self::schema_cleanup_prefix())?;
         let mut cleanups = Vec::new();
         for (_key, value) in entries {
@@ -323,7 +323,7 @@ impl Midge {
         Ok(cleanups)
     }
 
-    pub(crate) fn complete_pending_schema_cleanup(
+    pub fn complete_pending_schema_cleanup(
         &self,
         cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {

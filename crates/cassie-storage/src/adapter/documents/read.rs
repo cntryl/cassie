@@ -33,7 +33,7 @@ impl Midge {
         Self::load_data_epoch_from_tx(&tx)
     }
 
-    pub(crate) fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
+    pub fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
         let tx =
             self.begin_database_adapter_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
         Self::load_data_epoch_from_tx(&tx)

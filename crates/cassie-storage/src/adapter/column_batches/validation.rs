@@ -23,12 +23,12 @@ struct SegmentValidationOptions<'a> {
     controls: Option<&'a StorageRequestContext<'a>>,
 }
 
-pub(crate) struct ControlledColumnBatchMetadata {
-    pub(crate) metadata: Box<ColumnBatchMetadata>,
-    pub(crate) memory: QueryMemoryReservation,
+pub struct ControlledColumnBatchMetadata {
+    pub metadata: Box<ColumnBatchMetadata>,
+    pub memory: QueryMemoryReservation,
 }
 
-pub(crate) enum ControlledColumnBatchSummaryDecision {
+pub enum ControlledColumnBatchSummaryDecision {
     Ready(ControlledColumnBatchMetadata),
     Fallback( crate::adapter::ColumnBatchScanFallbackReason),
 }
@@ -56,7 +56,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn prepare_column_batch_summaries_controlled(
+    pub fn prepare_column_batch_summaries_controlled(
         &self,
         collection: &str,
         index: &IndexMeta,
@@ -102,7 +102,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn reconcile_column_batch_indexes(&self) -> Result<(), CassieError> {
+    pub fn reconcile_column_batch_indexes(&self) -> Result<(), CassieError> {
         let indexes = self
             .list_indexes()?
             .into_iter()

@@ -2,7 +2,7 @@ use crate::catalog::EngineIndexMetaExt;
 use super::super::{key_encoding, CassieError, Midge};
 
 impl Midge {
-    pub(crate) fn unique_scalar_index_reservation_owner(
+    pub fn unique_scalar_index_reservation_owner(
         &self,
         collection: &str,
         index: &crate::catalog::IndexMeta,

@@ -48,7 +48,7 @@ pub(crate) struct MaintenanceDebt {
 }
 
 impl Midge {
-    pub(crate) fn validate_recovery_state(&self) -> Result<(), CassieError> {
+    pub fn validate_recovery_state(&self) -> Result<(), CassieError> {
         self.pending_schema_cleanups()?;
         self.list_maintenance_debt()?;
         self.validate_pending_index_publications()
@@ -296,7 +296,7 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    pub(crate) fn record_rollup_maintenance_failure(
+    pub fn record_rollup_maintenance_failure(
         &self,
         collection: &str,
         target_generation: u64,
@@ -305,7 +305,7 @@ impl Midge {
         self.record_maintenance_failure(collection, ROLLUP_ARTIFACT, target_generation, error)
     }
 
-    pub(crate) fn clear_rollup_maintenance_debt(
+    pub fn clear_rollup_maintenance_debt(
         &self,
         collection: &str,
         target_generation: u64,
@@ -313,7 +313,7 @@ impl Midge {
         self.clear_maintenance_debt(collection, ROLLUP_ARTIFACT, target_generation)
     }
 
-    pub(crate) fn record_materialized_projection_maintenance_failure(
+    pub fn record_materialized_projection_maintenance_failure(
         &self,
         collection: &str,
         target_generation: u64,
@@ -327,7 +327,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn clear_materialized_projection_maintenance_debt(
+    pub fn clear_materialized_projection_maintenance_debt(
         &self,
         collection: &str,
         target_generation: u64,
@@ -339,7 +339,7 @@ impl Midge {
         )
     }
 
-    pub(crate) fn refresh_document_maintenance_after_commit(
+    pub fn refresh_document_maintenance_after_commit(
         &self,
         collection: &str,
         row_delta: i64,
@@ -361,7 +361,7 @@ impl Midge {
         column_batches.and(projection_hashes)
     }
 
-    pub(crate) fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
+    pub fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
         let mut debts = Vec::new();
         for database in self.list_databases()? {
             let tx = self.database_tx(&database.name, cntryl_midge::TransactionMode::ReadOnly)?;
@@ -379,7 +379,7 @@ impl Midge {
         Ok(debts)
     }
 
-    pub(crate) fn maintenance_debt_for(
+    pub fn maintenance_debt_for(
         &self,
         collection: &str,
         artifact: &str,

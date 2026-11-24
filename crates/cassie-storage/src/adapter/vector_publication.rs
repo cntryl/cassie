@@ -36,7 +36,7 @@ struct BackfillRow {
 }
 
 impl Midge {
-    pub(crate) fn publish_vector_index_with_backfill(
+    pub fn publish_vector_index_with_backfill(
         &self,
         index: &VectorIndexRecord,
         sql_index: Option<&IndexMeta>,
@@ -373,7 +373,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn cleanup_vector_publication_staging(&self) -> Result<(), CassieError> {
+    pub fn cleanup_vector_publication_staging(&self) -> Result<(), CassieError> {
         for database in self.database_names() {
             let tx = self.begin_database_readonly_tx(&database)?;
             let pending = collect_scan(

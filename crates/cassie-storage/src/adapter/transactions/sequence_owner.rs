@@ -669,7 +669,7 @@ impl Midge {
         owner.advance(metadata, epoch, overlay.sequence_fork.as_deref(), update)
     }
 
-    pub(crate) fn is_private_sequence(&self, metadata: &SequenceMeta) -> Result<bool, CassieError> {
+    pub fn is_private_sequence(&self, metadata: &SequenceMeta) -> Result<bool, CassieError> {
         Ok(matches!(
             self.private_sequence_target(&metadata.name)?,
             SequenceTarget::Private { .. }
@@ -678,7 +678,7 @@ impl Midge {
 }
 
 impl StorageOverlay {
-    pub(crate) fn attach_sequence_fork_lease(
+    pub fn attach_sequence_fork_lease(
         &mut self,
         controls: Option<&StorageRequestContext<'_>>,
     ) -> Result<(), CassieError> {
@@ -711,7 +711,7 @@ impl StorageOverlay {
         Ok(())
     }
 
-    pub(crate) fn inherit_sequence_fork_lease(
+    pub fn inherit_sequence_fork_lease(
         &mut self,
         parent: &StorageOverlay,
         controls: Option<&StorageRequestContext<'_>>,
@@ -761,7 +761,7 @@ impl StorageOverlay {
     }
 
     /// Retires only identities absent from both the current view and retained savepoints.
-    pub(crate) fn prune_sequence_cursors_with<'a>(
+    pub fn prune_sequence_cursors_with<'a>(
         &'a self,
         protected: impl Iterator<Item = &'a StorageOverlay>,
         controls: &StorageRequestContext<'_>,
@@ -881,7 +881,7 @@ impl StorageOverlay {
     }
 
     /// Object identities of every sequence this transaction stages itself.
-    pub(crate) fn staged_sequence_object_ids(
+    pub fn staged_sequence_object_ids(
         &self,
         controls: &StorageRequestContext<'_>,
     ) -> Result<Vec<u64>, CassieError> {

@@ -86,7 +86,7 @@ impl Midge {
     ///
     /// Returns an error, with nothing written, when the table is missing, a
     /// value cannot be re-encoded, `charge` refuses a row, or storage fails.
-    pub(crate) fn convert_collection_storage_mode(
+    pub fn convert_collection_storage_mode(
         &self,
         collection: &str,
         target: CollectionStorageMode,

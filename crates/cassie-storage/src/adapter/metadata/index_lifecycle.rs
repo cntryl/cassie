@@ -9,7 +9,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the source is missing, the destination exists, or storage fails.
-    pub(crate) fn rename_index_and_constraints_with_held_collection_gate(
+    pub fn rename_index_and_constraints_with_held_collection_gate(
         &self,
         collection: &str,
         current_name: &str,
@@ -95,7 +95,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the index no longer exists, its identity changes, or storage fails.
-    pub(crate) fn update_index_metadata(
+    pub fn update_index_metadata(
         &self,
         collection: &str,
         name: &str,
@@ -164,7 +164,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub(crate) fn put_index_with_held_collection_gate(
+    pub fn put_index_with_held_collection_gate(
         &self,
         metadata: &IndexMeta,
     ) -> Result<(), CassieError> {

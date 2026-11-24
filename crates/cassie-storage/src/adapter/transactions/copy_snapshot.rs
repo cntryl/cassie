@@ -10,7 +10,7 @@ use std::mem::size_of;
 const NODE_BYTES: usize = 2048;
 
 #[derive(Debug)]
-pub(crate) struct CopyStorageSnapshot {
+pub struct CopyStorageSnapshot {
     overlay: StorageOverlay,
     _memory: QueryMemoryReservation,
 }
@@ -23,7 +23,7 @@ pub struct CheckpointStorageSnapshot {
 }
 
 /// A staged change to one checkpoint-visible key.
-pub(crate) enum StagedCheckpointChange<'a> {
+pub enum StagedCheckpointChange<'a> {
     Deleted,
     Value(&'a [u8]),
 }

@@ -35,7 +35,7 @@ use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
 mod column_batch_format_v1;
-pub(crate) use column_batch_format_v1::NumericValues;
+pub use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod commit_source;
 mod core;
@@ -49,13 +49,13 @@ pub use native_metrics::{
 mod object_comments;
 mod publication;
 mod role_object_grants;
-pub(crate) use publication::RetainedRowHistory;
+pub use publication::{AdapterCommitError, RetainedRowHistory};
 mod raw_ops;
 #[doc(hidden)]
 pub use publication::NativePublicationControlScope;
 mod transactions;
 pub use transactions::{
-    AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
+    AdapterMutationError, AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
     PreparedSequenceCursorMetadata, RetainedRowFence, StagedCheckpointChange, StorageOverlay,
 };
 
@@ -150,7 +150,7 @@ pub fn set_projection_replay_post_commit_failure_point(enabled: bool) {
     PROJECTION_REPLAY_POST_COMMIT_FAILPOINT.set(enabled);
 }
 
-pub(crate) fn check_projection_replay_post_commit_failure_point() -> Result<(), CassieError> {
+pub fn check_projection_replay_post_commit_failure_point() -> Result<(), CassieError> {
     if PROJECTION_REPLAY_POST_COMMIT_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected projection replay failure after metadata commit".to_string(),
@@ -205,7 +205,7 @@ pub fn set_rollup_maintenance_failure_point(enabled: bool) {
     ROLLUP_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
-pub(crate) fn check_rollup_maintenance_failure_point() -> Result<(), CassieError> {
+pub fn check_rollup_maintenance_failure_point() -> Result<(), CassieError> {
     if ROLLUP_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during rollup maintenance".to_string(),
@@ -365,33 +365,33 @@ mod column_store;
 mod column_store_tests;
 mod database_catalog_rewrite;
 mod databases;
-pub(crate) mod graph_catalog_entries;
+pub mod graph_catalog_entries;
 mod native_memory;
 pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;
 pub use column_store::field_selection::ColumnFieldReadSnapshot;
-pub(crate) use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSelection};
+pub use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSelection};
 pub use column_store::ColumnPruningSnapshot;
-pub(crate) use column_store::ColumnStoreScanRequest;
+pub use column_store::ColumnStoreScanRequest;
 pub use column_store::ColumnVectorReadSnapshot;
-pub(crate) use column_store::{
+pub use column_store::{
     identity_lanes, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
     ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
 };
-pub(crate) use column_store::{ColumnPruning, ColumnPruningState};
-pub(crate) use database_catalog_rewrite::{
+pub use column_store::{ColumnPruning, ColumnPruningState};
+pub use database_catalog_rewrite::{
     is_database_catalog_entry, rewrite_database_data_entry, validate_database_catalog_entry,
 };
 pub(super) use databases::DatabaseFamily;
-pub(crate) use databases::StagedDatabaseFamily;
+pub use databases::StagedDatabaseFamily;
+pub mod documents;
 #[cfg(feature = "storage-test-hooks")]
 pub use databases::create_retry_test_hooks;
-pub(crate) mod documents;
 #[cfg(all(
     feature = "replay-benchmark-observation",
     any(test, feature = "storage-test-hooks")
 ))]
-pub(crate) use transactions::{
+pub use transactions::{
     inject_native_commit_unknown_after_success, inject_native_commit_unknown_before_commit,
 };
 mod failure_points;
@@ -443,9 +443,9 @@ pub use query_scan_control::{
 };
 mod repair;
 mod scalar_indexes;
-pub(crate) use scalar_indexes::{canonical_field_value, index_key_field_value};
+pub use scalar_indexes::{canonical_field_value, index_key_field_value};
 mod storage_config;
-pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
+pub use scalar_indexes::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
 mod namespaces;
 mod scan_types;
 mod schema_cleanup;
@@ -463,18 +463,18 @@ mod row_id;
 mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
-pub(crate) use streaming_scans::{
+pub use streaming_scans::{
     AccountedDocument, AccountedDocumentPage, MidgeRowCursor, RowTraversal,
 };
-pub(crate) mod time_series_indexes;
+pub mod time_series_indexes;
 mod vector_indexes;
-pub(crate) use vector_indexes::PersistedIvfFlatTrainingSnapshot;
+pub use vector_indexes::PersistedIvfFlatTrainingSnapshot;
 mod verification;
 #[cfg(test)]
 #[path = "verification_tests.rs"]
 mod verification_tests;
 
-pub(crate) fn benchmark_row_key_round_trip(
+pub fn benchmark_row_key_round_trip(
     relation_id: u64,
     id: &str,
 ) -> Option<(Vec<u8>, String)> {
@@ -484,14 +484,14 @@ pub(crate) fn benchmark_row_key_round_trip(
     Some((key, decoded))
 }
 
-pub(crate) use column_batches::{
+pub use column_batches::{
     ControlledColumnBatchScanRequest, ControlledColumnBatchSummaryDecision, EncodedSource,
     EncodedSourceDecision, ValidatedEncodedField,
 };
-pub(crate) use documents::{
+pub use documents::{
     DocumentWriteBatchOptions, DocumentWriteBatchReport, DocumentWriteOp, OrderedRowScanRequest,
 };
-pub(crate) use scan_types::OrderedRowBound;
+pub use scan_types::OrderedRowBound;
 pub use scan_types::{
     ColumnBatchAggregateDecision, ColumnBatchAggregateOutcome, ColumnBatchAggregateSpec,
     ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,

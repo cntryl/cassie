@@ -83,7 +83,7 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
             session.publish_sequence_metadata(&updated);
         }
         history?;
-        Ok(value)
+        Ok::<_, CassieError>(value)
     })?;
     Ok(Value::Int64(value))
 }
@@ -134,7 +134,7 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
             session.publish_sequence_metadata(&updated);
         }
         history?;
-        Ok(value)
+        Ok::<_, CassieError>(value)
     })?;
     Ok(Value::Int64(value))
 }

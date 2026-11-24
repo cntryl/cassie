@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 /// Work done by [`super::ColumnVectorScan`] readers and by the legacy
 /// row-document readers of column tables.
 #[derive(Debug, Default)]
-pub(crate) struct ColumnVectorReadCounters {
+pub struct ColumnVectorReadCounters {
     scans: AtomicU64,
     batches: AtomicU64,
     lanes: AtomicU64,

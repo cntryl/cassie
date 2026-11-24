@@ -8,16 +8,16 @@ pub(super) mod field_selection;
 pub(crate) use compression::logical_len as column_payload_logical_len;
 mod pruning;
 pub use pruning::ColumnPruningSnapshot;
-pub(crate) use pruning::{ColumnPruning, ColumnPruningState};
+pub use pruning::{ColumnPruning, ColumnPruningState};
 #[cfg(test)]
 mod golden_tests;
 mod rows;
 mod summary;
 mod summary_refresh;
 mod vector_scan;
-pub(crate) use vector_scan::identity_lanes;
+pub use vector_scan::identity_lanes;
 pub use vector_scan::ColumnVectorReadSnapshot;
-pub(crate) use vector_scan::{
+pub use vector_scan::{
     ColumnIdRange, ColumnPartitionReader, ColumnVectorBatch, ColumnVectorOutput,
     ColumnVectorReadCounters, ColumnVectorReader, COLUMN_VECTOR_BATCH_ROWS,
 };
@@ -54,7 +54,7 @@ impl<'a, A> Default for InitialCollectionContents<'a, A> {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ColumnStoreScanRequest<'a> {
+pub struct ColumnStoreScanRequest<'a> {
     pub traversal: super::RowTraversal,
     pub collection: &'a str,
     pub row_schema: &'a RowSchema,
@@ -161,7 +161,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the initial metadata is invalid or storage fails.
-    pub(crate) fn create_collection_with_meta_constraints_sequences_and_indexes_if_absent<A: Clone>(
+    pub fn create_collection_with_meta_constraints_sequences_and_indexes_if_absent<A: Clone>(
         &self,
         name: &str,
         schema: &Schema,
@@ -663,7 +663,7 @@ impl Midge {
             }))
     }
 
-    pub(crate) fn collection_uses_column_store(
+    pub fn collection_uses_column_store(
         &self,
         collection: &str,
     ) -> Result<bool, CassieError> {

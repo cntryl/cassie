@@ -34,7 +34,7 @@ impl Midge {
         Ok(out)
     }
 
-    pub(crate) fn apply_runtime_feedback_mutation(
+    pub fn apply_runtime_feedback_mutation(
         &self,
         mutation: &crate::runtime_feedback::RuntimeFeedbackMutation,
     ) -> Result<(), CassieError> {

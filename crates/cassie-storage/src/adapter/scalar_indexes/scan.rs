@@ -9,7 +9,7 @@ use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
 use crate::adapter::key_encoding;
 
 impl Midge {
-    pub(crate) fn scan_scalar_index_controlled(
+    pub fn scan_scalar_index_controlled(
         &self,
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
@@ -26,7 +26,7 @@ impl Midge {
     }
 
     /// Keep one native cursor open while downstream joins accept or reject each entry.
-    pub(crate) fn visit_scalar_index_documents<E: From<CassieError>>(
+    pub fn visit_scalar_index_documents<E: From<CassieError>>(
         &self,
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,

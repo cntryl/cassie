@@ -35,7 +35,7 @@ pub(super) fn apply_default_values(
                     }
                 }
                 history?;
-                Ok(value)
+                Ok::<_, CassieError>(value)
             })?;
             object.insert(
                 constraint.field.clone(),

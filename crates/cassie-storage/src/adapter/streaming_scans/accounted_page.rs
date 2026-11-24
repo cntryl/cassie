@@ -13,13 +13,13 @@ use super::DocumentRef;
 ///
 /// The wrapper is intentionally move-only. A merge cursor can retain a persisted lookahead row
 /// without creating an accounting gap, then move both the row and its reservation downstream.
-pub(crate) struct AccountedDocument {
+pub struct AccountedDocument {
     document: DocumentRef,
     reservation: QueryMemoryReservation,
 }
 
 impl AccountedDocument {
-    pub(crate) fn try_build(
+    pub fn try_build(
         controls: &StorageRequestContext<'_>,
         retained_bytes: usize,
         build: impl FnOnce() -> Result<DocumentRef, CassieError>,
@@ -90,17 +90,17 @@ impl AccountedDocument {
     }
 
     #[must_use]
-    pub(crate) const fn document(&self) -> &DocumentRef {
+    pub const fn document(&self) -> &DocumentRef {
         &self.document
     }
 
     #[must_use]
-    pub(crate) fn id(&self) -> &str {
+    pub fn id(&self) -> &str {
         &self.document().id
     }
 
     #[must_use]
-    pub(crate) const fn accounted_bytes(&self) -> usize {
+    pub const fn accounted_bytes(&self) -> usize {
         self.reservation.bytes()
     }
 
@@ -109,12 +109,12 @@ impl AccountedDocument {
     /// # Errors
     ///
     /// Returns a resource-limit error when the retained-size calculation overflows.
-    pub(crate) fn estimated_retained_bytes(document: &DocumentRef) -> Result<usize, CassieError> {
+    pub fn estimated_retained_bytes(document: &DocumentRef) -> Result<usize, CassieError> {
         document_retained_bytes(document)
     }
 
     #[must_use]
-    pub(crate) fn into_parts(self) -> (DocumentRef, QueryMemoryReservation) {
+    pub fn into_parts(self) -> (DocumentRef, QueryMemoryReservation) {
         (self.document, self.reservation)
     }
 
@@ -138,7 +138,7 @@ impl std::fmt::Debug for AccountedDocument {
 
 /// A bounded storage page whose rows retain their individual reservations when popped.
 #[derive(Debug, Default)]
-pub(crate) struct AccountedDocumentPage {
+pub struct AccountedDocumentPage {
     documents: VecDeque<AccountedDocument>,
     has_more: bool,
 }

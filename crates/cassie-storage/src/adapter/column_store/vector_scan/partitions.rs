@@ -31,7 +31,7 @@ impl ColumnVectorScan {
 }
 
 /// One partition of a reader, bound to the reader's snapshot.
-pub(crate) struct ColumnPartitionReader<'reader> {
+pub struct ColumnPartitionReader<'reader> {
     scan: ColumnVectorScan,
     tx: &'reader DataReadTransaction,
 }
@@ -42,7 +42,7 @@ impl ColumnPartitionReader<'_> {
     /// # Errors
     ///
     /// See [`ColumnVectorScan::next_batch`].
-    pub(crate) fn next_batch(
+    pub fn next_batch(
         &mut self,
         midge: &Midge,
         max_rows: usize,
@@ -54,7 +54,7 @@ impl ColumnPartitionReader<'_> {
 
 impl ColumnVectorReader {
     /// The id ranges still to be read, in id order.
-    pub(crate) fn partition_ranges(&self) -> &[ColumnIdRange] {
+    pub fn partition_ranges(&self) -> &[ColumnIdRange] {
         &self.scan.ranges
     }
 
@@ -64,7 +64,7 @@ impl ColumnVectorReader {
     /// # Errors
     ///
     /// Returns storage errors, resource-limit errors and cancellation errors.
-    pub(crate) fn split_by_segments(
+    pub fn split_by_segments(
         &mut self,
         controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
@@ -106,7 +106,7 @@ impl ColumnVectorReader {
     }
 
     /// A reader of one range, or `None` past the last range.
-    pub(crate) fn partition(
+    pub fn partition(
         &self,
         midge: &Midge,
         index: usize,

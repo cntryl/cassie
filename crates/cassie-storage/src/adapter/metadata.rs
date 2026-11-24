@@ -204,7 +204,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn rollup_data_write(
+    pub fn rollup_data_write(
         &self,
         metadata: &RollupMeta,
     ) -> Result<(String, Vec<u8>, Vec<u8>), CassieError> {
@@ -273,7 +273,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(crate) fn retention_policy_data_write(
+    pub fn retention_policy_data_write(
         &self,
         metadata: &RetentionPolicyMeta,
     ) -> Result<(String, Vec<u8>, Vec<u8>), CassieError> {

@@ -30,7 +30,7 @@ impl Midge {
     ///
     /// Returns an error when the snapshot cannot be read, a field of a
     /// summarized row is corrupt, or the summaries cannot be committed.
-    pub(crate) fn refresh_column_store_summaries(
+    pub fn refresh_column_store_summaries(
         &self,
         collection: &str,
         changed_ids: Option<&[String]>,

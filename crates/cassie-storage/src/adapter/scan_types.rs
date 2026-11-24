@@ -175,7 +175,7 @@ pub struct MidgeScanTimings {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct OrderedRowBound {
+pub struct OrderedRowBound {
     pub id: String,
     pub inclusive: bool,
 }

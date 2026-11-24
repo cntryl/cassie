@@ -49,7 +49,7 @@ pub(in crate::adapter) struct PreparedKey {
     index: usize,
 }
 
-pub(crate) struct RetainedRowHistory {
+pub struct RetainedRowHistory {
     publication: Arc<DatabasePublication>,
     id: u64,
     sequence: u64,
@@ -254,7 +254,7 @@ impl MutationKeys {
 }
 
 impl RetainedRowHistory {
-    pub(crate) fn check_row(
+    pub fn check_row(
         &self,
         midge: &crate::adapter::Midge,
         database: &str,
@@ -273,7 +273,7 @@ impl RetainedRowHistory {
         self.check_keys(keys.iter().map(Vec::as_slice), controls)
     }
 
-    pub(crate) fn check_keys<'a>(
+    pub fn check_keys<'a>(
         &self,
         keys: impl IntoIterator<Item = &'a [u8]>,
         controls: &crate::adapter::StorageRequestContext<'_>,

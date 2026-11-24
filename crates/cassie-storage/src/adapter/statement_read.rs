@@ -300,7 +300,7 @@ impl Drop for NativeStatementReadScope {
 }
 
 /// A read transaction is either freshly owned or shares an installed snapshot.
-pub(super) struct DataReadTransaction {
+pub struct DataReadTransaction {
     fresh: Option<super::AdapterTransaction>,
     shared: Option<ScopedNativeRead>,
 }

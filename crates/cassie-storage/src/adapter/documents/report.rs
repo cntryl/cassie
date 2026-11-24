@@ -4,20 +4,20 @@ const MAX_ROLLUP_CHANGE_REPORT_BYTES: usize = 64 * 1024;
 const PROJECTED_ENTRY_BYTES: usize = std::mem::size_of::<(String, Value)>();
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct RollupSourceChangeReport {
-    pub(crate) rows: Vec<RollupSourceRowChange>,
-    pub(crate) exceeded_limit: bool,
+pub struct RollupSourceChangeReport {
+    pub rows: Vec<RollupSourceRowChange>,
+    pub exceeded_limit: bool,
     retained_bytes: usize,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct RollupSourceRowChange {
-    pub(crate) before: Option<Map<String, Value>>,
-    pub(crate) after: Option<Map<String, Value>>,
+pub struct RollupSourceRowChange {
+    pub before: Option<Map<String, Value>>,
+    pub after: Option<Map<String, Value>>,
 }
 
 impl RollupSourceChangeReport {
-    pub(crate) fn record(
+    pub fn record(
         &mut self,
         before: Option<&Value>,
         after: Option<&Value>,
@@ -146,14 +146,14 @@ fn scalar_value_bytes(value: &Value) -> Option<usize> {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct DocumentWriteBatchReport {
+pub struct DocumentWriteBatchReport {
     pub relation_id: u64,
     pub ids: Vec<String>,
     pub changed_ids: Vec<String>,
     pub row_delta: i64,
     pub stats: crate::operation_stats::ProjectionWriteStats,
     pub data_epoch: Option<u64>,
-    pub(crate) rollup_changes: RollupSourceChangeReport,
+    pub rollup_changes: RollupSourceChangeReport,
 }
 
 impl DocumentWriteBatchReport {

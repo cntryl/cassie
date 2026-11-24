@@ -3,7 +3,7 @@
 use super::CassieError;
 
 #[derive(Debug)]
-pub(crate) enum AdapterMutationError {
+pub enum AdapterMutationError {
     Native(cntryl_midge::MidgeError),
     Cassie(CassieError),
 }

@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// The non-retired fields a read fetches, as indexes into the row schema in
 /// schema order. `None` projection selects every non-retired field.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct ColumnFieldSelection {
+pub struct ColumnFieldSelection {
     indices: Vec<usize>,
 }
 
@@ -50,7 +50,7 @@ impl ColumnFieldSelection {
 
 /// Process-lifetime counters of field payload work on column tables.
 #[derive(Debug, Default)]
-pub(crate) struct ColumnFieldReadCounters {
+pub struct ColumnFieldReadCounters {
     payload_reads: AtomicU64,
     payload_bytes: AtomicU64,
     decodes: AtomicU64,

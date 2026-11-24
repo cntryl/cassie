@@ -19,7 +19,7 @@ use super::{
 #[path = "controlled/tests.rs"]
 mod tests;
 
-pub(crate) struct ControlledOrderedRowCursor {
+pub struct ControlledOrderedRowCursor {
     tx:crate::adapter::DataReadTransaction,
     row_schema: RowSchema,
     projection: Option<HashSet<String>>,
@@ -48,7 +48,7 @@ struct AccountedRawEntry {
 }
 
 impl Midge {
-    pub(crate) fn open_controlled_ordered_row_cursor(
+    pub fn open_controlled_ordered_row_cursor(
         &self,
         request: OrderedRowScanRequest<'_>,
         controls: &StorageRequestContext<'_>,
@@ -127,7 +127,7 @@ crate::adapter::RowDecode::Projected(fields)
 }
 
 impl ControlledOrderedRowCursor {
-    pub(crate) fn next_accounted_document(
+    pub fn next_accounted_document(
         &mut self,
         midge: &Midge,
         controls: &StorageRequestContext<'_>,

@@ -21,13 +21,13 @@ mod validation;
 
 use controls::check_column_batch_controls;
 use filters::{column_batch_row_matches, column_batch_summary_supports_ordering};
-pub(crate) use typed_source::{EncodedSource, EncodedSourceDecision, ValidatedEncodedField};
+pub use typed_source::{EncodedSource, EncodedSourceDecision, ValidatedEncodedField};
 
 use self::direct_aggregate::DirectAggregateAccumulator;
 use self::output::project_column_batch_document;
 use self::storage_v1::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
 use self::summary::{column_batch_summaries, column_values, compare_summary_to_json};
-pub(crate) use self::validation::ControlledColumnBatchSummaryDecision;
+pub use self::validation::ControlledColumnBatchSummaryDecision;
 use crate::column_batch_format_v1::{
     decode_manifest, encode_manifest, summary_checksum, MANIFEST_FORMAT_VERSION,
     MANIFEST_SUMMARY_VERSION,
@@ -49,7 +49,7 @@ struct ColumnBatchScanPlan {
     query_memory: Option<QueryMemoryReservation>,
 }
 
-pub(crate) struct ControlledColumnBatchScanRequest<'a> {
+pub struct ControlledColumnBatchScanRequest<'a> {
     pub collection: &'a str,
     pub batch_size: usize,
     pub fields: &'a [String],
@@ -180,7 +180,7 @@ impl ColumnBatchScanState {
 }
 
 impl Midge {
-    pub(crate) fn execute_column_batch_aggregates_controlled(
+    pub fn execute_column_batch_aggregates_controlled(
         &self,
         collection: &str,
         fields: &[String],
@@ -513,7 +513,7 @@ impl Midge {
         })
     }
 
-    pub(crate) fn scan_column_batch_projected_rows_controlled(
+    pub fn scan_column_batch_projected_rows_controlled(
         &self,
         request: &ControlledColumnBatchScanRequest<'_>,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
@@ -617,7 +617,7 @@ impl Midge {
         )))
     }
 
-    pub(crate) fn column_batch_request_uses_json_fields(
+    pub fn column_batch_request_uses_json_fields(
         &self,
         collection: &str,
         fields: &[String],
@@ -809,7 +809,7 @@ impl Midge {
             .saturating_add(u64::try_from(removed).unwrap_or(u64::MAX));
     }
 
-    pub(crate) fn column_batch_operational_metrics(&self) -> serde_json::Value {
+    pub fn column_batch_operational_metrics(&self) -> serde_json::Value {
         let metrics = self.column_batch_operational_metrics.lock();
         serde_json::json!({
             "codec_choices": metrics.codec_choices,

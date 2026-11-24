@@ -79,7 +79,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error for an invalid database family/target or malformed durable records.
-    pub(crate) fn delete_role_object_grants_for_targets(
+    pub fn delete_role_object_grants_for_targets(
         &self,
         database_family: &str,
         targets: &[RoleGrantTarget],
@@ -111,7 +111,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when storage or a durable record is malformed.
-    pub(crate) fn delete_role_object_grants_for_role(
+    pub fn delete_role_object_grants_for_role(
         &self,
         role_id: u64,
     ) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {

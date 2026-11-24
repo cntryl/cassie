@@ -22,7 +22,7 @@ pub(super) struct HnswSourceSummary {
     pub(super) row_count: usize,
 }
 
-pub(crate) struct PersistedHnswCandidateBatch {
+pub struct PersistedHnswCandidateBatch {
     pub(crate) built_generation: u64,
     pub(crate) source_row_count: usize,
     pub(crate) candidates: Vec<crate::vector::hnsw::HnswCandidate>,
@@ -32,7 +32,7 @@ pub(crate) struct PersistedHnswCandidateBatch {
 }
 
 impl PersistedHnswCandidateBatch {
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
         u64,
@@ -51,7 +51,7 @@ impl PersistedHnswCandidateBatch {
     }
 }
 
-pub(crate) struct PersistedIvfFlatTrainingSnapshot {
+pub struct PersistedIvfFlatTrainingSnapshot {
     pub(crate) built_generation: u64,
     pub(crate) training: crate::embeddings::IvfFlatTrainingState,
     pub(crate) membership_count: usize,
@@ -60,7 +60,7 @@ pub(crate) struct PersistedIvfFlatTrainingSnapshot {
 }
 
 impl PersistedIvfFlatTrainingSnapshot {
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
         u64,
@@ -79,7 +79,7 @@ impl PersistedIvfFlatTrainingSnapshot {
     }
 }
 
-pub(crate) struct PersistedIvfFlatCandidateBatch {
+pub struct PersistedIvfFlatCandidateBatch {
     pub(crate) built_generation: u64,
     pub(crate) records: Vec<crate::embeddings::NormalizedVectorRecord>,
     pub(crate) membership_reads: usize,
@@ -88,7 +88,7 @@ pub(crate) struct PersistedIvfFlatCandidateBatch {
 }
 
 impl PersistedIvfFlatCandidateBatch {
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
         u64,
@@ -460,7 +460,7 @@ impl Midge {
         )))
     }
 
-    pub(crate) fn get_ivfflat_training_manifest_controlled(
+    pub fn get_ivfflat_training_manifest_controlled(
         &self,
         collection: &str,
         field: &str,
@@ -614,7 +614,7 @@ impl Midge {
         Ok(records)
     }
 
-    pub(crate) fn ivfflat_candidate_vectors_controlled(
+    pub fn ivfflat_candidate_vectors_controlled(
         &self,
         collection: &str,
         field: &str,
@@ -761,7 +761,7 @@ impl Midge {
         Ok(result)
     }
 
-    pub(crate) fn search_hnsw_graph_point_read_controlled(
+    pub fn search_hnsw_graph_point_read_controlled(
         &self,
         collection: &str,
         field: &str,

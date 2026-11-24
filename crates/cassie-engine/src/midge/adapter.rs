@@ -156,6 +156,18 @@ pub(crate) mod query_scan_control {
     mod tests;
 }
 
+impl From<cassie_storage::adapter::AdapterCommitError> for crate::app::CassieError {
+    fn from(error: cassie_storage::adapter::AdapterCommitError) -> Self {
+        cassie_storage::StorageError::from(error).into()
+    }
+}
+
+impl From<cassie_storage::adapter::AdapterMutationError> for crate::app::CassieError {
+    fn from(error: cassie_storage::adapter::AdapterMutationError) -> Self {
+        cassie_storage::StorageError::from(error).into()
+    }
+}
+
 impl From<cassie_storage::StorageError> for crate::app::CassieError {
     fn from(error: cassie_storage::StorageError) -> Self {
         use cassie_storage::StorageError;

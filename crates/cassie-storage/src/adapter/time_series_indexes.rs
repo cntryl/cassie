@@ -14,7 +14,7 @@ mod metadata;
 use metadata::{BucketIdentity, TimeSeriesManifest};
 #[path = "time_series_indexes/controlled.rs"]
 mod controlled;
-pub(crate) use controlled::{
+pub use controlled::{
     ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesIndexScanOutcome,
 };
 
@@ -27,7 +27,7 @@ pub(crate) const STALE_BUCKET_METADATA: &str = "stale-bucket-metadata";
 pub(crate) const CORRUPT_BUCKET_METADATA: &str = "corrupt-bucket-metadata";
 
 #[derive(Debug, Clone)]
-pub(crate) struct TimeSeriesIndexScanHit {
+pub struct TimeSeriesIndexScanHit {
     pub id: String,
     pub bucket_key: String,
     pub timestamp: String,
@@ -167,7 +167,7 @@ fn time_series_scan_query(
 }
 
 impl Midge {
-    pub(crate) fn reconcile_time_series_indexes(&self) -> Result<(), CassieError> {
+    pub fn reconcile_time_series_indexes(&self) -> Result<(), CassieError> {
         let indexes = self
             .list_indexes()?
             .into_iter()
@@ -427,7 +427,7 @@ impl Midge {
         }
     }
 
-    pub(crate) fn rebuild_time_series_indexes_for_collection(
+    pub fn rebuild_time_series_indexes_for_collection(
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {

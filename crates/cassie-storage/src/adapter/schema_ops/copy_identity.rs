@@ -62,7 +62,7 @@ pub(super) fn decode_identity(
 }
 
 impl Midge {
-    pub(crate) fn copy_physical_identity(
+    pub fn copy_physical_identity(
         &self,
         name: &str,
         overlay: &StorageOverlay,

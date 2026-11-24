@@ -7,7 +7,7 @@ use super::{AdapterTransaction, CassieError, Midge, TransactionMode};
 use crate::adapter::TransactionErrorKind;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
-pub(crate) struct RetainedRowFence {
+pub struct RetainedRowFence {
     // Native transaction inputs retire before their engine and admission owner.
     transaction: AdapterTransaction,
     midge: Arc<Midge>,
@@ -25,7 +25,7 @@ impl std::fmt::Debug for RetainedRowFence {
 }
 
 impl RetainedRowFence {
-    pub(crate) fn capture(
+    pub fn capture(
         midge: &Arc<Midge>,
         database: &str,
         controls: &StorageRequestContext<'_>,
@@ -48,7 +48,7 @@ impl RetainedRowFence {
         }))
     }
 
-    pub(crate) fn validate_rows<'a>(
+    pub fn validate_rows<'a>(
         self: Box<Self>,
         rows: impl IntoIterator<Item = Result<(&'a str, u64, &'a str), CassieError>>,
         controls: &StorageRequestContext<'_>,

@@ -66,7 +66,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/catalogs/catalog_read_models.rs` | test_module | 334 | 10 | catalog_security | keep | `tests/catalog_security/catalogs/catalog_read_models.rs` |
 | `tests/catalog_security/catalogs/columnar_catalog_identity.rs` | test_module | 263 | 8 | catalog_security | keep | `tests/catalog_security/catalogs/columnar_catalog_identity.rs` |
 | `tests/catalog_security/catalogs/columns/catalog_information/metadata.rs` | test_module | 163 | 3 | catalog_security | keep | `tests/catalog_security/catalogs/columns/catalog_information/metadata.rs` |
-| `tests/catalog_security/catalogs/columns/catalog_information/semantics.rs` | test_module | 270 | 11 | catalog_security | keep | `tests/catalog_security/catalogs/columns/catalog_information/semantics.rs` |
+| `tests/catalog_security/catalogs/columns/catalog_information/semantics.rs` | test_module | 269 | 11 | catalog_security | keep | `tests/catalog_security/catalogs/columns/catalog_information/semantics.rs` |
 | `tests/catalog_security/catalogs/columns/catalog_lookup.rs` | module_registration | 10 | 0 | catalog_security | keep | `tests/catalog_security/catalogs/columns/catalog_lookup.rs` |
 | `tests/catalog_security/catalogs/columns/catalog_relation_shapes.rs` | test_module | 444 | 22 | catalog_security | keep | `tests/catalog_security/catalogs/columns/catalog_relation_shapes.rs` |
 | `tests/catalog_security/catalogs/columns/stable_attribute_identity.rs` | test_module | 190 | 2 | catalog_security | keep | `tests/catalog_security/catalogs/columns/stable_attribute_identity.rs` |
@@ -1621,7 +1621,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/ordering/index_type_equivalence.rs` | test_support | 304 | 0 | sql_queries | keep | `tests/sql_queries/ordering/index_type_equivalence.rs` |
 | `tests/sql_queries/ordering/jsonb_semantic_keys.rs` | test_module | 241 | 15 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs`; `tests/sql_queries/types/json/jsonb_semantic_keys.rs` |
 | `tests/sql_queries/ordering/numeric_real_order.rs` | test_module | 426 | 25 | sql_queries | move_with_module_alias | `tests/sql_queries/types/numeric/numeric_real_order.rs` |
-| `tests/sql_queries/ordering/order_by_ordinals.rs` | test_module | 234 | 10 | sql_queries | keep | `tests/sql_queries/ordering/order_by_ordinals.rs` |
+| `tests/sql_queries/ordering/order_by_ordinals.rs` | test_module | 248 | 11 | sql_queries | keep | `tests/sql_queries/ordering/order_by_ordinals.rs` |
 | `tests/sql_queries/ordering/semantics.rs` | test_module | 835 | 12 | sql_queries | keep | `tests/sql_queries/ordering/semantics.rs` |
 | `tests/sql_queries/parameters/parameter_signatures.rs` | test_module | 92 | 4 | sql_queries | keep | `tests/sql_queries/parameters/parameter_signatures.rs` |
 | `tests/sql_queries/patterns/pattern_matching/cancellation.rs` | test_module | 106 | 4 | sql_queries | keep | `tests/sql_queries/patterns/pattern_matching/cancellation.rs` |

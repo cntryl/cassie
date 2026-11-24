@@ -182,9 +182,9 @@
     ],
     "files": 1913,
     "rust_files": 1870,
-    "rust_test_declarations": 11729,
+    "rust_test_declarations": 11730,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11754,
+    "registered_rust_instances": 11755,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -319071,11 +319071,42 @@
       }
     },
     {
+      "id": "tests/sql_queries/ordering/order_by_ordinals.rs::should_sort_by_a_duplicated_output_name_for_identical_expressions",
+      "name": "should_sort_by_a_duplicated_output_name_for_identical_expressions",
+      "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
+      "line": 182,
+      "end_line": 193,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "order_by_ordinals::should_sort_by_a_duplicated_output_name_for_identical_expressions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/order_by_ordinals.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/ordering/order_by_ordinals.rs::should_report_postgresql_ambiguity_for_a_duplicated_order_by_name",
       "name": "should_report_postgresql_ambiguity_for_a_duplicated_order_by_name",
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
-      "line": 182,
-      "end_line": 196,
+      "line": 196,
+      "end_line": 210,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -319105,8 +319136,8 @@
       "id": "tests/sql_queries/ordering/order_by_ordinals.rs::should_keep_order_by_single_output_names_working",
       "name": "should_keep_order_by_single_output_names_working",
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
-      "line": 199,
-      "end_line": 210,
+      "line": 213,
+      "end_line": 224,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -319136,8 +319167,8 @@
       "id": "tests/sql_queries/ordering/order_by_ordinals.rs::should_reject_ordinals_outside_the_select_list",
       "name": "should_reject_ordinals_outside_the_select_list",
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
-      "line": 213,
-      "end_line": 234,
+      "line": 227,
+      "end_line": 248,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -365542,8 +365573,8 @@
       "current_file": "tests/catalog_security/catalogs/columns/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 270,
-      "sha256": "33ed8eb67c2477b7b413cb1adbce6377334e4e9a35ee050d8cdc0e2d29c42b6c",
+      "lines": 269,
+      "sha256": "cae6e565556220d71e8c22837e8123be2d1371c688641015a08836c0656c20a0",
       "test_declarations": 11,
       "registered_suites": [
         "catalog_security"
@@ -388781,9 +388812,9 @@
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 234,
-      "sha256": "cd97c0ead79936f7e65d35866ca8c55310e80d14326249c0aba8732a3b734ab7",
-      "test_declarations": 10,
+      "lines": 248,
+      "sha256": "e09cfd820d0f2ec6a1b39f46caa9c6d287ce3e3566ad7d6a61ec0d94479520d5",
+      "test_declarations": 11,
       "registered_suites": [
         "sql_queries"
       ],

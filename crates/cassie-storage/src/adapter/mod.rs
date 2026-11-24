@@ -718,7 +718,10 @@ impl Midge {
         metadata: &ProjectionMeta,
     ) -> Result<(), CassieError> {
         if let Some(definition) = &metadata.materialized {
-            cassie_sql::definition_guard::projection(definition)?;
+            cassie_sql::definition_guard::query(
+                definition.definition_semantics_version,
+                &definition.query,
+            )?;
         }
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;

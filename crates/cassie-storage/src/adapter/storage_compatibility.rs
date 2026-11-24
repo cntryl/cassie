@@ -89,7 +89,10 @@ impl Midge {
         metadata: &crate::catalog::ProjectionMeta,
     ) -> Result<(), CassieError> {
         if let Some(definition) = &metadata.materialized {
-            cassie_sql::definition_guard::projection(definition)?;
+            cassie_sql::definition_guard::query(
+                definition.definition_semantics_version,
+                &definition.query,
+            )?;
             self.require_definition_version(definition.definition_semantics_version)?;
         }
         Ok(())

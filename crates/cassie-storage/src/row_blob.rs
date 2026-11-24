@@ -563,7 +563,7 @@ pub use decode::{
     decode_projected_row_matching, decode_projected_row_with_aliases, decode_row,
     encode_compact_sql_null, split_vector_row,
 };
-pub use encode::encode_compact_value;
+pub use encode::{canonical_bytea_text, encode_compact_value};
 
 #[cfg(test)]
 #[path = "row_blob_tests.rs"]

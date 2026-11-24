@@ -382,6 +382,15 @@ fn encode_enum(descriptor: &EnumType, value: &serde_json::Value) -> Result<(u8, 
     Ok((TYPE_ENUM, out))
 }
 
+/// Canonicalizes a hexadecimal bytea field using the row encoder's validation.
+///
+/// # Errors
+/// Returns an error when the field is not valid hexadecimal bytea.
+pub fn canonical_bytea_text(value: &str) -> Result<String, RowBlobValueError> {
+    let bytes = decode_bytea(value)?;
+    Ok(super::decode::encode_bytea(&bytes))
+}
+
 fn decode_bytea(value: &str) -> Result<Vec<u8>, RowBlobValueError> {
     if !value.starts_with("\\x") { return Err(RowBlobValueError::InvalidValue("bytea field expects '\\x' hexadecimal format".to_owned())); }
     if value.len() == 2 { return Ok(Vec::new()); }
@@ -397,4 +406,11 @@ fn decode_bytea(value: &str) -> Result<Vec<u8>, RowBlobValueError> {
 
 fn decode_hex_digit(byte: u8) -> Option<u8> { match byte { b'0'..=b'9' => Some(byte - b'0'), b'a'..=b'f' => Some(byte - b'a' + 10), b'A'..=b'F' => Some(byte - b'A' + 10), _ => None } }
 
-fn write_varint(mut value: u64, out: &mut Vec<u8>) { while value >= 0x80 { out.push((value as u8 & 0x7f) | 0x80); value >>= 7; } out.push(value as u8); }
+fn write_varint(mut value: u64, out: &mut Vec<u8>) {
+    while value >= 0x80 {
+        let byte = u8::try_from(value & 0x7f).expect("masked to 7 bits");
+        out.push(byte | 0x80);
+        value >>= 7;
+    }
+    out.push(u8::try_from(value).expect("final varint byte fits in u8"));
+}

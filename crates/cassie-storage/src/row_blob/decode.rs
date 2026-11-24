@@ -585,6 +585,22 @@ pub fn split_vector_row<'a, E>(
     Ok(VectorRowParts { vector, payload })
 }
 
-fn encode_bytea(bytes: &[u8]) -> String { const HEX: &[u8; 16] = b"0123456789abcdef"; let mut out = String::with_capacity(2 + bytes.len() * 2); out.push_str("\\x"); for byte in bytes { out.push(HEX[(byte >> 4) as usize] as char); out.push(HEX[(byte & 0x0f) as usize] as char); } out }
+pub(super) fn encode_bytea(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(2 + bytes.len() * 2);
+    encoded.push_str("\\x");
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
+}
 
-fn write_varint(mut value: u64, out: &mut Vec<u8>) { while value >= 0x80 { out.push((value as u8 & 0x7f) | 0x80); value >>= 7; } out.push(value as u8); }
+fn write_varint(mut value: u64, out: &mut Vec<u8>) {
+    while value >= 0x80 {
+        let byte = u8::try_from(value & 0x7f).expect("masked to 7 bits");
+        out.push(byte | 0x80);
+        value >>= 7;
+    }
+    out.push(u8::try_from(value).expect("final varint byte fits in u8"));
+}

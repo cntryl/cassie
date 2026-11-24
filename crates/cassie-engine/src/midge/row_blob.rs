@@ -532,9 +532,10 @@ fn write_varint(mut value: u64, out: &mut Vec<u8>) {
 }
 
 pub(crate) fn canonical_bytea_text(value: &str) -> Result<String, CassieError> {
-    decode_bytea(value).map(|bytes| encode_bytea(&bytes))
+    cassie_storage::row_blob::canonical_bytea_text(value).map_err(map_row_value_error)
 }
 
+#[cfg(test)]
 fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
     if !value.starts_with("\\x") {
         return Err(CassieError::InvalidVector(
@@ -566,6 +567,7 @@ fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
     Ok(out)
 }
 
+#[cfg(test)]
 fn decode_hex_digit(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -575,6 +577,7 @@ fn decode_hex_digit(byte: u8) -> Option<u8> {
     }
 }
 
+#[cfg(test)]
 fn encode_bytea(value: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(2 + value.len() * 2);

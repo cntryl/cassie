@@ -9,7 +9,7 @@ use crate::types::DataType;
 #[cfg(test)]
 use super::{decode_value, write_varint, Cursor};
 #[cfg(any(test, feature = "transport-test-hooks"))]
-use super::{
+use cassie_storage::row_blob::{
     TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
     TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
     TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,

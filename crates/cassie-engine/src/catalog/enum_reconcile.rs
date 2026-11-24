@@ -9,6 +9,8 @@
 //! The persisted enum type is the authority. If an interruption ever leaves a
 //! column or view on an older copy, hydration replaces it in memory.
 
+pub use cassie_sql::type_publication::EnumPropagation;
+
 use std::collections::HashMap;
 
 use super::composite_alter::ColumnRetype;
@@ -31,13 +33,6 @@ fn rebuild_data_type(
         }
         _ => None,
     }
-}
-
-/// Every object that embeds a changed enum descriptor.
-#[derive(Debug, Clone, Default)]
-pub struct EnumPropagation {
-    pub columns: Vec<ColumnRetype>,
-    pub views: Vec<ViewMeta>,
 }
 
 impl Catalog {

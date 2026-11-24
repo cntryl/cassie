@@ -7,7 +7,7 @@ use super::json::path_to_json;
 use super::model::{Direction, ElementKind, ElementRef, GraphDescriptors, KeyPart, Path};
 use super::order::{compare_element_refs, compare_paths};
 use super::validate::validate_record;
-use crate::catalog::graph_schema::build_graph_types;
+use cassie_core::catalog::graph_schema::build_graph_types;
 use crate::types::composite::RecordValue;
 use crate::types::typed::TypedValue;
 use crate::types::{SqlArray, Value};
@@ -16,7 +16,7 @@ fn descriptors() -> GraphDescriptors {
     let mut next = 100;
     let types = build_graph_types("main", || {
         next += 1;
-        Ok(next)
+        Ok::<_, std::convert::Infallible>(next)
     })
     .expect("build");
     GraphDescriptors {

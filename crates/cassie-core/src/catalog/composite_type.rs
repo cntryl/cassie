@@ -4,10 +4,7 @@ use crate::catalog::scope::{local_name, relation_schema_name};
 use crate::types::composite::{CompositeField, CompositeRef, CompositeType};
 use crate::types::DataType;
 
-fn normal_oid(object_id: u64) -> Option<u32> {
-    if object_id == 0 { return None; }
-    u32::try_from(object_id).ok().and_then(|id| id.checked_add(crate::types::object_id::FIRST_NORMAL_OBJECT_ID))
-}
+use super::object_identity::normal_oid;
 
 /// The persisted layout version of [`CompositeTypeMeta`].
 pub const COMPOSITE_TYPE_FORMAT_VERSION: u32 = 1;

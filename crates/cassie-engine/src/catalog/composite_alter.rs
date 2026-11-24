@@ -7,6 +7,8 @@
 //! The physical slot list only grows. Adding an attribute appends a slot,
 //! dropping one records its slot in `dropped_positions`, so a value written
 //! under any earlier revision is a prefix of the current layout.
+pub use cassie_sql::type_publication::{ColumnRetype, CompositeGroup};
+
 use std::collections::HashMap;
 
 use super::composite_types::{data_type_depends_on, CompositeTypeMeta};
@@ -165,32 +167,10 @@ fn rebuild_data_type(
     }
 }
 
-/// One table column whose embedded descriptor must be re-published.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ColumnRetype {
-    pub table: String,
-    pub column: String,
-    pub data_type: DataType,
-}
-
 /// Every object that embeds a changed descriptor.
 #[derive(Debug, Clone, Default)]
 pub struct DescriptorPropagation {
     /// Other composite types whose fields embed the changed type.
-    pub types: Vec<CompositeTypeMeta>,
-    pub columns: Vec<ColumnRetype>,
-    pub views: Vec<crate::catalog::ViewMeta>,
-}
-
-/// Everything one `ALTER TYPE` (or row-type refresh) writes into one database
-/// family, published as a single Midge transaction.
-#[derive(Debug, Clone, Default)]
-pub struct CompositeGroup {
-    pub database: String,
-    /// The altered type itself; present only in the target's database.
-    pub target: Option<CompositeTypeMeta>,
-    /// Old name of a renamed target, deleted in the same transaction.
-    pub deleted_type: Option<String>,
     pub types: Vec<CompositeTypeMeta>,
     pub columns: Vec<ColumnRetype>,
     pub views: Vec<crate::catalog::ViewMeta>,

@@ -31,6 +31,8 @@ mod user_types;
 pub(crate) use identify::dropped_column_name;
 pub use identify::{ObjectIdentity, UnsupportedObjectClass};
 
+pub use cassie_core::catalog::object_identity::normal_oid;
+pub(crate) use cassie_core::catalog::object_identity::stable_index_oid;
 pub use names::quote_identifier;
 use names::{qualified_name, Identifier};
 
@@ -622,27 +624,6 @@ fn stable_materialized_view_oid(projection_id: &str) -> u32 {
     u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
 }
 
-/// The name-derived catalog OID of an index relation stored without an
-/// assigned identity.
-#[must_use]
-pub(crate) fn stable_index_oid(name: &str) -> u32 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in "index"
-        .bytes()
-        .chain(*b":")
-        .chain(name.to_ascii_lowercase().bytes())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    // The upper half of the OID space never meets an allocator identity
-    // (`FIRST_NORMAL_OBJECT_ID` upward), and its width makes a name collision
-    // between two indexes negligible. `CREATE INDEX` assigns an allocator
-    // identity instead; this hash only names an index stored without one.
-    let oid_range = u64::from(u32::MAX - 0x8000_0000);
-    u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
-}
-
 /// The catalog OID of an index, preserving the assigned identity across a rename.
 #[must_use]
 pub(crate) fn catalog_index_oid(index: &crate::catalog::IndexMeta) -> u32 {
@@ -663,18 +644,6 @@ pub fn stored_namespace_oid(catalog: &Catalog, canonical: &str) -> Option<u32> {
         _ if local.eq_ignore_ascii_case(DEFAULT_SCHEMA) => Some(PUBLIC_NAMESPACE_OID),
         _ => normal_oid(catalog.get_namespace(canonical)?.object_id),
     }
-}
-
-/// Object identities are allocated from one counter, offset into
-/// PostgreSQL's user OID range.
-#[must_use]
-pub fn normal_oid(object_id: u64) -> Option<u32> {
-    if object_id == 0 {
-        return None;
-    }
-    u32::try_from(object_id)
-        .ok()
-        .and_then(|id| id.checked_add(FIRST_NORMAL_OBJECT_ID))
 }
 
 /// Resolve a SQL type OID using the active database for database-owned types.

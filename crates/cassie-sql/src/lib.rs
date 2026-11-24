@@ -4,6 +4,7 @@ pub mod ast;
 pub mod attachment;
 pub use cassie_core::{catalog, types};
 pub mod column_identifier;
+pub mod composite_unique;
 pub mod catalog_declarations;
 pub mod definition_guard;
 pub mod default_expression;
@@ -15,6 +16,7 @@ mod parameter_count;
 pub mod rollup_declarations;
 pub mod routine_declarations;
 pub mod sequence_default;
+pub mod type_publication;
 
 #[cfg(test)]
 mod ast_attachment_tests;

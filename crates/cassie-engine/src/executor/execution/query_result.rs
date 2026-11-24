@@ -295,7 +295,9 @@ impl QueryResultBuilder<'_> {
         self.try_push_values(row.iter())
     }
 
-    pub(crate) fn try_push_values<'v, I>(&mut self, values: I) -> Result<(), CassieError>
+    #[doc(hidden)]
+
+    pub fn try_push_values<'v, I>(&mut self, values: I) -> Result<(), CassieError>
     where
         I: Iterator<Item = &'v Value> + Clone,
     {

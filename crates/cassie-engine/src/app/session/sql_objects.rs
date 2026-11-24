@@ -326,6 +326,13 @@ impl CassieSession {
             .is_some_and(|prepared| prepared.wire_id == Some(id))
     }
 
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn has_prepared_for_test(&self, name: &str) -> bool {
+        self.session_objects.lock().prepared.contains_key(name)
+    }
+
     /// Whether `name` is held by a SQL-level `PREPARE`.
     #[doc(hidden)]
     pub fn has_sql_prepared(&self, name: &str) -> bool {

@@ -530,8 +530,9 @@ impl Cassie {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn capture_copy_command_owner_after_provisional(
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn capture_copy_command_owner_after_provisional(
         &self,
         session: &CassieSession,
         target: &str,

@@ -6,17 +6,20 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use super::diagnostic::{self, DiagnosticError, OwnedDiagnostic};
 use super::{CursorError, Document, DocumentError, WrappedCause};
 
+#[cfg(test)]
 #[path = "document_cell_tests.rs"]
 mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Identity {
+#[doc(hidden)]
+pub enum Identity {
     Json,
     Jsonb,
 }
 
 #[derive(Debug)]
-pub(crate) enum CellError {
+#[doc(hidden)]
+pub enum CellError {
     Syntax(OwnedDiagnostic),
     Utf8,
     Nul,
@@ -24,7 +27,9 @@ pub(crate) enum CellError {
     Control(CassieError),
 }
 
-pub(crate) struct Cell {
+#[doc(hidden)]
+
+pub struct Cell {
     text: String,
     identity: Identity,
     memory: QueryMemoryReservation,
@@ -132,14 +137,19 @@ impl Cell {
         Ok(cell)
     }
 
-    pub(crate) fn text(&self) -> &str {
+    #[doc(hidden)]
+
+    pub fn text(&self) -> &str {
         &self.text
     }
-    pub(crate) fn identity(&self) -> Identity {
+    #[doc(hidden)]
+    pub fn identity(&self) -> Identity {
         self.identity
     }
 
-    pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+    #[doc(hidden)]
+
+    pub fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         self.memory.belongs_to(controls)
     }
 

@@ -54,7 +54,7 @@ pub(super) struct Cursor<'a> {
     source: &'a [u8],
     position: Position,
     controls: QueryExecutionControls,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     row_bytes: bool,
 }
 
@@ -66,7 +66,7 @@ impl<'a> Cursor<'a> {
         cursor
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(super) fn enable_row_bytes(&mut self) {
         self.row_bytes = true;
     }
@@ -133,7 +133,7 @@ impl<'a> Cursor<'a> {
                 column: 0,
             },
             controls: controls.clone(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "transport-test-hooks"))]
             row_bytes: false,
         }
     }
@@ -147,7 +147,7 @@ impl<'a> Cursor<'a> {
             source,
             position,
             controls: controls.clone(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "transport-test-hooks"))]
             row_bytes: false,
         }
     }

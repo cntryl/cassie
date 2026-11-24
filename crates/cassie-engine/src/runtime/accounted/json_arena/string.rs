@@ -12,7 +12,7 @@ mod tests;
 #[path = "row_string_tests.rs"]
 mod row_tests;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 #[path = "row_string.rs"]
 mod row_string;
 
@@ -191,7 +191,7 @@ impl Cursor<'_> {
     pub(in crate::runtime::accounted::json_arena) fn read_string(
         &mut self,
     ) -> Result<DecodedText, CursorError> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "transport-test-hooks"))]
         if self.row_bytes {
             return self.read_row_string_observing(|| {});
         }

@@ -30,7 +30,7 @@ mod plain_tests;
 #[path = "document_row_tests.rs"]
 mod row_tests;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 #[path = "document_cell.rs"]
 pub(super) mod cell;
 
@@ -372,7 +372,7 @@ impl<'a> Document<'a> {
         Self::parse_plain_observed(input, controls, |_| {})
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     fn parse_plain_row(
         input: &'a [u8],
         controls: &QueryExecutionControls,
@@ -380,7 +380,7 @@ impl<'a> Document<'a> {
         Self::parse_plain_row_observed(input, controls, |_| {})
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     fn parse_plain_row_observed(
         input: &'a [u8],
         controls: &QueryExecutionControls,

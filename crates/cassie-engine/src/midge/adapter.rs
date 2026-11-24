@@ -109,11 +109,15 @@ impl PublicationControlScope {
         cassie_storage::adapter::NativePublicationControlScope::check_current().map_err(Into::into)
     }
 
-    pub(crate) fn current_query_controls() -> Option<crate::runtime::QueryExecutionControls> {
+    #[doc(hidden)]
+
+    pub fn current_query_controls() -> Option<crate::runtime::QueryExecutionControls> {
         CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone())
     }
 
-    pub(crate) fn enter(controls: Option<&crate::runtime::QueryExecutionControls>) -> Self {
+    #[doc(hidden)]
+
+    pub fn enter(controls: Option<&crate::runtime::QueryExecutionControls>) -> Self {
         let previous = CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone());
         let active = previous.clone().or_else(|| controls.cloned());
         let storage_context = active.as_ref().map(crate::runtime::QueryExecutionControls::storage_request);
@@ -147,19 +151,21 @@ impl Drop for PublicationControlScope {
 }
 
 #[cfg(test)]
+#[path = "adapter/statement_read"]
 pub(crate) mod statement_read {
-    #[path = "adapter/statement_read/tests.rs"]
+    #[path = "tests.rs"]
     mod tests;
 }
 
 #[cfg(test)]
+#[path = "adapter"]
 pub(crate) mod query_scan_control {
     pub use cassie_storage::adapter::{
         current_query_scan_control_scope, query_scan_control_test_guard,
         set_query_scan_cancellation_after_entries, should_cancel_controlled_query_scan,
     };
 
-    #[path = "adapter/query_scan_control_tests.rs"]
+    #[path = "query_scan_control_tests.rs"]
     mod tests;
 }
 

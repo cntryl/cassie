@@ -15,7 +15,8 @@ struct Dimension {
 }
 
 #[derive(Debug)]
-pub(crate) enum DecodeError<E> {
+#[doc(hidden)]
+pub enum DecodeError<E> {
     InvalidArray,
     DocumentNull,
     Element(E),
@@ -23,11 +24,14 @@ pub(crate) enum DecodeError<E> {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum Progress {
+#[doc(hidden)]
+pub enum Progress {
     Element,
 }
 
-pub(crate) struct Envelope<'a> {
+#[doc(hidden)]
+
+pub struct Envelope<'a> {
     source: &'a [u8],
     dimensions: [Dimension; 6],
     count: usize,
@@ -58,7 +62,9 @@ impl<'a> Envelope<'a> {
     }
 }
 
-pub(crate) fn decode<'a, E>(
+#[doc(hidden)]
+
+pub fn decode<'a, E>(
     source: &'a [u8],
     controls: &QueryExecutionControls,
     mut validate: impl FnMut(&[u8]) -> Result<bool, E>,

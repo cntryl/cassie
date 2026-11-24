@@ -96,7 +96,9 @@ impl Cassie {
         )
     }
 
-    pub(crate) fn execute_copy_where_with_controls(
+    #[doc(hidden)]
+
+    pub fn execute_copy_where_with_controls(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -106,7 +108,9 @@ impl Cassie {
         self.execute_copy_where_inner(session, sql, params, controls, None)
     }
 
-    pub(crate) fn execute_copy_where_with_authority(
+    #[doc(hidden)]
+
+    pub fn execute_copy_where_with_authority(
         &self,
         session: &CassieSession,
         sql: &str,

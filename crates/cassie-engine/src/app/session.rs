@@ -395,7 +395,9 @@ impl CassieSession {
         self.transaction_unique_waits.lock().clone()
     }
 
-    pub(crate) fn transaction_unique_owner_id(&self) -> Uuid {
+    #[doc(hidden)]
+
+    pub fn transaction_unique_owner_id(&self) -> Uuid {
         self.transaction.lock().unique_owner_id
     }
 
@@ -422,7 +424,9 @@ impl CassieSession {
         self.access != SessionAccess::TrustedEmbedded
     }
 
-    pub(crate) fn transaction_status_snapshot(&self) -> SessionTransactionStatus {
+    #[doc(hidden)]
+
+    pub fn transaction_status_snapshot(&self) -> SessionTransactionStatus {
         self.transaction.lock().status
     }
 
@@ -640,7 +644,9 @@ impl CassieSession {
         self.transaction.lock().status == SessionTransactionStatus::Failed
     }
 
-    pub(crate) fn mark_transaction_failed(&self) {
+    #[doc(hidden)]
+
+    pub fn mark_transaction_failed(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.mark_failed_if_current(self);
             return;

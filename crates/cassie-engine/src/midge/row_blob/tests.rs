@@ -2,6 +2,7 @@ use super::*;
 
 #[path = "controlled_directory.rs"]
 mod controlled_directory;
+#[cfg(test)]
 #[path = "controlled_directory_tests.rs"]
 mod controlled_directory_tests;
 
@@ -25,7 +26,9 @@ fn should_preserve_existing_row_blob_bytes_after_storage_placement() {
     assert_eq!(encoded, expected);
 }
 
-pub(crate) fn owned_row_cell(
+#[doc(hidden)]
+
+pub fn owned_row_cell(
     source: &str,
     identity: crate::runtime::accounted::json_arena::PlainIdentity,
     controls: &crate::runtime::QueryExecutionControls,
@@ -70,7 +73,9 @@ pub(crate) fn owned_row_cell(
     }
 }
 
-pub(crate) fn owned_row_diagnostic(
+#[doc(hidden)]
+
+pub fn owned_row_diagnostic(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<crate::runtime::accounted::json_arena::JsonbDiagnostic, CassieError> {
     use crate::runtime::accounted::json_arena::PlainCellError;

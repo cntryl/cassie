@@ -250,8 +250,9 @@ mod query_failure_converted_tests;
 mod query_failure_quarantine_tests;
 #[cfg(test)]
 mod query_failure_savepoint_tests;
-#[cfg(test)]
-pub(crate) mod query_failure_watchdog;
+#[cfg(any(test, feature = "transport-test-hooks"))]
+#[doc(hidden)]
+pub mod query_failure_watchdog;
 #[cfg(test)]
 mod query_result_cache_key_tests;
 #[cfg(all(test, feature = "replay-benchmark-observation"))]

@@ -80,7 +80,7 @@ pub(super) fn render(
     finish(&stack, controls)
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 pub(super) fn render_row(
     error: &DocumentError,
     controls: &QueryExecutionControls,
@@ -88,7 +88,7 @@ pub(super) fn render_row(
     render_row_observing(error, controls, || {})
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 fn render_row_observing(
     error: &DocumentError,
     controls: &QueryExecutionControls,

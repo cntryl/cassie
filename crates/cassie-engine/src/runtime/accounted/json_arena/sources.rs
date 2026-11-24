@@ -27,7 +27,7 @@ struct SourceFrame<'a> {
     source: Source<'a>,
     position: Position,
     remaining_depth: usize,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     row_bytes: bool,
 }
 
@@ -41,7 +41,7 @@ impl<'a> SourceFrame<'a> {
                 column: 0,
             },
             remaining_depth: 128,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "transport-test-hooks"))]
             row_bytes: false,
         }
     }
@@ -52,7 +52,7 @@ impl<'a> SourceFrame<'a> {
         action: impl FnOnce(&mut Cursor<'cursor>) -> Result<T, CursorError>,
     ) -> Result<T, CursorError> {
         let mut cursor = Cursor::restore_validated(self.source.bytes(), self.position, controls);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "transport-test-hooks"))]
         if self.row_bytes {
             cursor.enable_row_bytes();
         }
@@ -75,7 +75,7 @@ pub(super) struct SourceStack<'a> {
 }
 
 impl<'a> SourceStack<'a> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(super) fn from_row_bytes(
         source: &'a [u8],
         controls: &QueryExecutionControls,

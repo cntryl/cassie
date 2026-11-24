@@ -9,7 +9,8 @@ use crate::sql::ast::TransactionModes;
 
 impl CassieSession {
     #[cfg(test)]
-    pub(crate) fn begin_implicit_transaction(&self) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn begin_implicit_transaction(&self) -> Result<(), CassieError> {
         self.begin_implicit_transaction_for_operation(None)
     }
 

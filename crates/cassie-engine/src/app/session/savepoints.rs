@@ -9,12 +9,15 @@ use super::{
 };
 
 impl CassieSession {
-    #[cfg(test)]
-    pub(crate) fn rollback_epoch_for_test(&self) -> u64 {
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn rollback_epoch_for_test(&self) -> u64 {
         self.transaction.lock().rollback_epoch
     }
 
-    pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
+    #[doc(hidden)]
+
+    pub fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         self.ensure_operation_current_locked(&transaction)?;
         match transaction.status {
@@ -74,7 +77,8 @@ impl CassieSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
         self.rollback_to_savepoint_inner(name, None, || {})
     }
 

@@ -13,7 +13,8 @@ pub struct OwnedJsonText {
 }
 
 impl OwnedJsonText {
-    pub(crate) fn as_str(&self) -> &str {
+    #[doc(hidden)]
+    pub fn as_str(&self) -> &str {
         &self.text
     }
 

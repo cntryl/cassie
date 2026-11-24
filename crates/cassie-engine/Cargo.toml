@@ -9,7 +9,7 @@ workspace = true
 
 [features]
 replay-benchmark-observation = ["cassie-storage/replay-benchmark-observation"]
-transport-test-hooks = []
+transport-test-hooks = ["cassie-storage/storage-test-hooks"]
 
 [dependencies]
 cassie-core = { path = "../cassie-core" }

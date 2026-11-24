@@ -8,7 +8,8 @@ mod document;
 #[path = "json_arena/forest.rs"]
 mod forest;
 #[path = "json_arena/jsonb_array_envelope.rs"]
-pub(crate) mod jsonb_array_envelope;
+#[doc(hidden)]
+pub mod jsonb_array_envelope;
 #[path = "json_arena/jsonb_array_output.rs"]
 #[doc(hidden)]
 pub mod jsonb_array_output;
@@ -27,8 +28,9 @@ mod value;
 
 #[doc(hidden)]
 pub use document::binary::{binary_json_text, BinaryJsonError};
-#[cfg(test)]
-pub(crate) use document::cell::{
+#[cfg(any(test, feature = "transport-test-hooks"))]
+#[doc(hidden)]
+pub use document::cell::{
     Cell as PlainCell, CellError as PlainCellError, Identity as PlainIdentity,
 };
 pub(crate) use document::comparison::compare as compare_jsonb_candidate;

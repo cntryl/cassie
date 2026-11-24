@@ -101,8 +101,9 @@ impl FailureAuthority {
         std::mem::size_of::<Mutex<OperationOwner>>() + 2 * std::mem::size_of::<usize>()
     }
 
-    #[cfg(test)]
-    pub(crate) fn identity_only_for_test(session: &CassieSession) -> Self {
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn identity_only_for_test(session: &CassieSession) -> Self {
         Self {
             root: Arc::downgrade(&session.transaction),
             owner: Arc::default(),
@@ -114,12 +115,15 @@ impl FailureAuthority {
         self.owner.lock().identity
     }
 
-    #[cfg(test)]
-    pub(crate) fn captures_session_for_test(&self, session: &CassieSession) -> bool {
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn captures_session_for_test(&self, session: &CassieSession) -> bool {
         self.matches_root(session)
     }
 
-    pub(crate) fn capture(session: &CassieSession) -> Self {
+    #[doc(hidden)]
+
+    pub fn capture(session: &CassieSession) -> Self {
         Self::capture_with_contention(session, || {})
     }
 
@@ -280,9 +284,10 @@ impl FailureAuthority {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 impl CassieSession {
-    pub(crate) fn hold_transaction_for_test(
+    #[doc(hidden)]
+    pub fn hold_transaction_for_test(
         &self,
         entered: &std::sync::mpsc::SyncSender<()>,
         release: &std::sync::mpsc::Receiver<()>,

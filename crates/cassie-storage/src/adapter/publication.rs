@@ -437,7 +437,8 @@ impl Midge {
         tests::next_confirmation(callback)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
     pub fn latch_storage_recovery_required_for_test(&self) {
         let result =
             self.publication

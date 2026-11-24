@@ -128,7 +128,7 @@ fn should_keep_real_sql_numeric_error_admitted_through_rest_body_drop() {
         .expect("runtime");
 
     // Act
-    let response = numeric_error_response(diagnostic).expect("admitted response");
+    let response = numeric_error_response(&diagnostic).expect("admitted response");
     drop(error);
     let mut body = response.into_body();
     let bytes = runtime

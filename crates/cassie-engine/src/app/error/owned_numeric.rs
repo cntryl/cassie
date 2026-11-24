@@ -18,7 +18,8 @@ pub struct OwnedNumericLiteralError {
 }
 
 impl OwnedNumericLiteralError {
-    pub(crate) fn syntax(
+    #[doc(hidden)]
+    pub fn syntax(
         input: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Box<Self>, CassieError> {
@@ -46,7 +47,9 @@ impl OwnedNumericLiteralError {
         })
     }
 
-    pub(crate) fn range(controls: &QueryExecutionControls) -> Result<Box<Self>, CassieError> {
+    #[doc(hidden)]
+
+    pub fn range(controls: &QueryExecutionControls) -> Result<Box<Self>, CassieError> {
         const MESSAGE: &str = "value overflows numeric format";
         Self::create("22003", MESSAGE.len(), controls, |message| {
             message.push_str(MESSAGE);

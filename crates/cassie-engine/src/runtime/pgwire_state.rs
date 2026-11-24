@@ -127,7 +127,8 @@ impl PgwireQueryCancellationGuard {
     }
 
     #[cfg(test)]
-    pub(crate) fn suspend(self) -> QueryCancellationHandle {
+    #[doc(hidden)]
+    pub fn suspend(self) -> QueryCancellationHandle {
         self.cancellation.clone()
     }
 }

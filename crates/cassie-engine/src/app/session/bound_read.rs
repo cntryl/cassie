@@ -42,7 +42,8 @@ impl BoundReadView {
 }
 
 impl CassieSession {
-    pub(crate) fn capture_bound_read_view(
+    #[doc(hidden)]
+    pub fn capture_bound_read_view(
         &self,
         midge: &Arc<Midge>,
         database: &str,

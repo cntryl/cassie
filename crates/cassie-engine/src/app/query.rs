@@ -304,8 +304,9 @@ impl Cassie {
         self.describe_parsed_statement(parsed, sql_fingerprint)
     }
 
-    #[cfg(test)]
-    pub(crate) fn execute_sql_with_controls(
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn execute_sql_with_controls(
         &self,
         session: &CassieSession,
         sql: &str,

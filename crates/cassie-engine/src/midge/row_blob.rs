@@ -27,7 +27,9 @@ mod enum_value;
 mod vector_field;
 
 #[cfg(test)]
-use self::compact::{decode_directory_value, expected_type_tag};
+use self::compact::decode_directory_value;
+#[cfg(any(test, feature = "transport-test-hooks"))]
+use self::compact::expected_type_tag;
 pub(crate) use compact::{
     CompactScalar, decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
     encode_compact_value,
@@ -589,6 +591,6 @@ fn encode_bytea(value: &[u8]) -> String {
     output
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 #[path = "row_blob/tests.rs"]
 pub(crate) mod tests;

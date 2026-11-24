@@ -6,12 +6,14 @@
 use crate::app::CassieError;
 use crate::types::DataType;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 use super::{
     Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
     TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
-    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32, decode_value, write_varint,
+    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
+#[cfg(test)]
+use super::{decode_value, write_varint};
 
 pub(crate) fn encode_compact_value(
     data_type: &DataType,
@@ -104,7 +106,7 @@ pub(super) fn decode_directory_value(
 /// The one type tag `encode_value` writes for a declared field type. Kept
 /// beside the decoder so a new `DataType` cannot be added without deciding
 /// what its stored tag is.
-#[cfg(test)]
+#[cfg(any(test, feature = "transport-test-hooks"))]
 pub(super) fn expected_type_tag(data_type: &DataType) -> u8 {
     match data_type {
         DataType::Null => TYPE_NULL,

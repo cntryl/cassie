@@ -32,15 +32,16 @@ impl CassieSession {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn begin_transaction(
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn begin_transaction(
         &self,
         isolation: Option<TransactionIsolation>,
     ) -> Result<(), CassieError> {
         self.begin_transaction_with_modes(isolation, TransactionModes::default())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn begin_transaction_with_modes(
         &self,
         isolation: Option<TransactionIsolation>,
@@ -528,7 +529,9 @@ impl CassieSession {
         transaction.status
     }
 
-    pub(crate) fn rollback_transaction(&self) {
+    #[doc(hidden)]
+
+    pub fn rollback_transaction(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.rollback_if_current(self);
             return;

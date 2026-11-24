@@ -46,7 +46,10 @@ pub(super) fn set_access_method(
                 controls
                     .check_interruption()
                     .map_err(|error| StorageError::EngineCallback(Box::new(error)))?;
-                reservation.try_grow(bytes).map_err(Into::into)
+                reservation
+                    .as_core_mut()
+                    .try_grow(bytes)
+                    .map_err(StorageError::from)
             };
             cassie
                 .midge

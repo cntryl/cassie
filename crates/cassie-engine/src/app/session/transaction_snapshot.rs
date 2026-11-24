@@ -153,7 +153,7 @@ impl CassieSession {
                     .filter(|identity| *identity != 0)
                     .map(|identity| (collection.as_str(), identity, id.as_str()))
                     .ok_or_else(|| {
-                        CassieError::Unsupported(
+                        cassie_storage::StorageError::Unsupported(
                             "REPEATABLE READ row validation requires a persisted relation identity"
                                 .to_owned(),
                         )

@@ -400,7 +400,7 @@ impl CassieSession {
             transaction
                 .storage_overlay
                 .lock()
-                .copy_checkpoint_snapshot(controls)?
+                .copy_checkpoint_snapshot(&controls.storage_request())?
         } else {
             None
         };

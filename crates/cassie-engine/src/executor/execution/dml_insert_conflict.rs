@@ -1,6 +1,6 @@
-use crate::midge::scalar_expression;
 //! Finding the existing row an `INSERT ... ON CONFLICT` proposal conflicts with.
 
+use crate::midge::scalar_expression;
 use super::{json_to_value, Cassie, CassieSession, CollectionSchema, HashMap, QueryError, Value};
 
 fn find_target_field_conflict_row_id(

@@ -320,7 +320,7 @@ impl Analyzer<'_> {
                     )
                 }
                 SelectItem::Expr { expr, alias } => (
-                    alias.as_deref().unwrap_or("expr").to_string(),
+                    alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     self.expression(expr, lookup)?,
                     true,
                 ),

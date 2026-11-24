@@ -47,7 +47,7 @@ pub(super) fn projection_schema(
             }
             SelectItem::Expr { expr, alias } => {
                 fields.push(FieldSchema {
-                    name: alias.as_deref().unwrap_or("expr").to_string(),
+                    name: alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     data_type: if mode == ProjectionMode::SetOperand
                         && matches!(expr, Expr::StringLiteral(_))
                     {

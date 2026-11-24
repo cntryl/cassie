@@ -27,10 +27,14 @@ fn should_reject_row_arity_given_mismatched_constructors_when_queries_are_parsed
             .iter()
             .find(|frame| frame.0 == b'E')
             .expect("row arity diagnostic");
-        assert!(wire::parse_error_fields(&error.1)
-            .iter()
-            .any(|(kind, message)| *kind == 'M'
-                && message.contains("unequal number of entries in row expressions")));
+        assert!(
+            wire::parse_error_fields(&error.1)
+                .iter()
+                .any(|(kind, message)| *kind == 'M'
+                    && message.contains("unequal number of entries in row expressions")),
+            "{:?}",
+            wire::parse_error_fields(&error.1)
+        );
         assert_eq!(
             wire::data_rows(&batches[0]),
             Vec::<Vec<Option<String>>>::new()

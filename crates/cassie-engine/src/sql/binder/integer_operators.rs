@@ -8,6 +8,24 @@ pub(super) fn resolve(
     left: Option<&DataType>,
     right: Option<&DataType>,
 ) -> Result<bool, CassieError> {
+    if matches!(op, BinaryOp::Modulo)
+        && [left, right].into_iter().flatten().any(|kind| {
+            matches!(
+                kind,
+                DataType::Float | DataType::Extended(crate::types::extended::ExtendedType::Real)
+            )
+        })
+    {
+        return Err(crate::app::DiagnosticError::new(
+            "42883",
+            format!(
+                "operator does not exist: {} % {}",
+                diagnostic_type_name(left),
+                diagnostic_type_name(right),
+            ),
+        )
+        .into());
+    }
     if [left, right]
         .into_iter()
         .flatten()
@@ -74,4 +92,24 @@ pub(super) fn resolve(
     }
     *op = BinaryOp::Integer { operation, width };
     Ok(true)
+}
+
+/// PostgreSQL spellings used in operator diagnostics, rather than Cassie's
+/// internal carrier or SQL type-function names.
+fn diagnostic_type_name(data_type: Option<&DataType>) -> String {
+    let Some(data_type) = data_type else {
+        return "unknown".to_owned();
+    };
+    match data_type {
+        DataType::Null => "unknown".to_owned(),
+        DataType::SmallInt => "smallint".to_owned(),
+        DataType::Int => "integer".to_owned(),
+        DataType::BigInt => "bigint".to_owned(),
+        DataType::Float => "double precision".to_owned(),
+        DataType::Char { .. } => "character".to_owned(),
+        DataType::Varchar { .. } => "character varying".to_owned(),
+        DataType::Array(element) => format!("{}[]", diagnostic_type_name(Some(element))),
+        DataType::Extended(kind) => kind.name().to_owned(),
+        other => other.type_name(),
+    }
 }

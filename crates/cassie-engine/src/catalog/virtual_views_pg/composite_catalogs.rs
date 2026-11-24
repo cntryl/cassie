@@ -101,6 +101,11 @@ pub(super) fn attribute_rows(catalog: &Catalog, current_database: Option<&str>) 
             );
             replace(
                 &mut row,
+                "attrelid",
+                int_value("attrelid", i64::from(metadata.relation_oid())),
+            );
+            replace(
+                &mut row,
                 "attrelid_oid",
                 int_value("attrelid_oid", i64::from(metadata.relation_oid())),
             );

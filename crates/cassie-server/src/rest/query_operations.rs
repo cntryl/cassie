@@ -22,7 +22,7 @@ struct Registry {
 struct Operation {
     owner: String,
     cancellation: QueryCancellationHandle,
-    completed: Notify,
+    completed: Arc<Notify>,
 }
 
 pub(crate) struct Registration {
@@ -75,7 +75,7 @@ pub(crate) fn register(
     let operation = Arc::new(Operation {
         owner,
         cancellation,
-        completed: Notify::new(),
+        completed: Arc::new(Notify::new()),
     });
     registry.active.insert(id, Arc::clone(&operation));
     Ok(Registration {
@@ -85,8 +85,17 @@ pub(crate) fn register(
     })
 }
 
+#[doc(hidden)]
+pub fn is_active_for_test(id: Uuid) -> bool {
+    REGISTRY
+        .lock()
+        .expect("query operation registry")
+        .active
+        .contains_key(&id)
+}
+
 pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(), CancelError> {
-    let operation = {
+    let (operation, completed) = {
         let registry = REGISTRY.lock().expect("query operation registry");
         if registry
             .completed
@@ -95,15 +104,19 @@ pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(
         {
             return Err(CancelError::AlreadyCompleted);
         }
-        registry
+        let operation = registry
             .active
             .get(&id)
             .filter(|operation| operation.owner == owner)
             .cloned()
-            .ok_or(CancelError::NotFound)?
+            .ok_or(CancelError::NotFound)?;
+        let completed = operation.completed.clone().notified_owned();
+        (operation, completed)
     };
 
-    let completed = operation.completed.notified();
+    #[cfg(test)]
+    tests::finish_at_cancel_wait_boundary(id);
+
     operation.cancellation.cancel();
     tokio::time::timeout(timeout, completed)
         .await
@@ -140,10 +153,44 @@ impl Drop for Registration {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::time::Duration;
 
-    use super::{cancel, owner_fingerprint, register, CancelError, RegisterError};
+    use super::{cancel, owner_fingerprint, register, CancelError, RegisterError, Registration};
     use crate::runtime::QueryCancellationHandle;
+
+    thread_local! {
+        static FINISH_AT_CANCEL_WAIT: RefCell<Option<Registration>> = const { RefCell::new(None) };
+    }
+
+    pub(super) fn finish_at_cancel_wait_boundary(id: uuid::Uuid) {
+        let registration = FINISH_AT_CANCEL_WAIT
+            .with_borrow_mut(|pending| pending.take_if(|entry| entry.id == id));
+        if let Some(registration) = registration {
+            registration.finish();
+        }
+    }
+
+    #[test]
+    fn should_acknowledge_cancel_when_completion_precedes_waiting() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let id = uuid::Uuid::new_v4();
+        let owner = owner_fingerprint(Some("completion-boundary-owner"));
+        let registration =
+            register(id, owner.clone(), QueryCancellationHandle::new()).expect("register");
+        FINISH_AT_CANCEL_WAIT.set(Some(registration));
+
+        // Act
+        let result = runtime.block_on(cancel(id, &owner, Duration::ZERO));
+
+        // Assert
+        assert!(FINISH_AT_CANCEL_WAIT.take().is_none());
+        assert_eq!(result, Ok(()));
+    }
 
     #[test]
     fn should_cancel_owned_operation_with_cleanup_acknowledgement() {

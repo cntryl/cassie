@@ -32,6 +32,12 @@ impl ResultTypes {
         self.controls.as_ref()
     }
 
+    pub(super) fn functions(
+        &self,
+    ) -> &std::collections::HashMap<String, crate::catalog::FunctionMeta> {
+        &self.functions
+    }
+
     pub(super) fn with_resolved_coalesce_domains(mut self, resolved: bool) -> Self {
         self.resolved_coalesce_domains = resolved;
         self

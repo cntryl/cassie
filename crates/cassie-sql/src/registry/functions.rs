@@ -34,7 +34,7 @@ pub use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 pub use sequences::SEQUENCE_FUNCTION_NAMES;
 pub use temporal::{
     binary_type as temporal_binary_type, clock_dependent as temporal_clock_dependent,
-    is_temporal as is_temporal_function, return_type as temporal_return_type,
+    return_type as temporal_return_type,
 };
 pub use window::{aggregate_window_function, window_function, WindowArgumentType, WindowFunction};
 
@@ -132,6 +132,7 @@ pub enum FunctionId {
     FormatType,
     PgGetExpr,
     PgGetIndexDef,
+    PgGetConstraintDef,
     PgGetViewDef,
     PgGetUserById,
     ObjDescription,
@@ -297,6 +298,7 @@ pub enum FunctionArity {
     Exact(usize),
     AtLeast(usize),
     Range { min: usize, max: usize },
+    OneOf(&'static [usize]),
 }
 
 impl FunctionArity {
@@ -306,6 +308,7 @@ impl FunctionArity {
             FunctionArity::Exact(expected) => actual == expected,
             FunctionArity::AtLeast(min) => actual >= min,
             FunctionArity::Range { min, max } => (min..=max).contains(&actual),
+            FunctionArity::OneOf(values) => values.contains(&actual),
         }
     }
 
@@ -315,6 +318,14 @@ impl FunctionArity {
             FunctionArity::Exact(expected) => format!("{expected} args"),
             FunctionArity::AtLeast(min) => format!("at least {min} args"),
             FunctionArity::Range { min, max } => format!("{min} to {max} args"),
+            FunctionArity::OneOf(values) => {
+                values
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+                    + " args"
+            }
         }
     }
 }

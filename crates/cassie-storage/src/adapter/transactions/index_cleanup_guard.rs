@@ -190,7 +190,9 @@ impl<'a> IndexCleanupCommitGuard<'a> {
         for entry in &self.indexes {
             controls.check_interruption()?;
             let index = &entry.metadata.value;
-            midge.ensure_no_persisted_index_cleanup(&index.collection, &index.name)?;
+            if entry.change.value.is_some() {
+                midge.ensure_no_persisted_index_cleanup(&index.collection, &index.name)?;
+            }
             if midge.has_persisted_index_publication(&index.collection, &index.name)? {
                 return Err(CassieError::Unsupported(
                     "pending index publication prevents transactional index mutation".to_owned(),

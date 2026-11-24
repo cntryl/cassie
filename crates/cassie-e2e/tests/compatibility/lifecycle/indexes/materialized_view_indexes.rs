@@ -46,9 +46,13 @@ fn should_create_unique_index_on_populated_sql_materialized_view() {
             .expect("inspect the index attached to the logical materialized view");
         let index_identity = client
             .query_one(
-                "SELECT indrelid, indisunique \
-                 FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'compat_indexed_mv_id_uq'",
+                "SELECT table_class.relname, index_row.indisunique \
+                 FROM pg_catalog.pg_index AS index_row \
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_class AS table_class ON index_row.indrelid = table_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON table_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_indexed_mv_id_uq' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

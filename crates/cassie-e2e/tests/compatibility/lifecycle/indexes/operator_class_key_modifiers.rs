@@ -1,5 +1,28 @@
 use super::*;
 
+async fn setup_operator_class_indexes(client: &tokio_postgres::Client) {
+    execute_statements(
+        client,
+        &[
+            "CREATE TABLE compat_index_operator_class_rows \
+               (id INT, label TEXT, score INT, payload TEXT)",
+            "INSERT INTO compat_index_operator_class_rows VALUES \
+               (1, 'alpha', 10, 'a'), (2, 'alpine', 20, 'b'), \
+               (3, 'alpha', 30, 'c'), (4, NULL, 99, 'null'), \
+               (5, 'beta', 40, 'z')",
+            "CREATE INDEX compat_index_operator_class_idx \
+               ON compat_index_operator_class_rows USING btree \
+               (label text_pattern_ops ASC NULLS FIRST, \
+                score DESC NULLS LAST) INCLUDE (payload)",
+            "CREATE INDEX compat_index_default_modifiers_idx \
+               ON compat_index_operator_class_rows USING btree \
+               (score ASC NULLS LAST)",
+        ],
+    )
+    .await
+    .expect("create a btree index with an operator class and mixed key modifiers");
+}
+
 #[test]
 fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
     // Arrange
@@ -7,26 +30,7 @@ fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("index_operator_class_key_modifiers").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_index_operator_class_rows \
-                   (id INT, label TEXT, score INT, payload TEXT)",
-                "INSERT INTO compat_index_operator_class_rows VALUES \
-                   (1, 'alpha', 10, 'a'), (2, 'alpine', 20, 'b'), \
-                   (3, 'alpha', 30, 'c'), (4, NULL, 99, 'null'), \
-                   (5, 'beta', 40, 'z')",
-                "CREATE INDEX compat_index_operator_class_idx \
-                   ON compat_index_operator_class_rows USING btree \
-                   (label text_pattern_ops ASC NULLS FIRST, \
-                    score DESC NULLS LAST) INCLUDE (payload)",
-                "CREATE INDEX compat_index_default_modifiers_idx \
-                   ON compat_index_operator_class_rows USING btree \
-                   (score ASC NULLS LAST)",
-            ],
-        )
-        .await
-        .expect("create a btree index with an operator class and mixed key modifiers");
+        setup_operator_class_indexes(&client).await;
 
         // Act
         let metadata = client
@@ -35,8 +39,10 @@ fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
                         index_row.indoption::text, \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = \
-                   'compat_index_operator_class_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_index_operator_class_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await
@@ -46,7 +52,10 @@ fn should_preserve_operator_class_with_mixed_btree_key_modifiers() {
                 "SELECT index_row.indoption::text, \
                         pg_catalog.pg_get_indexdef(index_row.indexrelid) \
                  FROM pg_catalog.pg_index AS index_row \
-                 WHERE index_row.indexrelid = 'compat_index_default_modifiers_idx'",
+                 JOIN pg_catalog.pg_class AS index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace AS namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_index_default_modifiers_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

@@ -48,8 +48,9 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         text("relname"),
         text("relkind"),
         oid("relam"),
-        text("relnamespace"),
+        oid("relnamespace"),
         int("relnamespace_oid"),
+        oid("reltoastrelid"),
         oid("reltype"),
         int("relowner"),
         bool("relhasindex"),
@@ -66,7 +67,7 @@ pub(super) fn access_method_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
     vec![
-        text("attrelid"),
+        oid("attrelid"),
         int("attrelid_oid"),
         text("attname"),
         int("attnum"),
@@ -94,8 +95,8 @@ pub(super) fn indexes_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn index_schema() -> Vec<(String, DataType)> {
     vec![
-        text("indexrelid"),
-        text("indrelid"),
+        oid("indexrelid"),
+        oid("indrelid"),
         int("indexrelid_oid"),
         int("indrelid_oid"),
         bool("indisunique"),
@@ -113,7 +114,13 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn attrdef_schema() -> Vec<(String, DataType)> {
-    vec![text("adrelid"), int("adnum"), text("adsrc")]
+    vec![
+        oid("adrelid"),
+        int("adrelid_oid"),
+        int("adnum"),
+        text("adbin"),
+        text("adsrc"),
+    ]
 }
 
 pub(super) fn type_schema() -> Vec<(String, DataType)> {
@@ -365,8 +372,8 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
         .map(|index| {
             let primary = index_is_primary(catalog, &index);
             vec![
-                string("indexrelid", local_name(&index.name)),
-                string("indrelid", local_name(&index.collection)),
+                int_value("indexrelid", index_oid(&index)),
+                int_value("indrelid", relation_oid(catalog, &index.collection)),
                 int_value("indexrelid_oid", index_oid(&index)),
                 int_value("indrelid_oid", relation_oid(catalog, &index.collection)),
                 bool_value("indisunique", index.unique),
@@ -419,8 +426,10 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
                 continue;
             };
             rows.push(vec![
-                string("adrelid", local_name(&schema.collection)),
+                int_value("adrelid", relation_oid(catalog, &schema.collection)),
+                int_value("adrelid_oid", relation_oid(catalog, &schema.collection)),
                 int_value("adnum", index + 1),
+                string("adbin", default.clone()),
                 string("adsrc", default),
             ]);
         }
@@ -485,10 +494,6 @@ fn class_row(
     current_database: Option<&str>,
 ) -> VirtualRow {
     let relation_name = local_name(name);
-    let schema_name = index.map_or_else(
-        || relation_schema_name(name),
-        |index| relation_schema_name(&index.collection),
-    );
     let namespace = index.map_or_else(
         || relation_namespace(name),
         |index| relation_namespace(&index.collection),
@@ -504,8 +509,10 @@ fn class_row(
             "relam",
             relation_access_method_oid(catalog, current_database, (name, kind), index),
         ),
-        string("relnamespace", &schema_name),
+        int_value("relnamespace", namespace_oid(catalog, &namespace)),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
+        // Cassie does not create PostgreSQL TOAST relations.
+        int_value("reltoastrelid", 0),
         // Tables own a derived row type; views, sequences and indexes do not.
         int_value(
             "reltype",
@@ -611,6 +618,22 @@ fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
 
 pub(super) fn index_definition(index: &IndexMeta) -> String {
     index_definitions::index_definition(index)
+}
+
+pub(crate) fn index_column_definition_by_oid(
+    catalog: &Catalog,
+    oid: i64,
+    column: i64,
+) -> Option<String> {
+    index_definitions::index_column_definition_by_oid(catalog, oid, column)
+}
+
+pub(crate) fn index_column_definition_by_name(
+    catalog: &Catalog,
+    name: &str,
+    column: i64,
+) -> Option<String> {
+    index_definitions::index_column_definition_by_name(catalog, name, column)
 }
 
 pub(super) fn format_stored_expression(raw: &str) -> String {
@@ -842,7 +865,7 @@ fn int(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Int)
 }
 
-fn oid(name: &str) -> (String, DataType) {
+pub(super) fn oid(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::ObjectId(ObjectIdKind::Oid))
 }
 

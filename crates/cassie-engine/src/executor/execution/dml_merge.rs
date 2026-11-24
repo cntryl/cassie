@@ -16,8 +16,8 @@ use super::dml_joined::{
 };
 use super::dml_joined_update::{delete_target_row, update_target_row};
 use super::{
-    build_dml_result, check_timeout, filter, row_id_from_batch_row, BatchRow, Cassie,
-    CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
+    build_dml_result, check_timeout, row_id_from_batch_row, BatchRow, Cassie, CassieSession,
+    CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap, QueryError,
     QueryExecutionControls, QueryResult, Value,
 };
 use crate::sql::ast::{
@@ -31,6 +31,7 @@ struct MergeRun<'a> {
     target: JoinedTarget<'a>,
     source: SourceRows,
     targets: Vec<BatchRow>,
+    prepared_row_subqueries: Vec<Vec<super::dml_row_subquery::PreparedRowSubquery>>,
     modified: HashSet<usize>,
     affected: usize,
     returning: Vec<BatchRow>,
@@ -66,8 +67,20 @@ pub(in crate::executor::execution) fn execute_merge(
         user_functions,
         controls,
     };
-    let targets = target_rows(&scope, &statement.table)?;
     let source = source_rows(&scope, &statement.source)?;
+    let outer_qualifiers = source
+        .fields
+        .iter()
+        .map(|field| field.qualifier.clone())
+        .chain(std::iter::once(qualifier.clone()))
+        .map(|qualifier| qualifier.to_ascii_lowercase())
+        .chain(std::iter::once(String::new()))
+        .collect::<HashSet<_>>();
+    let folded_statement = prepare_merge_statement(&scope, statement, &outer_qualifiers)?;
+    let statement = &folded_statement;
+    let targets = target_rows(&scope, &statement.table)?;
+    let prepared_row_subqueries =
+        prepare_merge_row_subqueries(&scope, statement, &outer_qualifiers)?;
     let mut run = MergeRun {
         target: JoinedTarget {
             table: &statement.table,
@@ -78,6 +91,7 @@ pub(in crate::executor::execution) fn execute_merge(
         statement,
         source,
         targets,
+        prepared_row_subqueries,
         modified: HashSet::new(),
         affected: 0,
         returning: Vec::new(),
@@ -136,6 +150,78 @@ pub(in crate::executor::execution) fn execute_merge(
     )
 }
 
+fn prepare_merge_statement(
+    scope: &ExecutionScope<'_>,
+    statement: &MergeStatement,
+    outer_qualifiers: &HashSet<String>,
+) -> Result<MergeStatement, QueryError> {
+    let mut folded = statement.clone();
+    folded.on = super::dml_subqueries::resolve_statement_subqueries_with_outer(
+        scope,
+        &statement.on,
+        outer_qualifiers,
+    )?;
+    for clause in &mut folded.clauses {
+        if let Some(condition) = &clause.condition {
+            clause.condition = Some(
+                super::dml_subqueries::resolve_statement_subqueries_with_outer(
+                    scope,
+                    condition,
+                    outer_qualifiers,
+                )?,
+            );
+        }
+        match &mut clause.action {
+            MergeAction::Update { assignments, .. } => {
+                for (_, expression) in assignments {
+                    *expression = super::dml_subqueries::resolve_statement_subqueries_with_outer(
+                        scope,
+                        expression,
+                        outer_qualifiers,
+                    )?;
+                }
+            }
+            MergeAction::Insert {
+                values: Some(values),
+                ..
+            } => {
+                for value in values {
+                    *value = super::dml_subqueries::resolve_statement_subqueries_with_outer(
+                        scope,
+                        value,
+                        outer_qualifiers,
+                    )?;
+                }
+            }
+            MergeAction::Delete
+            | MergeAction::DoNothing
+            | MergeAction::Insert { values: None, .. } => {}
+        }
+    }
+    Ok(folded)
+}
+
+fn prepare_merge_row_subqueries(
+    scope: &ExecutionScope<'_>,
+    statement: &MergeStatement,
+    outer_qualifiers: &HashSet<String>,
+) -> Result<Vec<Vec<super::dml_row_subquery::PreparedRowSubquery>>, QueryError> {
+    statement
+        .clauses
+        .iter()
+        .map(|clause| match &clause.action {
+            MergeAction::Update { row_subqueries, .. } => {
+                super::dml_row_subquery::prepare_row_subqueries(
+                    scope,
+                    row_subqueries,
+                    outer_qualifiers,
+                )
+            }
+            _ => Ok(Vec::new()),
+        })
+        .collect()
+}
+
 impl<'a> MergeRun<'a> {
     fn source_row(&self, index: Option<usize>) -> Option<&[Value]> {
         index.map(|index| self.source.rows[index].as_slice())
@@ -146,38 +232,25 @@ impl<'a> MergeRun<'a> {
         &self,
         kind: MergeMatch,
         row: &BatchRow,
-    ) -> Result<Option<&'a MergeClause>, QueryError> {
+    ) -> Result<Option<(usize, &'a MergeClause)>, QueryError> {
         let statement: &'a MergeStatement = self.statement;
-        for clause in statement
+        for (index, clause) in statement
             .clauses
             .iter()
-            .filter(|clause| clause.kind == kind)
+            .enumerate()
+            .filter(|(_, clause)| clause.kind == kind)
         {
             let Some(condition) = clause.condition.as_ref() else {
-                return Ok(Some(clause));
+                return Ok(Some((index, clause)));
             };
-            let (_read, _overlay) =
-                crate::executor::execution::entrypoints::enter_statement_read(self.scope.controls);
-            let condition = crate::executor::execution::resolve_statement_exists(
-                self.scope.cassie,
-                self.scope.session,
-                condition,
-                self.scope.user_functions,
-                self.scope.params,
-                self.scope.controls,
-            )?;
-            if filter::eval_scalar(
-                row,
-                &condition,
-                self.scope.params,
-                None,
-                self.scope.user_functions,
-                None,
-                self.scope.session,
-            )?
-            .is_true()?
-            {
-                return Ok(Some(clause));
+            match super::dml_subqueries::evaluate_joined(&self.scope, row, condition)? {
+                Value::Bool(true) => return Ok(Some((index, clause))),
+                Value::Bool(false) | Value::Null => {}
+                _ => {
+                    return Err(QueryError::General(
+                        "argument of MERGE WHEN must be type boolean".into(),
+                    ));
+                }
             }
         }
         Ok(None)
@@ -197,7 +270,7 @@ impl<'a> MergeRun<'a> {
             self.source_row(source_index),
             Vec::new(),
         );
-        let Some(clause) = self.select_clause(kind, &row)? else {
+        let Some((clause_index, clause)) = self.select_clause(kind, &row)? else {
             return Ok(());
         };
         if matches!(clause.action, MergeAction::DoNothing) {
@@ -215,10 +288,7 @@ impl<'a> MergeRun<'a> {
         }
         let row_id = row_id_from_batch_row(&self.targets[target_index])?;
         match &clause.action {
-            MergeAction::Update {
-                assignments,
-                row_subqueries,
-            } => {
+            MergeAction::Update { assignments, .. } => {
                 let Some(change) = update_target_row(
                     &self.scope,
                     &self.target,
@@ -226,7 +296,7 @@ impl<'a> MergeRun<'a> {
                     &row,
                     assignments,
                     &[],
-                    row_subqueries,
+                    &self.prepared_row_subqueries[clause_index],
                 )?
                 else {
                     return Ok(());
@@ -261,7 +331,7 @@ impl<'a> MergeRun<'a> {
             self.source_row(Some(source_index)),
             Vec::new(),
         );
-        let Some(clause) = self.select_clause(MergeMatch::NotMatchedByTarget, &row)? else {
+        let Some((_, clause)) = self.select_clause(MergeMatch::NotMatchedByTarget, &row)? else {
             return Ok(());
         };
         let MergeAction::Insert {
@@ -272,7 +342,7 @@ impl<'a> MergeRun<'a> {
         else {
             return Ok(());
         };
-        let (columns, values) = self.insert_values(columns, values.as_deref(), &row)?;
+        let (columns, values) = self.insert_values(columns.as_slice(), values.as_deref(), &row)?;
         let insert = InsertStatement {
             table: self.statement.table.clone(),
             columns,
@@ -347,15 +417,10 @@ impl<'a> MergeRun<'a> {
             if value.is_default_assignment() {
                 continue;
             }
-            let value = super::dml_subqueries::resolve_statement_subqueries(&self.scope, value)?;
-            kept_values.push(filter::evaluate_expr_value(
+            kept_values.push(super::dml_subqueries::evaluate_joined(
+                &self.scope,
                 row,
-                &value,
-                self.scope.params,
-                None,
-                self.scope.user_functions,
-                self.scope.session,
-                None,
+                value,
             )?);
             kept_columns.push(column);
         }

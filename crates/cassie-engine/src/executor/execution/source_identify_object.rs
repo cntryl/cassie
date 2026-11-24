@@ -17,18 +17,7 @@ pub(super) fn execute(
 ) -> SourceExecution {
     // A scalar subquery argument such as `(SELECT oid FROM pg_class ...)` is
     // resolved the way every other FROM-source argument resolves one.
-    let arguments = if function.args.iter().any(super::Expr::contains_subquery) {
-        let args = function
-            .args
-            .iter()
-            .map(|argument| {
-                super::source_json_fragment::evaluate_argument(env, argument, outer_row, ctes)
-            })
-            .collect::<Result<Vec<_>, QueryError>>()?;
-        (args, env.controls.reserve_query_memory(0)?)
-    } else {
-        super::source_table_function::evaluate_args(env, function, outer_row)?
-    };
+    let arguments = super::source_table_function::evaluate_args(env, function, outer_row, ctes)?;
     let [class_id, object_id, sub_id] = arguments.0.as_slice() else {
         return Err(wrong_argument_type());
     };

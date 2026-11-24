@@ -26,7 +26,7 @@ fn should_create_table_as_prepared_execute_with_typed_parameters() {
                     .query(
                         "SELECT a.attname, a.atttypid::INT, a.atttypmod, a.attnotnull \
                          FROM pg_attribute a \
-                         WHERE a.attrelid = 'compat_ctas_execute_copy' \
+                         WHERE a.attrelid = (SELECT c.oid FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relname = 'compat_ctas_execute_copy' AND n.nspname = 'public') \
                            AND a.attnum > 0 \
                          ORDER BY attnum",
                         &[],

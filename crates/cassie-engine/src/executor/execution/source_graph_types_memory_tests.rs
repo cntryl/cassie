@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::executor::execution::graph_memory_test_observer as observer;
+use crate::executor::execution::CteContext;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::graph::{Direction, ElementKind};
@@ -64,6 +65,7 @@ fn assert_source_ownership(local: &str, admission: bool) {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &params,
         parameter_type_oids: &[],
@@ -72,7 +74,8 @@ fn assert_source_ownership(local: &str, admission: bool) {
     let base = controls.current_query_memory_bytes();
 
     // Act
-    let result = execute(&env, &name, &function, None, false).expect("expand native graph value");
+    let result = execute(&env, &name, &function, None, false, &CteContext::new())
+        .expect("expand native graph value");
     let retained = controls.current_query_memory_bytes();
     drop(result);
     let released = controls.current_query_memory_bytes();
@@ -179,6 +182,7 @@ fn should_use_the_outer_query_owner_for_a_nested_reference_constructor_scan() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &params,
         parameter_type_oids: &[],
@@ -188,7 +192,15 @@ fn should_use_the_outer_query_owner_for_a_nested_reference_constructor_scan() {
     observer::expect_owner(&controls);
 
     // Act
-    let result = execute(&env, &function.name, &function, None, false).expect("nested constructor");
+    let result = execute(
+        &env,
+        &function.name,
+        &function,
+        None,
+        false,
+        &CteContext::new(),
+    )
+    .expect("nested constructor");
 
     // Assert
     assert_eq!(result.0.iter().map(Vec::len).sum::<usize>(), 1);
@@ -237,6 +249,7 @@ fn should_admit_the_complete_live_numeric_prefix_workspace() {
     let env = SourceExecutionEnv {
         cassie: &cassie,
         session: Some(&session),
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

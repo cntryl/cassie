@@ -1,7 +1,17 @@
+use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::{ColumnBatchMetadata, ColumnBatchSegmentMeta};
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::Value;
-use std::sync::{Arc, Barrier};
+use std::sync::{mpsc, Arc, Barrier};
+use std::time::Duration;
+
+const CONCURRENCY_DEADLINE: Duration = Duration::from_secs(5);
+
+fn recv_ready<T>(receiver: &mpsc::Receiver<T>, label: &str) -> T {
+    receiver
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .unwrap_or_else(|error| panic!("{label} readiness deadline: {error}"))
+}
 
 fn segment_owns(segment: &ColumnBatchSegmentMeta, id: &str) -> bool {
     segment
@@ -65,6 +75,37 @@ fn assert_median_split(before: &ColumnBatchMetadata, after: &ColumnBatchMetadata
         5
     );
     assert_eq!(after.segments[0].row_id_end, after.segments[1].row_id_start);
+}
+
+fn seed_concurrent_column_batch_fixture(cassie: &Cassie, session: &CassieSession) {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE incremental_concurrent (label TEXT, amount INT)",
+            vec![],
+        )
+        .expect("create table");
+    for amount in 0..32 {
+        cassie
+            .midge
+            .put_document(
+                "incremental_concurrent",
+                Some(format!("row-{amount:02}")),
+                serde_json::json!({
+                    "label": if amount == 3 { "target" } else { "other" },
+                    "amount": amount
+                }),
+            )
+            .expect("seed document");
+    }
+    cassie
+        .execute_sql(
+            session,
+            "CREATE INDEX incremental_concurrent_idx ON incremental_concurrent \
+             USING column (label, amount) WITH (segment_size = 4)",
+            vec![],
+        )
+        .expect("create column index");
 }
 
 #[test]
@@ -372,42 +413,20 @@ fn should_keep_concurrent_readers_on_complete_published_generations() {
     // Arrange
     let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("create Cassie"));
     let session = cassie.create_session("tester", None);
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE TABLE incremental_concurrent (label TEXT, amount INT)",
-            vec![],
-        )
-        .expect("create table");
-    for amount in 0..32 {
-        cassie
-            .midge
-            .put_document(
-                "incremental_concurrent",
-                Some(format!("row-{amount:02}")),
-                serde_json::json!({
-                    "label": if amount == 3 { "target" } else { "other" },
-                    "amount": amount
-                }),
-            )
-            .expect("seed document");
-    }
-    cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX incremental_concurrent_idx ON incremental_concurrent \
-             USING column (label, amount) WITH (segment_size = 4)",
-            vec![],
-        )
-        .expect("create column index");
-    let start = Arc::new(Barrier::new(6));
+    seed_concurrent_column_batch_fixture(&cassie, &session);
+    let start = Arc::new(Barrier::new(5));
+    let (ready_tx, ready_rx) = mpsc::sync_channel(5);
+    let (result_tx, result_rx) = mpsc::channel();
     let mut readers = Vec::new();
     for reader_id in 0..4 {
         let reader_cassie = Arc::clone(&cassie);
         let reader_start = Arc::clone(&start);
+        let reader_ready = ready_tx.clone();
+        let reader_result = result_tx.clone();
         readers.push(std::thread::spawn(move || {
             let reader_name = format!("reader-{reader_id}");
             let reader = reader_cassie.create_session(&reader_name, None);
+            reader_ready.send(()).expect("signal reader ready");
             reader_start.wait();
             for _ in 0..100 {
                 let result = reader_cassie
@@ -423,11 +442,15 @@ fn should_keep_concurrent_readers_on_complete_published_generations() {
                     [Value::Int64(3 | 30)]
                 ));
             }
+            reader_result.send(()).expect("send reader result");
         }));
     }
     let writer_cassie = Arc::clone(&cassie);
     let writer_start = Arc::clone(&start);
+    let writer_ready = ready_tx.clone();
+    let writer_result = result_tx.clone();
     let writer = std::thread::spawn(move || {
+        writer_ready.send(()).expect("signal writer ready");
         writer_start.wait();
         for iteration in 0..100 {
             writer_cassie
@@ -442,13 +465,30 @@ fn should_keep_concurrent_readers_on_complete_published_generations() {
                 )
                 .expect("concurrent incremental update");
         }
+        writer_result.send(()).expect("send writer result");
     });
 
     // Act
-    start.wait();
-    writer.join().expect("writer thread");
-    for reader in readers {
-        reader.join().expect("reader thread");
+    drop(ready_tx);
+    for participant_id in 0..5 {
+        recv_ready(
+            &ready_rx,
+            &format!("column concurrency participant {participant_id}"),
+        );
+    }
+    drop(result_tx);
+    for result_id in 0..5 {
+        result_rx
+            .recv_timeout(CONCURRENCY_DEADLINE)
+            .unwrap_or_else(|error| panic!("column concurrency result {result_id}: {error}"));
+    }
+    writer
+        .join()
+        .unwrap_or_else(|_| panic!("column concurrency writer panicked"));
+    for (reader_id, reader) in readers.into_iter().enumerate() {
+        reader
+            .join()
+            .unwrap_or_else(|_| panic!("column concurrency reader {reader_id} panicked"));
     }
 
     // Assert

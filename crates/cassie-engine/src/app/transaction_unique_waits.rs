@@ -1,4 +1,4 @@
-//! Transaction scoped ownership for single column unique keys staged by INSERT.
+//! Transaction scoped ownership for single column unique keys staged by INSERT or UPDATE.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -8,6 +8,8 @@ use parking_lot::MutexGuard;
 use parking_lot::{Condvar, Mutex};
 use uuid::Uuid;
 
+#[cfg(test)]
+use std::cell::RefCell;
 #[cfg(test)]
 use std::sync::mpsc::Sender;
 #[cfg(test)]
@@ -22,6 +24,46 @@ use crate::runtime::QueryExecutionControls;
 static ROW_WAIT_OBSERVER: OnceLock<Mutex<Option<Sender<()>>>> = OnceLock::new();
 #[cfg(test)]
 static ROW_WAIT_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+#[cfg(test)]
+thread_local! {
+    static UNIQUE_WAIT_TEST_OBSERVER: RefCell<Option<Box<dyn FnOnce() + Send>>> = const { RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct UniqueWaitTestObserverGuard;
+
+#[cfg(test)]
+fn observe_next_unique_transaction_wait_for_test(
+    observer: impl FnOnce() + Send + 'static,
+) -> UniqueWaitTestObserverGuard {
+    UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+        assert!(
+            slot.borrow().is_none(),
+            "unique wait observer already installed"
+        );
+        *slot.borrow_mut() = Some(Box::new(observer));
+    });
+    UniqueWaitTestObserverGuard
+}
+
+#[cfg(test)]
+impl Drop for UniqueWaitTestObserverGuard {
+    fn drop(&mut self) {
+        UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+            let _ = slot.borrow_mut().take();
+        });
+    }
+}
+
+#[cfg(test)]
+fn signal_unique_wait_test_observer() {
+    UNIQUE_WAIT_TEST_OBSERVER.with(|slot| {
+        if let Some(observer) = slot.borrow_mut().take() {
+            observer();
+        }
+    });
+}
 
 #[cfg(test)]
 struct RowWaitObserverGuard {
@@ -69,6 +111,7 @@ pub(crate) enum UniqueKeyClaim {
     Wait {
         key: UniqueTransactionKey,
         owner: Uuid,
+        wait_id: Uuid,
     },
 }
 
@@ -85,18 +128,20 @@ pub(crate) enum RowKeyClaim {
         collection: String,
         id: String,
         owner: Uuid,
+        wait_id: Uuid,
     },
 }
 
 impl RowKeyClaim {
-    pub(crate) fn into_wait(self) -> Option<(String, String, Uuid)> {
+    pub(crate) fn into_wait(self) -> Option<(String, String, Uuid, Uuid)> {
         match self {
             Self::Claimed => None,
             Self::Wait {
                 collection,
                 id,
                 owner,
-            } => Some((collection, id, owner)),
+                wait_id,
+            } => Some((collection, id, owner, wait_id)),
         }
     }
 }
@@ -107,7 +152,13 @@ struct RegistryState {
     keys_by_owner: BTreeMap<Uuid, BTreeSet<UniqueTransactionKey>>,
     row_owners: BTreeMap<RowTransactionKey, Uuid>,
     rows_by_owner: BTreeMap<Uuid, BTreeSet<RowTransactionKey>>,
-    waits_for: BTreeMap<Uuid, Uuid>,
+    waits_for: BTreeMap<Uuid, WaitEdge>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WaitEdge {
+    blocker: Uuid,
+    id: Uuid,
 }
 
 #[derive(Debug, Default)]
@@ -121,10 +172,35 @@ impl TransactionUniqueWaits {
         self.state.lock().waits_for.len()
     }
 
+    pub(crate) fn has_other_owner(&self, owner: Uuid, key: &UniqueTransactionKey) -> bool {
+        self.state
+            .lock()
+            .owners
+            .get(key)
+            .is_some_and(|current| *current != owner)
+    }
+
     pub(crate) fn claim_keys(
         &self,
         owner: Uuid,
         keys: &BTreeSet<UniqueTransactionKey>,
+    ) -> Result<UniqueKeyClaim, CassieError> {
+        self.claim_keys_with_wait(owner, keys, true)
+    }
+
+    pub(crate) fn claim_keys_without_wait(
+        &self,
+        owner: Uuid,
+        keys: &BTreeSet<UniqueTransactionKey>,
+    ) -> Result<UniqueKeyClaim, CassieError> {
+        self.claim_keys_with_wait(owner, keys, false)
+    }
+
+    fn claim_keys_with_wait(
+        &self,
+        owner: Uuid,
+        keys: &BTreeSet<UniqueTransactionKey>,
+        wait: bool,
     ) -> Result<UniqueKeyClaim, CassieError> {
         let mut state = self.state.lock();
         state.waits_for.remove(&owner);
@@ -135,13 +211,29 @@ impl TransactionUniqueWaits {
                 .filter(|blocker| **blocker != owner)
                 .map(|blocker| (key.clone(), *blocker))
         }) {
+            if !wait {
+                return Err(CassieError::Transaction {
+                    kind: TransactionErrorKind::SerializationFailure,
+                    message:
+                        "unique key is owned by another active transaction; retry the transaction"
+                            .to_owned(),
+                });
+            }
             if closes_wait_cycle(&state, owner, blocker) {
                 return Err(deadlock_error());
             }
-            state.waits_for.insert(owner, blocker);
+            let wait_id = Uuid::new_v4();
+            state.waits_for.insert(
+                owner,
+                WaitEdge {
+                    blocker,
+                    id: wait_id,
+                },
+            );
             return Ok(UniqueKeyClaim::Wait {
                 key,
                 owner: blocker,
+                wait_id,
             });
         }
 
@@ -161,18 +253,29 @@ impl TransactionUniqueWaits {
         waiter: Uuid,
         owner: Uuid,
         key: &UniqueTransactionKey,
+        wait_id: Uuid,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let mut state = self.state.lock();
         loop {
             if let Err(error) = controls.check_interruption() {
-                clear_wait_edge(&mut state, waiter, owner);
+                clear_wait_edge(&mut state, waiter, owner, wait_id);
                 return Err(error);
             }
-            if state.owners.get(key) != Some(&owner) {
-                clear_wait_edge(&mut state, waiter, owner);
+            if state.waits_for.get(&waiter)
+                != Some(&WaitEdge {
+                    blocker: owner,
+                    id: wait_id,
+                })
+            {
                 return Ok(());
             }
+            if state.owners.get(key) != Some(&owner) {
+                clear_wait_edge(&mut state, waiter, owner, wait_id);
+                return Ok(());
+            }
+            #[cfg(test)]
+            signal_unique_wait_test_observer();
             self.changed.wait_for(&mut state, Duration::from_millis(25));
         }
     }
@@ -203,11 +306,19 @@ impl TransactionUniqueWaits {
             if closes_wait_cycle(&state, owner, blocker) {
                 return Err(deadlock_error());
             }
-            state.waits_for.insert(owner, blocker);
+            let wait_id = Uuid::new_v4();
+            state.waits_for.insert(
+                owner,
+                WaitEdge {
+                    blocker,
+                    id: wait_id,
+                },
+            );
             return Ok(RowKeyClaim::Wait {
                 collection: key.collection,
                 id: key.id,
                 owner: blocker,
+                wait_id,
             });
         }
         for key in &keys {
@@ -223,6 +334,7 @@ impl TransactionUniqueWaits {
         owner: Uuid,
         collection: &str,
         id: &str,
+        wait_id: Uuid,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let key = RowTransactionKey {
@@ -232,10 +344,18 @@ impl TransactionUniqueWaits {
         let mut state = self.state.lock();
         loop {
             controls.check_interruption().inspect_err(|_| {
-                clear_wait_edge(&mut state, waiter, owner);
+                clear_wait_edge(&mut state, waiter, owner, wait_id);
             })?;
+            if state.waits_for.get(&waiter)
+                != Some(&WaitEdge {
+                    blocker: owner,
+                    id: wait_id,
+                })
+            {
+                return Ok(());
+            }
             if state.row_owners.get(&key) != Some(&owner) {
-                clear_wait_edge(&mut state, waiter, owner);
+                clear_wait_edge(&mut state, waiter, owner, wait_id);
                 return Ok(());
             }
             #[cfg(test)]
@@ -319,6 +439,7 @@ impl TransactionUniqueWaits {
         if !keys.is_empty() {
             state.keys_by_owner.insert(owner, keys.clone());
         }
+        state.waits_for.remove(&owner);
         self.changed.notify_all();
         Ok(())
     }
@@ -329,6 +450,10 @@ impl TransactionUniqueWaits {
         self.changed.notify_all();
     }
 }
+
+#[cfg(test)]
+#[path = "transaction_unique_waits_issue_tests.rs"]
+mod issue_tests;
 
 fn release_owner_state(state: &mut RegistryState, owner: Uuid) {
     if let Some(keys) = state.keys_by_owner.remove(&owner) {
@@ -366,17 +491,118 @@ pub(crate) fn collect_unique_keys(
             if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
                 continue;
             }
-            collect_constraint_values(
-                &mut keys,
-                &relation,
-                &collection,
-                constraint,
-                schema.as_ref(),
-                &changes,
-            );
+            for change in changes.values() {
+                if let TransactionRowChange::Upsert(payload) = change {
+                    collect_constraint_value(
+                        &mut keys,
+                        &relation,
+                        &collection,
+                        constraint,
+                        schema.as_ref(),
+                        payload,
+                    );
+                }
+            }
         }
     }
     keys
+}
+
+pub(crate) fn collect_statement_unique_keys(
+    catalog: &Catalog,
+    midge: &Midge,
+    session: &crate::app::CassieSession,
+    changed_rows: &BTreeMap<String, BTreeSet<String>>,
+    include_preimages: bool,
+) -> Result<
+    (
+        BTreeSet<UniqueTransactionKey>,
+        BTreeSet<UniqueTransactionKey>,
+    ),
+    CassieError,
+> {
+    let writes = session.transaction_writes();
+    let mut preimages = BTreeSet::new();
+    let mut candidates = BTreeSet::new();
+    for (collection, ids) in changed_rows {
+        let constraints = catalog.get_constraints(collection);
+        if constraints.is_empty() {
+            continue;
+        }
+        let schema = catalog.get_schema(collection);
+        let relation = midge.canonical_collection_name(collection);
+        let has_published_relation =
+            include_preimages && midge.current_row_schema_identity(collection)?.is_some();
+        let changes = writes.get(collection);
+        for id in ids {
+            let previous = if has_published_relation {
+                midge.get_document(collection, id)?
+            } else {
+                None
+            };
+            for constraint in &constraints {
+                if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
+                    continue;
+                }
+                if let Some(TransactionRowChange::Upsert(payload)) =
+                    changes.and_then(|rows| rows.get(id))
+                {
+                    collect_constraint_value(
+                        &mut candidates,
+                        &relation,
+                        collection,
+                        constraint,
+                        schema.as_ref(),
+                        payload,
+                    );
+                }
+                if let Some(previous) = &previous {
+                    collect_constraint_value(
+                        &mut preimages,
+                        &relation,
+                        collection,
+                        constraint,
+                        schema.as_ref(),
+                        &previous.payload,
+                    );
+                }
+            }
+        }
+    }
+    preimages.extend(candidates.iter().cloned());
+    Ok((preimages, candidates))
+}
+
+pub(crate) fn has_unique_wait_owner(
+    catalog: &Catalog,
+    midge: &Midge,
+    session: &crate::app::CassieSession,
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if !session.defers_unique_wait_duplicate() {
+        return false;
+    }
+    let Some(waits) = session.transaction_unique_waits() else {
+        return false;
+    };
+    let constraints = catalog.get_constraints(collection);
+    let relation = midge.canonical_collection_name(collection);
+    let owner = session.transaction_unique_owner_id();
+    constraints.iter().any(|constraint| {
+        constraint.field == field
+            && crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
+            && waits.has_other_owner(
+                owner,
+                &UniqueTransactionKey {
+                    relation: relation.clone(),
+                    constraint: constraint.unique_constraint_name(collection),
+                    field: constraint.field.clone(),
+                    value: value.to_string(),
+                },
+            )
+    })
 }
 
 pub(crate) fn collect_upsert_unique_keys(
@@ -447,13 +673,32 @@ pub(crate) fn validate_unique_key_candidate(
             let Some(payload) = payload.as_object() else {
                 continue;
             };
-            cassie.validate_uniques(
+            let validation = cassie.validate_uniques(
                 Some(session),
                 &collection,
                 payload,
                 &constraints,
                 Some(&id),
-            )?;
+            );
+            match validation {
+                Ok(()) => {}
+                Err(CassieError::UniqueViolation {
+                    column, constraint, ..
+                }) => {
+                    let value = payload.get(&column).ok_or_else(|| {
+                        CassieError::Execution(
+                            "unique-key wait lost its duplicate candidate value".to_owned(),
+                        )
+                    })?;
+                    return Err(crate::app::DiagnosticError::new(
+                        "23505",
+                        format!("duplicate key value violates unique constraint \"{constraint}\""),
+                    )
+                    .with_detail(unique_key_duplicate_detail(&column, value))
+                    .into());
+                }
+                Err(error) => return Err(error),
+            }
             return Ok(());
         }
     }
@@ -462,31 +707,33 @@ pub(crate) fn validate_unique_key_candidate(
     ))
 }
 
-fn collect_constraint_values(
+fn unique_key_duplicate_detail(field: &str, value: &serde_json::Value) -> String {
+    let value = value
+        .as_str()
+        .map_or_else(|| value.to_string(), str::to_owned);
+    format!("Key ({field})=({value}) already exists.")
+}
+
+fn collect_constraint_value(
     keys: &mut BTreeSet<UniqueTransactionKey>,
     relation: &str,
     collection: &str,
     constraint: &FieldConstraint,
     schema: Option<&crate::catalog::CollectionSchema>,
-    changes: &BTreeMap<String, TransactionRowChange>,
+    payload: &serde_json::Value,
 ) {
-    for change in changes.values() {
-        let TransactionRowChange::Upsert(payload) = change else {
-            continue;
-        };
-        let Some(value) = payload.get(&constraint.field) else {
-            continue;
-        };
-        if crate::app::field_value_is_sql_null(Some(value), schema, &constraint.field) {
-            continue;
-        }
-        keys.insert(UniqueTransactionKey {
-            relation: relation.to_owned(),
-            constraint: constraint.unique_constraint_name(collection),
-            field: constraint.field.clone(),
-            value: value.to_string(),
-        });
+    let Some(value) = payload.get(&constraint.field) else {
+        return;
+    };
+    if crate::app::field_value_is_sql_null(Some(value), schema, &constraint.field) {
+        return;
     }
+    keys.insert(UniqueTransactionKey {
+        relation: relation.to_owned(),
+        constraint: constraint.unique_constraint_name(collection),
+        field: constraint.field.clone(),
+        value: value.to_string(),
+    });
 }
 
 fn closes_wait_cycle(state: &RegistryState, waiter: Uuid, blocker: Uuid) -> bool {
@@ -496,16 +743,21 @@ fn closes_wait_cycle(state: &RegistryState, waiter: Uuid, blocker: Uuid) -> bool
         if current == waiter {
             return true;
         }
-        let Some(next) = state.waits_for.get(&current) else {
+        let Some(next) = state.waits_for.get(&current).map(|edge| edge.blocker) else {
             return false;
         };
-        current = *next;
+        current = next;
     }
     true
 }
 
-fn clear_wait_edge(state: &mut RegistryState, waiter: Uuid, owner: Uuid) {
-    if state.waits_for.get(&waiter) == Some(&owner) {
+fn clear_wait_edge(state: &mut RegistryState, waiter: Uuid, owner: Uuid, wait_id: Uuid) {
+    if state.waits_for.get(&waiter)
+        == Some(&WaitEdge {
+            blocker: owner,
+            id: wait_id,
+        })
+    {
         state.waits_for.remove(&waiter);
     }
 }
@@ -522,6 +774,7 @@ mod tests {
     use super::*;
     use crate::config::CassieRuntimeLimits;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+    use std::sync::{mpsc, Arc};
     use std::time::Instant;
 
     fn unique_key() -> UniqueTransactionKey {
@@ -541,12 +794,10 @@ mod tests {
         waits
             .claim_keys(owner, &BTreeSet::from([key.clone()]))
             .expect("owner claims the key");
-        assert!(matches!(
-            waits
-                .claim_keys(waiter, &BTreeSet::from([key.clone()]))
-                .expect("waiter requests the held key"),
-            UniqueKeyClaim::Wait { .. }
-        ));
+        let claim = waits
+            .claim_keys(waiter, &BTreeSet::from([key.clone()]))
+            .expect("waiter requests the held key");
+        assert!(matches!(claim, UniqueKeyClaim::Wait { .. }));
         (waits, owner, waiter, key)
     }
 
@@ -563,7 +814,14 @@ mod tests {
         );
 
         // Act
-        let result = waits.wait_for_key(waiter, owner, &key, &controls);
+        let wait_id = waits
+            .state
+            .lock()
+            .waits_for
+            .get(&waiter)
+            .expect("wait edge")
+            .id;
+        let result = waits.wait_for_key(waiter, owner, &key, wait_id, &controls);
 
         // Assert
         assert!(matches!(result, Err(CassieError::QueryCanceled)));
@@ -584,11 +842,93 @@ mod tests {
         let controls = QueryExecutionControls::from_limits(&limits, elapsed_start);
 
         // Act
-        let result = waits.wait_for_key(waiter, owner, &key, &controls);
+        let wait_id = waits
+            .state
+            .lock()
+            .waits_for
+            .get(&waiter)
+            .expect("wait edge")
+            .id;
+        let result = waits.wait_for_key(waiter, owner, &key, wait_id, &controls);
 
         // Assert
         assert!(matches!(result, Err(CassieError::DeadlineExceeded)));
         assert!(!waits.state.lock().waits_for.contains_key(&waiter));
+    }
+
+    #[test]
+    fn should_not_clear_newer_wait_from_synchronized_obsolete_cleanup() {
+        // Arrange
+        let waits = Arc::new(TransactionUniqueWaits::default());
+        let blocker = Uuid::new_v4();
+        let waiter = Uuid::new_v4();
+        let key = unique_key();
+        waits
+            .claim_keys(blocker, &BTreeSet::from([key.clone()]))
+            .expect("blocker claims the key");
+        let UniqueKeyClaim::Wait {
+            wait_id: retired_wait_id,
+            ..
+        } = waits
+            .claim_keys(waiter, &BTreeSet::from([key.clone()]))
+            .expect("retired wait claim")
+        else {
+            panic!("expected the original wait");
+        };
+        let cancellation = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let (waiting_sender, waiting_receiver) = mpsc::channel();
+        let worker = {
+            let waits = Arc::clone(&waits);
+            let key = key.clone();
+            std::thread::spawn(move || {
+                let _observer = observe_next_unique_transaction_wait_for_test(move || {
+                    waiting_sender.send(()).expect("replacement observer");
+                });
+                waits.wait_for_key(waiter, blocker, &key, retired_wait_id, &controls)
+            })
+        };
+        waiting_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("obsolete waiter reaches the condition variable");
+        let newer_wait_id = Uuid::new_v4();
+
+        // Act
+        {
+            let mut state = waits.state.lock();
+            assert_eq!(
+                state.waits_for.insert(
+                    waiter,
+                    WaitEdge {
+                        blocker,
+                        id: newer_wait_id,
+                    },
+                ),
+                Some(WaitEdge {
+                    blocker,
+                    id: retired_wait_id,
+                })
+            );
+            cancellation.cancel();
+            waits.changed.notify_all();
+        }
+        let result = worker.join().expect("obsolete cleanup worker");
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
+        assert_eq!(
+            waits
+                .state
+                .lock()
+                .waits_for
+                .get(&waiter)
+                .map(|edge| edge.id),
+            Some(newer_wait_id)
+        );
     }
 
     #[test]
@@ -672,6 +1012,7 @@ mod tests {
             collection,
             id,
             owner: blocker,
+            wait_id,
         } = claim
         else {
             panic!("expected row wait");
@@ -685,7 +1026,7 @@ mod tests {
         );
 
         // Act
-        let result = waits.wait_for_row(waiter, blocker, &collection, &id, &controls);
+        let result = waits.wait_for_row(waiter, blocker, &collection, &id, wait_id, &controls);
 
         // Assert
         assert!(matches!(result, Err(CassieError::QueryCanceled)));

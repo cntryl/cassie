@@ -765,13 +765,22 @@ fn infer_function_result_type(
     ) {
         return Some(data_type);
     }
-    if let Some(metadata) = user_functions.get(&name).filter(|metadata| {
-        !crate::sql::functions::has_distinct_builtin_arity(
-            &name,
-            function.args.len(),
-            metadata.args.len(),
-        )
-    }) {
+    let visible_routine = user_functions
+        .get(&name)
+        .or_else(|| {
+            user_functions.values().find(|metadata| {
+                crate::catalog::local_name(&metadata.name).eq_ignore_ascii_case(&name)
+                    && metadata.args.len() == function.args.len()
+            })
+        })
+        .filter(|metadata| {
+            !crate::sql::functions::has_distinct_builtin_arity(
+                &name,
+                function.args.len(),
+                metadata.args.len(),
+            )
+        });
+    if let Some(metadata) = visible_routine {
         return Some(metadata.return_type.clone());
     }
     let metadata = crate::sql::functions::function(&name)?;

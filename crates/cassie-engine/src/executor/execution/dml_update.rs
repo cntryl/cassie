@@ -58,9 +58,7 @@ pub(in crate::executor::execution) fn execute_update(
         None
     };
     let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
-    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
-        QueryError::General(format!("collection '{}' not found", statement.table))
-    })?;
+    let schema = update_schema(cassie, &statement.table)?;
     let subqueries = super::dml_subqueries::RowSubqueries {
         cassie,
         session,
@@ -82,6 +80,7 @@ pub(in crate::executor::execution) fn execute_update(
     for (_, expr) in &mut folded.assignments {
         *expr = subqueries.fold(expr)?;
     }
+
     let statement = &folded;
     let mut returning_rows = Vec::new();
     let prepare_context = PrepareUpdateContext {
@@ -94,9 +93,12 @@ pub(in crate::executor::execution) fn execute_update(
         controls,
         subqueries: &subqueries,
     };
+    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
     for row in &matched_rows {
         check_timeout(controls)?;
-        let prepared = prepare_update_row(&prepare_context, row)?;
+        prepared_rows.push(prepare_update_row(&prepare_context, row)?);
+    }
+    for prepared in prepared_rows {
         apply_update_row(
             cassie,
             session,
@@ -128,6 +130,13 @@ pub(in crate::executor::execution) fn execute_update(
         updated_count,
         returning_rows,
     )
+}
+
+fn update_schema(cassie: &Cassie, table: &str) -> Result<CollectionSchema, QueryError> {
+    cassie
+        .catalog
+        .get_schema(table)
+        .ok_or_else(|| QueryError::General(format!("collection '{table}' not found")))
 }
 
 /// Admit explicit READ COMMITTED UPDATE row ownership before the DML gate.
@@ -184,9 +193,9 @@ pub(in crate::executor::execution) fn admit_read_committed_update_rows(
         {
             crate::app::RowKeyClaim::Claimed => return Ok(()),
             claim @ crate::app::RowKeyClaim::Wait { .. } => {
-                let (collection, id, blocker) = claim.into_wait().expect("row wait claim");
+                let (collection, id, blocker, wait_id) = claim.into_wait().expect("row wait claim");
                 waits
-                    .wait_for_row(owner, blocker, &collection, &id, controls)
+                    .wait_for_row(owner, blocker, &collection, &id, wait_id, controls)
                     .map_err(QueryError::from)?;
             }
         }
@@ -247,6 +256,7 @@ fn prepare_update_row(
             table: &context.statement.table,
             schema: context.schema,
             subqueries: Some(context.subqueries),
+            joined_scope: None,
             array_targets: &context.statement.array_targets,
         },
         row,
@@ -289,6 +299,7 @@ pub(super) struct AssignmentTarget<'a> {
     pub(super) table: &'a str,
     pub(super) schema: &'a CollectionSchema,
     pub(super) subqueries: Option<&'a super::dml_subqueries::RowSubqueries<'a>>,
+    pub(super) joined_scope: Option<&'a super::dml_joined::ExecutionScope<'a>>,
     pub(super) array_targets: &'a [crate::sql::ast::UpdateTarget],
 }
 
@@ -321,8 +332,11 @@ pub(super) fn updated_payload_from_row(
         }
         let mut expr = expr.clone();
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
-        let value = match target.subqueries {
-            Some(subqueries) if expr.contains_subquery() => subqueries.evaluate(row, &expr)?,
+        let value = match (target.subqueries, target.joined_scope) {
+            (Some(subqueries), _) if expr.contains_subquery() => subqueries.evaluate(row, &expr)?,
+            (_, Some(scope)) if expr.contains_subquery() => {
+                super::dml_subqueries::evaluate_joined(scope, row, &expr)?
+            }
             _ => filter::evaluate_expr_value(
                 row,
                 &expr,
@@ -343,6 +357,7 @@ pub(super) fn updated_payload_from_row(
                 field,
                 &array_target.subscripts,
                 &value,
+                matches!(expr, Expr::StringLiteral(_)),
                 (row, params, user_functions, session),
                 schema,
             )?;
@@ -364,6 +379,7 @@ fn apply_array_update_value(
     field: &str,
     subscripts: &[crate::sql::ast::ArraySubscript],
     assigned: &Value,
+    assigned_unknown_literal: bool,
     evaluation: (
         &BatchRow,
         &[Value],
@@ -410,7 +426,12 @@ fn apply_array_update_value(
     match &subscripts[0] {
         crate::sql::ast::ArraySubscript::Index(expression) => {
             let index = evaluate_array_bound(expression, row, params, user_functions, session)?;
-            set_array_element(&mut array, index, assigned.clone())?;
+            let assigned = if assigned_unknown_literal {
+                super::unknown_literal_value(assigned.clone(), element_type)?
+            } else {
+                assigned.clone()
+            };
+            set_array_element(&mut array, index, assigned)?;
         }
         crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
             let default_lower = array
@@ -439,7 +460,12 @@ fn apply_array_update_value(
                 })
                 .transpose()?
                 .unwrap_or(default_upper);
-            let replacement = match assigned {
+            let assigned = if assigned_unknown_literal {
+                super::unknown_literal_value(assigned.clone(), &field_schema.data_type)?
+            } else {
+                assigned.clone()
+            };
+            let replacement = match &assigned {
                 Value::Array(array) => array.clone(),
                 Value::Json(value) if value.is_array() => crate::types::SqlArray::from_nested_json(
                     value,
@@ -577,6 +603,7 @@ fn set_array_slice(
     if upper < lower {
         return Ok(());
     }
+    validate_slice_length(lower, upper, replacement)?;
     let (mut old_lower, mut old_length, mut elements) = if array.is_empty() {
         (1, 0_usize, Vec::new())
     } else {
@@ -660,6 +687,25 @@ fn set_array_slice(
     )
     .map_err(QueryError::General)?;
     Ok(())
+}
+
+fn validate_slice_length(
+    lower: i32,
+    upper: i32,
+    replacement: &crate::types::SqlArray,
+) -> Result<(), QueryError> {
+    let target_length = upper
+        .checked_sub(lower)
+        .and_then(|length| length.checked_add(1))
+        .and_then(|length| usize::try_from(length).ok())
+        .ok_or_else(|| QueryError::General("array slice length is out of range".into()))?;
+    if replacement.len() == target_length {
+        Ok(())
+    } else {
+        Err(QueryError::General(
+            "array slice assignment dimensions do not match".into(),
+        ))
+    }
 }
 
 fn apply_update_row(

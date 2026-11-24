@@ -7,6 +7,8 @@ pub mod health;
 pub mod indexes;
 pub mod query;
 pub(crate) mod query_operations;
+#[doc(hidden)]
+pub use query_operations::is_active_for_test;
 pub mod router;
 pub(crate) mod scope;
 pub mod search;

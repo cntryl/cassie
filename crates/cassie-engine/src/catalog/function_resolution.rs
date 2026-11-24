@@ -18,28 +18,33 @@ pub fn functions_for_scope(
     let mut scoped = Vec::new();
 
     for function in functions {
-        let Ok(ParsedName::DatabaseQualified {
-            database: function_database,
-            schema,
-            name,
-        }) = parse_name(&function.name)
-        else {
-            if !enforce_database_scope {
-                visible.insert(function.name.to_ascii_lowercase(), function.clone());
+        match parse_name(&function.name) {
+            Ok(ParsedName::DatabaseQualified {
+                database: function_database,
+                schema,
+                name,
+            }) => {
+                if enforce_database_scope && !function_database.eq_ignore_ascii_case(database) {
+                    continue;
+                }
+                let canonical = function.name.to_ascii_lowercase();
+                visible.insert(canonical, function.clone());
+                visible
+                    .entry(format!("{schema}.{name}").to_ascii_lowercase())
+                    .or_insert_with(|| function.clone());
+                scoped.push((schema, name, function.clone()));
             }
-            continue;
-        };
-
-        if enforce_database_scope && !function_database.eq_ignore_ascii_case(database) {
-            continue;
+            Ok(ParsedName::SchemaQualified { schema, name }) if !enforce_database_scope => {
+                let canonical = function.name.to_ascii_lowercase();
+                visible.insert(canonical, function.clone());
+                scoped.push((schema, name, function.clone()));
+            }
+            _ => {
+                if !enforce_database_scope {
+                    visible.insert(function.name.to_ascii_lowercase(), function.clone());
+                }
+            }
         }
-
-        let canonical = function.name.to_ascii_lowercase();
-        visible.insert(canonical, function.clone());
-        visible
-            .entry(format!("{schema}.{name}").to_ascii_lowercase())
-            .or_insert_with(|| function.clone());
-        scoped.push((schema, name, function.clone()));
     }
 
     if enforce_database_scope {
@@ -53,6 +58,15 @@ pub fn functions_for_scope(
             }
         }
     } else {
+        for search_schema in search_path {
+            for (schema, name, function) in &scoped {
+                if schema.eq_ignore_ascii_case(search_schema) {
+                    visible
+                        .entry(name.to_ascii_lowercase())
+                        .or_insert_with(|| function.clone());
+                }
+            }
+        }
         for (_, name, function) in scoped {
             visible.entry(name.to_ascii_lowercase()).or_insert(function);
         }

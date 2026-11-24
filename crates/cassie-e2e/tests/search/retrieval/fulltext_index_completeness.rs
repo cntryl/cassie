@@ -217,7 +217,7 @@ fn should_rebuild_old_fulltext_metadata_during_startup() {
         .expect("upgraded fulltext metadata");
 
     // Assert
-    assert_eq!(metadata[4], 3, "startup must publish only v3 metadata");
+    assert_eq!(metadata[4], 4, "startup must publish current v4 metadata");
     assert!(restarted
         .midge
         .get_persisted_fulltext_index_state(COLLECTION, INDEX)

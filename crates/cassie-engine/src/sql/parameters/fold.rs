@@ -3,6 +3,7 @@
 use crate::catalog::{Catalog, FunctionInputScope};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::{ast, functions as sql_functions, FieldTypeMap, QueryStatement};
+use std::collections::HashMap;
 
 use super::admission::{check_controls, reserve_vector, ReservedVector};
 use super::diagnostics::BooleanConstruct;
@@ -190,12 +191,28 @@ impl<'a, 'c> Fold<'a, 'c> {
             context = self.contexts.values.len();
             // Source metadata discovery is the existing catalog-input boundary.
             // New fold directories and retained summaries are admitted separately.
-            let fields = crate::sql::source_field_type_map_with_parameters(
-                &select.source,
-                &select.ctes,
-                self.catalog,
-                &self.occurrences.slots.values,
-            );
+            let fields = if let ast::QuerySource::Values { rows } = &select.source {
+                let user_functions = self.scope.map_or_else(HashMap::new, |scope| {
+                    crate::catalog::function_resolution::functions_for_scope(
+                        &self.catalog.list_functions(),
+                        scope.database,
+                        scope.search_path,
+                        scope.enforce_database_scope,
+                    )
+                });
+                crate::sql::source_types::values_field_type_map_with_functions(
+                    rows,
+                    &self.occurrences.slots.values,
+                    &user_functions,
+                )
+            } else {
+                crate::sql::source_field_type_map_with_parameters(
+                    &select.source,
+                    &select.ctes,
+                    self.catalog,
+                    &self.occurrences.slots.values,
+                )
+            };
             self.contexts.try_push(
                 Context {
                     fields,

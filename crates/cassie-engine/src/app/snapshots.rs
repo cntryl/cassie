@@ -580,7 +580,7 @@ mod tests {
         let (copy_continue, wait_for_copy) = std::sync::mpsc::channel();
         let writer_source = source.clone();
         let writer = std::thread::spawn(move || {
-            writer_started.recv().expect("start snapshot writer");
+            let () = crate::runtime::test_sync::recv_test(&writer_started, "snapshot writer start");
             let cassie = Cassie::new_with_data_dir(&writer_source).expect("open writer Cassie");
             cassie.startup().expect("start writer Cassie");
             let session = cassie.create_session("writer", None);
@@ -593,7 +593,8 @@ mod tests {
                 .expect("mutate source during copy");
             drop(cassie);
             writer_finished.send(()).expect("report source mutation");
-            wait_for_copy.recv().expect("finish snapshot copy");
+            let () =
+                crate::runtime::test_sync::recv_test(&wait_for_copy, "snapshot copy completion");
         });
 
         // Act
@@ -607,16 +608,15 @@ mod tests {
                 start_writer
                     .send(())
                     .map_err(|error| CassieError::Storage(error.to_string()))?;
-                writer_done
-                    .recv()
-                    .map_err(|error| CassieError::Storage(error.to_string()))?;
+                let () =
+                    crate::runtime::test_sync::recv_test(&writer_done, "snapshot source mutation");
                 copy_continue
                     .send(())
                     .map_err(|error| CassieError::Storage(error.to_string()))
             },
         )
         .expect_err("source mutation must invalidate snapshot");
-        writer.join().expect("join snapshot writer");
+        let () = crate::runtime::test_sync::join_test_thread(writer, "snapshot writer");
 
         // Assert
         assert!(error

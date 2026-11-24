@@ -35,6 +35,7 @@ fn should_retain_fresh_derived_qualification_backing_with_parent_roots() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -83,6 +84,7 @@ fn should_deny_derived_qualification_before_constructing_long_aliases() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -163,6 +165,7 @@ fn should_retain_cte_array_source_descriptor_replacement_until_output_drop() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -240,6 +243,7 @@ fn should_retain_known_cte_null_template_copy_until_template_drop() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -295,6 +299,7 @@ fn should_deny_known_cte_null_template_copy_without_partial_publication() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -355,6 +360,7 @@ fn should_admit_combined_known_cte_templates_before_copying_backing() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -395,6 +401,7 @@ fn should_admit_combined_known_cte_templates_before_copying_backing() {
         let env = SourceExecutionEnv {
             cassie,
             session: None,
+            binding_context: None,
             user_functions: &functions,
             params: &[],
             parameter_type_oids: &[],
@@ -452,6 +459,7 @@ fn should_retain_derived_lateral_cte_array_templates_until_drop() {
             let env = SourceExecutionEnv {
                 cassie,
                 session: None,
+                binding_context: None,
                 user_functions: &functions,
                 params: &[],
                 parameter_type_oids: &[],
@@ -520,6 +528,7 @@ fn should_deny_derived_lateral_cte_template_aliases_before_construction() {
             let env = SourceExecutionEnv {
                 cassie,
                 session: None,
+                binding_context: None,
                 user_functions: &functions,
                 params: &[],
                 parameter_type_oids: &[],

@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::app::CassieSession;
 use crate::catalog::{
     local_name, relation_belongs_to_database, relation_schema_name, Catalog, FieldConstraint,
     IndexKind,
@@ -44,13 +45,14 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
     vec![
         int("oid"),
         text("conname"),
-        text("conrelid"),
+        super::virtual_views_pg::oid("conrelid"),
         int("conrelid_oid"),
         text("contype"),
-        text("conindid"),
+        super::virtual_views_pg::oid("conindid"),
+        int("conindid_oid"),
         int("connamespace_oid"),
         text("conkey"),
-        text("confrelid"),
+        super::virtual_views_pg::oid("confrelid"),
         int("confrelid_oid"),
         text("confkey"),
         bool("conenforced"),
@@ -283,6 +285,132 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
     rows
 }
 
+pub(super) fn definition_by_oid(
+    catalog: &Catalog,
+    current_database: &str,
+    oid: i64,
+    session: Option<&CassieSession>,
+) -> Option<String> {
+    for collection in catalog.list_collections_canonical() {
+        if !relation_belongs_to_database(&collection.name, current_database)
+            || session.is_some_and(|session| {
+                !crate::app::relation_readable(catalog, current_database, session, &collection.name)
+            })
+        {
+            continue;
+        }
+        let constraints = catalog.get_constraints(&collection.name);
+        for constraint in &constraints {
+            for kind in [
+                ConstraintKind::PrimaryKey,
+                ConstraintKind::Unique,
+                ConstraintKind::Check,
+                ConstraintKind::ForeignKey,
+            ] {
+                let Some(name) = constraint_kind_name(&collection.name, constraint, kind) else {
+                    continue;
+                };
+                if super::virtual_views_pg::constraint_oid(&collection.name, &name) == oid {
+                    return render_constraint_definition(
+                        &constraints,
+                        &collection.name,
+                        kind,
+                        &name,
+                    );
+                }
+            }
+        }
+    }
+    None
+}
+
+fn constraint_kind_name(
+    collection: &str,
+    constraint: &FieldConstraint,
+    kind: ConstraintKind,
+) -> Option<String> {
+    match kind {
+        ConstraintKind::PrimaryKey => constraint
+            .primary_key
+            .then(|| pg_constraint_name(collection, constraint, ConstraintKind::PrimaryKey)),
+        ConstraintKind::Unique => (constraint.unique && !constraint.primary_key)
+            .then(|| pg_constraint_name(collection, constraint, ConstraintKind::Unique)),
+        ConstraintKind::Check => constraint
+            .check
+            .as_ref()
+            .map(|_| pg_constraint_name(collection, constraint, ConstraintKind::Check)),
+        ConstraintKind::ForeignKey => constraint
+            .references_table
+            .as_ref()
+            .zip(constraint.references_field.as_ref())
+            .map(|_| pg_constraint_name(collection, constraint, ConstraintKind::ForeignKey)),
+    }
+}
+
+fn render_constraint_definition(
+    constraints: &[FieldConstraint],
+    collection: &str,
+    kind: ConstraintKind,
+    name: &str,
+) -> Option<String> {
+    let members = constraints
+        .iter()
+        .filter(|constraint| {
+            constraint_kind_name(collection, constraint, kind).as_deref() == Some(name)
+        })
+        .collect::<Vec<_>>();
+    let fields = members
+        .iter()
+        .map(|constraint| constraint.field.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    match kind {
+        ConstraintKind::PrimaryKey => Some(format!("PRIMARY KEY ({fields})")),
+        ConstraintKind::Unique => Some(format!("UNIQUE ({fields})")),
+        ConstraintKind::Check => members.first().and_then(|constraint| {
+            constraint.check.as_ref().map(|check| {
+                let operator = match check.operator {
+                    crate::catalog::ConstraintOperator::Eq => "=",
+                    crate::catalog::ConstraintOperator::NotEq => "<>",
+                    crate::catalog::ConstraintOperator::Lt => "<",
+                    crate::catalog::ConstraintOperator::Lte => "<=",
+                    crate::catalog::ConstraintOperator::Gt => ">",
+                    crate::catalog::ConstraintOperator::Gte => ">=",
+                    crate::catalog::ConstraintOperator::Like => "LIKE",
+                    crate::catalog::ConstraintOperator::IsDistinctFrom => "IS DISTINCT FROM",
+                    crate::catalog::ConstraintOperator::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
+                };
+                format!(
+                    "CHECK (({} {operator} {}))",
+                    check.field,
+                    constraint_value_sql(&check.value)
+                )
+            })
+        }),
+        ConstraintKind::ForeignKey => members.first().and_then(|constraint| {
+            Some(format!(
+                "FOREIGN KEY ({fields}) REFERENCES {}({})",
+                local_name(constraint.references_table.as_deref()?),
+                members
+                    .iter()
+                    .filter_map(|member| member.references_field.as_deref())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        }),
+    }
+}
+
+fn constraint_value_sql(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => "NULL".to_owned(),
+        serde_json::Value::Bool(value) => value.to_string(),
+        serde_json::Value::Number(value) => value.to_string(),
+        serde_json::Value::String(value) => format!("'{}'", value.replace('\'', "''")),
+        value => value.to_string(),
+    }
+}
+
 fn push_table_constraint(
     rows: &mut Vec<VirtualRow>,
     seen: &mut BTreeSet<(String, String, String)>,
@@ -341,7 +469,10 @@ fn pg_constraint_row(
             super::virtual_views_pg::constraint_oid(collection, constraint_name),
         ),
         string("conname", constraint_name.to_string()),
-        string("conrelid", local_name(collection)),
+        int_value(
+            "conrelid",
+            super::virtual_views_pg::relation_oid(catalog, collection),
+        ),
         int_value(
             "conrelid_oid",
             super::virtual_views_pg::relation_oid(catalog, collection),
@@ -352,9 +483,23 @@ fn pg_constraint_row(
             if matches!(constraint_type, "p" | "u") {
                 catalog
                     .get_index(collection, constraint_name)
-                    .map_or(Value::Null, |index| Value::String(local_name(&index.name)))
+                    .map_or(Value::Int64(0), |index| {
+                        Value::Int64(super::virtual_views_pg::index_oid(&index))
+                    })
             } else {
-                Value::Null
+                Value::Int64(0)
+            },
+        ),
+        (
+            "conindid_oid".to_string(),
+            if matches!(constraint_type, "p" | "u") {
+                catalog
+                    .get_index(collection, constraint_name)
+                    .map_or(Value::Int64(0), |index| {
+                        Value::Int64(super::virtual_views_pg::index_oid(&index))
+                    })
+            } else {
+                Value::Int64(0)
             },
         ),
         int_value(
@@ -370,7 +515,14 @@ fn pg_constraint_row(
             ),
         ),
         string("conkey", field_number(catalog, collection, field)),
-        string("confrelid", local_name(referenced_table)),
+        int_value(
+            "confrelid",
+            if referenced_table.is_empty() {
+                0
+            } else {
+                super::virtual_views_pg::relation_oid(catalog, referenced_table)
+            },
+        ),
         int_value(
             "confrelid_oid",
             if referenced_table.is_empty() {

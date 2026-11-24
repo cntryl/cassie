@@ -77,7 +77,14 @@ pub(in crate::app) fn admit_parameter_types(
     while let QueryStatement::Explain(explain) = query {
         query = &explain.statement.statement;
     }
-    if !matches!(query, QueryStatement::Select(_)) {
+    if !matches!(
+        query,
+        QueryStatement::Select(_)
+            | QueryStatement::Insert(_)
+            | QueryStatement::Update(_)
+            | QueryStatement::Delete(_)
+            | QueryStatement::Merge(_)
+    ) {
         // This slice preserves the existing embedded DML and command validation paths.
         return Ok(None);
     }

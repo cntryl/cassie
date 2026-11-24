@@ -42,9 +42,11 @@ async fn observe_uncommitted_alter(
             .expect("write through the transaction-local column");
         let owner_columns: i64 = owner
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility' \
-                   AND attname = 'note' AND NOT attisdropped",
+                "SELECT count(*) FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'compat_alter_catalog_visibility' AND n.nspname = 'public' \
+                   AND a.attname = 'note' AND NOT a.attisdropped",
                 &[],
             )
             .await
@@ -53,9 +55,11 @@ async fn observe_uncommitted_alter(
             .expect("owner column count");
         let observer_columns: i64 = observer
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility' \
-                   AND attname = 'note' AND NOT attisdropped",
+                "SELECT count(*) FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'compat_alter_catalog_visibility' AND n.nspname = 'public' \
+                   AND a.attname = 'note' AND NOT a.attisdropped",
                 &[],
             )
             .await
@@ -68,9 +72,11 @@ async fn observe_uncommitted_alter(
             .expect("roll back the column and its staged data");
         let observer_columns_after_rollback: i64 = observer
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility' \
-                   AND attname = 'note' AND NOT attisdropped",
+                "SELECT count(*) FROM pg_catalog.pg_attribute a \
+                 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+                 WHERE c.relname = 'compat_alter_catalog_visibility' AND n.nspname = 'public' \
+                   AND a.attname = 'note' AND NOT a.attisdropped",
                 &[],
             )
             .await

@@ -63,7 +63,7 @@ pub(super) fn execute(
         );
     }
     if crate::sql::functions::is_options_table(&function.name) {
-        let batches = source_options::execute(env, &function.args[0], outer_row)?;
+        let batches = source_options::execute(env, &function.args[0], outer_row, ctes)?;
         return finalize_source_batches(env, batches, Vec::new(), qualify, name);
     }
     if crate::sql::functions::is_loaded_modules(&function.name) {
@@ -75,13 +75,15 @@ pub(super) fn execute(
         return super::source_identify_object::execute(env, name, function, outer, qualify, ctes);
     }
     if crate::sql::functions::graph_weighted::is_weighted_paths(&function.name) {
-        return super::source_graph_table::execute_weighted(env, name, function, outer, qualify);
+        return super::source_graph_table::execute_weighted(
+            env, name, function, outer, qualify, ctes,
+        );
     }
-    if let Some(result) = source_graph_types::dispatch(env, name, function, outer, qualify) {
+    if let Some(result) = source_graph_types::dispatch(env, name, function, outer, qualify, ctes) {
         return result;
     }
     if crate::sql::functions::is_pg_input_error_info(&function.name) {
-        return execute_pg_input_error_info(env, name, function, outer, qualify);
+        return execute_pg_input_error_info(env, name, function, outer, qualify, ctes);
     }
     if matches!(
         function.name.to_ascii_lowercase().as_str(),
@@ -179,8 +181,9 @@ fn execute_pg_input_error_info(
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
     qualify: bool,
+    ctes: &super::CteContext,
 ) -> SourceExecution {
-    let arguments = evaluate_args(env, function, outer_row)?;
+    let arguments = evaluate_args(env, function, outer_row, ctes)?;
     let args = &arguments.0;
     let input = args
         .first()
@@ -240,6 +243,7 @@ pub(super) fn evaluate_args(
     env: &SourceExecutionEnv<'_>,
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
+    ctes: &super::CteContext,
 ) -> Result<(Vec<Value>, crate::runtime::QueryMemoryReservation), QueryError> {
     env.controls.check_interruption()?;
     let empty = BatchRow::new(Vec::new());
@@ -254,14 +258,8 @@ pub(super) fn evaluate_args(
         .try_reserve_exact(function.args.len())
         .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
     for argument in &function.args {
-        arguments.push(filter::evaluate_source_argument(
-            row,
-            argument,
-            env.params,
-            env.user_functions,
-            env.session,
-            env.controls,
-            &memory,
+        arguments.push(super::source_set_function::argument_value(
+            env, argument, row, ctes, &memory,
         )?);
     }
     Ok((arguments, memory.into_reservation()))

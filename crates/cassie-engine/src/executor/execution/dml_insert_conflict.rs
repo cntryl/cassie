@@ -150,7 +150,10 @@ pub(super) fn excluded_local_args(
                 // A composite column keeps its typed record, so `EXCLUDED.c`
                 // assigns and `(EXCLUDED.c).field` selects like the stored row.
                 Some(data_type)
-                    if matches!(data_type.flattened(), crate::types::DataType::Composite(_)) =>
+                    if matches!(
+                        data_type.flattened(),
+                        crate::types::DataType::Composite(_) | crate::types::DataType::Array(_)
+                    ) =>
                 {
                     crate::executor::scan::json_to_typed_value(value, data_type.flattened())
                 }

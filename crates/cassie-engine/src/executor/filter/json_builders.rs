@@ -43,10 +43,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
     };
     match kind {
         JsonFunction::BuildObject(binary) => {
-            if matches!(
-                function.name.to_ascii_lowercase().as_str(),
-                "json_object" | "jsonb_object"
-            ) {
+            if crate::sql::functions::json::is_standard_object(&function.name) {
                 Some(build_standard_object(function, row, args, context, binary))
             } else {
                 Some(build(function, row, args, context, binary, true))
@@ -124,15 +121,23 @@ fn build_standard_object(
     context: EvalContext<'_>,
     binary: bool,
 ) -> Result<Value, QueryError> {
+    if crate::sql::functions::json::is_standard_object(&function.name)
+        && args.iter().any(|argument| matches!(argument, Value::Null))
+    {
+        return Ok(Value::Null);
+    }
     let kinds = argument_types(function, row, context);
     let (keys, values) = match args {
         [pairs] => {
             let pairs = text_array(pairs, kinds.first().and_then(Option::as_ref))?;
             if !pairs.len().is_multiple_of(2) {
-                return Err(CassieError::InvalidParameterValue(
-                    "argument array must have even number of elements".into(),
-                )
-                .into());
+                return Err(
+                    crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                        "2202E",
+                        "argument array must have even number of elements",
+                    ))
+                    .into(),
+                );
             }
             let (pairs, _) = pairs.as_chunks::<2>();
             let (keys, values): (Vec<_>, Vec<_>) = pairs
@@ -145,10 +150,13 @@ fn build_standard_object(
             let keys = text_array(key_values, kinds.first().and_then(Option::as_ref))?;
             let values = text_array(value_values, kinds.get(1).and_then(Option::as_ref))?;
             if keys.len() != values.len() {
-                return Err(CassieError::InvalidParameterValue(
-                    "JSON object keys and values arrays must have the same length".into(),
-                )
-                .into());
+                return Err(
+                    crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                        "2202E",
+                        "JSON object keys and values arrays must have the same length",
+                    ))
+                    .into(),
+                );
             }
             (keys, values)
         }
@@ -172,16 +180,22 @@ fn build_standard_object(
     let mut elements = Vec::with_capacity(keys.len());
     for (key, value) in keys.iter().zip(&values) {
         check(controls)?;
-        let (Some(key), Some(value)) = (key, value) else {
-            return Err(CassieError::InvalidParameterValue(
-                "JSON object keys and values must not be NULL".into(),
-            )
-            .into());
+        let Some(key) = key else {
+            return Err(
+                crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                    "22004",
+                    "JSON object keys must not be NULL",
+                ))
+                .into(),
+            );
         };
         let key =
             serde_json::to_string(key).map_err(|error| QueryError::General(error.to_string()))?;
-        let value =
-            serde_json::to_string(value).map_err(|error| QueryError::General(error.to_string()))?;
+        let value = match value {
+            Some(value) => serde_json::to_string(value)
+                .map_err(|error| QueryError::General(error.to_string()))?,
+            None => "null".to_owned(),
+        };
         let separator = if binary { ": " } else { " : " };
         elements.push(format!("{key}{separator}{value}"));
     }

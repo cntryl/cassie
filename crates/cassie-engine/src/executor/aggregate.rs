@@ -161,7 +161,7 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 )
                 .unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
-                    alias.clone().unwrap_or_else(|| "expr".to_string()),
+                    alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                     &data_type,
                 )]
             }

@@ -114,11 +114,7 @@ impl AnalyzerConfig {
     /// preserves the gap they leave.
     #[must_use]
     pub fn analyze_positioned(&self, input: &str) -> Vec<(u32, String)> {
-        let normalized = if self.case_folding {
-            input.to_lowercase()
-        } else {
-            input.to_string()
-        };
+        let normalized = self.fold_case(input);
         let normalized = if self.accent_folding {
             fold_accents(&normalized)
         } else {
@@ -143,11 +139,7 @@ impl AnalyzerConfig {
     /// and typo query words, which are compared with stored analyzed terms.
     #[must_use]
     pub fn fold_query_word(&self, input: &str) -> String {
-        let normalized = if self.case_folding {
-            input.to_lowercase()
-        } else {
-            input.to_string()
-        };
+        let normalized = self.fold_case(input);
         if self.accent_folding {
             fold_accents(&normalized)
         } else {
@@ -244,7 +236,7 @@ impl AnalyzerConfig {
         // `str::to_lowercase` is char-wise except for the context-sensitive final
         // sigma, so consume its output per source character to match `analyze`.
         let lowered = if self.case_folding {
-            input.to_lowercase()
+            self.fold_case(input)
         } else {
             String::new()
         };
@@ -253,7 +245,9 @@ impl AnalyzerConfig {
             let end = start + character.len_utf8();
             let before = folded.len();
             if self.case_folding {
-                let produced = if character == '\u{3a3}' {
+                let produced = if character == '\u{3a3}'
+                    || (self.name == "simple" && character == '\u{130}')
+                {
                     1
                 } else {
                     character.to_lowercase().count()
@@ -352,6 +346,18 @@ impl AnalyzerConfig {
     #[must_use]
     pub fn cache_key(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| self.name.clone())
+    }
+
+    fn fold_case(&self, input: &str) -> String {
+        if self.case_folding {
+            if self.name == "simple" {
+                input.replace('\u{130}', "i").to_lowercase()
+            } else {
+                input.to_lowercase()
+            }
+        } else {
+            input.to_string()
+        }
     }
 }
 
@@ -491,6 +497,22 @@ mod tests {
     #[test]
     fn should_keep_dotted_capital_i_word_whole() {
         // Arrange
+        let config = AnalyzerConfig {
+            name: "simple".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
+
+        // Act
+        let tokens = config.analyze("\u{130}stanbul");
+
+        // Assert
+        assert_eq!(tokens, vec!["istanbul"]);
+    }
+
+    #[test]
+    fn should_preserve_standard_analyzer_dotted_i_folding() {
+        // Arrange
         let config = AnalyzerConfig::default();
 
         // Act
@@ -498,6 +520,47 @@ mod tests {
 
         // Assert
         assert_eq!(tokens, vec!["i\u{307}stanbul"]);
+    }
+
+    #[test]
+    fn should_match_dotted_capital_i_only_with_case_folding() {
+        // Arrange
+        let simple = AnalyzerConfig {
+            name: "simple".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
+        let case_sensitive = AnalyzerConfig {
+            case_folding: false,
+            ..simple.clone()
+        };
+
+        // Act
+        let folded = simple.analyze("\u{130}stanbul");
+        let folded_query = simple.analyze("istanbul");
+        let case_sensitive_index = case_sensitive.analyze("\u{130}stanbul");
+        let case_sensitive_query = case_sensitive.analyze("istanbul");
+
+        // Assert
+        assert_eq!(folded, folded_query);
+        assert_ne!(case_sensitive_index, case_sensitive_query);
+    }
+
+    #[test]
+    fn should_preserve_precomposed_decomposed_accents_without_accent_folding() {
+        // Arrange
+        let config = AnalyzerConfig {
+            name: "simple".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
+
+        // Act
+        let precomposed = config.analyze("caf\u{e9}");
+        let decomposed = config.analyze("cafe\u{301}");
+
+        // Assert
+        assert_ne!(precomposed, decomposed);
     }
 
     #[test]

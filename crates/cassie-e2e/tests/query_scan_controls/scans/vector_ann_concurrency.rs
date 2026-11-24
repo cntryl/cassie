@@ -1,4 +1,81 @@
-use std::sync::{Arc, Barrier};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc, Barrier,
+};
+use std::time::Duration;
+
+const CONCURRENCY_DEADLINE: Duration = Duration::from_secs(5);
+
+fn wait_for_barrier(barrier: &Arc<Barrier>, label: &str, consumed: Option<&AtomicBool>) {
+    let (tx, rx) = mpsc::channel();
+    let waiter = Arc::clone(barrier);
+    let handle = std::thread::spawn(move || {
+        waiter.wait();
+        tx.send(()).expect("send barrier result");
+    });
+    rx.recv_timeout(CONCURRENCY_DEADLINE)
+        .unwrap_or_else(|error| panic!("{label} barrier deadline: {error}"));
+    handle
+        .join()
+        .unwrap_or_else(|_| panic!("{label} barrier waiter panicked"));
+    if let Some(consumed) = consumed {
+        consumed.store(true, Ordering::SeqCst);
+    }
+}
+
+struct VectorPauseCleanup {
+    cassie: Option<Arc<cassie::app::Cassie>>,
+    resume: Arc<Barrier>,
+    selected_consumed: Arc<AtomicBool>,
+    resume_released: Arc<AtomicBool>,
+    armed: bool,
+}
+
+impl VectorPauseCleanup {
+    fn arm(
+        cassie: &Arc<cassie::app::Cassie>,
+        _selected: Arc<Barrier>,
+        resume: Arc<Barrier>,
+        selected_consumed: Arc<AtomicBool>,
+        resume_released: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            cassie: Some(Arc::clone(cassie)),
+            resume,
+            selected_consumed,
+            resume_released,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for VectorPauseCleanup {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if let Some(cassie) = self.cassie.take() {
+            cassie::executor::set_vector_ann_rerank_barriers(&cassie, None, None);
+        }
+        if self.selected_consumed.load(Ordering::SeqCst)
+            && !self.resume_released.load(Ordering::SeqCst)
+        {
+            let resume = Arc::clone(&self.resume);
+            let (tx, rx) = mpsc::channel();
+            let handle = std::thread::spawn(move || {
+                resume.wait();
+                tx.send(()).expect("send ANN resume cleanup");
+            });
+            let _ = rx.recv_timeout(CONCURRENCY_DEADLINE);
+            let _ = handle.join();
+            self.resume_released.store(true, Ordering::SeqCst);
+        }
+    }
+}
 
 use cassie::app::Cassie;
 use cassie::config::{
@@ -66,6 +143,20 @@ fn fixture_before_index(index_type: &str, before_index: impl FnOnce(&Cassie)) ->
     cassie
 }
 
+fn exact_after_dropping_index(cassie: &Cassie) -> Vec<Vec<cassie::types::Value>> {
+    cassie
+        .execute_sql(
+            &cassie.create_session("tester", None),
+            "DROP INDEX ann_concurrent_vector ON ann_concurrent_source",
+            vec![],
+        )
+        .expect("drop ANN index for exact baseline");
+    let result = cassie
+        .execute_sql(&cassie.create_session("tester", None), QUERY, vec![])
+        .expect("exact baseline");
+    result.rows().to_vec()
+}
+
 #[test]
 fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     // Arrange
@@ -82,18 +173,33 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     let before = cassie.metrics();
     let selected = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let selected_consumed = Arc::new(AtomicBool::new(false));
+    let resume_released = Arc::new(AtomicBool::new(false));
     cassie::executor::set_vector_ann_rerank_barriers(
         &cassie,
         Some(Arc::clone(&selected)),
         Some(Arc::clone(&resume)),
     );
+    let mut pause_cleanup = VectorPauseCleanup::arm(
+        &cassie,
+        Arc::clone(&selected),
+        Arc::clone(&resume),
+        Arc::clone(&selected_consumed),
+        Arc::clone(&resume_released),
+    );
     let query_cassie = Arc::clone(&cassie);
+    let (result_tx, result_rx) = mpsc::channel();
     let query = std::thread::spawn(move || {
-        query_cassie
+        let result = query_cassie
             .execute_sql(&query_cassie.create_session("reader", None), QUERY, vec![])
-            .expect("concurrent ANN query")
+            .expect("concurrent ANN query");
+        result_tx.send(result).expect("send HNSW query result");
     });
-    selected.wait();
+    wait_for_barrier(
+        &selected,
+        "HNSW rerank candidate selection",
+        Some(&selected_consumed),
+    );
 
     // Act
     cassie
@@ -103,19 +209,15 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
             vec![],
         )
         .expect("delete selected source row");
-    resume.wait();
-    let resolved = query.join().expect("query thread");
+    wait_for_barrier(&resume, "HNSW rerank resume", Some(&resume_released));
+    let resolved = result_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("HNSW rerank query result");
+    query
+        .join()
+        .unwrap_or_else(|_| panic!("HNSW rerank query thread panicked"));
     let reader_metrics = cassie.metrics();
-    cassie
-        .execute_sql(
-            &cassie.create_session("tester", None),
-            "DROP INDEX ann_concurrent_vector ON ann_concurrent_source",
-            vec![],
-        )
-        .expect("drop ANN index for exact baseline");
-    let exact = cassie
-        .execute_sql(&cassie.create_session("tester", None), QUERY, vec![])
-        .expect("exact baseline");
+    let exact = exact_after_dropping_index(&cassie);
 
     // Assert
     assert_eq!(
@@ -125,7 +227,7 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     );
     assert_ne!(
         resolved.rows(),
-        exact.rows(),
+        exact,
         "next statement sees the committed mutation"
     );
     assert_eq!(
@@ -134,7 +236,6 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
     );
     assert_eq!(resolved.rows()[0][1], cassie::types::Value::Float64(0.0));
     assert!(exact
-        .rows()
         .iter()
         .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
     assert_ne!(
@@ -153,6 +254,7 @@ fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
             .unwrap()
             > before["vector"]["ann_reads_total"].as_u64().unwrap()
     );
+    pause_cleanup.disarm();
     drop(expected);
     drop(resolved);
     drop(exact);
@@ -176,18 +278,33 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     let before = cassie.metrics();
     let selected = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let selected_consumed = Arc::new(AtomicBool::new(false));
+    let resume_released = Arc::new(AtomicBool::new(false));
     cassie::executor::set_vector_ann_rerank_barriers(
         &cassie,
         Some(Arc::clone(&selected)),
         Some(Arc::clone(&resume)),
     );
+    let mut pause_cleanup = VectorPauseCleanup::arm(
+        &cassie,
+        Arc::clone(&selected),
+        Arc::clone(&resume),
+        Arc::clone(&selected_consumed),
+        Arc::clone(&resume_released),
+    );
     let query_cassie = Arc::clone(&cassie);
+    let (result_tx, result_rx) = mpsc::channel();
     let query = std::thread::spawn(move || {
-        query_cassie
+        let result = query_cassie
             .execute_sql(&query_cassie.create_session("reader", None), QUERY, vec![])
-            .expect("concurrent IVFFlat query")
+            .expect("concurrent IVFFlat query");
+        result_tx.send(result).expect("send IVFFlat query result");
     });
-    selected.wait();
+    wait_for_barrier(
+        &selected,
+        "IVFFlat rerank candidate selection",
+        Some(&selected_consumed),
+    );
 
     // Act
     cassie
@@ -197,19 +314,15 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
             vec![],
         )
         .expect("replace selected source vector");
-    resume.wait();
-    let resolved = query.join().expect("query thread");
+    wait_for_barrier(&resume, "IVFFlat rerank resume", Some(&resume_released));
+    let resolved = result_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("IVFFlat rerank query result");
+    query
+        .join()
+        .unwrap_or_else(|_| panic!("IVFFlat rerank query thread panicked"));
     let reader_metrics = cassie.metrics();
-    cassie
-        .execute_sql(
-            &cassie.create_session("tester", None),
-            "DROP INDEX ann_concurrent_vector ON ann_concurrent_source",
-            vec![],
-        )
-        .expect("drop ANN index for exact baseline");
-    let exact = cassie
-        .execute_sql(&cassie.create_session("tester", None), QUERY, vec![])
-        .expect("exact baseline");
+    let exact = exact_after_dropping_index(&cassie);
 
     // Assert
     assert_eq!(
@@ -219,7 +332,7 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     );
     assert_ne!(
         resolved.rows(),
-        exact.rows(),
+        exact,
         "next statement sees the committed mutation"
     );
     assert_eq!(
@@ -228,7 +341,6 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
     );
     assert_eq!(resolved.rows()[0][1], cassie::types::Value::Float64(0.0));
     assert!(exact
-        .rows()
         .iter()
         .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
     assert_ne!(
@@ -247,6 +359,7 @@ fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
             .unwrap()
             > before["vector"]["ann_reads_total"].as_u64().unwrap()
     );
+    pause_cleanup.disarm();
     drop(expected);
     drop(resolved);
     drop(exact);

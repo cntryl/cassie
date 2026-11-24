@@ -8,6 +8,7 @@ pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     expression: &Expr,
     outer: Option<&BatchRow>,
+    ctes: &super::CteContext,
 ) -> Result<Vec<Batch>, QueryError> {
     env.controls.check_interruption()?;
     let empty = BatchRow::from_projected_values(Vec::new());
@@ -16,17 +17,11 @@ pub(super) fn execute(
         scratch_bytes(expression, env.params, row)?,
         super::filter::cast_scratch_bytes(expression)?,
     )?)?;
-    let value = super::filter::eval_scalar(
-        row,
-        expression,
-        env.params,
-        None,
-        env.user_functions,
-        None,
-        env.session,
-    )?;
-    let super::filter::ScalarValue::Array(array) = value else {
-        return if matches!(value, super::filter::ScalarValue::Null) {
+    let evaluation_memory = super::filter::EvaluationMemory::new(env.controls)?;
+    let value =
+        super::source_set_function::argument_value(env, expression, row, ctes, &evaluation_memory)?;
+    let Value::Array(array) = value else {
+        return if matches!(value, Value::Null) {
             Ok(Vec::new())
         } else {
             Err(crate::app::CassieError::Execution(

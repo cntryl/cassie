@@ -623,8 +623,11 @@ mod tests {
         let l2_far = graph_distance(DistanceMetric::L2, &query, &far_l2);
 
         // Assert
-        assert!(dot_large < dot_small);
-        assert!((cosine_large - cosine_small).abs() < f64::EPSILON);
-        assert!(l2_near < l2_far);
+        assert_eq!(dot_large, -20.0);
+        assert_eq!(dot_small, -2.0);
+        assert_eq!(cosine_large, 0.0);
+        assert_eq!(cosine_small, 0.0);
+        assert_eq!(l2_near, 0.0);
+        assert_eq!(l2_far, 18.0);
     }
 }

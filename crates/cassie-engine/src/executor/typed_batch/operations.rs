@@ -12,6 +12,19 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{BinaryOp, Expr, SelectItem};
 use crate::types::Value;
 
+fn projection_width(projection: &[SelectItem], schema_width: usize) -> usize {
+    projection
+        .iter()
+        .map(|item| {
+            if matches!(item, SelectItem::Wildcard) {
+                schema_width
+            } else {
+                1
+            }
+        })
+        .sum()
+}
+
 impl TypedBatch {
     pub(crate) fn filter(
         &self,
@@ -69,16 +82,7 @@ impl TypedBatch {
             functions,
             session,
         };
-        let count = projection
-            .iter()
-            .map(|item| {
-                if matches!(item, SelectItem::Wildcard) {
-                    self.schema().len()
-                } else {
-                    1
-                }
-            })
-            .sum::<usize>();
+        let count = projection_width(projection, self.schema().len());
         let mut scratch = controls.reserve_query_memory(mul(
             count,
             add(
@@ -128,7 +132,9 @@ impl TypedBatch {
                 SelectItem::Expr { expr, alias } => {
                     let type_owner = env.result_type(self, expr)?;
                     scratch.try_grow(add(
-                        alias.as_deref().unwrap_or("expr").len(),
+                        alias
+                            .as_ref()
+                            .map_or_else(|| expr.implicit_output_name().len(), String::len),
                         data_type_clone_bytes(type_owner.get())?,
                     )?)?;
                     let mut memory =
@@ -150,14 +156,14 @@ impl TypedBatch {
                     }
                     columns.push(Column::from_values(controls, type_owner.get(), &values)?);
                     schema.push((
-                        alias.as_deref().unwrap_or("expr").to_owned(),
+                        alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                         type_owner.get().clone(),
                     ));
                 }
                 _ => {
                     return Err(invalid(
                         "projection uses an existing scalar operator boundary",
-                    ))
+                    ));
                 }
             }
         }

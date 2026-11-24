@@ -110,6 +110,14 @@ fn infer_insert_parameter_type_oids(
             }
         }
     }
+    for item in &statement.returning {
+        infer_select_item_parameter_type_oids(
+            item,
+            &field_type_map(schema.fields.iter()),
+            catalog,
+            oids,
+        );
+    }
 }
 
 fn infer_insert_select_boolean_parameter_type_oids(
@@ -748,11 +756,13 @@ fn infer_binary_parameter_type_oids(
     }
     // Preserve existing OID inference while recording the actual operand result type above.
     oids.without_context_demands(|oids| {
-        if let Some(data_type) = column_expr_type(left, field_types) {
-            infer_parameter_type_from_expected_expr(right, data_type, oids);
+        if let Some(data_type) = binder::known_expr_type(left, field_types) {
+            infer_parameter_type_from_expected_expr(left, &data_type, oids);
+            infer_parameter_type_from_expected_expr(right, &data_type, oids);
         }
-        if let Some(data_type) = column_expr_type(right, field_types) {
-            infer_parameter_type_from_expected_expr(left, data_type, oids);
+        if let Some(data_type) = binder::known_expr_type(right, field_types) {
+            infer_parameter_type_from_expected_expr(left, &data_type, oids);
+            infer_parameter_type_from_expected_expr(right, &data_type, oids);
         }
     });
     infer_parameter_type_oids_expr(left, field_types, catalog, oids);
@@ -889,6 +899,15 @@ pub(super) fn infer_parameter_type_from_expected_expr(
         }
         ast::Expr::Collate { expr, .. } => {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
+        }
+        ast::Expr::Function(function)
+            if function.name.eq_ignore_ascii_case("coalesce")
+                || function.name.eq_ignore_ascii_case("greatest")
+                || function.name.eq_ignore_ascii_case("least") =>
+        {
+            for argument in &function.args {
+                infer_parameter_type_from_expected_expr(argument, data_type, oids);
+            }
         }
         _ => {}
     }

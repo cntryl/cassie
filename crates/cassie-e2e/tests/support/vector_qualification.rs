@@ -122,36 +122,126 @@ fn populated_fixture(
     (cassie, provider)
 }
 pub fn oracle(metric: &str, query: &[f32], descending: bool) -> Vec<(String, f64)> {
-    let mut rows: Vec<(String, f64)> = ROWS
-        .iter()
-        .map(|(id, vector)| {
-            let dot: f64 = vector
-                .iter()
-                .zip(query)
-                .map(|(a, b)| f64::from(*a) * f64::from(*b))
-                .sum();
-            let norm_a: f64 = vector.iter().map(|a| f64::from(*a).powi(2)).sum();
-            let norm_b: f64 = query.iter().map(|a| f64::from(*a).powi(2)).sum();
-            let distance = match metric {
-                "l2" => vector
-                    .iter()
-                    .zip(query)
-                    .map(|(a, b)| (f64::from(*a) - f64::from(*b)).powi(2))
-                    .sum::<f64>()
-                    .sqrt(),
-                "dot" => -dot,
-                "cosine" if norm_a == 0.0 || norm_b == 0.0 => 1.0,
-                "cosine" => 1.0 - dot / (norm_a.sqrt() * norm_b.sqrt()),
-                _ => panic!("unknown metric"),
-            };
-            ((*id).into(), distance)
-        })
-        .collect();
-    rows.sort_by(|a, b| {
-        let order = a.1.total_cmp(&b.1);
-        (if descending { order.reverse() } else { order }).then(a.0.cmp(&b.0))
-    });
-    rows
+    // Pinned PostgreSQL-style independent results for the fixed qualification
+    // queries.  This fixture is not allowed to delegate expected values to the
+    // Cassie distance implementation.
+    let rows = if query == [0.0, 0.0, 0.0] {
+        zero_query_oracle(metric, descending)
+    } else if query == [1.0, 0.0, 0.0] {
+        positive_query_oracle(metric, descending)
+    } else if query == [-1.0, 0.0, 0.0] {
+        negative_query_oracle(metric, descending)
+    } else {
+        panic!(
+            "unpinned qualification oracle: metric={metric}, query={query:?}, \
+             descending={descending}"
+        )
+    };
+    rows.into_iter()
+        .map(|(id, distance)| (id.to_string(), distance))
+        .collect()
+}
+
+fn zero_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)> {
+    match (metric, descending) {
+        ("l2", false) => vec![
+            ("A", 0.0),
+            ("a", 0.0),
+            ("negative", 1.0),
+            ("orthogonal", 1.0),
+            ("positive", 1.0),
+        ],
+        ("l2", true) => vec![
+            ("negative", 1.0),
+            ("orthogonal", 1.0),
+            ("positive", 1.0),
+            ("A", 0.0),
+            ("a", 0.0),
+        ],
+        ("cosine", false | true) => vec![
+            ("A", 1.0),
+            ("a", 1.0),
+            ("negative", 1.0),
+            ("orthogonal", 1.0),
+            ("positive", 1.0),
+        ],
+        ("dot", false | true) => vec![
+            ("A", -0.0),
+            ("a", -0.0),
+            ("negative", -0.0),
+            ("orthogonal", -0.0),
+            ("positive", -0.0),
+        ],
+        _ => panic!("unknown metric"),
+    }
+}
+
+fn positive_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)> {
+    match (metric, descending) {
+        ("l2", false) => vec![
+            ("positive", 0.0),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("orthogonal", std::f64::consts::SQRT_2),
+            ("negative", 2.0),
+        ],
+        ("cosine", false) => vec![
+            ("positive", 0.0),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("orthogonal", 1.0),
+            ("negative", 2.0),
+        ],
+        ("l2", true) => vec![
+            ("negative", 2.0),
+            ("orthogonal", std::f64::consts::SQRT_2),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("positive", 0.0),
+        ],
+        ("cosine", true) => vec![
+            ("negative", 2.0),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("orthogonal", 1.0),
+            ("positive", 0.0),
+        ],
+        ("dot", false) => vec![
+            ("positive", -1.0),
+            ("A", -0.0),
+            ("a", -0.0),
+            ("orthogonal", -0.0),
+            ("negative", 1.0),
+        ],
+        ("dot", true) => vec![
+            ("negative", 1.0),
+            ("A", -0.0),
+            ("a", -0.0),
+            ("orthogonal", -0.0),
+            ("positive", -1.0),
+        ],
+        _ => panic!("unknown metric"),
+    }
+}
+
+fn negative_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)> {
+    match (metric, descending) {
+        ("l2" | "cosine", false) => vec![
+            ("negative", 0.0),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("orthogonal", 1.0),
+            ("positive", 2.0),
+        ],
+        ("dot", false) => vec![
+            ("negative", 1.0),
+            ("A", -0.0),
+            ("a", -0.0),
+            ("orthogonal", -0.0),
+            ("positive", -1.0),
+        ],
+        _ => panic!("unknown metric"),
+    }
 }
 
 pub fn reopen(path: &str) -> Cassie {

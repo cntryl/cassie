@@ -242,6 +242,29 @@ pub enum SelectItem<A = ()> {
     },
 }
 
+impl<A> SelectItem<A> {
+    /// PostgreSQL's implicit label for a select-list item.
+    #[must_use]
+    pub fn output_name(&self) -> String {
+        match self {
+            Self::Wildcard => "*".to_owned(),
+            Self::Column { name, alias } => alias.clone().unwrap_or_else(|| {
+                crate::column_identifier::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
+            }),
+            Self::Function { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+            Self::Expr { expr, alias } => {
+                alias.clone().unwrap_or_else(|| expr.implicit_output_name())
+            }
+            Self::WindowFunction { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct FunctionCall<A = ()> {
@@ -496,6 +519,28 @@ pub enum Expr<A = ()> {
 }
 
 impl<A> Expr<A> {
+    /// PostgreSQL's implicit name for an expression select-list item.
+    #[must_use]
+    pub fn implicit_output_name(&self) -> String {
+        match self {
+            Self::Column(name) => crate::column_identifier::ColumnIdentifierPath::parse(name)
+                .map_or_else(|_| name.clone(), |column| column.implicit_output_label()),
+            Self::Function(function) => function.name.clone(),
+            Self::Cast {
+                expr, data_type, ..
+            } => match expr.as_ref() {
+                Self::Column(_) | Self::Function(_) => expr.implicit_output_name(),
+                _ => Self::cast_output_name(data_type),
+            },
+            Self::Collate { expr, .. } | Self::ArraySubscript { array: expr, .. } => {
+                expr.implicit_output_name()
+            }
+            Self::Case { .. } => "case".to_owned(),
+            Self::Exists(_) => "exists".to_owned(),
+            _ => "?column?".to_owned(),
+        }
+    }
+
     /// Returns whether this node runs a subquery (`EXISTS` or any sublink).
     #[must_use]
     pub const fn is_subquery_node(&self) -> bool {
@@ -526,6 +571,30 @@ impl<A> Expr<A> {
             _ => None,
         }
     }
+
+    fn cast_output_name(data_type: &DataType) -> String {
+        match data_type {
+            DataType::SmallInt => "int2".to_owned(),
+            DataType::Int => "int4".to_owned(),
+            DataType::BigInt => "int8".to_owned(),
+            DataType::Float => "float8".to_owned(),
+            DataType::Boolean => "bool".to_owned(),
+            DataType::Char { .. } => "bpchar".to_owned(),
+            DataType::Varchar { .. } => "varchar".to_owned(),
+            DataType::Vector(_) => "vector".to_owned(),
+            DataType::Array(element) => Self::cast_output_name(element),
+            DataType::Domain(domain) => catalog_type_name(&domain.name),
+            DataType::Enum(kind) => catalog_type_name(&kind.name),
+            DataType::Composite(kind) => catalog_type_name(&kind.name),
+            DataType::ObjectId(kind) => kind.name().to_owned(),
+            DataType::Extended(kind) => kind.typname().to_owned(),
+            _ => data_type.type_name(),
+        }
+    }
+}
+
+fn catalog_type_name(name: &str) -> String {
+    name.rsplit('.').next().unwrap_or(name).to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

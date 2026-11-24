@@ -9,8 +9,12 @@ fn out_of_range(type_name: &str) -> CassieError {
     DiagnosticError::new("22003", format!("{type_name} out of range")).into()
 }
 
-fn expects(field: &str, type_name: &str) -> CassieError {
-    CassieError::InvalidVector(format!("field '{field}' expects {type_name}"))
+fn expects(_field: &str, type_name: &str) -> CassieError {
+    DiagnosticError::new(
+        "22P02",
+        format!("invalid input syntax for type {type_name}"),
+    )
+    .into()
 }
 
 /// Whether `value` is a JSON number holding a whole value too large for `i64`.

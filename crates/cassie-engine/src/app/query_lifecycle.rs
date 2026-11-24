@@ -7,11 +7,65 @@ use std::time::Instant;
 
 use crate::executor::QueryResult;
 use crate::runtime::{ExecutionMode, QueryCancellationHandle, QueryExecutionControls};
+use crate::sql::ast::{AlterSchemaOperation, AlterTableOperation, ParsedStatement, QueryStatement};
 use crate::types::Value;
 
 use super::{Cassie, CassieError, CassieSession, QueryExplainOutput};
 
 impl Cassie {
+    /// Embedded standalone dependent renames use the existing transactional
+    /// DDL overlay, matching the PostgreSQL wire's implicit transaction owner.
+    pub(super) fn execute_parsed_statement_with_view_rename_transaction(
+        &self,
+        session: &CassieSession,
+        parsed: ParsedStatement,
+        fingerprint: u64,
+        params: Vec<Value>,
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
+        let owns_transaction = !session.is_transaction_active()
+            && Self::requires_view_rename_publication(&parsed.statement);
+        if owns_transaction {
+            session.begin_implicit_transaction_for_operation(authority)?;
+        }
+        let result = self.execute_parsed_statement_core_for_operation(
+            session,
+            parsed,
+            fingerprint,
+            params,
+            mode,
+            (controls, authority),
+        );
+        if !owns_transaction {
+            return result;
+        }
+        match result {
+            Ok(result) => {
+                self.commit_transaction_with_controls(session, controls)?;
+                Ok(result)
+            }
+            Err(error) => {
+                session.rollback_for_operation(authority)?;
+                Err(error)
+            }
+        }
+    }
+
+    fn requires_view_rename_publication(statement: &QueryStatement) -> bool {
+        match statement {
+            QueryStatement::AlterTable(alter) => matches!(
+                &alter.operation,
+                AlterTableOperation::RenameTo { .. } | AlterTableOperation::RenameColumn { .. }
+            ),
+            QueryStatement::AlterSchema(alter) => {
+                matches!(&alter.operation, AlterSchemaOperation::RenameTo { .. })
+            }
+            _ => false,
+        }
+    }
+
     pub(super) fn execute_sql_with_mode_and_cancellation(
         &self,
         session: &CassieSession,

@@ -52,13 +52,18 @@ pub enum SqlErrorKind {
 pub struct SqlError {
     kind: SqlErrorKind,
     message: String,
+    position: Option<usize>,
 }
 
 impl SqlError {
     #[must_use]
     pub fn new(message: String) -> Self {
         let kind = infer_sql_error_kind(&message);
-        Self { kind, message }
+        Self {
+            kind,
+            message,
+            position: None,
+        }
     }
 
     #[must_use]
@@ -66,6 +71,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Syntax,
             message,
+            position: None,
         }
     }
 
@@ -74,6 +80,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Unsupported,
             message,
+            position: None,
         }
     }
 
@@ -82,6 +89,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::UndefinedFunction,
             message,
+            position: None,
         }
     }
 
@@ -90,6 +98,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::UndefinedObject,
             message,
+            position: None,
         }
     }
 
@@ -98,6 +107,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::InvalidParameterValue,
             message,
+            position: None,
         }
     }
 
@@ -106,6 +116,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::DatatypeMismatch,
             message,
+            position: None,
         }
     }
 
@@ -114,6 +125,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::Diagnostic(sql_state),
             message,
+            position: None,
         }
     }
 
@@ -122,6 +134,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::NumericRange,
             message,
+            position: None,
         }
     }
 
@@ -129,6 +142,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::DuplicateColumn,
             message: format!("column \"{name}\" specified more than once"),
+            position: None,
         }
     }
 
@@ -137,6 +151,7 @@ impl SqlError {
         Self {
             kind: SqlErrorKind::ResourceLimit,
             message,
+            position: None,
         }
     }
 
@@ -148,6 +163,35 @@ impl SqlError {
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    #[must_use]
+    pub const fn position(&self) -> Option<usize> {
+        self.position
+    }
+
+    #[must_use]
+    pub(crate) fn with_position(mut self, position: usize) -> Self {
+        self.position = Some(position);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn offset_position(mut self, offset: usize) -> Self {
+        self.position = self.position.map(|position| position + offset);
+        self
+    }
+
+    fn map_source_position(
+        mut self,
+        decoded: &lexical::DecodedSql<'_>,
+        base: usize,
+        leading_chars: usize,
+    ) -> Self {
+        self.position = self
+            .position
+            .map(|position| decoded.source_position(base + position) + leading_chars);
+        self
     }
 }
 
@@ -303,7 +347,9 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let raw_sql = sql.trim().trim_end_matches(';').trim();
     let decoded = lexical::decode_unicode_identifiers(raw_sql)?;
     let start = lexical::separator_end(&decoded, 0);
-    let parsed = parse_statement_body(&decoded[start..])?;
+    let leading_chars = sql[..sql.len() - sql.trim_start().len()].chars().count();
+    let parsed = parse_statement_body(&decoded[start..])
+        .map_err(|error| error.map_source_position(&decoded, start, leading_chars))?;
     Ok(ParsedStatement {
         raw_sql: raw_sql.to_string(),
         statement: parsed.statement,
@@ -646,3 +692,43 @@ mod cte_materialization;
 #[cfg(test)]
 #[path = "parser/statistical_window_tests.rs"]
 mod statistical_window_tests;
+
+#[cfg(test)]
+mod projection_diagnostic_tests {
+    use super::parse_statement;
+    use crate::sql::ast::SelectItem;
+
+    #[test]
+    fn should_preserve_quoted_projection_alias_with_whitespace() {
+        // Arrange
+        let sql = r#"SELECT 1 AS "Amount Value""#;
+
+        // Act
+        let parsed = parse_statement(sql).expect("quoted projection alias");
+
+        // Assert
+        let crate::sql::QueryStatement::Select(select) = parsed.statement else {
+            panic!("expected SELECT");
+        };
+        assert!(matches!(
+            select.projection.as_slice(),
+            [SelectItem::Expr {
+                alias: Some(alias),
+                ..
+            }] if alias == "Amount Value"
+        ));
+    }
+
+    #[test]
+    fn should_report_later_projection_item_at_original_position() {
+        // Arrange
+        let sql = "SELECT 1, 2 AS x y";
+
+        // Act
+        let error = parse_statement(sql).expect_err("extra alias token");
+
+        // Assert
+        assert_eq!(error.position(), Some(18));
+        assert_eq!(error.message(), "syntax error at or near \"y\"");
+    }
+}

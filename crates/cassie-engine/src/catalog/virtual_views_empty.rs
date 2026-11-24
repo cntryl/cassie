@@ -274,7 +274,8 @@ fn carrier(oid: u32) -> DataType {
     match oid {
         16 => DataType::Boolean,
         17 => DataType::Bytea,
-        20 | 26 => DataType::BigInt,
+        20 => DataType::BigInt,
+        26 => DataType::ObjectId(crate::types::ObjectIdKind::Oid),
         21 => DataType::SmallInt,
         23 => DataType::Int,
         700 | 701 => DataType::Float,

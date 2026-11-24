@@ -84,17 +84,15 @@ pub(super) fn coerce_with_controls(
             if matches!(expression, Expr::Param(_)) && params.is_empty() {
                 continue;
             }
-            if arithmetic::inferred_type(expression, functions, params).as_ref()
-                == Some(&field.data_type)
-            {
+            let actual = arithmetic::inferred_type(expression, functions, params);
+            if actual.as_ref() == Some(&field.data_type) {
                 continue;
             }
-            let source_type = arithmetic::inferred_type(expression, functions, params);
             let original = std::mem::replace(expression, Expr::Null);
             *expression = Expr::Cast {
                 expr: Box::new(original),
                 data_type: field.data_type.clone(),
-                source_type,
+                source_type: actual,
                 identity: crate::sql::ast::CastIdentity::Scalar,
             };
         }
@@ -113,16 +111,6 @@ pub(crate) fn bind_input_types(
 ) -> Result<(), CassieError> {
     parameters::bind(statement, oids)
 }
-/// Functions admitted in a VALUES row: temporal functions and the array
-/// builders, which construct their result without reading any relation.
-pub(crate) fn allows_function(name: &str) -> bool {
-    crate::sql::functions::is_temporal_function(name)
-        || name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
-        || crate::sql::ast::is_record_syntax_function(name)
-        || name.eq_ignore_ascii_case("_cassie_array_value")
-        || name.eq_ignore_ascii_case("array_fill")
-}
-
 fn validate(
     expression: &Expr,
     float_context: bool,
@@ -138,13 +126,7 @@ fn validate(
         crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {
-        Expr::Function(function) if allows_function(&function.name) => {}
         Expr::Exists(_) | Expr::Subquery(_) => return Ok(()),
-        Expr::Function(_) => {
-            return Err(CassieError::Unsupported(
-                "functions and subqueries in VALUES are not yet supported".into(),
-            ));
-        }
         Expr::Column(name) => {
             return Err(CassieError::Planner(format!(
                 "unknown column {name:?} in VALUES"

@@ -51,6 +51,10 @@ pub use regex_test_pause::{pause_next_query_after_regex_search, QueryRegexTestPa
 mod scoring_test_pause;
 #[doc(hidden)]
 pub use scoring_test_pause::QueryScoringTestBoundary;
+#[path = "runtime/copy_test_pause.rs"]
+mod copy_test_pause;
+#[doc(hidden)]
+pub use copy_test_pause::CopyTestPauseGuard;
 #[path = "runtime/dml_metrics.rs"]
 mod dml_metrics;
 #[path = "runtime/execution_result_cache.rs"]
@@ -69,6 +73,8 @@ mod join_metrics;
 mod operator_feedback_state;
 #[path = "runtime/operator_workers.rs"]
 mod operator_workers;
+#[doc(hidden)]
+pub mod test_sync;
 pub(crate) use operator_workers::OperatorWorkerGuard;
 #[path = "runtime/owned_memory.rs"]
 #[doc(hidden)]
@@ -134,6 +140,7 @@ enum QueryTestPause {
     Sleep(sleep_test_pause::QuerySleepTestPause),
     Regex(regex_test_pause::QueryRegexTestPause),
     Scoring(scoring_test_pause::ScoringTestPause),
+    Copy(Arc<copy_test_pause::CopyTestPause>),
 }
 
 #[derive(Debug, Default)]

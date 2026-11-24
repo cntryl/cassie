@@ -267,17 +267,7 @@ fn partition_key(
     let values = function
         .partition_by
         .iter()
-        .map(|expr| {
-            filter::evaluate_expr_value(
-                row,
-                expr,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )
-        })
+        .map(|expr| evaluate_window_expr(row, expr, context))
         .collect::<Result<Vec<_>, _>>()?;
     let keys = function
         .partition_by

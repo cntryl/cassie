@@ -23,7 +23,8 @@ fn should_reject_invalid_json_string_comparands() {
     // Assert
     for result in results {
         assert!(
-            matches!(result, Err(CassieError::Planner(message)) if message.contains("invalid JSON literal"))
+            matches!(result, Err(CassieError::Planner(ref message)) if message.contains("invalid JSON literal")),
+            "{result:?}"
         );
     }
 }

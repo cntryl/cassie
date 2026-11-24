@@ -205,9 +205,11 @@ async fn assert_column_cascade_dependencies_are_restored(client: &tokio_postgres
 
     let foreign_key_count = client
         .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_rollback_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_rollback_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             &[],
         )
         .await
@@ -311,9 +313,11 @@ fn should_recover_column_cascade_dependency_removal_after_local_restart() {
     let foreign_key_count = cassie
         .execute_sql(
             &session,
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_restart_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_restart_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             vec![],
         )
         .expect("inspect the cascaded foreign key after restart")
@@ -379,9 +383,11 @@ async fn observe_column_restrict(client: &tokio_postgres::Client) -> ColumnRestr
         .await;
     let foreign_key_count = client
         .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conrelid = 'compat_839_restrict_child' \
-               AND contype = 'f'",
+            "SELECT count(*) FROM pg_catalog.pg_constraint con \
+             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid \
+             JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
+             WHERE c.relname = 'compat_839_restrict_child' AND n.nspname = 'public' \
+               AND con.contype = 'f'",
             &[],
         )
         .await;
@@ -551,5 +557,195 @@ fn should_reject_drop_column_restrict_when_a_view_depends() {
                 .collect::<Vec<_>>(),
             vec![1]
         );
+    });
+}
+
+#[test]
+fn should_drop_expression_index_when_dropping_its_column() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_1447_drop_expression_index").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE public.compat_1447_expression (id INT, email TEXT)",
+                "INSERT INTO public.compat_1447_expression VALUES (1, 'a@example.test')",
+                "CREATE INDEX compat_1447_email_expression \
+                 ON public.compat_1447_expression (lower(email))",
+            ],
+        )
+        .await
+        .expect("create an expression index on email");
+
+        // Act
+        client
+            .batch_execute("ALTER TABLE public.compat_1447_expression DROP COLUMN email")
+            .await
+            .expect("drop the expression-index input column");
+        let index_removed: bool = client
+            .query_one(
+                "SELECT to_regclass('public.compat_1447_email_expression') IS NULL",
+                &[],
+            )
+            .await
+            .expect("inspect the expression index after the drop")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(index_removed);
+    });
+}
+
+#[test]
+fn should_drop_partial_index_when_dropping_its_predicate_column() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_1447_drop_partial_index").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE public.compat_1447_partial (id INT, status TEXT)",
+                "INSERT INTO public.compat_1447_partial VALUES (1, 'open')",
+                "CREATE INDEX compat_1447_status_partial \
+                 ON public.compat_1447_partial (id) WHERE status = 'open'",
+            ],
+        )
+        .await
+        .expect("create a partial index on status");
+
+        // Act
+        client
+            .batch_execute("ALTER TABLE public.compat_1447_partial DROP COLUMN status")
+            .await
+            .expect("drop the partial-index predicate column");
+        let index_removed: bool = client
+            .query_one(
+                "SELECT to_regclass('public.compat_1447_status_partial') IS NULL",
+                &[],
+            )
+            .await
+            .expect("inspect the partial index after the drop")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(index_removed);
+    });
+}
+
+#[test]
+fn should_keep_unrelated_indexes_when_dropping_column() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_1447_keep_unrelated_indexes").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE public.compat_1447_unrelated \
+                 (id INT, email TEXT, label TEXT)",
+                "CREATE INDEX compat_1447_id_unrelated \
+                 ON public.compat_1447_unrelated (id)",
+                "CREATE INDEX compat_1447_literal_unrelated \
+                 ON public.compat_1447_unrelated (lower(label || 'email'))",
+            ],
+        )
+        .await
+        .expect("create indexes that do not reference the email column");
+
+        // Act
+        client
+            .batch_execute("ALTER TABLE public.compat_1447_unrelated DROP COLUMN email")
+            .await
+            .expect("drop the unrelated column");
+        let indexes_survive = client
+            .query_one(
+                "SELECT to_regclass('public.compat_1447_id_unrelated') IS NOT NULL, \
+                        to_regclass('public.compat_1447_literal_unrelated') IS NOT NULL",
+                &[],
+            )
+            .await
+            .expect("inspect indexes after dropping a column mentioned only by a literal");
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(indexes_survive.get::<_, bool>(0));
+        assert!(indexes_survive.get::<_, bool>(1));
+    });
+}
+
+#[test]
+fn should_keep_table_usable_after_dependent_index_drops() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_1447_drop_index_followup_io").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE public.compat_1447_followup \
+                 (id INT, email TEXT, status TEXT)",
+                "INSERT INTO public.compat_1447_followup \
+                 VALUES (1, 'a@example.test', 'open')",
+                "CREATE INDEX compat_1447_followup_email \
+                 ON public.compat_1447_followup (lower(email))",
+                "CREATE INDEX compat_1447_followup_status \
+                 ON public.compat_1447_followup (id) WHERE status = 'open'",
+                "CREATE INDEX compat_1447_followup_id \
+                 ON public.compat_1447_followup (id)",
+            ],
+        )
+        .await
+        .expect("create dependent indexes and an unrelated lookup index");
+
+        // Act
+        client
+            .batch_execute("ALTER TABLE public.compat_1447_followup DROP COLUMN email")
+            .await
+            .expect("drop expression-index input column");
+        client
+            .batch_execute("ALTER TABLE public.compat_1447_followup DROP COLUMN status")
+            .await
+            .expect("drop partial-index predicate column");
+        client
+            .batch_execute("INSERT INTO public.compat_1447_followup (id) VALUES (2)")
+            .await
+            .expect("insert after dependent-index cleanup");
+        let indexed_lookup: Vec<i32> = client
+            .query(
+                "SELECT id FROM public.compat_1447_followup WHERE id = 1 ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("query by the surviving index key")
+            .iter()
+            .map(|row| row.get(0))
+            .collect();
+        let full_scan: Vec<i32> = client
+            .query(
+                "SELECT id FROM public.compat_1447_followup ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read the rows after dependent-index cleanup")
+            .iter()
+            .map(|row| row.get(0))
+            .collect();
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(indexed_lookup, vec![1]);
+        assert_eq!(full_scan, vec![1, 2]);
     });
 }

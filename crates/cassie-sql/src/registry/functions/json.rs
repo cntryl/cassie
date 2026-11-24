@@ -1,6 +1,17 @@
 //! Finite JSON inspection functions over the selected native document identities.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
+/// Whether a call uses one of the built-in SQL/JSON object array constructors.
+#[must_use]
+pub(crate) fn is_standard_object(name: &str) -> bool {
+    let (schema, function) = name
+        .rsplit_once('.')
+        .map_or((None, name), |(schema, function)| (Some(schema), function));
+    schema.is_none_or(|schema| schema.eq_ignore_ascii_case("pg_catalog"))
+        && (function.eq_ignore_ascii_case("json_object")
+            || function.eq_ignore_ascii_case("jsonb_object"))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum JsonFunction {
     Typeof(bool),

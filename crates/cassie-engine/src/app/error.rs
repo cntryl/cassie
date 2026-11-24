@@ -80,6 +80,11 @@ pub enum CassieError {
     #[error("unresolvable column reference '{0}'; known fields or aliases required")]
     UndefinedColumn(String),
 
+    /// Internal signal used only while DML defers a correlated subquery until
+    /// the mutation's outer row is available.
+    #[error("unresolvable correlated column reference '{name}'")]
+    DeferredCorrelatedResolution { name: String, qualifier: String },
+
     #[error("column reference \"{0}\" is ambiguous")]
     AmbiguousColumn(String),
 
@@ -268,6 +273,9 @@ impl CassieError {
     pub fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
+            Self::DeferredCorrelatedResolution { .. } => {
+                bad_request_descriptor("42703", self.to_string())
+            }
             Self::AmbiguousColumn(_) => bad_request_descriptor("42702", self.to_string()),
             Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
@@ -346,10 +354,29 @@ impl CassieError {
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
+            Self::Diagnostic(error) if error.sql_state == "23505" => {
+                unique_diagnostic_descriptor(error)
+            }
             Self::Diagnostic(error) => {
                 bad_request_descriptor(error.sql_state, error.message.clone())
             }
         }
+    }
+}
+
+fn unique_diagnostic_descriptor(error: &DiagnosticError) -> CassieErrorDescriptor {
+    let constraint = error
+        .message
+        .strip_prefix("duplicate key value violates unique constraint \"")
+        .and_then(|message| message.strip_suffix('"'))
+        .map(str::to_owned);
+    CassieErrorDescriptor {
+        http_status: 409,
+        sql_state: error.sql_state,
+        message: error.message.clone(),
+        table: None,
+        column: None,
+        constraint,
     }
 }
 
@@ -587,6 +614,12 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
+    if let Some(detail) = message.strip_prefix("invalid JSON literal: ") {
+        return bad_request_descriptor(
+            "22P02",
+            format!("invalid input syntax for type json: {detail}"),
+        );
+    }
     if text_boolean_predicate_mismatch(message) {
         return bad_request_descriptor("42804", message.to_string());
     }
@@ -764,7 +797,14 @@ impl From<std::string::FromUtf8Error> for CassieError {
 impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
-            crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
+            crate::sql::SqlErrorKind::Syntax => value.position().map_or_else(
+                || CassieError::InvalidQuery(value.to_string()),
+                |position| {
+                    DiagnosticError::new("42601", value.to_string())
+                        .with_position(position)
+                        .into()
+                },
+            ),
             crate::sql::SqlErrorKind::NumericRange
             | crate::sql::SqlErrorKind::DuplicateColumn
             | crate::sql::SqlErrorKind::UndefinedFunction => {

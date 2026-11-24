@@ -63,6 +63,10 @@ use schema_table_constraints::{
     apply_table_constraints, parse_add_constraint, parse_table_constraint,
 };
 
+pub(super) fn parse_column_declaration_list(raw: &str) -> Result<Vec<String>, SqlError> {
+    schema_identifiers::parse_column_declaration_list(raw)
+}
+
 pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed[12..].trim();

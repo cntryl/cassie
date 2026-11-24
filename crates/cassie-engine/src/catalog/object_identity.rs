@@ -629,7 +629,7 @@ fn stable_materialized_view_oid(projection_id: &str) -> u32 {
 pub(crate) fn catalog_index_oid(index: &crate::catalog::IndexMeta) -> u32 {
     index
         .catalog_oid()
-        .unwrap_or_else(|| stable_index_oid(&index.name))
+        .unwrap_or_else(|| stable_index_oid(&format!("{}.{}", index.collection, index.name)))
 }
 
 /// The OID of a schema by canonical name, including the fixed system schemas.

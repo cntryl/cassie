@@ -33,6 +33,7 @@ fn inspect(
     let context = ExistsResolutionContext {
         cassie,
         session: None,
+        binding_context: None,
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],

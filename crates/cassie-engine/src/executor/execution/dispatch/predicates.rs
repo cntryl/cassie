@@ -1,14 +1,14 @@
 //! Resolve subqueries within ternary predicates.
 use super::{resolve_exists_expr, ExistsResolutionContext, Expr, ExprResolution};
 
-pub(super) fn between<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    low: &'a Expr,
-    high: &'a Expr,
+pub(super) fn between(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    low: &Expr,
+    high: &Expr,
     negated: bool,
     symmetric: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::Between {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         low: Box::new(resolve_exists_expr(context, low)?),
@@ -18,13 +18,13 @@ pub(super) fn between<'a>(
     })
 }
 
-pub(super) fn like<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    pattern: &'a Expr,
-    escape: &'a Expr,
+pub(super) fn like(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    pattern: &Expr,
+    escape: &Expr,
     case_insensitive: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::Like {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         pattern: Box::new(resolve_exists_expr(context, pattern)?),

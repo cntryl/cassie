@@ -257,7 +257,7 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                 }
             }
             SelectItem::Expr { expr, alias } => ProjectionOp::ScalarFunction {
-                key: alias.as_deref().unwrap_or("expr").to_string(),
+                key: alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
                 expr: expr.clone(),
                 precomputed_key: Some(projection_expr_key(expr)),
             },

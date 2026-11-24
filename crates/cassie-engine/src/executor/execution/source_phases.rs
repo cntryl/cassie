@@ -23,7 +23,14 @@ pub(super) fn window(
             .args
             .iter()
             .chain(function.filter.as_deref())
-            .any(super::super::exists_correlated::contains_exists),
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(|expr| {
+                super::super::exists_correlated::contains_exists_or_routine_subquery(
+                    expr,
+                    env.user_functions,
+                )
+            }),
         _ => false,
     });
     let batches = if deferred {

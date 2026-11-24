@@ -10,11 +10,17 @@ mod json_functions;
 #[path = "json_result_owner.rs"]
 mod json_result_owner;
 use super::{
-    cast_scalar, eval_scalar, scalar_from_value, CassieSession, DataType, EvalContext, Expr,
-    FunctionCall, HashMap, QueryError, Value,
+    cast_scalar, scalar_from_value, CassieSession, DataType, EvalContext, Expr, FunctionCall,
+    HashMap, QueryError, Value,
 };
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
+
+pub(super) fn invalid_function_signature(name: &str) -> QueryError {
+    QueryError::Cassie(
+        crate::app::DiagnosticError::new("42883", format!("function {name} does not exist")).into(),
+    )
+}
 
 #[path = "array_functions.rs"]
 mod array_functions;
@@ -299,6 +305,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
         }
+        "pg_get_constraintdef" | "pg_catalog.pg_get_constraintdef" => {
+            Some(evaluate_pg_get_constraintdef(name, args, session))
+        }
         "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
             Some(evaluate_pg_get_viewdef(name, args, session))
         }
@@ -400,13 +409,54 @@ fn evaluate_current_schemas(
 }
 
 fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError> {
-    require_arg_count(name, args, 2)?;
+    require_arg_count_range(name, args, 2..=3)?;
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+
+    if args
+        .get(2)
+        .is_some_and(|pretty| !matches!(pretty, Value::Bool(_) | Value::Null))
+    {
+        return Err(invalid_function_signature(name));
+    }
     match text_arg(name, &args[0])? {
         Some(expression) => Ok(Value::String(
             crate::catalog::virtual_views::format_stored_expression(&expression),
         )),
         None => Ok(Value::Null),
     }
+}
+
+fn evaluate_pg_get_constraintdef(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count_range(name, args, 1..=2)?;
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+    if args
+        .get(1)
+        .is_some_and(|pretty| !matches!(pretty, Value::Bool(_)))
+    {
+        return Err(invalid_function_signature(name));
+    }
+    let oid = signed_integer_arg(name, &args[0])?;
+    let Some(oid) = oid else {
+        return Ok(Value::Null);
+    };
+    let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) else {
+        return Ok(Value::Null);
+    };
+    Ok(crate::catalog::virtual_views::constraint_definition_by_oid(
+        &catalog,
+        &context.database,
+        oid,
+        session,
+    )
+    .map_or(Value::Null, Value::String))
 }
 
 fn evaluate_current_setting(
@@ -494,6 +544,8 @@ fn pg_table_is_visible<R: RowAccess + ?Sized>(
     let schema = row
         .get("relnamespace")
         .and_then(value_as_string)
+        .or_else(|| row.get("nspname").and_then(value_as_string))
+        .or_else(|| row.get("n.nspname").and_then(value_as_string))
         .or_else(|| row.get("schemaname").and_then(value_as_string))
         .or_else(|| row.get("table_schema").and_then(value_as_string))
         .unwrap_or_else(|| DEFAULT_SCHEMA.to_string());
@@ -592,6 +644,27 @@ fn evaluate_cast_function(
 #[path = "user_routine.rs"]
 mod routine;
 use routine::evaluate_user_defined_function;
+
+pub(crate) fn expression_contains_routine_subquery(
+    expression: &Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::expression_contains_routine_subquery(expression, user_functions)
+}
+
+pub(crate) fn expression_contains_unresolved_routine_subquery(
+    expression: &Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::expression_contains_unresolved_routine_subquery(expression, user_functions)
+}
+
+pub(crate) fn function_contains_routine_subquery(
+    function: &FunctionCall,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::function_contains_routine_subquery(function, user_functions)
+}
 
 pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -763,6 +836,7 @@ fn evaluate_format_type(
         (Some(oid), Some(typmod)) => {
             Value::String(format_type_oid_in_session(oid, typmod, session))
         }
+        (Some(oid), None) => Value::String(format_type_oid_in_session(oid, -1, session)),
         _ => Value::Null,
     })
 }
@@ -832,21 +906,6 @@ fn evaluate_hybrid_score(args: &[Value]) -> Result<Value, QueryError> {
         scalar_to_f64(&args[1]),
         None,
     )))
-}
-
-fn merge_local_args(
-    outer: Option<&HashMap<String, Value>>,
-    locals: HashMap<String, Value>,
-) -> HashMap<String, Value> {
-    if let Some(outer) = outer {
-        let mut merged = outer.clone();
-        for (name, value) in locals {
-            merged.insert(name, value);
-        }
-        merged
-    } else {
-        locals
-    }
 }
 
 fn parse_f64_to_i64(value: f64) -> Option<i64> {

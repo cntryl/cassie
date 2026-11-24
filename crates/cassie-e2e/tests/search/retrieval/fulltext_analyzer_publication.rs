@@ -20,9 +20,17 @@ const STEMMED: &str = " WITH (stemming = 'english')";
 fn pause_alter_before_commit(
     cassie: &Arc<Cassie>,
     sql: &'static str,
-) -> (std::thread::JoinHandle<()>, Arc<Barrier>) {
+) -> (
+    std::thread::JoinHandle<()>,
+    Arc<Barrier>,
+    cassie::runtime::test_sync::TestBarrierCleanup,
+) {
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::FulltextAnalyzerChange),
         Some(Arc::clone(&ready)),
@@ -33,9 +41,9 @@ fn pause_alter_before_commit(
         let _worker_guard = schema_write_conflict_worker_guard();
         run(&worker_cassie, sql, vec![]);
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(&ready, "fulltext analyzer change ready");
     set_schema_write_commit_barriers(None, None, None);
-    (worker, resume)
+    (worker, resume, cleanup)
 }
 
 #[test]
@@ -44,7 +52,7 @@ fn should_show_readers_one_generation_while_synonyms_are_published() {
     let _test_guard = schema_write_conflict_test_guard();
     let cassie = Arc::new(support::new_in_memory_cassie().expect("create Cassie"));
     seed(&cassie, "iso_gen", STEMMED);
-    let (worker, resume) = pause_alter_before_commit(
+    let (worker, resume, mut cleanup) = pause_alter_before_commit(
         &cassie,
         "ALTER INDEX iso_gen_ft SET (synonyms = 'car,auto')",
     );
@@ -62,9 +70,10 @@ fn should_show_readers_one_generation_while_synonyms_are_published() {
     let during = rx
         .recv_timeout(Duration::from_secs(60))
         .expect("reader must not wait on the paused publisher");
-    resume.wait();
-    worker.join().expect("join alter worker");
-    reader.join().expect("join reader");
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "fulltext analyzer change resume");
+    let () = cassie::runtime::test_sync::join_test_thread(worker, "alter worker");
+    let () = cassie::runtime::test_sync::join_test_thread(reader, "reader");
+    cleanup.disarm();
     let after = (
         ids(&cassie, "iso_gen", "auto"),
         reloptions(&cassie, "iso_gen_ft"),
@@ -84,7 +93,7 @@ fn should_reanalyze_a_document_updated_during_the_synonym_switch() {
     let _test_guard = schema_write_conflict_test_guard();
     let cassie = Arc::new(support::new_in_memory_cassie().expect("create Cassie"));
     seed(&cassie, "upd_switch", STEMMED);
-    let (worker, resume) = pause_alter_before_commit(
+    let (worker, resume, mut cleanup) = pause_alter_before_commit(
         &cassie,
         "ALTER INDEX upd_switch_ft SET (synonyms = 'car,auto')",
     );
@@ -104,8 +113,9 @@ fn should_reanalyze_a_document_updated_during_the_synonym_switch() {
     ];
 
     // Act
-    resume.wait();
-    worker.join().expect("join alter worker");
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "fulltext analyzer change resume");
+    let () = cassie::runtime::test_sync::join_test_thread(worker, "alter worker");
+    cleanup.disarm();
     writer.join().expect("join update writer");
     seed_docs(
         &cassie,

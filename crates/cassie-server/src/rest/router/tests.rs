@@ -223,6 +223,109 @@ fn should_return_owned_numeric_error_response_through_public_route_request() {
 }
 
 #[test]
+fn should_percent_decode_a_quoted_collection_segment_through_the_http_router() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Arc::new(
+            Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+                .expect("cassie"),
+        );
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE \"Cities\" (id BIGINT PRIMARY KEY, name TEXT)",
+                Vec::new(),
+            )
+            .expect("create quoted table");
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let server_cassie = Arc::clone(&cassie);
+        let service = hyper::service::service_fn(move |request: Request<Incoming>| {
+            let cassie = Arc::clone(&server_cassie);
+            async move {
+                let response = match route_request(request, cassie).await {
+                    Ok(response) => response,
+                    Err((status, message)) => {
+                        json_response(status, &serde_json::json!({"error": message}))
+                    }
+                };
+                Ok::<_, Infallible>(response)
+            }
+        });
+        let server = tokio::spawn(async move {
+            hyper::server::conn::http1::Builder::new()
+                .serve_connection(hyper_util::rt::TokioIo::new(server_io), service)
+                .await
+                .expect("server connection");
+        });
+        let (mut sender, connection) =
+            hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(client_io))
+                .await
+                .expect("client handshake");
+        let client = tokio::spawn(async move {
+            connection.await.expect("client connection");
+        });
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/collections/%22Cities%22/documents")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from_static(
+                br#"{"id":1,"name":"quoted"}"#,
+            )))
+            .expect("request");
+
+        // Act
+        let response = sender.send_request(request).await.expect("response");
+
+        // Assert
+        assert_eq!(response.status(), StatusCode::OK);
+        let documents = cassie
+            .midge
+            .scan_documents("postgres.public.\"Cities\"")
+            .expect("scan quoted collection");
+        assert_eq!(documents.len(), 1);
+        assert_eq!(documents[0].payload["name"], "quoted");
+        drop(sender);
+        tokio::time::timeout(Duration::from_secs(1), server)
+            .await
+            .expect("server deadline")
+            .expect("server task");
+        client.await.expect("client task");
+    });
+}
+
+#[test]
+fn should_reject_encoded_collection_separators_with_traversal() {
+    // Arrange
+    let invalid = [
+        "cities%2Fevents",
+        "cities%5Cevents",
+        "%2E%2E",
+        "%2E",
+        "%",
+        "%GG",
+        "%FF",
+    ];
+
+    // Act
+    let errors = invalid.map(collection_routes::decode_collection_segment);
+
+    // Assert
+    for (requested, result) in invalid.into_iter().zip(errors) {
+        assert!(
+            matches!(result, Err(crate::app::CassieError::Parse(_))),
+            "{requested} was accepted"
+        );
+    }
+}
+
+#[test]
 fn should_reject_a_rest_body_that_stalls_between_frames() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

@@ -24,6 +24,8 @@ fn cancel_after_value_once(handle: crate::runtime::QueryCancellationHandle) {
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     rows: &[Vec<Expr>],
+    ctes: &super::CteContext,
+    outer_row: Option<&BatchRow>,
     row_budget: Option<usize>,
 ) -> SourceExecution {
     check_timeout(env.controls)?;
@@ -50,13 +52,12 @@ pub(super) fn execute(
                 .controls
                 .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
             let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
-            let value = super::filter::evaluate_source_argument(
-                &BatchRow::from_projected_values(Vec::new()),
+            let empty = BatchRow::from_projected_values(Vec::new());
+            let value = super::source_set_function::argument_value(
+                env,
                 expression,
-                env.params,
-                env.user_functions,
-                env.session,
-                env.controls,
+                outer_row.unwrap_or(&empty),
+                ctes,
                 &evaluation,
             )?;
             #[cfg(test)]
@@ -162,13 +163,10 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
-        Expr::Function(function) if crate::sql::binder::values::allows_function(&function.name) => {
-            64
-        }
-        // A subquery (`_` below) admits its own rows when it runs.
-        Expr::Function(_) | Expr::Column(_) => {
+        Expr::Function(_) => 64,
+        Expr::Column(_) => {
             return Err(crate::app::CassieError::Unsupported(
-                "functions and subqueries in VALUES are not yet supported".into(),
+                "columns in VALUES are not yet supported".into(),
             )
             .into());
         }

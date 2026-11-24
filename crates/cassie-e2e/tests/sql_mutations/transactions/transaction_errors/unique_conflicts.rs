@@ -70,7 +70,7 @@ fn should_wait_for_a_unique_conflict_owner_before_returning_insert() {
         "PostgreSQL waits for the unresolved unique-key owner before returning INSERT"
     );
     assert!(
-        matches!(waiter_result, Err(CassieError::UniqueViolation { .. })),
+        matches!(waiter_result, Err(CassieError::Diagnostic(diagnostic)) if diagnostic.sql_state == "23505"),
         "committing the owner first makes the waiting INSERT fail with 23505"
     );
     assert_eq!(waiter_state, "failed");
@@ -336,7 +336,7 @@ fn should_report_a_committed_conflict_before_waiting_on_other_insert_keys() {
         "a committed duplicate must fail the INSERT without waiting for another key owner"
     );
     assert!(
-        matches!(waiter_result, Err(CassieError::UniqueViolation { .. })),
+        matches!(waiter_result, Err(CassieError::Diagnostic(diagnostic)) if diagnostic.sql_state == "23505"),
         "the committed owner must produce a unique violation"
     );
     assert_eq!(

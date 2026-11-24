@@ -3,7 +3,9 @@ use crate::config::CassieRuntimeConfig;
 use crate::midge::adapter::observe_native_commits;
 
 fn sql_fixture() -> (Cassie, crate::app::CassieSession) {
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.query_timeout_ms = 120_000;
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("projector", None);
     for sql in [
@@ -320,10 +322,27 @@ fn commit_after_losing_upsert_race(
     ] {
         execute(&cassie, &session, sql);
     }
-    execute(
-        &cassie,
-        &other,
-        "INSERT INTO replay_sql_upsert (email, value) VALUES ('a', 9)",
+    assert_eq!(session.transaction_conflict_intents().len(), 1);
+    cassie
+        .midge
+        .inject_committed_document_for_test(
+            "replay_sql_upsert",
+            "committed-competitor",
+            &serde_json::json!({"email": "a", "value": 9}),
+        )
+        .unwrap();
+    let competitor = other.clone();
+    assert_eq!(
+        cassie
+            .get_document_for_session(
+                Some(&competitor),
+                "replay_sql_upsert",
+                "committed-competitor"
+            )
+            .unwrap()
+            .expect("committed competitor")
+            .payload["value"],
+        serde_json::json!(9)
     );
     let (result, writes) =
         observe_native_commits(|| cassie.execute_sql(&session, "COMMIT", vec![]));

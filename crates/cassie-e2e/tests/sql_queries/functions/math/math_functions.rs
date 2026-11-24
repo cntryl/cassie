@@ -180,6 +180,103 @@ fn should_return_zero_for_bigint_minimum_modulo_negative_one() {
 }
 
 #[test]
+fn should_reject_float_remainder_overloads_with_operator_sqlstates() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1477-floating-remainder-overloads",
+        &[
+            "CREATE TABLE tf (x DOUBLE PRECISION)",
+            "CREATE TABLE tr (r REAL)",
+        ],
+    );
+    let cases = [
+        (
+            "SELECT x % 2 FROM tf",
+            "operator does not exist: double precision % integer",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 2",
+            "operator does not exist: double precision % integer",
+        ),
+        (
+            "SELECT r % 2 FROM tr",
+            "operator does not exist: real % integer",
+        ),
+        (
+            "SELECT 7::BIGINT % 2.5::DOUBLE PRECISION",
+            "operator does not exist: bigint % double precision",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 2.5::DOUBLE PRECISION",
+            "operator does not exist: double precision % double precision",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 1.2::NUMERIC(5,1)",
+            "operator does not exist: double precision % numeric",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % B'101'::BIT(3)",
+            "operator does not exist: double precision % bit",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % '12:00:00'::TIME(2)",
+            "operator does not exist: double precision % time",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % ARRAY[1.2]::NUMERIC(5,1)[]",
+            "operator does not exist: double precision % numeric[]",
+        ),
+    ];
+
+    // Act
+    let errors = cases.map(|(sql, _)| fixture.error(sql));
+
+    // Assert
+    for ((sql, message), error) in cases.into_iter().zip(errors) {
+        assert_eq!(error.sql_state(), "42883", "{sql}");
+        assert_eq!(error.to_string(), message, "{sql}");
+    }
+}
+
+#[test]
+fn should_reject_float_remainder_in_a_where_clause_on_an_empty_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1477-floating-remainder-empty-where",
+        &["CREATE TABLE tf (x DOUBLE PRECISION)"],
+    );
+
+    // Act
+    let error = fixture.error("SELECT x FROM tf WHERE x % 2 = 0");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42883");
+    assert_eq!(
+        error.to_string(),
+        "operator does not exist: double precision % integer"
+    );
+}
+
+#[test]
+fn should_keep_integer_numeric_float8_operator_results() {
+    // Arrange
+    let fixture = sql_fixture("issue-1477-remainder-compatible-overloads", &[]);
+
+    // Act
+    let remainders = fixture
+        .execute("SELECT 7 % 2 = 1, 7.5::NUMERIC % 2 = 1.5, 7 % 2.5 = 2.0")
+        .expect("integer and numeric remainder overloads");
+    let addition = fixture
+        .execute("SELECT 1.5::FLOAT8 + 1")
+        .expect("float8 addition");
+
+    // Assert
+    assert_eq!(remainders.rows(), &[vec![Value::Bool(true); 3]]);
+    assert_eq!(addition.rows(), &[vec![Value::Float64(2.5)]]);
+    assert_eq!(addition.columns()[0].type_oid, 701);
+}
+
+#[test]
 fn should_keep_power_result_types_for_both_inputs() {
     // Arrange
     let sql = "SELECT POWER(CAST(9 AS NUMERIC), CAST(3 AS NUMERIC)) = CAST(729 AS NUMERIC) AND POWER(CAST(9 AS FLOAT), CAST(0.5 AS FLOAT)) = CAST(3 AS FLOAT)";

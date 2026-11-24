@@ -46,6 +46,27 @@ impl QueryCancellationHandle {
         true
     }
 
+    #[doc(hidden)]
+    pub fn pause_after_copy_row_staged(&mut self) -> super::CopyTestPauseGuard {
+        assert!(self.2.is_none(), "COPY test pauses must not be nested");
+        let (pause, staged, resume) = super::copy_test_pause::CopyTestPause::new();
+        let pause = Arc::new(pause);
+        self.2 = Some(Arc::new(super::QueryTestPause::Copy(Arc::clone(&pause))));
+        super::CopyTestPauseGuard::new(Arc::downgrade(&pause), staged, resume)
+    }
+
+    #[cfg(test)]
+    pub(super) fn attach_copy_test_pause(
+        &mut self,
+        pause: Arc<super::copy_test_pause::CopyTestPause>,
+    ) -> bool {
+        if self.2.is_some() {
+            return false;
+        }
+        self.2 = Some(Arc::new(super::QueryTestPause::Copy(pause)));
+        true
+    }
+
     /// Pauses this request once after a candidate is scored and retained.
     /// Install before cloning the handle. Unrelated requests have no pause.
     /// Both endpoints must be serviced; a disconnected or stalled observer fails
@@ -359,6 +380,13 @@ impl QueryExecutionControls {
     ) -> Result<(), CassieError> {
         if let Some(super::QueryTestPause::Scoring(pause)) = self.cancellation.2.as_deref() {
             pause.reach(boundary)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn copy_row_staged(&self, ordinal: usize) -> Result<(), CassieError> {
+        if let Some(super::QueryTestPause::Copy(pause)) = self.cancellation.2.as_deref() {
+            pause.reach(ordinal)?;
         }
         Ok(())
     }

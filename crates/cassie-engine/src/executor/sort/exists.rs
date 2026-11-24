@@ -31,13 +31,18 @@ pub(crate) fn sort_batches_resolving(
 
 /// Inspect the same borrowed alias selection used by key construction.
 pub(crate) fn requires_resolver(eval: &EvalInput<'_>) -> bool {
-    let contains = |expr: &Expr| expr.any_descendant_or_self(&mut Expr::is_subquery_node);
+    let contains = |expr: &Expr| {
+        super::filter::expression_contains_routine_subquery(expr, eval.user_functions)
+            || expr.any_descendant_or_self(&mut Expr::is_subquery_node)
+    };
     if eval.order.iter().any(|order| contains(&order.expr)) {
         return true;
     }
     let deferred_projection = eval.projection.iter().any(|item| match item {
         super::SelectItem::Expr { expr, .. } => contains(expr),
-        super::SelectItem::Function { function, .. } => function.expressions().any(contains),
+        super::SelectItem::Function { function, .. } => {
+            super::filter::function_contains_routine_subquery(function, eval.user_functions)
+        }
         _ => false,
     });
     if !deferred_projection {
@@ -47,7 +52,7 @@ pub(crate) fn requires_resolver(eval: &EvalInput<'_>) -> bool {
         |order| match super::alias_item(&order.expr, eval.projection) {
             Some(super::SelectItem::Expr { expr, .. }) => contains(expr),
             Some(super::SelectItem::Function { function, .. }) => {
-                function.expressions().any(contains)
+                super::filter::function_contains_routine_subquery(function, eval.user_functions)
             }
             _ => false,
         },

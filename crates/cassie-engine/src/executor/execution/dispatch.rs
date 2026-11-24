@@ -20,7 +20,7 @@ use super::{
     SelectItem, Value,
 };
 
-type ExprResolution<'a> = Result<Expr, QueryError>;
+type ExprResolution = Result<Expr, QueryError>;
 type AccessPathResult = Result<Option<Vec<BatchRow>>, QueryError>;
 type AccessPathFn = for<'a> fn(&mut AccessPathContext<'a>) -> AccessPathResult;
 
@@ -38,6 +38,7 @@ struct AccessPathExecutor {
 pub(super) struct PlanExecutionEnv<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) parameter_type_oids: &'a [i32],
@@ -56,6 +57,7 @@ struct AccessPathContext<'a> {
 pub(super) struct ExistsResolutionContext<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) binding_context: Option<&'a crate::sql::binder::BindingContext>,
     pub(super) cte_context: &'a CteContext,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
@@ -171,6 +173,27 @@ pub(super) fn plan_execution_env_with_parameter_oids<'a>(
     PlanExecutionEnv {
         cassie,
         session,
+        binding_context: None,
+        user_functions,
+        params,
+        parameter_type_oids,
+        controls,
+    }
+}
+
+pub(super) fn plan_execution_env_with_binding_context<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    binding_context: &'a crate::sql::binder::BindingContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    parameter_type_oids: &'a [i32],
+    controls: &'a QueryExecutionControls,
+) -> PlanExecutionEnv<'a> {
+    PlanExecutionEnv {
+        cassie,
+        session,
+        binding_context: Some(binding_context),
         user_functions,
         params,
         parameter_type_oids,
@@ -247,11 +270,14 @@ fn execute_plan_with_physical(
 
     let resolved_plan;
     let _exists_memory;
-    let (plan, physical) = if super::exists_plan::plan_has_unresolved_exists(plan) {
+    let has_unresolved_exists =
+        super::exists_plan::plan_has_unresolved_exists(plan, env.user_functions);
+    let (plan, physical) = if has_unresolved_exists {
         (resolved_plan, _exists_memory) = super::exists_plan::resolve_plan_exists(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
+                binding_context: env.binding_context,
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,
@@ -286,6 +312,15 @@ fn execute_plan_with_physical(
             .runtime
             .record_mixed_execution_fallback(plan.collection.clone(), reason);
     }
+    execute_source_plan(env, plan, cte_context, outer_row)
+}
+
+fn execute_source_plan(
+    env: &PlanExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    outer_row: Option<&BatchRow>,
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     let relational_controls =
         plan_has_cte_boundary(plan).then(|| env.controls.for_relational_scalar_cte());
     let source_env = source::source_execution_env_with_parameter_oids(
@@ -296,6 +331,10 @@ fn execute_plan_with_physical(
         env.parameter_type_oids,
         relational_controls.as_ref().unwrap_or(env.controls),
     );
+    let source_env = source::SourceExecutionEnv {
+        binding_context: env.binding_context,
+        ..source_env
+    };
     source::execute_source_query_with_outer_row(&source_env, plan, cte_context, outer_row)
 }
 
@@ -560,6 +599,7 @@ pub(super) fn resolve_statement_exists(
         &ExistsResolutionContext {
             cassie,
             session,
+            binding_context: None,
             cte_context: &cte_context,
             user_functions,
             params,
@@ -571,10 +611,10 @@ pub(super) fn resolve_statement_exists(
     )
 }
 
-pub(super) fn resolve_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-) -> ExprResolution<'a> {
+pub(super) fn resolve_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+) -> ExprResolution {
     match expr {
         Expr::Case {
             operand,
@@ -674,11 +714,66 @@ pub(super) fn resolve_exists_expr<'a>(
     }
 }
 
-fn resolve_subscript_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    array: &'a Expr,
-    subscripts: &'a [crate::sql::ast::ArraySubscript],
-) -> ExprResolution<'a> {
+pub(super) fn resolve_exists_expr_with_local_args(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    local_args: Option<&HashMap<String, Value>>,
+) -> ExprResolution {
+    let Some(local_args) = local_args else {
+        return resolve_exists_expr(context, expr);
+    };
+    context.controls.check_interruption()?;
+    let (entries_bytes, names_bytes, values_bytes) = local_args.iter().try_fold(
+        (0_usize, 0_usize, 0_usize),
+        |(entries, names, values), (name, value)| {
+            Ok::<_, QueryError>((
+                crate::executor::retained_memory::add(
+                    entries,
+                    std::mem::size_of::<(String, Value)>(),
+                )?,
+                crate::executor::retained_memory::add(names, name.capacity())?,
+                crate::executor::retained_memory::add(
+                    values,
+                    crate::executor::retained_memory::value_clone_bytes(value)?,
+                )?,
+            ))
+        },
+    )?;
+    let memory_bytes = crate::executor::retained_memory::add(
+        crate::executor::retained_memory::add(
+            std::mem::size_of::<BatchRow>(),
+            crate::executor::retained_memory::add(
+                entries_bytes,
+                crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(
+                    local_args.len(),
+                )?,
+            )?,
+        )?,
+        crate::executor::retained_memory::add(
+            crate::executor::retained_memory::mul(names_bytes, 2)?,
+            values_bytes,
+        )?,
+    )?;
+    let memory = std::sync::Arc::new(context.controls.reserve_query_memory(memory_bytes)?);
+    let row = BatchRow::new(
+        local_args
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect(),
+    )
+    .with_query_memory(Some(memory));
+    let scoped = ExistsResolutionContext {
+        outer_row: Some(&row),
+        ..*context
+    };
+    resolve_exists_expr(&scoped, expr)
+}
+
+fn resolve_subscript_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    array: &Expr,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+) -> ExprResolution {
     Ok(Expr::ArraySubscript {
         array: Box::new(resolve_exists_expr(context, array)?),
         subscripts: subscripts
@@ -710,10 +805,10 @@ fn resolve_subscript_exists_expr<'a>(
     })
 }
 
-fn resolve_row_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    comparison: &'a crate::sql::ast::RowComparison,
-) -> ExprResolution<'a> {
+fn resolve_row_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    comparison: &crate::sql::ast::RowComparison,
+) -> ExprResolution {
     Ok(Expr::RowCompare(Box::new(crate::sql::ast::RowComparison {
         left: comparison
             .left
@@ -729,12 +824,12 @@ fn resolve_row_exists_expr<'a>(
     })))
 }
 
-fn resolve_binary_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    left: &'a Expr,
-    op: &'a crate::sql::ast::BinaryOp,
-    right: &'a Expr,
-) -> ExprResolution<'a> {
+fn resolve_binary_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    left: &Expr,
+    op: &crate::sql::ast::BinaryOp,
+    right: &Expr,
+) -> ExprResolution {
     Ok(Expr::Binary {
         left: Box::new(resolve_exists_expr(context, left)?),
         op: op.clone(),
@@ -742,23 +837,23 @@ fn resolve_binary_exists_expr<'a>(
     })
 }
 
-fn resolve_is_null_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
+fn resolve_is_null_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
     negated: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::IsNull {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         negated,
     })
 }
 
-fn resolve_in_list_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    values: &'a [Expr],
+fn resolve_in_list_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    values: &[Expr],
     negated: bool,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     let expr = resolve_exists_expr(context, expr)?;
     let mut resolved_values = Vec::with_capacity(values.len());
     for value in values {
@@ -771,22 +866,19 @@ fn resolve_in_list_exists_expr<'a>(
     })
 }
 
-fn resolve_not_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-) -> ExprResolution<'a> {
+fn resolve_not_exists_expr(context: &ExistsResolutionContext<'_>, expr: &Expr) -> ExprResolution {
     Ok(Expr::Not {
         expr: Box::new(resolve_exists_expr(context, expr)?),
     })
 }
 
-fn resolve_cast_exists_expr<'a>(
-    context: &'a ExistsResolutionContext<'a>,
-    expr: &'a Expr,
-    data_type: &'a crate::types::DataType,
-    source_type: Option<&'a crate::types::DataType>,
+fn resolve_cast_exists_expr(
+    context: &ExistsResolutionContext<'_>,
+    expr: &Expr,
+    data_type: &crate::types::DataType,
+    source_type: Option<&crate::types::DataType>,
     identity: crate::sql::ast::CastIdentity,
-) -> ExprResolution<'a> {
+) -> ExprResolution {
     Ok(Expr::Cast {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         data_type: data_type.clone(),
@@ -828,7 +920,10 @@ fn statement_binding_context(
 fn exists_binding_context(
     context: &ExistsResolutionContext<'_>,
 ) -> crate::sql::binder::BindingContext {
-    statement_binding_context(context.cassie, context.session)
+    context.binding_context.map_or_else(
+        || statement_binding_context(context.cassie, context.session),
+        Clone::clone,
+    )
 }
 
 pub(super) fn build_logical_plan(
@@ -857,7 +952,15 @@ pub(super) fn build_logical_plan_in_session(
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
     let context = statement_binding_context(cassie, session);
-    let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, &context)
+    build_logical_plan_in_context(cassie, &context, statement)
+}
+
+pub(super) fn build_logical_plan_in_context(
+    cassie: &Cassie,
+    context: &crate::sql::binder::BindingContext,
+    statement: &crate::sql::ast::ParsedStatement,
+) -> Result<LogicalPlan, QueryError> {
+    let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, context)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let mut plan = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;

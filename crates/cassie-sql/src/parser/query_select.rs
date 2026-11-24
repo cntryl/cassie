@@ -42,9 +42,12 @@ pub(super) fn parse_select_statement(
         return values::parse(trimmed, withs, recursive);
     }
 
-    let after_select = crate::parser::lexical::trim_separators(&trimmed[6..]);
-    let (mut select_part, rest, source) = split_select_projection_and_rest(after_select)?;
-    let (distinct, distinct_on) = parse_distinct_clause(&mut select_part)?;
+    let after_select_raw = &trimmed[6..];
+    let after_select = crate::parser::lexical::trim_separators(after_select_raw);
+    let after_select_offset = 6 + crate::parser::lexical::separator_end(after_select_raw, 0);
+    let (mut select_part, select_offset, rest, source) =
+        split_select_projection_and_rest(after_select)?;
+    let (distinct, distinct_on, distinct_offset) = parse_distinct_clause(&mut select_part)?;
     let clauses = parse_clauses(&rest)?;
     let source = resolve_select_source(&rest, &clauses, source)?;
     let parsed_clauses = parse_select_clauses(&rest, &clauses)?;
@@ -54,7 +57,9 @@ pub(super) fn parse_select_statement(
         .map(parse_named_windows)
         .transpose()?
         .unwrap_or_default();
-    let projection = parse_projection_items(&select_part, &named_windows)?;
+    let projection = parse_projection_items(&select_part, &named_windows).map_err(|error| {
+        error.offset_position(after_select_offset + select_offset + distinct_offset)
+    })?;
     let filter = parsed_clauses
         .where_sql
         .as_deref()
@@ -413,7 +418,7 @@ fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
 
 fn split_select_projection_and_rest(
     after_select: &str,
-) -> Result<(String, String, Option<QuerySource>), SqlError> {
+) -> Result<(String, usize, String, Option<QuerySource>), SqlError> {
     let from_pos = find_top_level_keyword(after_select, 0, "from");
     if let Some(from_pos) = from_pos {
         let select_part = after_select[..from_pos].trim();
@@ -428,7 +433,9 @@ fn split_select_projection_and_rest(
             return Err(SqlError::new("missing collection in FROM".into()));
         }
 
-        return Ok((select_part.to_string(), rest.to_string(), None));
+        let projection_source = &after_select[..from_pos];
+        let offset = projection_source.len() - projection_source.trim_start().len();
+        return Ok((select_part.to_string(), offset, rest.to_string(), None));
     }
 
     let clauses = parse_clauses(after_select)?;
@@ -449,23 +456,29 @@ fn split_select_projection_and_rest(
         ));
     }
 
+    let projection_source = &after_select[..first_clause];
     Ok((
         select_part.to_string(),
+        projection_source.len() - projection_source.trim_start().len(),
         rest.to_string(),
         Some(QuerySource::SingleRow),
     ))
 }
 
-fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), SqlError> {
+fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>, usize), SqlError> {
     if let Some(end) = crate::parser::lexical::pattern_end(select_part, 0, "all") {
-        *select_part =
-            crate::parser::lexical::trim_separators(&select_part[end..]).to_string();
-        return Ok((false, Vec::new()));
+        let remainder = &select_part[end..];
+        let leading = crate::parser::lexical::separator_end(remainder, 0);
+        *select_part = remainder[leading..].to_string();
+        return Ok((false, Vec::new(), end + leading));
     }
     let mut distinct_on = Vec::new();
     let select_part_lower = select_part.to_ascii_lowercase();
     if let Some(end) = crate::parser::lexical::pattern_end(select_part, 0, "distinct on") {
-        let after_distinct_on = crate::parser::lexical::trim_separators(&select_part[end..]);
+        let raw_after_distinct_on = &select_part[end..];
+        let leading_after_distinct_on =
+            crate::parser::lexical::separator_end(raw_after_distinct_on, 0);
+        let after_distinct_on = crate::parser::lexical::trim_separators(raw_after_distinct_on);
         let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
             .ok_or_else(|| {
                 SqlError::new("DISTINCT ON requires a parenthesized expression list".into())
@@ -479,7 +492,10 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
             .into_iter()
             .map(parse_expression)
             .collect::<Result<Vec<_>, _>>()?;
-        *select_part = remainder.trim().to_string();
+        let leading = crate::parser::lexical::separator_end(remainder, 0);
+        let projection_offset =
+            end + leading_after_distinct_on + after_distinct_on.len() - remainder.len() + leading;
+        *select_part = remainder[leading..].to_string();
         if select_part.is_empty() {
             return Err(SqlError::new(
                 "missing projection in SELECT statement".into(),
@@ -488,15 +504,17 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
         if select_part.to_ascii_lowercase().starts_with("distinct") {
             return Err(SqlError::new("duplicate DISTINCT clause".into()));
         }
-        return Ok((false, distinct_on));
+        return Ok((false, distinct_on, projection_offset));
     }
 
     if crate::parser::lexical::pattern_end(&select_part_lower, 0, "distinct").is_some() {
-        *select_part = select_part["distinct".len()..].trim().to_string();
-        return Ok((true, distinct_on));
+        let remainder = &select_part["distinct".len()..];
+        let leading = crate::parser::lexical::separator_end(remainder, 0);
+        *select_part = remainder[leading..].to_string();
+        return Ok((true, distinct_on, "distinct".len() + leading));
     }
 
-    Ok((false, distinct_on))
+    Ok((false, distinct_on, 0))
 }
 
 fn resolve_select_source(
@@ -522,13 +540,16 @@ fn parse_projection_items(
     select_part: &str,
     named_windows: &NamedWindows,
 ) -> Result<Vec<super::SelectItem>, SqlError> {
-    let projection_tokens: Vec<&str> = split_csv(select_part);
+    let projection_tokens = super::super::expr::split_csv_spans(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
-    for token in projection_tokens {
-        projection.push(parse_projection_item_with_named_windows(
-            crate::parser::lexical::trim_separators(token),
-            named_windows,
-        )?);
+    for (offset, token) in projection_tokens {
+        projection.push(
+            parse_projection_item_with_named_windows(
+                crate::parser::lexical::trim_separators(token),
+                named_windows,
+            )
+            .map_err(|error| error.offset_position(offset))?,
+        );
     }
     Ok(projection)
 }

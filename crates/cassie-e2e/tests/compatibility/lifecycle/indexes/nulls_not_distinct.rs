@@ -100,8 +100,11 @@ fn should_reject_null_policy_on_nonunique_index() {
             .expect_err("NULLS DISTINCT is only supported for unique scalar indexes");
         let remaining_indexes = client
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'compat_nonunique_null_policy_idx'",
+                "SELECT count(*) FROM pg_catalog.pg_index index_row \
+                 JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_nonunique_null_policy_idx' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

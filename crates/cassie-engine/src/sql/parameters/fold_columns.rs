@@ -21,6 +21,10 @@ impl Fold<'_, '_> {
             summary.qualified = u32::try_from(column_oid).is_ok_and(|type_oid| {
                 self.catalog.get_enum_type_by_oid(type_oid).is_some()
                     || self.catalog.get_enum_type_by_array_oid(type_oid).is_some()
+                    || matches!(
+                        binder::parameter_data_type_for_oid(column_oid),
+                        Some(DataType::Array(_) | DataType::Json | DataType::Jsonb)
+                    )
             });
         }
         summary

@@ -100,6 +100,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::CollectionNotFound(_) => "collection_not_found",
         CassieError::NotNullViolation { .. } => "not_null_violation",
         CassieError::UniqueViolation { .. } => "unique_violation",
+        CassieError::Diagnostic(error) if error.sql_state == "23505" => "unique_violation",
         CassieError::CheckViolation { .. } => "check_violation",
         CassieError::ForeignKeyViolation { .. } => "foreign_key_violation",
         CassieError::ArrayInput(_) => "array_input",
@@ -108,6 +109,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
         CassieError::UndefinedColumn(_) => "undefined_column",
+        CassieError::DeferredCorrelatedResolution { .. } => "deferred_correlated_resolution",
         CassieError::AmbiguousColumn(_) => "ambiguous_column",
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_)

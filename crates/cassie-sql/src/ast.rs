@@ -632,6 +632,8 @@ pub struct CreateFunctionStatement {
 pub struct DropFunctionStatement {
     pub name: String,
     pub if_exists: bool,
+    #[serde(default)]
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -804,6 +806,8 @@ pub enum AlterSchemaOperation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateViewStatement {
     pub name: String,
+    #[serde(default)]
+    pub column_names: Vec<String>,
     pub if_not_exists: bool,
     pub query: String,
 }

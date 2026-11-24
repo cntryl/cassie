@@ -357,7 +357,14 @@ fn checked_legacy_parameter_types(
         if index % 256 == 0 {
             check_controls(controls)?;
         }
-        normalized.values.push(if *oid == 0 {
+        let contextual_json = matches!(
+            input,
+            PrivateParameterTypeInput::Embedded { values, .. }
+                if values
+                    .get(index)
+                    .is_some_and(|value| matches!(value, crate::types::Value::Json(_)))
+        );
+        normalized.values.push(if *oid == 0 || contextual_json {
             UNKNOWN_PARAMETER_TYPE_OID
         } else {
             *oid

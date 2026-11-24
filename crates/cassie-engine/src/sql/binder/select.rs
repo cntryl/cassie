@@ -547,9 +547,7 @@ pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 .as_deref()
                 .unwrap_or(&function.name)
                 .to_ascii_lowercase(),
-            SelectItem::Expr { alias, .. } => {
-                alias.as_deref().unwrap_or("expr").to_ascii_lowercase()
-            }
+            SelectItem::Expr { .. } => item.output_name().to_ascii_lowercase(),
             SelectItem::WindowFunction { function, alias } => alias
                 .as_deref()
                 .unwrap_or(&function.name)
@@ -595,7 +593,13 @@ fn bind_query_source_with_lateral_fields(
 ) -> Result<QuerySource, CassieError> {
     match source {
         QuerySource::Values { mut rows } => {
-            super::values::coerce_with_controls(&mut rows, &HashMap::new(), &[], scope.controls())?;
+            let user_functions = crate::catalog::function_resolution::functions_for_scope(
+                &catalog.list_functions(),
+                &context.database,
+                &context.search_path,
+                context.scopes_database_objects(),
+            );
+            super::values::coerce_with_controls(&mut rows, &user_functions, &[], scope.controls())?;
             Ok(QuerySource::Values { rows })
         }
 

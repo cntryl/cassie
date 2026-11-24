@@ -112,6 +112,14 @@ pub struct ViewMeta {
     /// Selected extension identities required by this query, including dependencies
     /// inherited from referenced stored views.
     pub extension_dependency_ids: Vec<u64>,
+    /// Stable user-function identities resolved when the view was created.
+    #[serde(default)]
+    pub function_dependency_ids: Vec<u64>,
+    /// Database and search path used to resolve unqualified function calls.
+    #[serde(default)]
+    pub function_dependency_database: String,
+    #[serde(default)]
+    pub function_dependency_search_path: Vec<String>,
 }
 
 impl ViewMeta {
@@ -123,6 +131,9 @@ impl ViewMeta {
             schema,
             object_id: 0,
             extension_dependency_ids: Vec::new(),
+            function_dependency_ids: Vec::new(),
+            function_dependency_database: String::new(),
+            function_dependency_search_path: Vec::new(),
         }
     }
 }

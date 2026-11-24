@@ -7,6 +7,7 @@ use super::support_pgwire as support;
 const ANSWER_LIMIT: Duration = Duration::from_secs(10);
 const OID_BOOL: i32 = 16;
 const OID_NAME: i32 = 19;
+const OID_OID: i32 = 26;
 const OID_TEXT: i32 = 25;
 
 const INDEX_PREDICATE_SETUP: &[&str] = &[
@@ -15,12 +16,215 @@ const INDEX_PREDICATE_SETUP: &[&str] = &[
     "CREATE INDEX mvp_catalog_rows_partial_idx ON mvp_catalog_rows (payload) WHERE payload <> ''",
 ];
 
-const INDEX_PREDICATE_QUERY: &str = "SELECT indexrelid, indisunique, indisprimary, indpred \
-    FROM pg_catalog.pg_index \
-    WHERE indrelid = 'mvp_catalog_rows' \
-    ORDER BY indexrelid";
+const INDEX_PREDICATE_QUERY: &str =
+    "SELECT index_class.relname AS indexrelid, i.indisunique, i.indisprimary, i.indpred \
+    FROM pg_catalog.pg_index i \
+    JOIN pg_catalog.pg_class index_class ON i.indexrelid = index_class.oid \
+    JOIN pg_catalog.pg_class table_class ON i.indrelid = table_class.oid \
+    JOIN pg_catalog.pg_namespace namespace ON table_class.relnamespace = namespace.oid \
+    WHERE table_class.relname = 'mvp_catalog_rows' AND namespace.nspname = 'public' \
+    ORDER BY index_class.relname";
 
 type Frames = Vec<(u8, Vec<u8>)>;
+
+#[test]
+fn should_report_syntax_message_with_character_position_in_error_response() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-syntax-position", &[]);
+
+    // Act
+    let simple = simple_round_trip(cassie, path, "SELECT 1 FORM t_probe;");
+    let (parse_cassie, parse_path) = configured_cassie("issue-1488-extended-position", &[]);
+    let extended = binary_round_trip(parse_cassie, parse_path, "SELECT 1 FORM t_probe;");
+
+    // Assert
+    for (path, frames) in [("simple", &simple), ("extended", &extended)] {
+        let error = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .unwrap_or_else(|| panic!("{path} ErrorResponse"));
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())), "{path}");
+        assert!(
+            fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())),
+            "{path}"
+        );
+        assert!(fields.contains(&('P', "15".to_owned())), "{path}");
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"t_probe\"".to_owned()),
+                ('P', "15".to_owned()),
+            ],
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_oid_shapes_given_catalog_identity_joins() {
+    // Arrange
+    let setup = [
+        "CREATE TABLE oid_identity_probe (id INT PRIMARY KEY, n INT DEFAULT 7)",
+        "CREATE INDEX oid_identity_probe_n_idx ON oid_identity_probe (n)",
+    ];
+    let (cassie, path) = configured_cassie("oid-identity-shapes", &setup);
+
+    // Act
+    let frames = binary_round_trip(
+        cassie,
+        path,
+        "SELECT d.adrelid, c.oid, d.adbin \
+         FROM pg_catalog.pg_attrdef d \
+         JOIN pg_catalog.pg_class c ON c.oid = d.adrelid \
+         WHERE c.relname = 'oid_identity_probe'",
+    );
+
+    // Assert
+    assert_eq!(support::error_code(&frames), None);
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(
+        description
+            .iter()
+            .map(|field| (field.name.as_str(), field.type_oid, field.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            ("adrelid", OID_OID, 1),
+            ("oid", OID_OID, 1),
+            ("adbin", OID_TEXT, 1)
+        ]
+    );
+    let rows = frames
+        .iter()
+        .filter(|frame| frame.0 == b'D')
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1);
+}
+
+#[test]
+fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-multibyte-position", &[]);
+    let (simple_cassie, simple_path) =
+        configured_cassie("issue-1488-multibyte-simple-position", &[]);
+
+    // Act
+    let frames = binary_round_trip(cassie, path, "SELECT 'é' AS café FORM t_probe;");
+    let simple = simple_round_trip(
+        simple_cassie,
+        simple_path,
+        "SELECT 'é' AS café FORM t_probe;",
+    );
+
+    // Assert
+    for (path, result) in [("simple", &simple), ("extended", &frames)] {
+        let error = result
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .unwrap_or_else(|| panic!("{path} ErrorResponse"));
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())), "{path}");
+        assert!(
+            fields.contains(&('M', "syntax error at or near \"FORM\"".to_owned())),
+            "{path}"
+        );
+        assert!(fields.contains(&('P', "20".to_owned())), "{path}");
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"FORM\"".to_owned()),
+                ('P', "20".to_owned()),
+            ],
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_original_position_after_unicode_escaped_identifier() {
+    // Arrange
+    let (simple_cassie, simple_path) = configured_cassie("issue-1488-unicode-simple", &[]);
+    let (parse_cassie, parse_path) = configured_cassie("issue-1488-unicode-parse", &[]);
+    let sql = r#"SELECT U&"caf\00E9" FORM t_probe;"#;
+
+    // Act
+    let simple = simple_round_trip(simple_cassie, simple_path, sql);
+    let parsed = binary_round_trip(parse_cassie, parse_path, sql);
+
+    // Assert
+    for frames in [&simple, &parsed] {
+        let error = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .expect("syntax ErrorResponse");
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())));
+        assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
+        assert!(fields.contains(&('P', "26".to_owned())));
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"t_probe\"".to_owned()),
+                ('P', "26".to_owned()),
+            ]
+        );
+    }
+}
+
+#[test]
+fn should_omit_position_given_runtime_division_by_zero() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-runtime-no-position", &[]);
+
+    // Act
+    let frames = simple_round_trip(cassie, path, "SELECT 1 / 0");
+
+    // Assert
+    let error = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("runtime ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&('C', "22012".to_owned())));
+    assert!(!fields.iter().any(|(tag, _)| *tag == 'P'));
+}
+
+#[test]
+fn should_omit_unlocated_position_for_other_syntax_errors() {
+    // Arrange
+    let (cassie, path) = configured_cassie("issue-1488-unlocated-syntax", &[]);
+
+    // Act
+    let frames = simple_round_trip(cassie, path, "SELECT");
+
+    // Assert
+    let error = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("syntax ErrorResponse");
+    let fields = support::parse_error_fields(&error.1);
+    assert!(fields.contains(&('C', "42601".to_owned())));
+    assert!(!fields.iter().any(|(tag, _)| *tag == 'P'));
+}
 
 fn configured_cassie(label: &str, setup: &[&str]) -> (Cassie, String) {
     let path = support::data_dir(label);
@@ -620,7 +824,7 @@ fn should_describe_pg_index_columns_given_empty_binary_result() {
             .map(|field| (field.name.as_str(), field.type_oid, field.format_code))
             .collect::<Vec<_>>(),
         vec![
-            ("indexrelid", OID_TEXT, 1),
+            ("indexrelid", OID_OID, 1),
             ("indisunique", OID_BOOL, 1),
             ("indisprimary", OID_BOOL, 1),
             ("indpred", OID_TEXT, 1),

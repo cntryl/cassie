@@ -42,13 +42,24 @@ pub(super) use string_literals::unicode_identifier_prefix;
 pub(super) use subquery_syntax::output_name as subquery_output_name;
 
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
+    split_csv_spans(s)
+        .into_iter()
+        .map(|(_, value)| value)
+        .collect()
+}
+
+pub(super) fn split_csv_spans(s: &str) -> Vec<(usize, &str)> {
     let mut out = Vec::new();
     let mut cursor = 0;
     while let Some((position, end)) = super::clauses::find_top_level_keyword_span(s, cursor, ",") {
-        out.push(&s[cursor..position]);
+        let segment = &s[cursor..position];
+        let start = cursor + super::lexical::separator_end(segment, 0);
+        out.push((start, &s[start..position]));
         cursor = end;
     }
-    out.push(&s[cursor..]);
+    let segment = &s[cursor..];
+    let start = cursor + super::lexical::separator_end(segment, 0);
+    out.push((start, &s[start..]));
     out
 }
 

@@ -31,6 +31,31 @@ pub(crate) fn index_definition_by_name(catalog: &Catalog, name: &str) -> Option<
     virtual_views_pg::index_definition_by_name(catalog, name)
 }
 
+pub(crate) fn constraint_definition_by_oid(
+    catalog: &Catalog,
+    current_database: &str,
+    oid: i64,
+    session: Option<&CassieSession>,
+) -> Option<String> {
+    virtual_views_constraints::definition_by_oid(catalog, current_database, oid, session)
+}
+
+pub(crate) fn index_column_definition_by_oid(
+    catalog: &Catalog,
+    oid: i64,
+    column: i64,
+) -> Option<String> {
+    virtual_views_pg::index_column_definition_by_oid(catalog, oid, column)
+}
+
+pub(crate) fn index_column_definition_by_name(
+    catalog: &Catalog,
+    name: &str,
+    column: i64,
+) -> Option<String> {
+    virtual_views_pg::index_column_definition_by_name(catalog, name, column)
+}
+
 pub(crate) fn format_stored_expression(expression: &str) -> String {
     virtual_views_pg::format_stored_expression(expression)
 }
@@ -142,7 +167,7 @@ fn rows_for_database(
     {
         return Some(Ok(rows));
     }
-    let rows = information_schema_rows_for(catalog, name.as_str(), current_database)
+    let rows = information_schema_rows_for(catalog, name.as_str(), current_database, session)
         .map(Ok)
         .or_else(|| pg_catalog_rows_for(catalog, midge, name.as_str(), current_database));
     let restricted =
@@ -157,7 +182,43 @@ fn rows_for_database(
         // one, so a restricted role sees no current value (PostgreSQL: NULL).
         return rows.map(|rows| rows.map(virtual_views_sequences::hide_last_value));
     }
+    if restricted && name == "pg_catalog.pg_constraint" {
+        let readable_oids = catalog
+            .list_collections_canonical()
+            .into_iter()
+            .filter(|collection| {
+                session.is_some_and(|session| {
+                    crate::app::relation_readable(
+                        catalog,
+                        current_database.unwrap_or("postgres"),
+                        session,
+                        &collection.name,
+                    )
+                })
+            })
+            .map(|collection| virtual_views_pg::relation_oid(catalog, &collection.name))
+            .collect::<std::collections::HashSet<_>>();
+        return rows.map(|rows| {
+            rows.map(|rows| {
+                rows.into_iter()
+                    .filter(|row| {
+                        constraint_row_relation_oid(row)
+                            .is_some_and(|oid| readable_oids.contains(&oid))
+                    })
+                    .collect()
+            })
+        });
+    }
     rows
+}
+
+fn constraint_row_relation_oid(row: &VirtualRow) -> Option<i64> {
+    row.iter().find_map(|(name, value)| {
+        (name == "conrelid").then_some(()).and(match value {
+            Value::Int64(oid) => Some(*oid),
+            _ => None,
+        })
+    })
 }
 
 fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {
@@ -206,11 +267,22 @@ fn information_schema_rows_for(
     catalog: &Catalog,
     name: &str,
     current_database: Option<&str>,
+    session: Option<&CassieSession>,
 ) -> Option<Vec<VirtualRow>> {
     match name {
-        "information_schema.tables" => Some(information_schema_tables(catalog, current_database)),
-        "information_schema.columns" => Some(information_schema_columns(catalog, current_database)),
-        "information_schema.views" => Some(information_schema_views(catalog, current_database)),
+        "information_schema.tables" => Some(information_schema_tables(
+            catalog,
+            current_database,
+            session,
+        )),
+        "information_schema.columns" => Some(information_schema_columns(
+            catalog,
+            current_database,
+            session,
+        )),
+        "information_schema.views" => {
+            Some(information_schema_views(catalog, current_database, session))
+        }
         "information_schema.schemata" => {
             Some(information_schema_schemata(catalog, current_database))
         }
@@ -577,13 +649,25 @@ fn bool(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Boolean)
 }
 
-fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+fn information_schema_tables(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+    session: Option<&CassieSession>,
+) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_collections_canonical()
         .into_iter()
         .filter(|collection| {
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
+                && session.is_none_or(|session| {
+                    crate::app::relation_readable(
+                        catalog,
+                        current_database.unwrap_or("postgres"),
+                        session,
+                        &collection.name,
+                    )
+                })
         })
         .map(|collection| {
             vec![
@@ -601,6 +685,14 @@ fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) 
             .filter(|view| {
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+                    && session.is_none_or(|session| {
+                        crate::app::relation_readable(
+                            catalog,
+                            current_database.unwrap_or("postgres"),
+                            session,
+                            &view.name,
+                        )
+                    })
             })
             .map(|view| {
                 vec![
@@ -618,12 +710,23 @@ fn information_schema_tables(catalog: &Catalog, current_database: Option<&str>) 
 fn information_schema_columns(
     catalog: &Catalog,
     current_database: Option<&str>,
+    session: Option<&CassieSession>,
 ) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections_canonical() {
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&collection.name, database))
         {
+            continue;
+        }
+        if session.is_some_and(|session| {
+            !crate::app::relation_readable(
+                catalog,
+                current_database.unwrap_or("postgres"),
+                session,
+                &collection.name,
+            )
+        }) {
             continue;
         }
         let Some(schema) = catalog.get_schema(&collection.name) else {
@@ -645,6 +748,16 @@ fn information_schema_columns(
         if current_database
             .is_some_and(|database| !relation_belongs_to_database(&view.name, database))
         {
+            continue;
+        }
+        if session.is_some_and(|session| {
+            !crate::app::relation_readable(
+                catalog,
+                current_database.unwrap_or("postgres"),
+                session,
+                &view.name,
+            )
+        }) {
             continue;
         }
         for (index, field) in view.schema.fields.iter().enumerate() {
@@ -803,13 +916,25 @@ fn datetime_precision(data_type: &DataType) -> Option<i64> {
     }
 }
 
-fn information_schema_views(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+fn information_schema_views(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+    session: Option<&CassieSession>,
+) -> Vec<VirtualRow> {
     let mut rows = catalog
         .list_views()
         .into_iter()
         .filter(|view| {
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+                && session.is_none_or(|session| {
+                    crate::app::relation_readable(
+                        catalog,
+                        current_database.unwrap_or("postgres"),
+                        session,
+                        &view.name,
+                    )
+                })
         })
         .map(|view| {
             vec![

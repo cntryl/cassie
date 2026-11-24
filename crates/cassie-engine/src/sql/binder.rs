@@ -219,6 +219,7 @@ use schema::{
     bind_alter_schema, bind_alter_table, bind_create_index, bind_create_table, bind_create_view,
     bind_drop_index, bind_drop_schema, bind_drop_table, bind_drop_view,
 };
+pub(crate) use schema::{validate_and_rename_view_schema, validate_unique_output_column_names};
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
 pub(crate) use source_schema::{

@@ -435,7 +435,7 @@ pub(super) fn bind_assignments(
                 element_type.as_ref().clone()
             };
         }
-        super::ambiguity::check_expr(expression, &scope.ambiguous)?;
+        super::ambiguity::check_expr(expression, &scope.ambiguous, catalog)?;
         super::super::boolean_contexts::validate_value(
             expression,
             &scope.types,
@@ -462,7 +462,7 @@ pub(super) fn bind_predicate(
     let Some(predicate) = predicate else {
         return Ok(());
     };
-    super::ambiguity::check_expr(predicate, &scope.ambiguous)?;
+    super::ambiguity::check_expr(predicate, &scope.ambiguous, catalog)?;
     super::super::boolean_contexts::validate_predicate(
         predicate,
         &scope.types,
@@ -477,8 +477,9 @@ pub(super) fn bind_returning(
     target: (&CollectionSchema, &str),
     source: Option<&MutationSource>,
     scope: &JoinedScope,
+    catalog: &Catalog,
 ) -> Result<(), CassieError> {
-    super::ambiguity::check_returning(returning, &scope.ambiguous)?;
+    super::ambiguity::check_returning(returning, &scope.ambiguous, catalog)?;
     expand_returning_wildcard(returning, target, source);
     for item in returning.iter() {
         scope.types.item(item)?;
@@ -548,7 +549,7 @@ pub(in crate::sql::binder) fn bind_merge(
         statement.returning_aliases.as_ref(),
         true,
     ));
-    super::ambiguity::check_expr(&statement.on, &scope.ambiguous)?;
+    super::ambiguity::check_expr(&statement.on, &scope.ambiguous, catalog)?;
     super::super::boolean_contexts::validate_predicate(
         &mut statement.on,
         &scope.types,
@@ -606,6 +607,7 @@ pub(in crate::sql::binder) fn bind_merge(
         (&schema, &qualifier),
         Some(&statement.source),
         &scope,
+        catalog,
     )?;
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     statement.alias = Some(qualifier);

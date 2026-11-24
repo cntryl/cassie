@@ -103,10 +103,10 @@ pub(crate) use subquery_eval::MULTIPLE_ROWS as SUBQUERY_MULTIPLE_ROWS;
 mod result;
 
 pub(crate) use entrypoints::{
-    mark_source_projections_stale_external, mark_source_rollups_stale_external,
-    refresh_rollups_for_source_external, refresh_rollups_for_source_with_report_external,
-    rollup_rewrite_name_for_plan, run_with_session_controls,
-    run_with_session_parameter_oids_for_operation, sync_derived_maintenance_debt_external,
+    mark_source_projections_stale_external, refresh_rollups_for_source_external,
+    refresh_rollups_for_source_with_report_external, rollup_rewrite_name_for_plan,
+    run_with_session_controls, run_with_session_parameter_oids_for_operation,
+    sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 pub(crate) use scored::explain_filtered_strategy;
@@ -117,11 +117,13 @@ use cte::{execute_cte, CteContext};
 #[cfg(test)]
 use dispatch::execute_physical_plan;
 use dispatch::{
-    build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
-    execute_physical_plan_with_parameter_oids, execute_plan, execute_plan_with_execution_breakdown,
-    execute_plan_with_outer_row, execute_plan_with_parameter_oids,
+    build_logical_plan, build_logical_plan_in_context, build_logical_plan_in_session,
+    check_timeout, ensure_query_memory_budget, execute_physical_plan_with_parameter_oids,
+    execute_plan, execute_plan_with_execution_breakdown, execute_plan_with_outer_row,
+    execute_plan_with_parameter_oids, plan_execution_env_with_binding_context,
     plan_execution_env_with_parameter_oids, reserve_projection_output_before_building,
-    resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext, PlanExecutionEnv,
+    resolve_exists_expr, resolve_exists_expr_with_local_args, resolve_statement_exists,
+    ExistsResolutionContext, PlanExecutionEnv,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};

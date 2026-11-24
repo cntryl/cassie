@@ -70,3 +70,10 @@ pub(super) fn parse_column_identifier_list(raw: &str) -> Result<Vec<String>, Sql
         .map(|field| parse_column_reference(field.trim()))
         .collect()
 }
+
+pub(super) fn parse_column_declaration_list(raw: &str) -> Result<Vec<String>, SqlError> {
+    super::split_csv(raw)
+        .into_iter()
+        .map(|field| parse_column_identifier(field.trim()))
+        .collect()
+}

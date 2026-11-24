@@ -8,7 +8,7 @@ fn should_report_created_relation_catalog_identities() {
         .execute(
             "SELECT c.relname, c.relkind::text, c.relpersistence::text \
              FROM pg_catalog.pg_class AS c \
-             JOIN pg_catalog.pg_namespace AS n ON n.nspname = c.relnamespace \
+             JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace \
              WHERE n.nspname = 'issue_817_catalog_probe' \
                AND c.relname IN ('items', 'issue_817_amount_idx', 'items_id_seq', 'items_pkey') \
              ORDER BY c.relname",

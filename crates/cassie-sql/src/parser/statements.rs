@@ -165,13 +165,11 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         return Err(SqlError::new("CREATE FUNCTION requires a name".into()));
     }
 
-    let rest = &rest[name_end + 1..];
-    let close = rest
-        .find(')')
+    let close = super::lexical::matching_paren(rest, name_end)
         .ok_or_else(|| SqlError::new("CREATE FUNCTION argument list is missing ')'".into()))?;
-    let args_raw = rest[..close].trim();
+    let args_raw = rest[(name_end + 1)..close].trim();
 
-    let args = parse_function_args(args_raw)?;
+    let args = parse_function_args_for_function(args_raw)?;
 
     let mut remaining = rest[(close + 1)..].trim_start();
     if !starts_with_keyword(remaining, "returns") {
@@ -185,7 +183,7 @@ pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStateme
         .ok_or_else(|| SqlError::new("CREATE FUNCTION requires AS clause".into()))?;
     let (return_type, volatility) = parse_return_clause(return_type_raw)?;
 
-    let body = parse_quoted_or_raw_body(remaining)?;
+    let body = parse_function_body(remaining)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -255,7 +253,23 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
 
     let as_pos = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError::new("CREATE VIEW requires AS clause".into()))?;
-    let name = rest[..as_pos].trim();
+    let target = rest[..as_pos].trim();
+    let column_list = super::lexical::find_top_level_span(target, 0, "(");
+    let (name, column_names) = if let Some((open, _)) = column_list {
+        let close = super::find_matching_paren(target, open)
+            .ok_or_else(|| SqlError::new("invalid CREATE VIEW column list".into()))?;
+        if !target[close + 1..].trim().is_empty() {
+            return Err(SqlError::new(
+                "unexpected tokens after CREATE VIEW column list".into(),
+            ));
+        }
+        (
+            target[..open].trim(),
+            super::schema::parse_column_declaration_list(&target[open + 1..close])?,
+        )
+    } else {
+        (target, Vec::new())
+    };
     if name.is_empty() {
         return Err(SqlError::new("CREATE VIEW requires a name".into()));
     }
@@ -263,6 +277,17 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
         return Err(SqlError::new(
             "CREATE VIEW supports only one view name".into(),
         ));
+    }
+    if column_names.is_empty() && column_list.is_some() {
+        return Err(SqlError::new(
+            "CREATE VIEW column list cannot be empty".into(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for column in &column_names {
+        if !seen.insert(crate::sql::ColumnIdentifierPath::stored_field_key(column)) {
+            return Err(SqlError::duplicate_column(column));
+        }
     }
 
     let body = rest[as_pos + 2..].trim();
@@ -274,6 +299,7 @@ pub(super) fn parse_create_view_statement(sql: &str) -> Result<ParsedStatement, 
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateView(CreateViewStatement {
             name: name.to_string(),
+            column_names,
             if_not_exists,
             query: body.to_string(),
         }),
@@ -285,7 +311,13 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
     let rest = trimmed[14..].trim();
     let (if_exists, rest) = parse_if_exists(rest);
 
-    if rest.is_empty() {
+    let (name, cascade) =
+        if rest.len() > " cascade".len() && rest.to_ascii_lowercase().ends_with(" cascade") {
+            (&rest[..rest.len() - " cascade".len()], true)
+        } else {
+            (rest, false)
+        };
+    if name.trim().is_empty() {
         return Err(SqlError::new(
             "missing function name for DROP FUNCTION".into(),
         ));
@@ -294,8 +326,9 @@ pub(super) fn parse_drop_function_statement(sql: &str) -> Result<ParsedStatement
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropFunction(DropFunctionStatement {
-            name: rest.to_string(),
+            name: name.trim().to_string(),
             if_exists,
+            cascade,
         }),
     })
 }
@@ -430,7 +463,8 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
         }
         // A routine argument may be declared with a domain or enum type as
         // well as a built-in or composite one.
-        let data_type = super::domain_scope::parse_declared_data_type(parts[1].as_str())?;
+        let type_text = parts[1..].join(" ");
+        let data_type = super::domain_scope::parse_declared_data_type(&type_text)?;
 
         args.push(FunctionArg {
             name: name.to_string(),
@@ -438,6 +472,16 @@ pub(super) fn parse_function_args(raw: &str) -> Result<Vec<FunctionArg>, SqlErro
         });
     }
 
+    Ok(args)
+}
+
+fn parse_function_args_for_function(raw: &str) -> Result<Vec<FunctionArg>, SqlError> {
+    let mut args = parse_function_args(raw)?;
+    for argument in &mut args {
+        if matches!(&argument.data_type, DataType::Varchar { length: Some(_) }) {
+            argument.data_type = DataType::Varchar { length: None };
+        }
+    }
     Ok(args)
 }
 
@@ -449,53 +493,114 @@ pub(super) fn parse_return_clause(raw: &str) -> Result<(DataType, Volatility), S
         ));
     }
 
-    let data_type = parse_data_type(tokens[0])?;
-    let volatility = if tokens.len() > 1 {
-        match tokens[1].to_lowercase().as_str() {
-            "immutable" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Immutable
+    let (type_tokens, volatility) = match tokens.last().map(|token| token.to_ascii_lowercase()) {
+        Some(last) if matches!(last.as_str(), "immutable" | "stable" | "volatile") => {
+            let type_tokens = &tokens[..tokens.len() - 1];
+            if type_tokens.is_empty() {
+                return Err(SqlError::new(
+                    "CREATE FUNCTION RETURNS clause is missing a type".into(),
+                ));
             }
-            "stable" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Stable
-            }
-            "volatile" => {
-                if tokens.len() > 2 {
-                    return Err(SqlError::new(
-                        "unexpected token after function volatility".into(),
-                    ));
-                }
-                Volatility::Volatile
-            }
-            _ => {
+            let volatility = match last.as_str() {
+                "immutable" => Volatility::Immutable,
+                "stable" => Volatility::Stable,
+                "volatile" => Volatility::Volatile,
+                _ => unreachable!("recognized function volatility"),
+            };
+            (type_tokens, volatility)
+        }
+        _ => {
+            // PostgreSQL routines are VOLATILE unless explicitly narrowed.
+            if tokens.len() > 1
+                && parse_data_type(&tokens.join(" ")).is_err()
+                && parse_data_type(tokens[0]).is_ok()
+            {
                 return Err(SqlError::new(format!(
                     "unsupported function volatility '{}'; use IMMUTABLE/STABLE/VOLATILE",
                     tokens[1]
                 )));
             }
+            (tokens.as_slice(), Volatility::Volatile)
         }
-    } else {
-        // PostgreSQL routines are VOLATILE unless the declaration explicitly
-        // narrows their volatility to STABLE or IMMUTABLE.
-        Volatility::Volatile
     };
-
-    if tokens.len() > 2 {
-        return Err(SqlError::new(
-            "unexpected token after RETURNS clause".into(),
-        ));
-    }
+    let data_type = parse_data_type(&type_tokens.join(" "))?;
 
     Ok((data_type, volatility))
+}
+
+fn parse_function_body(raw: &str) -> Result<String, SqlError> {
+    let raw = raw.trim();
+    let (body, remainder, normalize_without_language) = if raw.starts_with('$') {
+        let token_end = super::lexical::dollar_quoted_end(raw, 0)
+            .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
+        let token = &raw[..token_end];
+        let body = super::lexical::dollar_quoted_content(token)
+            .ok_or_else(|| SqlError::new("unterminated dollar-quoted function body".into()))?;
+        (body.to_string(), raw[token_end..].trim(), true)
+    } else if raw.starts_with('\'') {
+        let (body, remainder) = parse_single_quoted_body(raw)?;
+        (body, remainder.trim(), false)
+    } else {
+        return parse_quoted_or_raw_body(raw);
+    };
+
+    let has_language_clause = !remainder.is_empty();
+    if has_language_clause {
+        if !starts_with_keyword(remainder, "language") {
+            return Err(SqlError::new(
+                "unexpected clause after function body".into(),
+            ));
+        }
+        let language = remainder[8..].trim();
+        if !language.eq_ignore_ascii_case("sql") {
+            return Err(SqlError::new(
+                "only LANGUAGE sql is supported for functions".into(),
+            ));
+        }
+    }
+    if body.trim().is_empty() {
+        return Err(SqlError::new("empty function/procedure body".into()));
+    }
+    if normalize_without_language || has_language_clause {
+        Ok(normalize_scalar_select_body(&body))
+    } else {
+        Ok(body)
+    }
+}
+
+fn normalize_scalar_select_body(body: &str) -> String {
+    let body = body.trim();
+    if body
+        .get(..6)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("select"))
+        && body.as_bytes().get(6).is_some_and(u8::is_ascii_whitespace)
+    {
+        body[7..].trim_start().to_string()
+    } else {
+        body.to_string()
+    }
+}
+
+fn parse_single_quoted_body(raw: &str) -> Result<(String, &str), SqlError> {
+    let bytes = raw.as_bytes();
+    let mut body = String::new();
+    let mut index = 1;
+    while index < bytes.len() {
+        if bytes[index] == b'\'' {
+            if bytes.get(index + 1) == Some(&b'\'') {
+                body.push('\'');
+                index += 2;
+                continue;
+            }
+            return Ok((body, &raw[index + 1..]));
+        }
+        let character = raw[index..].chars().next().expect("valid UTF-8 boundary");
+        body.push(character);
+        index += character.len_utf8();
+    }
+    Err(SqlError::new(
+        "unterminated single-quoted function body".into(),
+    ))
 }
 
 pub(super) fn parse_quoted_or_raw_body(raw: &str) -> Result<String, SqlError> {

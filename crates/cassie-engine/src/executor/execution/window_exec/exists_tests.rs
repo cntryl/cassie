@@ -29,6 +29,7 @@ fn run(
     let env = SourceExecutionEnv {
         cassie,
         session: None,
+        binding_context: None,
         user_functions: &functions,
         params: &[],
         parameter_type_oids: &[],

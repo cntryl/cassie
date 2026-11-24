@@ -26,9 +26,10 @@ pub(super) fn dispatch(
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
     qualify: bool,
+    ctes: &super::CteContext,
 ) -> Option<SourceExecution> {
     crate::sql::functions::graph_types::is_table_function(&function.name)
-        .then(|| execute(env, name, function, outer_row, qualify))
+        .then(|| execute(env, name, function, outer_row, qualify, ctes))
 }
 
 fn execute(
@@ -37,8 +38,9 @@ fn execute(
     function: &crate::sql::ast::FunctionCall,
     outer_row: Option<&BatchRow>,
     qualify: bool,
+    ctes: &super::CteContext,
 ) -> SourceExecution {
-    let arguments = super::source_table_function::evaluate_args(env, function, outer_row)?;
+    let arguments = super::source_table_function::evaluate_args(env, function, outer_row, ctes)?;
     let args = &arguments.0;
     let local = name.rsplit('.').next().unwrap_or(name).to_ascii_lowercase();
     #[cfg(test)]

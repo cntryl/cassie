@@ -163,7 +163,7 @@ fn should_preserve_namespace_identity_across_rollback() {
             .expect("create table");
         let before = client
             .query_one(
-                "SELECT n.oid FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace_oid WHERE n.nspname = 'descriptor_before' AND c.relname = 'rows'",
+                "SELECT n.oid FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace WHERE n.nspname = 'descriptor_before' AND c.relname = 'rows'",
                 &[],
             )
             .await

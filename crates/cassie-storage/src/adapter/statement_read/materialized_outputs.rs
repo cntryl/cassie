@@ -37,7 +37,7 @@ impl Midge {
             .begin_tx(family_id, super::super::TransactionMode::ReadWrite)?;
         let mut memory = context.reserve(1024)?;
         copy_output(storage, &relation, &mut native, context, &mut memory)?;
-        let native = AdapterTransaction::raw(native);
+        let native = AdapterTransaction::raw(native, self.value_hooks());
         let mut retained_memory = context.reserve(add(
             size_of::<NativeStatementSnapshot>() + 2 * size_of::<usize>(),
             database.len(),

@@ -17,8 +17,11 @@ fn should_protect_constraint_owned_index_until_constraint_drop() {
         .expect("create the table and unique index to attach");
         let original_index_oid: i64 = client
             .query_one(
-                "SELECT indexrelid_oid::BIGINT FROM pg_catalog.pg_index \
-                 WHERE indexrelid = 'compat_constraint_index_dependency_index'",
+                "SELECT index_row.indexrelid_oid::BIGINT FROM pg_catalog.pg_index index_row \
+                 JOIN pg_catalog.pg_class index_class ON index_row.indexrelid = index_class.oid \
+                 JOIN pg_catalog.pg_namespace namespace ON index_class.relnamespace = namespace.oid \
+                 WHERE index_class.relname = 'compat_constraint_index_dependency_index' \
+                   AND namespace.nspname = 'public'",
                 &[],
             )
             .await

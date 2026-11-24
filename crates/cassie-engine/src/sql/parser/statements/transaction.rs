@@ -75,7 +75,7 @@ fn parsed(sql: &str, statement: TransactionStatement) -> ParsedStatement {
     }
 }
 
-pub(crate) fn parse_terminal_transaction_control(sql: &str) -> Option<TransactionStatement> {
+pub fn parse_terminal_transaction_control(sql: &str) -> Option<TransactionStatement> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let mut tokens = trimmed.split_whitespace();
     let first = tokens.next()?;

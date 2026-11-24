@@ -31,7 +31,7 @@ mod user_types;
 pub(crate) use identify::dropped_column_name;
 pub use identify::{ObjectIdentity, UnsupportedObjectClass};
 
-pub(crate) use names::quote_identifier;
+pub use names::quote_identifier;
 use names::{qualified_name, Identifier};
 
 /// The catalog and name-resolution context a lookup runs in.
@@ -679,7 +679,7 @@ pub fn normal_oid(object_id: u64) -> Option<u32> {
 
 /// Resolve a SQL type OID using the active database for database-owned types.
 #[must_use]
-pub(crate) fn type_oid_for_database(
+pub fn type_oid_for_database(
     catalog: &crate::catalog::Catalog,
     database: &str,
     data_type: &crate::types::DataType,

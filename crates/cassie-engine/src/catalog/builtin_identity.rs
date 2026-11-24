@@ -143,7 +143,7 @@ pub(crate) fn builtin_array_oid(element_oid: u32) -> Option<u32> {
 
 /// Element identity for a PostgreSQL built-in array OID.
 #[must_use]
-pub(crate) fn builtin_array_element_oid(array_oid: u32) -> Option<u32> {
+pub fn builtin_array_element_oid(array_oid: u32) -> Option<u32> {
     builtin_identities()
         .type_by_oid(array_oid)
         .filter(|metadata| metadata.category == 'A')

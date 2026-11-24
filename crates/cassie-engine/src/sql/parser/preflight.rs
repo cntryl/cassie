@@ -14,7 +14,7 @@ enum ScanState {
     BlockComment(usize),
 }
 
-pub(crate) fn preflight_sql(sql: &str) -> Result<(), SqlError> {
+pub fn preflight_sql(sql: &str) -> Result<(), SqlError> {
     if sql.len() > MAX_SQL_BYTES {
         return Err(SqlError::resource_limit(format!(
             "SQL text exceeds {MAX_SQL_BYTES} bytes"

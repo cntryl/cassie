@@ -379,7 +379,7 @@ impl Interval {
         Ok(result)
     }
 
-    pub(crate) fn format_postgres_to(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+    pub fn format_postgres_to(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
         if *self == Self::INFINITY {
             return out.write_str("infinity");
         }

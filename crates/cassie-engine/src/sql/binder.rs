@@ -198,14 +198,14 @@ pub(crate) use context::normalize_new_relation_name;
 pub(crate) use context::normalize_new_relation_path;
 pub(crate) use context::normalize_relation_name;
 pub(crate) use context::resolve_existing_name;
-pub(crate) use context::resolve_relation_name;
+pub use context::resolve_relation_name;
 pub(crate) use context::resolve_relation_path;
 pub use context::BindingContext;
 use context::{normalize_schema_name, resolve_schema_name};
 pub(crate) use inference::common_case_type;
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;
-pub(crate) use inference::VECTOR_PARAMETER_TYPE_OID;
+pub use inference::VECTOR_PARAMETER_TYPE_OID;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, integer_literal_type, known_expr_type};
 use projections::bind_projection_route;
@@ -243,7 +243,7 @@ pub(crate) use wildcard::{
     wildcard_output_shape_with_parameters,
 };
 
-pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
+pub fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)
 }
 

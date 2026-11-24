@@ -11,14 +11,14 @@ use serde::Deserializer as _;
 use serde_json::value::RawValue;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TextVectorError {
+pub enum TextVectorError {
     Shape,
     Range,
 }
 
 // A callback may observe a valid prefix before later input is rejected. Retained
 // output consumers must complete a no-op validation pass before construction.
-pub(crate) fn visit_components_with_dimension(
+pub fn visit_components_with_dimension(
     text: &str,
     expected_dimensions: Option<usize>,
     component: impl FnMut(f32),

@@ -52,7 +52,7 @@ impl Cassie {
     }
 
     /// Parses `sql` with `session`'s composite type names in scope.
-    pub(crate) fn parse_statement_for_session(
+    pub fn parse_statement_for_session(
         &self,
         session: Option<&CassieSession>,
         sql: &str,

@@ -16,7 +16,7 @@ use super::{
 };
 
 impl Cassie {
-    pub(crate) fn execute_parsed_sql_with_cancellation(
+    pub fn execute_parsed_sql_with_cancellation(
         &self,
         session: &CassieSession,
         statement: (crate::sql::ast::ParsedStatement, &str),
@@ -46,7 +46,7 @@ impl Cassie {
         })
     }
 
-    pub(crate) fn execute_pgwire_sql_with_cancellation(
+    pub fn execute_pgwire_sql_with_cancellation(
         &self,
         session: &CassieSession,
         query: (&str, &str),

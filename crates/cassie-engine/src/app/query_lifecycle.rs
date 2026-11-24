@@ -25,7 +25,7 @@ impl Cassie {
         })
     }
 
-    pub(crate) fn execute_sql_with_cancellation_converted<T>(
+    pub fn execute_sql_with_cancellation_converted<T>(
         &self,
         session: &CassieSession,
         sql: &str,
@@ -194,7 +194,7 @@ impl Cassie {
         result
     }
 
-    pub(crate) fn explain_sql_with_cancellation_converted<T>(
+    pub fn explain_sql_with_cancellation_converted<T>(
         &self,
         session: &CassieSession,
         sql: &str,

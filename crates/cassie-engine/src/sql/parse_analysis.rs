@@ -27,7 +27,7 @@ pub(crate) fn validate(
     validate_with_declared_types(parsed, parameter_types, &[], catalog, context, controls)
 }
 
-pub(crate) fn validate_with_declared_types(
+pub fn validate_with_declared_types(
     parsed: &ParsedStatement,
     parameter_types: &[i32],
     declared_oids: &[i32],

@@ -26,7 +26,7 @@ impl Cassie {
         )
     }
 
-    pub(crate) fn describe_parsed_statement_for_session(
+    pub fn describe_parsed_statement_for_session(
         &self,
         session: &super::CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
@@ -42,7 +42,7 @@ impl Cassie {
         )
     }
 
-    pub(crate) fn describe_pgwire_parsed_statement_for_session(
+    pub fn describe_pgwire_parsed_statement_for_session(
         &self,
         session: &super::CassieSession,
         parsed: crate::sql::ast::ParsedStatement,

@@ -7,7 +7,7 @@ impl Cassie {
     /// PostgreSQL's `enum label "x" already exists, skipping` when `parsed` is
     /// `ADD VALUE IF NOT EXISTS` of a label the type already has, judged
     /// against the catalog `session` reads.
-    pub(crate) fn enum_add_value_skip_notice(
+    pub fn enum_add_value_skip_notice(
         &self,
         session: &CassieSession,
         parsed: &ParsedStatement,

@@ -164,7 +164,7 @@ pub(crate) fn constant_bound(bound: Option<&Expr>) -> Option<i64> {
     }
 }
 
-pub(crate) fn validate_statement(
+pub fn validate_statement(
     statement: &mut ParsedStatement,
     parameter_oids: Option<&[i32]>,
 ) -> Result<(), CassieError> {

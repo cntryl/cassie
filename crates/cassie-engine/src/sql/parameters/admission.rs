@@ -98,7 +98,7 @@ impl AdmittedParameterTypes {
 
     // This releases transient admission. The returned legacy Vec has no lease
     // for retained prepared-statement memory, which remains a separate owner.
-    pub(crate) fn into_vec(self) -> Result<Vec<i32>, ParameterAdmissionError> {
+    pub fn into_vec(self) -> Result<Vec<i32>, ParameterAdmissionError> {
         self.final_check()?;
         Ok(self.oids)
     }

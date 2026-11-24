@@ -203,7 +203,7 @@ fn parsed_json_array(value: JsonValue) -> Result<ParsedTextArray, TextArrayError
 }
 
 impl ParsedTextArray {
-    pub(crate) fn into_sql_array(
+    pub fn into_sql_array(
         self,
         element_type: &DataType,
     ) -> Result<crate::types::SqlArray, String> {

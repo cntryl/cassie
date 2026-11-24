@@ -475,7 +475,7 @@ fn standard_type_name(text: &str) -> Option<&'static str> {
 /// `quote_ident`: quote unless the name is a lower-case identifier that is
 /// not a reserved, column-name or type/function-name keyword.
 #[must_use]
-pub(crate) fn quote_identifier(value: &str) -> String {
+pub fn quote_identifier(value: &str) -> String {
     let simple = value
         .chars()
         .next()

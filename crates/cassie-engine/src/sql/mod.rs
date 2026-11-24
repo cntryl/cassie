@@ -16,7 +16,7 @@ pub(crate) mod definition_guard;
 pub mod functions;
 mod identifier_text;
 pub(crate) mod numeric_comparison;
-pub(crate) mod pagination;
+pub mod pagination;
 mod parameters;
 pub mod parser;
 pub(crate) mod series_signature;

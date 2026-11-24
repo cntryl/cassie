@@ -21,7 +21,7 @@ impl From<bool> for BoundReadData {
 }
 
 impl Cassie {
-    pub(crate) fn validate_pgwire_bind(
+    pub fn validate_pgwire_bind(
         &self,
         session: &CassieSession,
         parsed: ParsedStatement,

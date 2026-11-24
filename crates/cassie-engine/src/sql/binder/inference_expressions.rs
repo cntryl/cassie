@@ -370,7 +370,7 @@ pub(crate) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
 
 /// Internal inference marker for an installed, database-owned vector OID.
 /// This value is never accepted from or emitted to the PostgreSQL wire.
-pub(crate) const VECTOR_PARAMETER_TYPE_OID: i32 = i32::MIN;
+pub const VECTOR_PARAMETER_TYPE_OID: i32 = i32::MIN;
 
 fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
     if let Some(metadata) = u32::try_from(oid)

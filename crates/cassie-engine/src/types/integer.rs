@@ -96,12 +96,12 @@ impl IntegerWidth {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum IntegerInputError {
+pub enum IntegerInputError {
     Syntax,
     Range,
 }
 
-pub(crate) fn parse(input: &str, width: IntegerWidth) -> Result<i64, IntegerInputError> {
+pub fn parse(input: &str, width: IntegerWidth) -> Result<i64, IntegerInputError> {
     let input = input
         .trim_matches(|character: char| character.is_ascii_whitespace() || character == '\u{b}');
     if let Ok(value) = input.parse::<i64>() {

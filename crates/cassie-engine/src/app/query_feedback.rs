@@ -11,14 +11,14 @@ impl Cassie {
     /// PostgreSQL, `$user` names the schema matching the session role, and
     /// entries naming schemas that do not exist are skipped rather than
     /// rejected when the path is set.
-    pub(crate) fn binding_search_path(&self, session: &CassieSession) -> Vec<String> {
+    pub fn binding_search_path(&self, session: &CassieSession) -> Vec<String> {
         let database = session
             .current_database()
             .unwrap_or(self.default_database.as_str());
         super::session_schema::resolved_search_path(&self.catalog, database, session)
     }
 
-    pub(crate) fn binding_context_for_session(
+    pub fn binding_context_for_session(
         &self,
         session: Option<&CassieSession>,
     ) -> binder::BindingContext {

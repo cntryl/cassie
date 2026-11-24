@@ -1,6 +1,6 @@
 pub mod hnsw;
 pub mod ivfflat;
-pub(crate) mod text;
+pub mod text;
 
 pub use cassie_vector::{
     brute_force, cosine, cosine_distance, cosine_distance_from_normalized_query, cosine_score, dot,
@@ -8,4 +8,4 @@ pub use cassie_vector::{
     l2_score, normalize, normalized, normalized_vector_source_fingerprint, source_fingerprint,
     top_k, NormalizedVector,
 };
-pub(crate) use cassie_vector::{denormalize_f32_component, f64_to_finite_f32, finite_f32_vector};
+pub use cassie_vector::{denormalize_f32_component, f64_to_finite_f32, finite_f32_vector};

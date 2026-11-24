@@ -1,4 +1,4 @@
-pub(crate) use statements::parse_terminal_transaction_control;
+pub use statements::parse_terminal_transaction_control;
 use std::fmt;
 
 #[path = "parser/aggregate_call.rs"]
@@ -265,7 +265,7 @@ use materialized_view::{
     parse_create_materialized_view_statement, parse_drop_materialized_view_statement,
     parse_refresh_materialized_view_statement, parse_rename_materialized_view_statement,
 };
-pub(crate) use preflight::preflight_sql;
+pub use preflight::preflight_sql;
 use query::{parse_projection_items, parse_select_statement, parse_with_statement};
 use retention::{
     parse_alter_retention_policy_statement, parse_create_retention_policy_statement,

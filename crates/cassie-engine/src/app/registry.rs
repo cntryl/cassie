@@ -23,7 +23,8 @@ impl Cassie {
         self.runtime.invalidate_plan_cache();
     }
 
-    pub(crate) fn bump_schema_epoch_and_invalidate_query_cache(&self) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn bump_schema_epoch_and_invalidate_query_cache(&self) -> Result<(), CassieError> {
         let feedback_persistence = self.feedback_persistence_lock.lock();
         let schema_epoch = self
             .midge

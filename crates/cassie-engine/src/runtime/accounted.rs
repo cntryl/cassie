@@ -7,7 +7,8 @@ use super::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "accounted/compact_json.rs"]
 pub(crate) mod compact_json;
 #[path = "accounted/json.rs"]
-pub(crate) mod json;
+#[doc(hidden)]
+pub mod json;
 
 #[path = "accounted/json_arena.rs"]
 #[doc(hidden)]
@@ -17,8 +18,9 @@ pub mod json_arena;
 ///
 /// The value intentionally cannot be separated from its reservation. Consumers can move the
 /// container or borrow the value, but the accounted bytes are released only when both are dropped.
+#[doc(hidden)]
 #[derive(Debug)]
-pub(crate) struct Accounted<T> {
+pub struct Accounted<T> {
     value: T,
     reservation: QueryMemoryReservation,
 }
@@ -44,7 +46,8 @@ impl<T> Accounted<T> {
     }
 
     #[must_use]
-    pub(crate) const fn get(&self) -> &T {
+    #[doc(hidden)]
+    pub const fn get(&self) -> &T {
         &self.value
     }
 
@@ -53,7 +56,8 @@ impl<T> Accounted<T> {
         self.reservation.bytes()
     }
 
-    pub(crate) fn into_parts(self) -> (T, QueryMemoryReservation) {
+    #[doc(hidden)]
+    pub fn into_parts(self) -> (T, QueryMemoryReservation) {
         (self.value, self.reservation)
     }
 }

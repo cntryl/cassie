@@ -631,7 +631,8 @@ impl Midge {
 
     /// Holds only the per-collection write gates, without the global referential
     /// gate. Use it only for writes to collections outside any FOREIGN KEY.
-    pub(crate) fn with_collection_gates<T>(
+    #[doc(hidden)]
+    pub fn with_collection_gates<T>(
         &self,
         collections: &[String],
         operation: impl FnOnce() -> T,

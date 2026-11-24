@@ -64,14 +64,15 @@ impl std::fmt::Display for CatalogObjectKind {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone)]
-pub(crate) struct CassieErrorDescriptor {
-    pub(crate) http_status: u16,
-    pub(crate) sql_state: &'static str,
-    pub(crate) message: String,
-    pub(crate) table: Option<String>,
-    pub(crate) column: Option<String>,
-    pub(crate) constraint: Option<String>,
+pub struct CassieErrorDescriptor {
+    pub http_status: u16,
+    pub sql_state: &'static str,
+    pub message: String,
+    pub table: Option<String>,
+    pub column: Option<String>,
+    pub constraint: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -263,7 +264,8 @@ impl CassieError {
         self.descriptor().sql_state
     }
 
-    pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
+    #[doc(hidden)]
+    pub fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
             Self::AmbiguousColumn(_) => bad_request_descriptor("42702", self.to_string()),

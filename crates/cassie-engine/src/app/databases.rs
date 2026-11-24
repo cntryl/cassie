@@ -2,7 +2,8 @@ use super::{Cassie, CassieError, CatalogObjectKind};
 use crate::catalog::{canonical_schema_name, DatabaseMeta, DEFAULT_SCHEMA};
 
 impl Cassie {
-    pub(crate) fn create_logical_database(
+    #[doc(hidden)]
+    pub fn create_logical_database(
         &self,
         name: &str,
         if_not_exists: bool,

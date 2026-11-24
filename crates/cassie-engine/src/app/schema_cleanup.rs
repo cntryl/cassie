@@ -1,7 +1,8 @@
 use super::{Cassie, CassieError, CassieSession, QueryResult};
 
 impl Cassie {
-    pub(crate) fn run_deferred_schema_cleanup(&self) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn run_deferred_schema_cleanup(&self) -> Result<(), CassieError> {
         if self.midge.defers_schema_cleanup() {
             // Markers staged by an open transaction are not durable, and durable
             // ones cannot be reclaimed through its private overlay.

@@ -12,7 +12,8 @@ use crate::types::Value;
 use super::types::ColumnMeta;
 #[path = "result_rendering.rs"]
 mod rendering;
-pub(crate) use rendering::bound as native_result_text_bound;
+#[doc(hidden)]
+pub use rendering::bound as native_result_text_bound;
 
 #[derive(Debug, serde::Serialize)]
 struct QueryResultPayload {
@@ -62,7 +63,8 @@ impl QueryResult {
     }
 
     /// The OID a rendered `reg*` value in `row`/`column` names, for binary output.
-    pub(crate) fn object_oid(&self, row: usize, column: usize) -> Option<u32> {
+    #[doc(hidden)]
+    pub fn object_oid(&self, row: usize, column: usize) -> Option<u32> {
         self.payload
             .object_oids
             .iter()
@@ -70,10 +72,12 @@ impl QueryResult {
             .and_then(|(_, oids)| oids.get(row).copied().flatten())
     }
 
-    pub(crate) fn postgres_array_text_columns(&self) -> &[usize] {
+    #[doc(hidden)]
+    pub fn postgres_array_text_columns(&self) -> &[usize] {
         &self.payload.postgres_array_text_columns
     }
-    pub(crate) fn temporal_context(&self) -> &crate::types::extended::temporal::TemporalSession {
+    #[doc(hidden)]
+    pub fn temporal_context(&self) -> &crate::types::extended::temporal::TemporalSession {
         self.payload
             .temporal
             .as_deref()
@@ -201,7 +205,8 @@ impl QueryResult {
         OwnedQueryRows { result: self }
     }
 
-    pub(crate) fn admission(&self) -> &QueryMemoryReservation {
+    #[doc(hidden)]
+    pub fn admission(&self) -> &QueryMemoryReservation {
         self.exposure.as_deref().unwrap_or(&self.payload.memory)
     }
 

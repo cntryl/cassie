@@ -30,7 +30,8 @@ pub(crate) const JSON_DECODE_EXPANSION_FACTOR: usize = 192;
 /// the clone's lengths, and node charges include the map's inline keys and child values.
 /// Empty owned maps receive one node allowance because removing their final entry can
 /// retain the root allocation. Their public API does not expose that allocation state.
-pub(crate) fn retained_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
+#[doc(hidden)]
+pub fn retained_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
     checked_add(
         size_of::<serde_json::Value>(),
         owned_heap_bytes(value, true)?,
@@ -49,7 +50,8 @@ pub(crate) fn retained_decoded_bytes(value: &serde_json::Value) -> Result<usize,
     )
 }
 
-pub(crate) fn serialized_decode_bytes(raw_bytes: usize) -> Result<usize, CassieError> {
+#[doc(hidden)]
+pub fn serialized_decode_bytes(raw_bytes: usize) -> Result<usize, CassieError> {
     checked_mul(raw_bytes, JSON_DECODE_EXPANSION_FACTOR)
 }
 

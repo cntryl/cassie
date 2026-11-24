@@ -13,7 +13,8 @@ impl Cassie {
     /// # Errors
     ///
     /// Returns an error when the provider rejects a source value or a write fails.
-    pub(crate) fn put_vector_index_with_backfill(
+    #[doc(hidden)]
+    pub fn put_vector_index_with_backfill(
         &self,
         index: &VectorIndexRecord,
         sql_index: Option<&crate::catalog::IndexMeta>,

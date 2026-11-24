@@ -145,7 +145,8 @@ impl ColumnMeta {
         self.record_type.as_ref()
     }
 
-    pub(crate) fn is_vector(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_vector(&self) -> bool {
         self.data_type.eq_ignore_ascii_case("vector")
             || self
                 .data_type

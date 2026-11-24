@@ -34,7 +34,8 @@ pub(super) fn admit<'a>(
     controls.reserve_query_memory(bytes)
 }
 
-pub(crate) fn bound(value: &TypedValue, session: &TemporalSession) -> Result<usize, CassieError> {
+#[doc(hidden)]
+pub fn bound(value: &TypedValue, session: &TemporalSession) -> Result<usize, CassieError> {
     match value {
         TypedValue::Numeric(Numeric::Finite { mantissa, scale }) => {
             // log10(2) < 1: binary digit count bounds decimal magnitude without

@@ -41,7 +41,8 @@ mod publication;
 mod role_object_grants;
 pub(crate) use publication::RetainedRowHistory;
 mod raw_ops;
-pub(crate) use publication::PublicationControlScope;
+#[doc(hidden)]
+pub use publication::PublicationControlScope;
 mod transactions;
 pub(crate) use transactions::{
     AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,

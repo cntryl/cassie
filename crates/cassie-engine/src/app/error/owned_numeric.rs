@@ -85,13 +85,16 @@ impl OwnedNumericLiteralError {
         }))
     }
 
-    pub(crate) fn message(&self) -> &str {
+    #[doc(hidden)]
+    pub fn message(&self) -> &str {
         &self.message
     }
-    pub(crate) fn sqlstate(&self) -> &'static str {
+    #[doc(hidden)]
+    pub fn sqlstate(&self) -> &'static str {
         self.sqlstate
     }
-    pub(crate) fn controls(&self) -> &QueryExecutionControls {
+    #[doc(hidden)]
+    pub fn controls(&self) -> &QueryExecutionControls {
         &self.controls
     }
 }

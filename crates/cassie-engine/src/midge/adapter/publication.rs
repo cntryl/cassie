@@ -312,7 +312,8 @@ thread_local! {
 }
 
 /// A blocking call stack's current request, never a retained transaction token.
-pub(crate) struct PublicationControlScope {
+#[doc(hidden)]
+pub struct PublicationControlScope {
     previous: Option<PublicationWaitControls>,
     _thread: PhantomData<Rc<()>>,
 }
@@ -347,7 +348,8 @@ impl PublicationControlScope {
         Self::replace(Some(controls))
     }
 
-    pub(crate) fn enter_for_rest(
+    #[doc(hidden)]
+    pub fn enter_for_rest(
         cancellation: &QueryCancellationHandle,
         deadline: Instant,
     ) -> Self {

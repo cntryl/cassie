@@ -80,7 +80,8 @@ impl Cassie {
         )
     }
 
-    pub(crate) fn run_controlled_vector_search<T>(
+    #[doc(hidden)]
+    pub fn run_controlled_vector_search<T>(
         &self,
         input: VectorSearchInput<'_>,
         convert: impl FnOnce(QueryResult, &QueryExecutionControls) -> Result<T, CassieError>,

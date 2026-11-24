@@ -55,7 +55,8 @@ pub(super) fn cast(
 /// # Errors
 ///
 /// Returns the cast error of the value or of one of its fields.
-pub(crate) fn assign_record(value: &Value, descriptor: &CompositeRef) -> Result<Value, QueryError> {
+#[doc(hidden)]
+pub fn assign_record(value: &Value, descriptor: &CompositeRef) -> Result<Value, QueryError> {
     cast_with(
         &scalar_from_value(value),
         descriptor,
@@ -292,7 +293,8 @@ pub(super) fn null_test(value: &ScalarValue, negated: bool) -> bool {
 /// # Errors
 ///
 /// Returns the input or field conversion error of a malformed literal.
-pub(crate) fn record_from_text(
+#[doc(hidden)]
+pub fn record_from_text(
     text: &str,
     descriptor: &CompositeRef,
 ) -> Result<crate::types::Value, QueryError> {

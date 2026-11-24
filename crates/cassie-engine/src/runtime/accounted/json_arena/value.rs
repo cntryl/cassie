@@ -11,13 +11,15 @@ use super::sources::SourceStack;
 #[path = "value/tests.rs"]
 mod tests;
 
+#[doc(hidden)]
 #[derive(Debug)]
-pub(crate) enum ValueParseError {
+pub enum ValueParseError {
     Invalid,
     Controlled(CassieError),
 }
 
-pub(crate) fn parse_value(
+#[doc(hidden)]
+pub fn parse_value(
     input: &[u8],
     controls: &QueryExecutionControls,
 ) -> Result<Accounted<serde_json::Value>, ValueParseError> {
@@ -55,7 +57,8 @@ pub(crate) fn parse_value_in_reserved_memory(
     Ok(value)
 }
 
-pub(crate) fn parse_value_with_optional_controls(
+#[doc(hidden)]
+pub fn parse_value_with_optional_controls(
     input: &[u8],
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Accounted<serde_json::Value>, ValueParseError> {
@@ -67,7 +70,8 @@ pub(crate) fn parse_value_with_optional_controls(
     parse_value(input, &controls)
 }
 
-pub(crate) fn syntax_error(input: &[u8]) -> String {
+#[doc(hidden)]
+pub fn syntax_error(input: &[u8]) -> String {
     serde_json::from_slice::<serde_json::Value>(input)
         .err()
         .map_or_else(

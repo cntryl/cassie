@@ -235,7 +235,8 @@ impl Cassie {
         })
     }
 
-    pub(crate) fn delete_document_with_referential_actions(
+    #[doc(hidden)]
+    pub fn delete_document_with_referential_actions(
         &self,
         collection: &str,
         id: &str,

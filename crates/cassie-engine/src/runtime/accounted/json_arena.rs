@@ -47,7 +47,8 @@ pub(crate) use forest::comparison::{
 };
 pub(crate) use forest::object_keys::{build_object_keys_from_map, OwnedObjectKeys};
 pub(crate) use forest::InspectionRoot;
-pub(crate) use value::{
+#[doc(hidden)]
+pub use value::{
     parse_value, parse_value_in_reserved_memory, parse_value_with_optional_controls, syntax_error,
     ValueParseError,
 };

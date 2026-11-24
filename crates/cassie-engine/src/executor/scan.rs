@@ -18,7 +18,8 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 mod character_arrays;
-pub(crate) mod composite_arrays;
+#[doc(hidden)]
+pub mod composite_arrays;
 mod controlled_source;
 #[doc(hidden)]
 pub use composite_arrays::from_text as composite_array_from_text;

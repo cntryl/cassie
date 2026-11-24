@@ -71,7 +71,8 @@ impl QueryCancellationHandle {
         self.0.load(Ordering::Acquire)
     }
 
-    pub(crate) async fn wait_canceled(&self) {
+    #[doc(hidden)]
+    pub async fn wait_canceled(&self) {
         let mut signal = self.3.subscribe();
         while !*signal.borrow_and_update() {
             if signal.changed().await.is_err() {
@@ -86,7 +87,8 @@ impl QueryCancellationHandle {
 }
 
 impl RuntimeState {
-    pub(crate) fn record_query_peak_memory(&self, peak_bytes: usize) {
+    #[doc(hidden)]
+    pub fn record_query_peak_memory(&self, peak_bytes: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query.peak_accounted_memory_bytes = metrics
             .query
@@ -94,7 +96,8 @@ impl RuntimeState {
             .max(peak_bytes as u64);
     }
 
-    pub(crate) fn record_query_memory(&self, controls: &QueryExecutionControls) {
+    #[doc(hidden)]
+    pub fn record_query_memory(&self, controls: &QueryExecutionControls) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.query.current_accounted_memory_bytes = controls.current_query_memory_bytes() as u64;
         *self

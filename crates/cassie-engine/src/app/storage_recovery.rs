@@ -6,11 +6,13 @@ use super::{
 };
 
 impl Cassie {
-    pub(crate) fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
         self.midge.check_storage_recovery_required()
     }
 
-    pub(crate) fn check_storage_statement_admission(
+    #[doc(hidden)]
+    pub fn check_storage_statement_admission(
         &self,
         statement: &QueryStatement,
     ) -> Result<(), CassieError> {

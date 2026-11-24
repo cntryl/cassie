@@ -89,7 +89,8 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub(crate) fn create_collection_with_meta_if_absent(
+    #[doc(hidden)]
+    pub fn create_collection_with_meta_if_absent(
         &self,
         name: &str,
         schema: &Schema,

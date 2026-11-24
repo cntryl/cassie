@@ -1,6 +1,6 @@
 //! Check all nine topology rows with the same summarizer used by benchmark reporting.
 
-#[path = "../benches/support/performance_benchmarks.rs"]
+#[path = "../../cassie-e2e/benches/support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 
 fn main() {

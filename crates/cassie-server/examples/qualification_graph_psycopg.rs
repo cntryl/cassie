@@ -34,7 +34,7 @@ async fn qualify() {
     command
         .arg(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/scripts/qualification/graph_psycopg.py"
+            "/../../scripts/qualification/graph_psycopg.py"
         ))
         .env("CASSIE_GRAPH_PORT", port.to_string())
         .env("CASSIE_GRAPH_PASSWORD", &config.password)

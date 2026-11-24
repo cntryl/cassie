@@ -6,7 +6,7 @@ use crate::types::Value;
 
 /// Runs a simple query and renders its result as text frames.
 ///
-/// Benchmark-facing only (`benches/support/workloads/pgwire.rs`); the served
+/// Benchmark-facing only (`crates/cassie-e2e/benches/support/workloads/pgwire.rs`); the served
 /// simple-query path lives in `pgwire::connection`. Keep protocol fixes in
 /// the live path rather than here.
 pub fn run_simple_query(

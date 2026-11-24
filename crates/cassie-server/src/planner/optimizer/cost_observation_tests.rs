@@ -2,7 +2,7 @@
 
 use crate as fixture_cassie;
 
-#[path = "../../../tests/support/join_cost_stats.rs"]
+#[path = "../../../../cassie-e2e/tests/support/join_cost_stats.rs"]
 mod fixture;
 
 const STAR: &str = "SELECT a.id FROM a JOIN c ON a.id=c.ak JOIN b ON b.id=c.bk";

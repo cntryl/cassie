@@ -191,7 +191,7 @@ pub fn encode(message: &ServerMessage) -> Vec<u8> {
 ///
 /// This is a line-oriented test and benchmark harness, not the live wire
 /// path: the server speaks the binary protocol through
-/// `pgwire::connection`, and `benches/support/workloads/pgwire.rs` is the
+/// `pgwire::connection`, and `crates/cassie-e2e/benches/support/workloads/pgwire.rs` is the
 /// only caller. Do not reach for it when implementing protocol behavior.
 pub fn decode(line: &str) -> ClientMessage {
     let trimmed = line.trim_end();

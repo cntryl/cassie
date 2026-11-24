@@ -1,15 +1,16 @@
-//! Portable ordering for values shared with concrete storage.
+//! Shared semantic value normalization, equality, hashing, and ordering.
 //!
-//! This comparator deliberately covers only [`Value`] semantics. Engine-only
-//! normalized JSONB and SEARCH keys keep their controlled owners in Cassie
-//! Engine.
+//! Cassie Engine supplies its controlled JSONB and SEARCH key payload types as
+//! generic parameters. Their builders and memory owners remain engine-side.
 
 use std::cmp::Ordering;
+use std::convert::Infallible;
+use std::hash::{Hash, Hasher};
 
 use crate::types::Value;
 
 #[derive(Debug, Clone)]
-struct SemanticNumber(SemanticNumberRepr);
+pub struct SemanticNumber(SemanticNumberRepr);
 
 #[derive(Debug, Clone)]
 enum SemanticNumberRepr {
@@ -72,14 +73,33 @@ impl Ord for SemanticNumber {
     }
 }
 
-#[derive(Debug, Clone)]
-enum SemanticValue {
+impl Hash for SemanticNumber {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self.0 {
+            SemanticNumberRepr::Integer(value) => {
+                0_u8.hash(state);
+                value.hash(state);
+            }
+            SemanticNumberRepr::Float(bits) => {
+                1_u8.hash(state);
+                bits.hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SemanticValue<J = Infallible, A = Infallible, R = Infallible> {
     Null,
     Bool(bool),
     Number(SemanticNumber),
     String(String),
     Vector(Vec<u32>),
     Json(String),
+    Jsonb(J),
+    JsonbArray(A),
+    Record(R),
+    Array(Vec<Self>),
     SqlArray {
         dimensions: Vec<(i32, i32)>,
         elements: Vec<Self>,
@@ -87,13 +107,16 @@ enum SemanticValue {
     Typed(crate::types::typed::TypedKey),
 }
 
-impl SemanticValue {
-    fn from_value(value: &Value) -> Self {
+impl<J, A, R> SemanticValue<J, A, R> {
+    #[must_use]
+    pub fn from_value(value: &Value) -> Self {
         match value {
             Value::Null => Self::Null,
             Value::Bool(value) => Self::Bool(*value),
             Value::Int64(value) => Self::Number(SemanticNumber::from_integer(*value)),
             Value::Float64(value) => Self::Number(SemanticNumber::from_float(*value)),
+            // Legacy canonical timestamps are widened so they compare equal
+            // by instant with fixed-width timestamps.
             Value::String(value) => Self::String(
                 crate::types::temporal::timestamp_order_text(value).into_owned(),
             ),
@@ -111,11 +134,13 @@ impl SemanticValue {
                     .collect(),
                 elements: value.elements().iter().map(Self::from_value).collect(),
             },
+            // A `real` keys as the equal double.
             Value::Typed(crate::types::typed::TypedValue::Real(value)) => {
                 Self::Number(SemanticNumber::from_float(f64::from(*value)))
             }
             Value::Typed(value) => {
                 let key = value.key();
+                // Integral numeric values key like the equal integer.
                 match integral_numeric(&key) {
                     Some(integer) => Self::Number(SemanticNumber::from_integer(integer)),
                     None => Self::Typed(key),
@@ -125,21 +150,66 @@ impl SemanticValue {
     }
 }
 
-impl PartialEq for SemanticValue {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
+impl<J, A, R> SemanticValue<J, A, R> {
+    #[must_use]
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
+    #[must_use]
+    pub fn estimated_bytes(&self) -> usize {
+        match self {
+            Self::String(value) | Self::Json(value) => value.len(),
+            Self::Vector(value) => value.len().saturating_mul(std::mem::size_of::<u32>()),
+            Self::Typed(crate::types::typed::TypedKey::Record(record)) => record.retained_bytes(),
+            Self::Array(values) => values.iter().fold(
+                values.len().saturating_mul(std::mem::size_of::<Self>()),
+                |bytes, value| bytes.saturating_add(value.estimated_bytes()),
+            ),
+            Self::SqlArray {
+                dimensions,
+                elements,
+            } => dimensions
+                .len()
+                .saturating_mul(std::mem::size_of::<(i32, i32)>())
+                .saturating_add(elements.iter().fold(
+                    elements.len().saturating_mul(std::mem::size_of::<Self>()),
+                    |bytes, value| bytes.saturating_add(value.estimated_bytes()),
+                )),
+            Self::Null
+            | Self::Bool(_)
+            | Self::Number(_)
+            | Self::Typed(_)
+            | Self::Jsonb(_)
+            | Self::JsonbArray(_)
+            | Self::Record(_) => 0,
+        }
+    }
+
+    fn rank(&self) -> u8 {
+        match self {
+            Self::Null => 0,
+            Self::Bool(_) => 1,
+            Self::Number(_) => 2,
+            Self::String(_) => 3,
+            Self::Vector(_) => 4,
+            Self::Json(_) => 5,
+            Self::Jsonb(_) => 8,
+            Self::JsonbArray(_) => 9,
+            Self::Record(_) => 10,
+            Self::Array(_) | Self::SqlArray { .. } => 6,
+            Self::Typed(_) => 7,
+        }
     }
 }
 
-impl Eq for SemanticValue {}
-
-impl PartialOrd for SemanticValue {
+impl<J: Ord, A: Ord, R: Ord> PartialOrd for SemanticValue<J, A, R> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for SemanticValue {
+impl<J: Ord, A: Ord, R: Ord> Ord for SemanticValue<J, A, R> {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Self::Null, Self::Null) => Ordering::Equal,
@@ -149,12 +219,24 @@ impl Ord for SemanticValue {
                 left.cmp(right)
             }
             (Self::Vector(left), Self::Vector(right)) => left.cmp(right),
+            (Self::Jsonb(left), Self::Jsonb(right)) => left.cmp(right),
+            (Self::JsonbArray(left), Self::JsonbArray(right)) => left.cmp(right),
+            (Self::Record(left), Self::Record(right)) => left.cmp(right),
             (Self::Typed(left), Self::Typed(right)) => left.cmp(right),
             (Self::Number(number), Self::Typed(crate::types::typed::TypedKey::Numeric(key))) => {
                 compare_number_numeric(number, key)
             }
             (Self::Typed(crate::types::typed::TypedKey::Numeric(key)), Self::Number(number)) => {
                 compare_number_numeric(number, key).reverse()
+            }
+            (Self::Array(left), Self::Array(right)) => {
+                compare_array_parts(left, right, |left, right| {
+                    match (left.is_null(), right.is_null()) {
+                        (true, false) => Ordering::Greater,
+                        (false, true) => Ordering::Less,
+                        _ => left.cmp(right),
+                    }
+                })
             }
             (
                 Self::SqlArray {
@@ -171,27 +253,17 @@ impl Ord for SemanticValue {
                 right_dimensions,
                 right_elements,
             ),
+            (Self::Array(_), Self::SqlArray { .. }) => Ordering::Less,
+            (Self::SqlArray { .. }, Self::Array(_)) => Ordering::Greater,
             _ => self.rank().cmp(&other.rank()),
         }
     }
 }
 
-impl SemanticValue {
-    fn rank(&self) -> u8 {
-        match self {
-            Self::Null => 0,
-            Self::Bool(_) => 1,
-            Self::Number(_) => 2,
-            Self::String(_) => 3,
-            Self::Vector(_) => 4,
-            Self::Json(_) => 5,
-            Self::SqlArray { .. } => 6,
-            Self::Typed(_) => 7,
-        }
-    }
-}
-
-fn compare_array_elements(left: &SemanticValue, right: &SemanticValue) -> Ordering {
+fn compare_array_elements<J: Ord, A: Ord, R: Ord>(
+    left: &SemanticValue<J, A, R>,
+    right: &SemanticValue<J, A, R>,
+) -> Ordering {
     match (left.is_null(), right.is_null()) {
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,
@@ -213,17 +285,12 @@ fn compare_array_parts<T>(
     left.len().cmp(&right.len())
 }
 
-impl SemanticValue {
-    fn is_null(&self) -> bool {
-        matches!(self, Self::Null)
-    }
-}
-
-fn compare_sql_arrays(
+/// Compare SQL-array elements first, then rank, lengths, and lower bounds.
+pub fn compare_sql_arrays<J: Ord, A: Ord, R: Ord>(
     left_dimensions: &[(i32, i32)],
-    left_elements: &[SemanticValue],
+    left_elements: &[SemanticValue<J, A, R>],
     right_dimensions: &[(i32, i32)],
-    right_elements: &[SemanticValue],
+    right_elements: &[SemanticValue<J, A, R>],
 ) -> Ordering {
     let elements = compare_array_parts(left_elements, right_elements, compare_array_elements);
     if elements != Ordering::Equal {
@@ -248,7 +315,25 @@ fn compare_sql_arrays(
 /// engine and concrete storage summaries.
 #[must_use]
 pub fn compare_values(left: &Value, right: &Value) -> Ordering {
-    SemanticValue::from_value(left).cmp(&SemanticValue::from_value(right))
+    SemanticValue::<Infallible, Infallible, Infallible>::from_value(left)
+        .cmp(&SemanticValue::from_value(right))
+}
+
+/// Compare integer and double values using the same number normalization as
+/// [`compare_values`]. Other value types return `None`.
+#[must_use]
+pub fn compare_numeric_values(left: &Value, right: &Value) -> Option<Ordering> {
+    let left = match left {
+        Value::Int64(value) => SemanticNumber::from_integer(*value),
+        Value::Float64(value) => SemanticNumber::from_float(*value),
+        _ => return None,
+    };
+    let right = match right {
+        Value::Int64(value) => SemanticNumber::from_integer(*value),
+        Value::Float64(value) => SemanticNumber::from_float(*value),
+        _ => return None,
+    };
+    Some(left.cmp(&right))
 }
 
 fn integral_numeric(key: &crate::types::typed::TypedKey) -> Option<i64> {

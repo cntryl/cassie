@@ -30,36 +30,36 @@ pub enum StatementFamily {
     Retention,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum StatementRouteRef<'a> {
-    Runtime(RuntimeStatementRef<'a>),
-    Catalog(CatalogStatementRef<'a>),
-    Projection(ProjectionStatementRef<'a>),
+#[derive(Debug)]
+pub enum StatementRouteRef<'a, A = ()> {
+    Runtime(RuntimeStatementRef<'a, A>),
+    Catalog(CatalogStatementRef<'a, A>),
+    Projection(ProjectionStatementRef<'a, A>),
     Retention(RetentionStatementRef<'a>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum RuntimeStatementRef<'a> {
-    Explain(&'a ExplainStatement),
-    Select(&'a SelectStatement),
+#[derive(Debug)]
+pub enum RuntimeStatementRef<'a, A = ()> {
+    Explain(&'a ExplainStatement<A>),
+    Select(&'a SelectStatement<A>),
     Show(&'a ShowStatement),
     Set(&'a SetStatement),
     Copy(&'a CopyStatement),
-    Insert(&'a InsertStatement),
-    Update(&'a UpdateStatement),
-    Delete(&'a DeleteStatement),
+    Insert(&'a InsertStatement<A>),
+    Update(&'a UpdateStatement<A>),
+    Delete(&'a DeleteStatement<A>),
     Truncate(&'a TruncateStatement),
-    Merge(&'a MergeStatement),
+    Merge(&'a MergeStatement<A>),
     Transaction(&'a TransactionStatement),
-    SessionObject(&'a SessionObjectStatement),
+    SessionObject(&'a SessionObjectStatement<A>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum CatalogStatementRef<'a> {
+#[derive(Debug)]
+pub enum CatalogStatementRef<'a, A = ()> {
     CommentOn(&'a CommentOnStatement),
-    CreateTable(&'a CreateTableStatement),
+    CreateTable(&'a CreateTableStatement<A>),
     DropTable(&'a DropTableStatement),
-    AlterTable(&'a AlterTableStatement),
+    AlterTable(&'a AlterTableStatement<A>),
     CreateSequence(&'a CreateSequenceStatement),
     AlterSequence(&'a AlterSequenceStatement),
     DropSequence(&'a DropSequenceStatement),
@@ -79,19 +79,19 @@ pub enum CatalogStatementRef<'a> {
     DropFunction(&'a DropFunctionStatement),
     CreateProcedure(&'a CreateProcedureStatement),
     DropProcedure(&'a DropProcedureStatement),
-    CallProcedure(&'a CallProcedureStatement),
+    CallProcedure(&'a CallProcedureStatement<A>),
     Extension(&'a ExtensionStatement),
     Type(&'a TypeStatement),
     PropertyGraph(&'a PropertyGraphStatement),
-    CreateIndex(&'a CreateIndexStatement),
+    CreateIndex(&'a CreateIndexStatement<A>),
     DropIndex(&'a DropIndexStatement),
     AlterIndex(&'a AlterIndexStatement),
     Reindex(&'a ReindexStatement),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ProjectionStatementRef<'a> {
-    CreateRollup(&'a CreateRollupStatement),
+#[derive(Debug)]
+pub enum ProjectionStatementRef<'a, A = ()> {
+    CreateRollup(&'a CreateRollupStatement<A>),
     RefreshRollup(&'a RefreshRollupStatement),
     DropRollup(&'a DropRollupStatement),
     CreateMaterializedProjection(&'a CreateMaterializedProjectionStatement),
@@ -118,33 +118,33 @@ pub enum RetentionStatementRef<'a> {
     EnforceRetentionPolicy(&'a EnforceRetentionPolicyStatement),
 }
 
-pub enum StatementRoute {
-    Runtime(Box<RuntimeStatement>),
-    Catalog(CatalogStatement),
-    Projection(ProjectionStatement),
+pub enum StatementRoute<A = ()> {
+    Runtime(Box<RuntimeStatement<A>>),
+    Catalog(CatalogStatement<A>),
+    Projection(ProjectionStatement<A>),
     Retention(RetentionStatement),
 }
 
-pub enum RuntimeStatement {
-    Explain(ExplainStatement),
-    Select(Box<SelectStatement>),
+pub enum RuntimeStatement<A = ()> {
+    Explain(ExplainStatement<A>),
+    Select(Box<SelectStatement<A>>),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(CopyStatement),
-    Insert(InsertStatement),
-    Update(UpdateStatement),
-    Delete(DeleteStatement),
+    Insert(InsertStatement<A>),
+    Update(UpdateStatement<A>),
+    Delete(DeleteStatement<A>),
     Truncate(TruncateStatement),
-    Merge(Box<MergeStatement>),
+    Merge(Box<MergeStatement<A>>),
     Transaction(TransactionStatement),
-    SessionObject(SessionObjectStatement),
+    SessionObject(SessionObjectStatement<A>),
 }
 
-pub enum CatalogStatement {
+pub enum CatalogStatement<A = ()> {
     CommentOn(CommentOnStatement),
-    CreateTable(CreateTableStatement),
+    CreateTable(CreateTableStatement<A>),
     DropTable(DropTableStatement),
-    AlterTable(AlterTableStatement),
+    AlterTable(AlterTableStatement<A>),
     CreateSequence(CreateSequenceStatement),
     AlterSequence(AlterSequenceStatement),
     DropSequence(DropSequenceStatement),
@@ -164,18 +164,18 @@ pub enum CatalogStatement {
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
-    CallProcedure(CallProcedureStatement),
+    CallProcedure(CallProcedureStatement<A>),
     Extension(ExtensionStatement),
     Type(TypeStatement),
     PropertyGraph(PropertyGraphStatement),
-    CreateIndex(CreateIndexStatement),
+    CreateIndex(CreateIndexStatement<A>),
     DropIndex(DropIndexStatement),
     AlterIndex(AlterIndexStatement),
     Reindex(ReindexStatement),
 }
 
-pub enum ProjectionStatement {
-    CreateRollup(CreateRollupStatement),
+pub enum ProjectionStatement<A = ()> {
+    CreateRollup(CreateRollupStatement<A>),
     RefreshRollup(RefreshRollupStatement),
     DropRollup(DropRollupStatement),
     CreateMaterializedProjection(CreateMaterializedProjectionStatement),
@@ -201,7 +201,39 @@ pub enum RetentionStatement {
     EnforceRetentionPolicy(EnforceRetentionPolicyStatement),
 }
 
-impl QueryStatement {
+impl<A> Copy for StatementRouteRef<'_, A> {}
+
+impl<A> Clone for StatementRouteRef<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for RuntimeStatementRef<'_, A> {}
+
+impl<A> Clone for RuntimeStatementRef<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for CatalogStatementRef<'_, A> {}
+
+impl<A> Clone for CatalogStatementRef<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for ProjectionStatementRef<'_, A> {}
+
+impl<A> Clone for ProjectionStatementRef<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> QueryStatement<A> {
     #[must_use]
     pub const fn family(&self) -> StatementFamily {
         match self {
@@ -273,7 +305,7 @@ impl QueryStatement {
     }
 
     #[must_use]
-    pub fn route(&self) -> StatementRouteRef<'_> {
+    pub fn route(&self) -> StatementRouteRef<'_, A> {
         match self.family() {
             StatementFamily::Runtime => StatementRouteRef::Runtime(self.runtime_route_ref()),
             StatementFamily::Catalog => StatementRouteRef::Catalog(self.catalog_route_ref()),
@@ -285,7 +317,7 @@ impl QueryStatement {
     }
 
     #[must_use]
-    pub fn into_route(self) -> StatementRoute {
+    pub fn into_route(self) -> StatementRoute<A> {
         match self.family() {
             StatementFamily::Runtime => {
                 StatementRoute::Runtime(Box::new(self.into_runtime_route()))
@@ -296,7 +328,7 @@ impl QueryStatement {
         }
     }
 
-    fn runtime_route_ref(&self) -> RuntimeStatementRef<'_> {
+    fn runtime_route_ref(&self) -> RuntimeStatementRef<'_, A> {
         match self {
             Self::Explain(statement) => RuntimeStatementRef::Explain(statement),
             Self::Select(statement) => RuntimeStatementRef::Select(statement),
@@ -314,7 +346,7 @@ impl QueryStatement {
         }
     }
 
-    fn catalog_route_ref(&self) -> CatalogStatementRef<'_> {
+    fn catalog_route_ref(&self) -> CatalogStatementRef<'_, A> {
         match self {
             Self::CommentOn(statement) => CatalogStatementRef::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatementRef::CreateTable(statement),
@@ -355,7 +387,7 @@ impl QueryStatement {
         }
     }
 
-    fn projection_route_ref(&self) -> ProjectionStatementRef<'_> {
+    fn projection_route_ref(&self) -> ProjectionStatementRef<'_, A> {
         match self {
             Self::CreateRollup(statement) => ProjectionStatementRef::CreateRollup(statement),
             Self::RefreshRollup(statement) => ProjectionStatementRef::RefreshRollup(statement),
@@ -422,7 +454,7 @@ impl QueryStatement {
         }
     }
 
-    fn into_runtime_route(self) -> RuntimeStatement {
+    fn into_runtime_route(self) -> RuntimeStatement<A> {
         match self {
             Self::Explain(statement) => RuntimeStatement::Explain(statement),
             Self::Select(statement) => RuntimeStatement::Select(statement),
@@ -440,7 +472,7 @@ impl QueryStatement {
         }
     }
 
-    fn into_catalog_route(self) -> CatalogStatement {
+    fn into_catalog_route(self) -> CatalogStatement<A> {
         match self {
             Self::CommentOn(statement) => CatalogStatement::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatement::CreateTable(statement),
@@ -481,7 +513,7 @@ impl QueryStatement {
         }
     }
 
-    fn into_projection_route(self) -> ProjectionStatement {
+    fn into_projection_route(self) -> ProjectionStatement<A> {
         match self {
             Self::CreateRollup(statement) => ProjectionStatement::CreateRollup(statement),
             Self::RefreshRollup(statement) => ProjectionStatement::RefreshRollup(statement),

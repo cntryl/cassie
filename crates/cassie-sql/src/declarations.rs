@@ -19,6 +19,7 @@ pub enum ConstraintOperator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct ConstraintCheck<A = ()> {
     pub field: String,
     pub operator: ConstraintOperator,
@@ -117,6 +118,7 @@ impl NotNullOwnership {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct FieldConstraint<A = ()> {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
     #[serde(default, skip_serializing_if = "crate::definition_guard::is_legacy")]

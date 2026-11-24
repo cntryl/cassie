@@ -71,9 +71,7 @@ mod ast_row;
 pub use ast_row::{RowComparison, RowComparisonOp};
 #[path = "ast_subquery.rs"]
 mod ast_subquery;
-pub use ast_subquery::{
-    SubqueryExpr, SubqueryKind, SubqueryOutcome, SubqueryRows, SUBQUERY_MULTIPLE_ROWS,
-};
+pub use ast_subquery::{SubqueryExpr, SubqueryKind, SUBQUERY_MULTIPLE_ROWS};
 #[path = "ast_dml.rs"]
 mod ast_dml;
 #[path = "ast_visit.rs"]
@@ -95,6 +93,7 @@ pub use ast_query::{
 
 /// Array subscripts attached to one UPDATE assignment target.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct UpdateTarget<A = ()> {
     /// Index in `UpdateStatement::assignments` for the base column assignment.
     pub assignment_index: usize,
@@ -103,6 +102,7 @@ pub struct UpdateTarget<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct ParsedStatement<A = ()> {
     pub raw_sql: String,
     pub statement: QueryStatement<A>,
@@ -122,6 +122,7 @@ pub enum Volatility {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum QueryStatement<A = ()> {
     Explain(ExplainStatement<A>),
     Select(Box<SelectStatement<A>>),
@@ -211,6 +212,7 @@ pub struct CopyStatement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct ExplainStatement<A = ()> {
     pub analyze: bool,
     pub statement: Box<ParsedStatement<A>>,
@@ -251,12 +253,14 @@ pub enum TransactionIsolation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum InsertSource<A = ()> {
     Values(Vec<Vec<Expr<A>>>),
     Select(Box<SelectStatement<A>>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct InsertConflictClause<A = ()> {
     pub target_fields: Vec<String>,
     pub action: InsertConflictAction<A>,
@@ -275,6 +279,7 @@ pub struct InsertConflictClause<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum InsertConflictAction<A = ()> {
     DoNothing,
     DoUpdate {
@@ -284,6 +289,7 @@ pub enum InsertConflictAction<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct InsertStatement<A = ()> {
     pub table: IdentifierPath,
     pub columns: Vec<String>,
@@ -313,6 +319,7 @@ pub enum InsertOverriding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct UpdateStatement<A = ()> {
     pub table: IdentifierPath,
     pub assignments: Vec<(String, Expr<A>)>,
@@ -337,6 +344,7 @@ pub struct UpdateStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct DeleteStatement<A = ()> {
     pub table: IdentifierPath,
     pub filter: Option<Expr<A>>,
@@ -355,6 +363,7 @@ pub struct DeleteStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CreateTableStatement<A = ()> {
     pub table: IdentifierPath,
     pub fields: Vec<FieldDefinition<A>>,
@@ -367,6 +376,7 @@ pub struct CreateTableStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CreateIndexStatement<A = ()> {
     pub name: String,
     pub table: IdentifierPath,
@@ -381,6 +391,7 @@ pub struct CreateIndexStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CreateRollupStatement<A = ()> {
     pub name: String,
     pub source: String,
@@ -641,6 +652,7 @@ pub struct DropProcedureStatement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CallProcedureStatement<A = ()> {
     pub name: String,
     pub args: Vec<Expr<A>>,
@@ -849,6 +861,7 @@ pub enum ObjectPrivilegeTarget {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct FieldDefinition<A = ()> {
     pub name: String,
     pub data_type: DataType,

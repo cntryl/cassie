@@ -17,6 +17,7 @@ pub enum RowComparisonOp {
 
 /// Corresponding constructor fields, retained in SQL source order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct RowComparison<A = ()> {
     pub left: Vec<Expr<A>>,
     pub op: RowComparisonOp,

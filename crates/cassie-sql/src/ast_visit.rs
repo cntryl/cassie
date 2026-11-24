@@ -13,7 +13,7 @@ impl<A> Expr<A> {
     /// when `visit` breaks. Subqueries inside `EXISTS` are not visited.
     pub fn try_for_each_child<'a, B>(
         &'a self,
-        mut visit: impl FnMut(&'a Expr) -> ControlFlow<B>,
+        mut visit: impl FnMut(&'a Expr<A>) -> ControlFlow<B>,
     ) -> ControlFlow<B> {
         match self {
             Self::Case {
@@ -111,7 +111,10 @@ impl<A> Expr<A> {
     /// Rebuilds this expression with every direct sub-expression replaced by
     /// `map(child)`. `EXISTS` subqueries and leaves are cloned unchanged.
     #[must_use]
-    pub fn map_children(&self, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
+    pub fn map_children(&self, mut map: impl FnMut(&Expr<A>) -> Expr<A>) -> Expr<A>
+    where
+        A: Clone,
+    {
         match self {
             Self::Case {
                 operand,
@@ -213,7 +216,7 @@ impl<A> Expr<A> {
     }
 
     /// Visits each direct sub-expression in structural order.
-    pub fn for_each_child<'a>(&'a self, mut visit: impl FnMut(&'a Expr)) {
+    pub fn for_each_child<'a>(&'a self, mut visit: impl FnMut(&'a Expr<A>)) {
         let _ = self.try_for_each_child(|child| {
             visit(child);
             ControlFlow::<()>::Continue(())
@@ -227,7 +230,7 @@ impl<A> Expr<A> {
     /// Returns the first error produced by `visit`.
     pub fn try_visit_children<'a, E>(
         &'a self,
-        mut visit: impl FnMut(&'a Expr) -> Result<(), E>,
+        mut visit: impl FnMut(&'a Expr<A>) -> Result<(), E>,
     ) -> Result<(), E> {
         match self.try_for_each_child(|child| match visit(child) {
             Ok(()) => ControlFlow::Continue(()),
@@ -245,7 +248,7 @@ impl<A> Expr<A> {
     /// Returns the first error produced by `visit`.
     pub fn try_visit_children_mut<E>(
         &mut self,
-        mut visit: impl FnMut(&mut Expr) -> Result<(), E>,
+        mut visit: impl FnMut(&mut Expr<A>) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
             Self::RowCompare(comparison) => {
@@ -343,7 +346,7 @@ impl<A> Expr<A> {
     /// Returns the first `Some` produced by `visit` over direct sub-expressions.
     pub fn find_map_child<'a, T>(
         &'a self,
-        mut visit: impl FnMut(&'a Expr) -> Option<T>,
+        mut visit: impl FnMut(&'a Expr<A>) -> Option<T>,
     ) -> Option<T> {
         match self.try_for_each_child(|child| {
             visit(child).map_or(ControlFlow::Continue(()), ControlFlow::Break)
@@ -354,20 +357,23 @@ impl<A> Expr<A> {
     }
 
     /// Returns whether any direct sub-expression satisfies `predicate`.
-    pub fn any_child(&self, mut predicate: impl FnMut(&Expr) -> bool) -> bool {
+    pub fn any_child(&self, mut predicate: impl FnMut(&Expr<A>) -> bool) -> bool {
         self.find_map_child(|child| predicate(child).then_some(()))
             .is_some()
     }
 
     /// Returns whether every direct sub-expression satisfies `predicate`.
-    pub fn all_children(&self, mut predicate: impl FnMut(&Expr) -> bool) -> bool {
+    pub fn all_children(&self, mut predicate: impl FnMut(&Expr<A>) -> bool) -> bool {
         !self.any_child(|child| !predicate(child))
     }
 
     /// Compares two expressions structurally, retaining identifier case for
     /// columns while ignoring ASCII case in function names.
     #[must_use]
-    pub fn structurally_eq(&self, other: &Expr) -> bool {
+    pub fn structurally_eq(&self, other: &Expr<A>) -> bool
+    where
+        A: std::fmt::Debug,
+    {
         match (self, other) {
             (Self::Column(left), Self::Column(right))
             | (Self::NumericLiteral(left), Self::NumericLiteral(right))
@@ -405,7 +411,7 @@ impl<A> Expr<A> {
 
     /// Returns whether this expression or any descendant satisfies `predicate`.
     /// `EXISTS` subqueries are not searched.
-    pub fn any_descendant_or_self(&self, predicate: &mut impl FnMut(&Expr) -> bool) -> bool {
+    pub fn any_descendant_or_self(&self, predicate: &mut impl FnMut(&Expr<A>) -> bool) -> bool {
         predicate(self) || self.any_child(|child| child.any_descendant_or_self(predicate))
     }
 
@@ -426,8 +432,10 @@ impl<A> Expr<A> {
     }
 }
 
-impl<A> super::ast_query::FunctionCall<A> {
-    pub(crate) fn structurally_eq(&self, right: &Self) -> bool {
+impl<A: std::fmt::Debug> super::ast_query::FunctionCall<A> {
+    #[must_use]
+    #[doc(hidden)]
+    pub fn structurally_eq(&self, right: &Self) -> bool {
         self.name.eq_ignore_ascii_case(&right.name)
             && all_structurally_eq(&self.args, &right.args)
             && self.is_distinct() == right.is_distinct()
@@ -448,7 +456,7 @@ impl<A> super::ast_query::FunctionCall<A> {
 
 /// Compares the expression forms that carry sub-expressions: their shape,
 /// operator, and flags must match before their children are compared.
-fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
+fn composite_structurally_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) -> bool {
     if let Some(equal) = like_structurally_eq(left, right) {
         return equal;
     }
@@ -538,7 +546,7 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
     }
 }
 
-fn between_structurally_eq(left: &Expr, right: &Expr) -> bool {
+fn between_structurally_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) -> bool {
     match (left, right) {
         (
             Expr::Between {
@@ -566,17 +574,17 @@ fn between_structurally_eq(left: &Expr, right: &Expr) -> bool {
     }
 }
 
-fn binary_structurally_eq(
-    left: (&Expr, &super::BinaryOp, &Expr),
-    right: (&Expr, &super::BinaryOp, &Expr),
+fn binary_structurally_eq<A: std::fmt::Debug>(
+    left: (&Expr<A>, &super::BinaryOp, &Expr<A>),
+    right: (&Expr<A>, &super::BinaryOp, &Expr<A>),
 ) -> bool {
     left.1 == right.1 && left.0.structurally_eq(right.0) && left.2.structurally_eq(right.2)
 }
 
-fn map_subscript(
-    subscript: &super::ast_query::ArraySubscript,
-    map: &mut impl FnMut(&Expr) -> Expr,
-) -> super::ast_query::ArraySubscript {
+fn map_subscript<A>(
+    subscript: &super::ast_query::ArraySubscript<A>,
+    map: &mut impl FnMut(&Expr<A>) -> Expr<A>,
+) -> super::ast_query::ArraySubscript<A> {
     match subscript {
         super::ast_query::ArraySubscript::Index(index) => {
             super::ast_query::ArraySubscript::Index(map(index))
@@ -590,9 +598,9 @@ fn map_subscript(
     }
 }
 
-fn subscripts_structurally_eq(
-    left: &[super::ast_query::ArraySubscript],
-    right: &[super::ast_query::ArraySubscript],
+fn subscripts_structurally_eq<A: std::fmt::Debug>(
+    left: &[super::ast_query::ArraySubscript<A>],
+    right: &[super::ast_query::ArraySubscript<A>],
 ) -> bool {
     left.len() == right.len()
         && left
@@ -620,7 +628,7 @@ fn subscripts_structurally_eq(
             })
 }
 
-fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
+fn unary_structurally_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) -> bool {
     match (left, right) {
         (Expr::Not { expr: left }, Expr::Not { expr: right }) => left.structurally_eq(right),
         (
@@ -676,7 +684,7 @@ fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
     }
 }
 
-fn optional_structurally_eq(left: Option<&Expr>, right: Option<&Expr>) -> bool {
+fn optional_structurally_eq<A: std::fmt::Debug>(left: Option<&Expr<A>>, right: Option<&Expr<A>>) -> bool {
     match (left, right) {
         (Some(left), Some(right)) => left.structurally_eq(right),
         (None, None) => true,
@@ -684,7 +692,7 @@ fn optional_structurally_eq(left: Option<&Expr>, right: Option<&Expr>) -> bool {
     }
 }
 
-fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
+fn all_structurally_eq<A: std::fmt::Debug>(left: &[Expr<A>], right: &[Expr<A>]) -> bool {
     left.len() == right.len()
         && left
             .iter()
@@ -692,7 +700,7 @@ fn all_structurally_eq(left: &[Expr], right: &[Expr]) -> bool {
             .all(|(left, right)| left.structurally_eq(right))
 }
 
-fn map_predicate(expr: &Expr, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
+fn map_predicate<A>(expr: &Expr<A>, mut map: impl FnMut(&Expr<A>) -> Expr<A>) -> Expr<A> {
     match expr {
         Expr::Like {
             expr,
@@ -722,7 +730,7 @@ fn map_predicate(expr: &Expr, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
     }
 }
 
-fn like_structurally_eq(left: &Expr, right: &Expr) -> Option<bool> {
+fn like_structurally_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) -> Option<bool> {
     match (left, right) {
         (
             Expr::Like {
@@ -753,12 +761,12 @@ fn like_structurally_eq(left: &Expr, right: &Expr) -> Option<bool> {
 #[path = "ast_visit_tests.rs"]
 mod tests;
 
-fn map_case_children(
-    operand: Option<&Expr>,
-    branches: &[(Expr, Expr)],
-    else_expr: Option<&Expr>,
-    map: &mut impl FnMut(&Expr) -> Expr,
-) -> Expr {
+fn map_case_children<A>(
+    operand: Option<&Expr<A>>,
+    branches: &[(Expr<A>, Expr<A>)],
+    else_expr: Option<&Expr<A>>,
+    map: &mut impl FnMut(&Expr<A>) -> Expr<A>,
+) -> Expr<A> {
     Expr::Case {
         operand: operand.map(|expr| Box::new(map(expr))),
         branches: branches
@@ -769,7 +777,7 @@ fn map_case_children(
     }
 }
 
-fn truth_test_eq(left: &Expr, right: &Expr) -> Option<bool> {
+fn truth_test_eq<A: std::fmt::Debug>(left: &Expr<A>, right: &Expr<A>) -> Option<bool> {
     let (
         Expr::TruthTest {
             expr: left,

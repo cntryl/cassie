@@ -5,6 +5,7 @@ use crate::declarations::FieldConstraint;
 use cassie_core::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct AlterTableStatement<A = ()> {
     pub table: IdentifierPath,
     #[serde(default)]
@@ -13,6 +14,7 @@ pub struct AlterTableStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum AlterTableOperation<A = ()> {
     Multiple {
         operations: Vec<AlterTableOperation<A>>,

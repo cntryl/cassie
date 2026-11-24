@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::ParsedStatement;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum SessionObjectStatement<A = ()> {
     Discard(DiscardTarget),
     Prepare(PrepareStatement<A>),
@@ -27,6 +28,7 @@ pub enum DiscardTarget {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct PrepareStatement<A = ()> {
     pub name: String,
     /// Declared parameter types, as written.
@@ -44,6 +46,7 @@ pub struct ExecuteStatement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct DeclareCursorStatement<A = ()> {
     pub name: String,
     pub binary: bool,

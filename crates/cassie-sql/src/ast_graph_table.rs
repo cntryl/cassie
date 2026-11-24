@@ -16,6 +16,7 @@ pub const MAX_GRAPH_PATTERNS: usize = 2;
 /// [WHERE predicate] COLUMNS (projection, ...) )`. The `AS alias` that may
 /// follow is not part of this node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphTable<A = ()> {
     pub graph: IdentifierPath,
     /// The folded name bound to the whole path (`p = (a) ...`).
@@ -38,13 +39,13 @@ pub struct GraphTable<A = ()> {
 impl<A> GraphTable<A> {
     /// Every path pattern of the table, in source order: the first and then the
     /// comma-separated patterns that join it on shared vertex variables.
-    pub fn patterns(&self) -> impl Iterator<Item = &GraphPathPattern> {
+    pub fn patterns(&self) -> impl Iterator<Item = &GraphPathPattern<A>> {
         std::iter::once(&self.path).chain(self.extra_paths.iter())
     }
 
     /// Every expression of the table in a fixed order: inline predicates of each
     /// pattern from left to right, the pattern `WHERE`, then the projections.
-    pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr<A>> {
         self.patterns()
             .flat_map(GraphPathPattern::filters)
             .flatten()
@@ -73,7 +74,7 @@ impl<A> GraphTable<A> {
     /// The expression at `slot`, in the order of [`GraphTable::expressions`]; `None` for an
     /// absent filter.
     #[must_use]
-    pub fn expression_at(&self, slot: usize) -> Option<&Expr> {
+    pub fn expression_at(&self, slot: usize) -> Option<&Expr<A>> {
         let mut slot = slot;
         for pattern in self.patterns() {
             let count = pattern.filter_slots();
@@ -89,7 +90,7 @@ impl<A> GraphTable<A> {
     }
 
     /// Mutable counterpart of [`GraphTable::expressions`], in the same order.
-    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr<A>> {
         std::iter::once(&mut self.path)
             .chain(self.extra_paths.iter_mut())
             .flat_map(GraphPathPattern::filters_mut)
@@ -107,6 +108,7 @@ impl<A> GraphTable<A> {
 
 /// `vertex {edge [quantifier] vertex}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphPathPattern<A = ()> {
     pub start: GraphVertexPattern<A>,
     pub steps: Vec<GraphPathStep<A>>,
@@ -115,7 +117,7 @@ pub struct GraphPathPattern<A = ()> {
 impl<A> GraphPathPattern<A> {
     /// The inline predicate slots in order: the start vertex, then each step's edge and
     /// vertex.
-    pub fn filters(&self) -> impl Iterator<Item = Option<&Expr>> {
+    pub fn filters(&self) -> impl Iterator<Item = Option<&Expr<A>>> {
         let steps = self
             .steps
             .iter()
@@ -124,7 +126,7 @@ impl<A> GraphPathPattern<A> {
     }
 
     /// Mutable counterpart of [`GraphPathPattern::filters`].
-    pub fn filters_mut(&mut self) -> impl Iterator<Item = Option<&mut Expr>> {
+    pub fn filters_mut(&mut self) -> impl Iterator<Item = Option<&mut Expr<A>>> {
         let steps = self
             .steps
             .iter_mut()
@@ -140,7 +142,7 @@ impl<A> GraphPathPattern<A> {
 
     /// The inline predicate in `slot` of [`GraphPathPattern::filters`].
     #[must_use]
-    pub fn filter_at(&self, slot: usize) -> Option<&Expr> {
+    pub fn filter_at(&self, slot: usize) -> Option<&Expr<A>> {
         if slot == 0 {
             return self.start.filter.as_ref();
         }
@@ -186,6 +188,7 @@ impl<A> GraphPathPattern<A> {
 
 /// One edge pattern and the vertex pattern it leads to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphPathStep<A = ()> {
     pub edge: GraphEdgePattern<A>,
     pub vertex: GraphVertexPattern<A>,
@@ -193,6 +196,7 @@ pub struct GraphPathStep<A = ()> {
 
 /// `( [variable] [IS label {| label}] [WHERE predicate] )`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphVertexPattern<A = ()> {
     pub variable: Option<String>,
     /// Alternative labels; empty means no label restriction.
@@ -202,6 +206,7 @@ pub struct GraphVertexPattern<A = ()> {
 
 /// `- [ ... ] ->`, `<- [ ... ] -` or `- [ ... ] -`, with an optional quantifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphEdgePattern<A = ()> {
     pub variable: Option<String>,
     /// Alternative labels; empty means no label restriction.
@@ -263,6 +268,7 @@ pub struct GraphSelector {
 
 /// `expression [AS column_alias]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct GraphColumn<A = ()> {
     pub expr: Expr<A>,
     pub alias: Option<String>,

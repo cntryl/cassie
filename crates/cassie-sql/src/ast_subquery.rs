@@ -14,6 +14,7 @@ pub const SUBQUERY_MULTIPLE_ROWS: &str =
 
 /// How a subquery's rows become one expression value.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum SubqueryKind<A = ()> {
     /// `(SELECT x ...)`: zero rows yield NULL, one row its value and more
     /// rows a cardinality violation.
@@ -41,6 +42,7 @@ pub enum SubqueryKind<A = ()> {
 
 /// A sublink and, after execution, its outcome.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct SubqueryExpr<A = ()> {
     pub kind: SubqueryKind<A>,
     pub query: Box<ParsedStatement<A>>,

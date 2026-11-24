@@ -61,3 +61,12 @@ pub type TableFunctionForm = cassie_sql::ast::TableFunctionForm<SubqueryOutcome>
 pub type UpdateStatement = cassie_sql::ast::UpdateStatement<SubqueryOutcome>;
 pub type UpdateTarget = cassie_sql::ast::UpdateTarget<SubqueryOutcome>;
 pub type WindowFunctionCall = cassie_sql::ast::WindowFunctionCall<SubqueryOutcome>;
+
+pub type StatementRoute = cassie_sql::ast::StatementRoute<SubqueryOutcome>;
+pub type RuntimeStatement = cassie_sql::ast::RuntimeStatement<SubqueryOutcome>;
+pub type CatalogStatement = cassie_sql::ast::CatalogStatement<SubqueryOutcome>;
+pub type ProjectionStatement = cassie_sql::ast::ProjectionStatement<SubqueryOutcome>;
+pub type StatementRouteRef<'a> = cassie_sql::ast::StatementRouteRef<'a, SubqueryOutcome>;
+pub type RuntimeStatementRef<'a> = cassie_sql::ast::RuntimeStatementRef<'a, SubqueryOutcome>;
+pub type CatalogStatementRef<'a> = cassie_sql::ast::CatalogStatementRef<'a, SubqueryOutcome>;
+pub type ProjectionStatementRef<'a> = cassie_sql::ast::ProjectionStatementRef<'a, SubqueryOutcome>;

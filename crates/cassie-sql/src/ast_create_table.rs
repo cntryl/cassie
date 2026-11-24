@@ -4,6 +4,7 @@ use super::IdentifierPath;
 
 /// Query and output-name options for `CREATE TABLE AS`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CreateTableAsClause<A = ()> {
     pub query: Box<super::ParsedStatement<A>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

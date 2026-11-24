@@ -33,6 +33,7 @@ pub struct TruncateStatement {
 /// `SET (a, b) = (SELECT ...)`: one row of a scalar subquery assigned to
 /// several target columns.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct RowSubqueryAssignment<A = ()> {
     pub columns: Vec<String>,
     pub query: Box<ParsedStatement<A>>,
@@ -60,6 +61,7 @@ impl Default for ReturningAliases {
 /// The binder fills `query` with a SELECT that projects every source column
 /// under its qualified name, so execution never re-binds the source.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct MutationSource<A = ()> {
     pub source: QuerySource<A>,
     #[serde(default)]
@@ -86,7 +88,7 @@ impl MutationSourceField {
 
 impl<A> MutationSource<A> {
     #[must_use]
-    pub const fn new(source: QuerySource) -> Self {
+    pub const fn new(source: QuerySource<A>) -> Self {
         Self {
             source,
             query: None,
@@ -104,6 +106,7 @@ pub enum MergeMatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum MergeAction<A = ()> {
     Update {
         assignments: Vec<(String, Expr<A>)>,
@@ -121,6 +124,7 @@ pub enum MergeAction<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct MergeClause<A = ()> {
     pub kind: MergeMatch,
     pub condition: Option<Expr<A>>,
@@ -129,6 +133,7 @@ pub struct MergeClause<A = ()> {
 
 /// `[WITH ...] MERGE INTO target [AS alias] USING source ON condition WHEN ...`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct MergeStatement<A = ()> {
     #[serde(default)]
     pub ctes: Vec<CommonTableExpression<A>>,

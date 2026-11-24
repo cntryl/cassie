@@ -7,6 +7,7 @@ use cassie_core::types::DataType;
 
 /// The column list or specification that accompanies a generated table function.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum TableFunctionForm<A = ()> {
     /// The `AS alias(name type, ...)` column definition list of `json[b]_to_record[set]`.
     Columns(Vec<RecordColumn>),
@@ -15,7 +16,7 @@ pub enum TableFunctionForm<A = ()> {
     JsonTable(Box<JsonTableSpec<A>>),
     /// A `GRAPH_TABLE(...)` pattern. Its expressions live in the table itself, so the
     /// call's `function.args` stay empty.
-    GraphTable<A>(Box<super::GraphTable<A>>),
+    GraphTable(Box<super::GraphTable<A>>),
     /// The resolved `cassie_graph.graph_element_ref` type of the `vertex` and `edge` columns
     /// of `cassie_graph.path_steps` and `weighted_path_steps`. The binder records it because
     /// the descriptor is per database and the static column list has no catalog (#1256).
@@ -28,7 +29,7 @@ pub enum TableFunctionForm<A = ()> {
 impl<A> TableFunctionForm<A> {
     /// The `GRAPH_TABLE` of this form, if it is one.
     #[must_use]
-    pub fn graph_table(&self) -> Option<&super::GraphTable> {
+    pub fn graph_table(&self) -> Option<&super::GraphTable<A>> {
         match self {
             Self::GraphTable(table) => Some(table),
             _ => None,
@@ -36,7 +37,7 @@ impl<A> TableFunctionForm<A> {
     }
 
     /// The `GRAPH_TABLE` of this form, mutably.
-    pub fn graph_table_mut(&mut self) -> Option<&mut super::GraphTable> {
+    pub fn graph_table_mut(&mut self) -> Option<&mut super::GraphTable<A>> {
         match self {
             Self::GraphTable(table) => Some(table),
             _ => None,
@@ -44,14 +45,14 @@ impl<A> TableFunctionForm<A> {
     }
 
     /// The expressions of a `GRAPH_TABLE` form; empty for every other form.
-    pub fn graph_expressions(&self) -> impl Iterator<Item = &Expr> {
+    pub fn graph_expressions(&self) -> impl Iterator<Item = &Expr<A>> {
         self.graph_table()
             .into_iter()
             .flat_map(super::GraphTable::expressions)
     }
 
     /// Mutable counterpart of [`TableFunctionForm::graph_expressions`].
-    pub fn graph_expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+    pub fn graph_expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr<A>> {
         match self {
             Self::GraphTable(table) => Some(table),
             _ => None,
@@ -77,6 +78,7 @@ pub enum JsonTableRootError {
 
 /// A parsed `JSON_TABLE` call without its context item and `PASSING` values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct JsonTableSpec<A = ()> {
     /// The row pattern.
     pub path: String,
@@ -91,6 +93,7 @@ pub struct JsonTableSpec<A = ()> {
 
 /// One entry of a `COLUMNS` clause.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum JsonTableColumn<A = ()> {
     /// `name FOR ORDINALITY`.
     Ordinality { name: String },
@@ -121,6 +124,7 @@ pub enum JsonQuotes {
 
 /// An `ON EMPTY` or `ON ERROR` behavior of a value column.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum JsonBehavior<A = ()> {
     Unspecified,
     Null,
@@ -141,6 +145,7 @@ pub enum ExistsBehavior {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct JsonTableValueColumn<A = ()> {
     pub name: String,
     pub data_type: DataType,
@@ -161,6 +166,7 @@ pub struct JsonTableExistsColumn {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct JsonTableNested<A = ()> {
     pub path: String,
     pub path_name: Option<String>,
@@ -177,7 +183,7 @@ impl<A> JsonTableSpec<A> {
     }
 }
 
-fn collect_columns(entries: &[JsonTableColumn], out: &mut Vec<(String, DataType)>) {
+fn collect_columns<A>(entries: &[JsonTableColumn<A>], out: &mut Vec<(String, DataType)>) {
     for entry in entries {
         match entry {
             JsonTableColumn::Ordinality { name } => out.push((name.clone(), DataType::Int)),

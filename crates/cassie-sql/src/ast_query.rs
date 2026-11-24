@@ -5,6 +5,7 @@ use super::{ParsedStatement, TruthValue};
 use cassie_core::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CommonTableExpression<A = ()> {
     pub name: String,
     pub aliases: Vec<String>,
@@ -32,6 +33,7 @@ pub enum CteSearchOrder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct CteCycle<A = ()> {
     pub by: Vec<String>,
     pub mark_column: String,
@@ -51,6 +53,7 @@ pub enum CteMaterialization {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum CteQuery<A = ()> {
     Simple(Box<ParsedStatement<A>>),
     Recursive {
@@ -61,6 +64,7 @@ pub enum CteQuery<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum QuerySource<A = ()> {
     Values {
         rows: Vec<Vec<Expr<A>>>,
@@ -102,7 +106,7 @@ pub enum QuerySource<A = ()> {
     SingleRow,
 }
 
-impl<A> PartialEq for QuerySource<A> {
+impl<A: std::fmt::Debug> PartialEq for QuerySource<A> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Values { rows: left }, Self::Values { rows: right }) => {
@@ -161,7 +165,7 @@ impl<A> PartialEq for QuerySource<A> {
     }
 }
 
-impl<A> Eq for QuerySource<A> {}
+impl<A: std::fmt::Debug> Eq for QuerySource<A> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -190,12 +194,14 @@ pub enum SetOperator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct SelectSet<A = ()> {
     pub operator: SetOperator,
     pub right: Box<SelectStatement<A>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct SelectStatement<A = ()> {
     pub source: QuerySource<A>,
     pub ctes: Vec<CommonTableExpression<A>>,
@@ -215,6 +221,7 @@ pub struct SelectStatement<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum SelectItem<A = ()> {
     Wildcard,
     Column {
@@ -225,7 +232,7 @@ pub enum SelectItem<A = ()> {
         function: FunctionCall<A>,
         alias: Option<String>,
     },
-    Expr<A> {
+    Expr {
         expr: Expr<A>,
         alias: Option<String>,
     },
@@ -236,6 +243,7 @@ pub enum SelectItem<A = ()> {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct FunctionCall<A = ()> {
     pub name: String,
     pub args: Vec<Expr<A>>,
@@ -248,6 +256,7 @@ pub struct FunctionCall<A = ()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum ArraySubscript<A = ()> {
     Index(Expr<A>),
     Slice {
@@ -303,14 +312,14 @@ impl<A> FunctionCall<A> {
         self.quantifier == AggregateQuantifier::Distinct
     }
 
-    pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr<A>> {
         self.args
             .iter()
             .chain(self.filter.as_deref())
             .chain(self.order_by.iter().map(|order| &order.expr))
     }
 
-    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr<A>> {
         self.args
             .iter_mut()
             .chain(self.filter.as_deref_mut())
@@ -319,6 +328,7 @@ impl<A> FunctionCall<A> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct WindowFunctionCall<A = ()> {
     pub name: String,
     pub args: Vec<Expr<A>>,
@@ -364,6 +374,7 @@ pub enum WindowFrameBound {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct OrderExpr<A = ()> {
     pub expr: Expr<A>,
     pub direction: SortDirection,
@@ -393,6 +404,7 @@ pub enum CastIdentity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub enum Expr<A = ()> {
     Column(String),
     Param(usize),
@@ -461,7 +473,7 @@ pub enum Expr<A = ()> {
         expr: Box<Expr<A>>,
         collation: String,
     },
-    ArraySubscript<A> {
+    ArraySubscript {
         array: Box<Expr<A>>,
         subscripts: Vec<ArraySubscript<A>>,
     },
@@ -498,7 +510,7 @@ impl<A> Expr<A> {
 
     /// The statement a subquery node runs.
     #[must_use]
-    pub fn subquery_statement(&self) -> Option<&ParsedStatement> {
+    pub fn subquery_statement(&self) -> Option<&ParsedStatement<A>> {
         match self {
             Self::Exists(statement) => Some(statement),
             Self::Subquery(subquery) => Some(&subquery.query),
@@ -507,7 +519,7 @@ impl<A> Expr<A> {
     }
 
     /// The mutable statement a subquery node runs.
-    pub fn subquery_statement_mut(&mut self) -> Option<&mut ParsedStatement> {
+    pub fn subquery_statement_mut(&mut self) -> Option<&mut ParsedStatement<A>> {
         match self {
             Self::Exists(statement) => Some(statement),
             Self::Subquery(subquery) => Some(&mut subquery.query),

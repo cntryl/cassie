@@ -25,6 +25,9 @@ mod copy_identity_tests;
 #[cfg(test)]
 #[path = "adapter/index_publication_tests.rs"]
 mod index_publication_tests;
+#[cfg(test)]
+#[path = "adapter/column_vector_equivalence_tests.rs"]
+mod column_vector_equivalence_tests;
 
 use std::cell::RefCell;
 

@@ -179,6 +179,20 @@ fn should_sort_by_ordinal_even_when_another_output_has_its_name() {
 }
 
 #[test]
+fn should_sort_by_a_duplicated_output_name_for_identical_expressions() {
+    with_scores("order_by_identical_output_expressions", |cassie, session| {
+        // Arrange
+        let sql = "SELECT 1 AS c, 1 AS c ORDER BY c";
+
+        // Act
+        let rows = run(cassie, session, sql).rows().to_vec();
+
+        // Assert
+        assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(1)]]);
+    });
+}
+
+#[test]
 fn should_report_postgresql_ambiguity_for_a_duplicated_order_by_name() {
     with_scores("order_by_duplicated_output_name", |cassie, session| {
         // Arrange

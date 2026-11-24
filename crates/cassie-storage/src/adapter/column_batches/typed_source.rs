@@ -1,6 +1,8 @@
 //! Private immutable CBC1 input owners. Existing validators decide eligibility and framing.
 mod boolean;
 mod numeric;
+#[cfg(feature = "storage-test-hooks")]
+mod fixture_diagnostics;
 
 use std::collections::BTreeSet;
 use std::mem::size_of;
@@ -293,6 +295,3 @@ fn record_segment(
     metrics.physical_bytes += segment.row_ids.encoded_len;
     metrics.logical_bytes += segment.row_ids.decoded_len;
 }
-
-#[cfg(test)]
-mod boolean_tests;

@@ -1,8 +1,11 @@
 //! Required Boolean chunks retain the complete-source validation and fallback boundary.
-use super::*;
 use crate::app::{Cassie, CassieSession};
+use crate::catalog::{ColumnBatchMetadata, IndexMeta};
 use crate::config::CassieRuntimeConfig;
-use crate::column_batch_format_v1::{self as format, Codec};
+use crate::midge::adapter::column_batch_format_v1::{self as format, Codec};
+use crate::midge::adapter::ColumnBatchScanFallbackReason;
+use crate::runtime::QueryExecutionControls;
+use std::time::Instant;
 
 fn fixture(
     codec: Option<Codec>,
@@ -10,7 +13,7 @@ fn fixture(
     Cassie,
     CassieSession,
     String,
-    crate::catalog::IndexMeta,
+    IndexMeta,
     ColumnBatchMetadata,
 ) {
     fixture_with_segments(codec, 1024)
@@ -22,10 +25,11 @@ fn fixture_with_segments(
     Cassie,
     CassieSession,
     String,
-    crate::catalog::IndexMeta,
+    IndexMeta,
     ColumnBatchMetadata,
 ) {
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory");
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie
@@ -53,7 +57,9 @@ fn fixture_with_segments(
     cassie
         .execute_sql(
             &session,
-            &format!("CREATE INDEX bool_cover ON bool_source USING column (n,b) WITH (segment_size={segment_size})"),
+            &format!(
+                "CREATE INDEX bool_cover ON bool_source USING column (n,b) WITH (segment_size={segment_size})"
+            ),
             vec![],
         )
         .expect("index");
@@ -77,35 +83,31 @@ fn replace(
     raw: Vec<u8>,
     position: usize,
 ) {
-    let (relation, index_id) = Midge::column_batch_storage_ids(index).expect("storage IDs");
-    let segment = &metadata.segments[position];
-    let mut tx = cassie
+    cassie
         .midge
-        .begin_data_rw_tx_for(&index.collection)
-        .expect("write fixture");
-    tx.put(
-        Midge::column_batch_field_key(
-            relation,
-            index_id,
-            segment.segment_id,
-            segment.revision,
-            "b",
-        ),
-        raw,
-        None,
-    )
-    .expect("chunk");
-    tx.put(
-        Midge::column_batch_metadata_key(relation, index_id),
-        format::encode_manifest(metadata).expect("manifest encode"),
-        None,
-    )
-    .expect("manifest");
-    tx.commit(cassie.midge.write_options_sync())
-        .expect("fixture commit");
+        .replace_column_batch_chunk_for_test(index, metadata, "b", raw, position)
+        .expect("replace fixture chunk");
 }
 fn controls(cassie: &Cassie) -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(&cassie.runtime.limits(), std::time::Instant::now())
+    QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now())
+}
+fn diagnose(
+    cassie: &Cassie,
+    table: &str,
+    fields: &[String],
+    controls: &QueryExecutionControls,
+) -> (
+    bool,
+    Option<ColumnBatchScanFallbackReason>,
+    usize,
+    Option<bool>,
+    usize,
+) {
+    let request = controls.storage_request();
+    cassie
+        .midge
+        .diagnose_controlled_encoded_source_for_test(table, fields, &request)
+        .expect("controlled encoded source diagnostics")
 }
 
 #[test]
@@ -125,19 +127,14 @@ fn should_keep_nonplain_boolean_chunks_on_the_validated_json_path() {
         replace(&cassie, &index, &metadata, raw, 0);
         let controls = controls(&cassie);
         // Act
-        let decision = cassie
-            .midge
-            .controlled_encoded_source(&table, &["b".into()], &controls)
-            .expect("validated source");
+        let (hit, fallback, materialized_values, boolean_payload, value_count) =
+            diagnose(&cassie, &table, &["b".into()], &controls);
         // Assert
-        let EncodedSourceDecision::Hit(source) = decision else {
-            panic!("non-Plain Boolean remains supported")
-        };
-        let field = source.segments[0].fields[0].get();
-        assert!(field.boolean_values().is_none());
-        assert_eq!(field.values().len(), 3);
-        assert_eq!(source.metrics.materialized_values, 3);
-        drop(source);
+        assert!(hit, "non-Plain Boolean remains supported");
+        assert_eq!(fallback, None);
+        assert_eq!(boolean_payload, Some(false));
+        assert_eq!(value_count, 3);
+        assert_eq!(materialized_values, 3);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
@@ -150,14 +147,13 @@ fn should_discard_the_complete_source_for_a_required_boolean_checksum_failure() 
     replace(&cassie, &index, &metadata, raw, 0);
     let controls = controls(&cassie);
     // Act
-    let decision = cassie
-        .midge
-        .controlled_encoded_source(&table, &["n".into(), "b".into()], &controls)
-        .expect("controlled fallback");
+    let (hit, fallback, _, _, _) =
+        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
+    assert!(!hit);
     assert!(matches!(
-        decision,
-        EncodedSourceDecision::Fallback(ColumnBatchScanFallbackReason::SegmentChecksumMismatch)
+        fallback,
+        Some(ColumnBatchScanFallbackReason::SegmentChecksumMismatch)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -179,14 +175,13 @@ fn should_discard_a_checksum_consistent_malformed_boolean_chunk() {
     replace(&cassie, &index, &metadata, raw, 1);
     let controls = controls(&cassie);
     // Act
-    let decision = cassie
-        .midge
-        .controlled_encoded_source(&table, &["n".into(), "b".into()], &controls)
-        .expect("controlled fallback");
+    let (hit, fallback, _, _, _) =
+        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
+    assert!(!hit);
     assert!(matches!(
-        decision,
-        EncodedSourceDecision::Fallback(ColumnBatchScanFallbackReason::InvalidPayload)
+        fallback,
+        Some(ColumnBatchScanFallbackReason::InvalidPayload)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let public = cassie
@@ -227,11 +222,10 @@ fn should_reject_boolean_chunk_metadata_disagreement_without_publishing_a_source
     replace(&cassie, &index, &metadata, raw, 0);
     let controls = controls(&cassie);
     // Act
-    let decision = cassie
-        .midge
-        .controlled_encoded_source(&table, &["n".into(), "b".into()], &controls)
-        .expect("controlled fallback");
+    let (hit, fallback, _, _, _) =
+        diagnose(&cassie, &table, &["n".into(), "b".into()], &controls);
     // Assert
-    assert!(matches!(decision, EncodedSourceDecision::Fallback(_)));
+    assert!(!hit);
+    assert!(fallback.is_some());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

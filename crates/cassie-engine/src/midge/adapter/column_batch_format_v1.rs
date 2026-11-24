@@ -143,6 +143,10 @@ mod numeric_tests;
 pub(crate) mod boolean_tests;
 
 #[cfg(test)]
+#[path = "column_batch_boolean_source_tests.rs"]
+mod boolean_source_tests;
+
+#[cfg(test)]
 mod storage_error_tests {
     use super::decode_column_chunk;
 

@@ -2,8 +2,8 @@
 use super::{overflow, TypeInputError, MAX_DSCALE, MAX_INTEGER_DIGITS};
 
 #[derive(Clone, Copy)]
-pub(crate) struct Shape {
-    pub(crate) scale: i64,
+pub struct Shape {
+    pub scale: i64,
     pub(crate) significant_digits: usize,
     pub(crate) integer_digits: usize,
 }
@@ -48,11 +48,11 @@ pub(crate) fn shape(integer: &str, fraction: &str, exponent: i64) -> Result<Shap
     })
 }
 
-pub(crate) struct JsonParts<'a> {
-    pub(crate) integer: &'a str,
-    pub(crate) fraction: &'a str,
-    pub(crate) negative: bool,
-    pub(crate) shape: Shape,
+pub struct JsonParts<'a> {
+    pub integer: &'a str,
+    pub fraction: &'a str,
+    pub negative: bool,
+    pub shape: Shape,
 }
 
 impl JsonParts<'_> {
@@ -72,8 +72,11 @@ impl JsonParts<'_> {
     }
 }
 
-/// Strict local JSON number grammar; this does not parse a whole document.
-pub(crate) fn json_parts(text: &str) -> Result<JsonParts<'_>, TypeInputError> {
+/// Parses a single JSON numeric token using the local decimal limits.
+///
+/// # Errors
+/// Returns an error for invalid JSON number syntax or a value outside those limits.
+pub fn json_parts(text: &str) -> Result<JsonParts<'_>, TypeInputError> {
     let negative = text.starts_with('-');
     let body = text.strip_prefix('-').unwrap_or(text);
     let (coefficient, raw_exponent) = body.find(['e', 'E']).map_or((body, None), |index| {

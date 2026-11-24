@@ -16,7 +16,8 @@ use super::TypeInputError;
 pub mod math;
 
 #[path = "numeric_decimal.rs"]
-pub(crate) mod decimal;
+#[doc(hidden)]
+pub mod decimal;
 
 /// `NUMERIC_MAX_PRECISION`.
 pub const MAX_PRECISION: i32 = 1000;

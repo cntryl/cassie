@@ -279,7 +279,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum TokenizeError<E> {
+pub enum TokenizeError<E> {
     Decode(DecodeError),
     Check(E),
 }

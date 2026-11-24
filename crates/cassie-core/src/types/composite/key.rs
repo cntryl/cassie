@@ -50,7 +50,8 @@ impl RecordKey {
     }
 
     /// Bound key backing and conversion scratch before field keys are constructed.
-    pub(crate) fn allocation_bound(record: &RecordValue) -> usize {
+    #[must_use]
+    pub fn allocation_bound(record: &RecordValue) -> usize {
         record.fields().iter().fold(
             record.fields().len().saturating_mul(size_of::<FieldKey>()),
             |bytes, value| bytes.saturating_add(field_bound(value)),

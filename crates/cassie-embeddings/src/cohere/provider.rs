@@ -100,7 +100,9 @@ impl CohereProvider {
         })
     }
 
-    pub(crate) fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
+    /// Sets the upper bound for the response body.
+    #[must_use]
+    pub fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
         self.max_response_bytes = max_response_bytes.max(1);
         self
     }

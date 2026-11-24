@@ -89,3 +89,41 @@ impl Midge {
         decode_identity(&raw, controls)
     }
 }
+
+#[cfg(feature = "storage-test-hooks")]
+impl Midge {
+    /// Enters the native transaction boundary used to seed a legacy format.
+    ///
+    /// # Errors
+    /// Returns an error if storage cannot commit the fixture.
+    #[doc(hidden)]
+    pub fn plant_legacy_copy_identity_row(
+        &self,
+        collection: &str,
+        id: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.transaction(crate::adapter::StorageFamily::Data, TransactionMode::ReadWrite)?;
+        tx.put(crate::adapter::key_encoding::doc_key(collection, id), bytes, None)?;
+        tx.commit(self.write_options_sync()).map_err(CassieError::from)
+    }
+
+    /// Returns the exact persisted row key prefix for a retained-read fixture.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn row_prefix_for_copy_identity_test(relation_id: u64) -> Vec<u8> {
+        Self::row_prefix(relation_id)
+    }
+
+    /// Returns the persisted row descriptor for a retained-read fixture.
+    ///
+    /// # Errors
+    /// Returns an error if storage cannot read the descriptor.
+    #[doc(hidden)]
+    pub fn row_schema_for_copy_identity_test(
+        &self,
+        collection: &str,
+    ) -> Result<crate::row_blob::RowSchema, CassieError> {
+        self.row_schema(collection)
+    }
+}

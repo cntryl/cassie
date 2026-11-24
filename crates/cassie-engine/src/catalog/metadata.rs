@@ -27,7 +27,8 @@ pub(crate) use snapshot::ControlledCatalogSnapshot;
 mod explain_metadata;
 #[path = "metadata/function_inputs.rs"]
 mod function_inputs;
-pub(crate) use function_inputs::FunctionInputScope;
+#[doc(hidden)]
+pub use function_inputs::FunctionInputScope;
 
 #[derive(Debug, Clone)]
 pub struct Catalog {

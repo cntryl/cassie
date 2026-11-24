@@ -10,6 +10,8 @@
 //! overlay, missing index, stale or damaged artifacts, missing candidate row) returns `None` so
 //! the caller falls through to the exact path.
 
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::fulltext_read::{
     self, document_filter_row, document_filter_row_bytes, fulltext_result_row,
     fulltext_result_row_variable_bytes, PersistedFulltextReadSelection,

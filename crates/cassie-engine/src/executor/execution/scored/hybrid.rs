@@ -1,3 +1,5 @@
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::{
     json_search_term_stats_value, value_to_vector, vector_prefilter_supported, BatchRow, Cassie,
     CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta, HybridTopKSpec,

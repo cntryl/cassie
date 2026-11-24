@@ -20,7 +20,7 @@ use super::{
     FulltextIndexMetadata, FulltextTermRecord, IndexMeta, Midge, PersistedFulltextDocumentStats,
     PersistedFulltextPosting, Query, STATE_VERSION,
 };
-use crate::search::analyzer::AnalyzerConfig;
+use cassie_search::analyzer::AnalyzerConfig;
 
 /// Document changes committed by one write batch.
 pub(crate) struct FulltextCommitChanges<'a> {
@@ -39,7 +39,7 @@ struct StagedIndexWrites {
 impl StagedIndexWrites {
     fn apply(
         mut self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         documents: usize,
     ) -> Result<FulltextWriteTally, CassieError> {
         let rewritten = self
@@ -95,7 +95,7 @@ impl BlockGroup {
 }
 
 struct TermScope<'a> {
-    tx: &'acrate::adapter::AdapterTransaction,
+    tx: &'a crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     term: &'a str,
@@ -259,7 +259,7 @@ impl Midge {
     /// after it.
     pub(crate) fn maintain_fulltext_index_in_tx(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
@@ -279,7 +279,7 @@ impl Midge {
 
     fn load_fulltext_document_from_tx(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &crate::row_blob::RowSchema,
         id: &str,
@@ -301,7 +301,7 @@ impl Midge {
 
     fn stage_incremental_fulltext_writes(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
@@ -428,7 +428,7 @@ fn stage_document(
 /// Stages the block and term-record rewrites for one term and returns the change
 /// in the number of indexed terms (`-1`, `0` or `1`).
 fn stage_term(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     staged: &mut StagedIndexWrites,
     relation_id: u64,
     index_id: u64,

@@ -1,3 +1,5 @@
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::vector_helpers::{
     compare_scored_vector_candidates, vector_distance_for_metric, vector_from_json,
     vector_search_columns, vector_search_row, ScoredVectorCandidate,

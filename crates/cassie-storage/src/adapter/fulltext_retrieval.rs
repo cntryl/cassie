@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     collect_scan, decode_row, key_encoding, CassieError, IndexMeta, Midge, Query, RowSchema,
 };
-use crate::search::analyzer::AnalyzerConfig;
+use cassie_search::analyzer::AnalyzerConfig;
 
 #[path = "fulltext_retrieval/analyzer_change.rs"]
 mod analyzer_change;
@@ -26,6 +26,7 @@ mod staged_rebuild;
 #[path = "fulltext_retrieval/vocabulary.rs"]
 mod vocabulary;
 
+pub use controlled::{ControlledFulltextCandidateSet, ControlledRetrievalDocument};
 pub(crate) use incremental::FulltextCommitChanges;
 pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
 
@@ -200,7 +201,7 @@ struct LoadedCandidatePostings {
 }
 
 fn load_complete_fulltext_postings(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
 ) -> Result<LoadedFulltextPostings, CassieError> {
@@ -272,7 +273,7 @@ fn validate_complete_artifact_counts(
 }
 
 fn load_candidate_postings(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     terms: &[String],
@@ -314,11 +315,14 @@ fn load_candidate_postings(
 }
 
 impl Midge {
-    pub(crate) fn reconcile_fulltext_indexes(&self) -> Result<(), CassieError> {
+    /// # Errors
+    ///
+    /// Returns a storage error when any incomplete index cannot be inspected or rebuilt.
+    pub fn reconcile_fulltext_indexes(&self) -> Result<(), CassieError> {
         let indexes = self
             .list_indexes()?
             .into_iter()
-            .filter(|index| index.kind == crate::catalog::IndexKind::FullText)
+            .filter(|index| index.kind == cassie_core::catalog::declarations::IndexKind::FullText)
             .collect::<Vec<_>>();
         for index in indexes {
             let collection = self.canonical_collection_name(&index.collection);
@@ -562,7 +566,7 @@ impl Midge {
 
     fn fulltext_source_document_exists(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         id: &str,
@@ -585,7 +589,7 @@ impl Midge {
 
     fn load_documents_from_tx(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
@@ -631,7 +635,7 @@ impl Midge {
     ///
     /// Returns an error when the persisted full-text state is missing, corrupt, or unreadable.
     fn delete_fulltext_artifacts_in_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         index: &IndexMeta,
     ) -> Result<usize, CassieError> {
         let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;

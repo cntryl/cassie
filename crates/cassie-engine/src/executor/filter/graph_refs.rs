@@ -6,6 +6,9 @@
 //! dangling edge row is not yet an edge, #1351), and the session must be allowed to read that
 //! table: authority is checked before existence so a reference never reveals
 //! whether a protected row exists.
+
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::graph_functions::{descriptors_of, failure};
 use super::{EvalContext, QueryError, Value};
 use crate::app::CassieSession;

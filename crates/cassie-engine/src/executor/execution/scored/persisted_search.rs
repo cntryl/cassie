@@ -1,6 +1,8 @@
 //! Candidate retrieval from the persisted full-text artifacts for both the
 //! `'terms'` and `'query'` syntaxes.
 
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::{filter, Cassie, QueryError, QueryExecutionControls};
 use crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet;
 use crate::runtime::QueryMemoryReservation;

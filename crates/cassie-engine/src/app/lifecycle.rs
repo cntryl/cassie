@@ -201,6 +201,7 @@ impl Cassie {
             .map_err(|error| CassieError::Storage(format!("column batch recovery: {error}")))?;
         self.midge
             .reconcile_fulltext_indexes()
+            .map_err(CassieError::from)
             .map_err(|error| CassieError::Storage(format!("full-text recovery: {error}")))?;
         self.midge
             .reconcile_time_series_indexes()

@@ -272,7 +272,7 @@ pub(super) fn decode_metadata(bytes: &[u8]) -> Result<FulltextIndexMetadata, Cas
         documents_with_text,
         total_document_length,
         posting_terms,
-        analyzer: crate::search::analyzer::AnalyzerConfig {
+        analyzer: cassie_search::analyzer::AnalyzerConfig {
             name,
             tokenizer,
             case_folding,
@@ -427,7 +427,7 @@ mod tests {
             documents_with_text: 1,
             total_document_length: 3,
             posting_terms: 2,
-            analyzer: crate::search::analyzer::AnalyzerConfig::default(),
+            analyzer: cassie_search::analyzer::AnalyzerConfig::default(),
         };
 
         // Act

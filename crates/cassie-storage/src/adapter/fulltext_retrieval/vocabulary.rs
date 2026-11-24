@@ -3,8 +3,7 @@
 use cntryl_midge::Query;
 
 use crate::adapter::CassieError;
-use crate::adapter::{key_encoding, AdapterTransaction};
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::{key_encoding, AdapterTransaction, StorageRequestContext};
 use cassie_search::query::{TermMatcher, Vocabulary};
 
 /// The persisted term directory of one full-text index, read inside the
@@ -13,7 +12,7 @@ pub(super) struct TermDirectory<'a> {
     pub(super) tx: &'a AdapterTransaction,
     pub(super) relation_id: u64,
     pub(super) index_id: u64,
-    pub(super) controls: &'a QueryExecutionControls,
+    pub(super) controls: &'a StorageRequestContext<'a>,
 }
 
 /// The single place that enumerates an index's vocabulary for query
@@ -38,12 +37,7 @@ pub(super) fn vocabulary_terms(
         .map_err(CassieError::from)?;
     let mut matched = vec![Vec::<String>::new(); matchers.len()];
     for entry in &mut scan {
-        if directory.controls.is_canceled() {
-            return Err(CassieError::QueryCanceled);
-        }
-        if directory.controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
+        directory.controls.check_interruption()?;
         let (key, _) = entry.map_err(CassieError::from)?;
         let term = key_encoding::utf8_first_component_after_prefix(&key, &prefix)
             .ok_or_else(|| CassieError::Parse("invalid fulltext term key".to_string()))?;

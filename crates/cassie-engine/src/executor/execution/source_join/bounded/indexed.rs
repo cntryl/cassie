@@ -1,3 +1,5 @@
+use crate::midge::fulltext::FulltextRequestReads;
+
 use std::mem::size_of;
 
 use crate::executor::retained_memory::mul;

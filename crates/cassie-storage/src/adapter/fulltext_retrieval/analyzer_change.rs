@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 
 use super::{CassieError, IndexMeta, Midge};
-use crate::search::analyzer::AnalyzerConfig;
+use cassie_search::analyzer::AnalyzerConfig;
 
 /// Option recording the published analyzer generation; absent means generation 1.
 pub(crate) const ANALYZER_VERSION_OPTION: &str = "analyzer_version";
@@ -25,13 +25,13 @@ impl Midge {
     /// Returns an error when the index is missing or not full-text, the new
     /// options do not form a valid analyzer, or storage fails. Nothing is
     /// published on error.
-    pub(crate) fn alter_fulltext_index_analyzer(
+    pub fn alter_fulltext_index_analyzer<E: From<CassieError>>(
         &self,
         collection: &str,
         name: &str,
-        update: impl FnOnce(&mut BTreeMap<String, String>) -> Result<(), CassieError>,
+        update: impl FnOnce(&mut BTreeMap<String, String>) -> Result<(), E>,
         publish: impl FnOnce(IndexMeta),
-    ) -> Result<(), CassieError> {
+    ) -> Result<(), E> {
         let collection = self.canonical_collection_name(collection);
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
@@ -39,16 +39,16 @@ impl Midge {
         let key = Self::index_key(&collection, name);
         let raw = tx.get(&key).map_err(CassieError::from)?.ok_or_else(|| {
             CassieError::CatalogObjectNotFound {
-                kind:crate::adapter::CatalogObjectKind::Index,
+                kind: crate::adapter::CatalogObjectKind::Index,
                 name: name.to_string(),
             }
         })?;
         let mut metadata: IndexMeta = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
-        if metadata.kind != crate::catalog::IndexKind::FullText {
+        if metadata.kind != cassie_core::catalog::declarations::IndexKind::FullText {
             return Err(CassieError::Unsupported(format!(
                 "index '{name}' is not a full-text index"
-            )));
+            )).into());
         }
         let mut options = metadata.options.clone();
         update(&mut options)?;
@@ -62,7 +62,12 @@ impl Midge {
             version.saturating_add(1).to_string(),
         );
         metadata.options = options;
-        cassie_sql::definition_guard::index(&metadata)?;
+        cassie_sql::definition_guard::index(
+            metadata.definition_semantics_version,
+            &metadata.expressions,
+            metadata.predicate.as_deref(),
+        )
+        .map_err(CassieError::from)?;
         drop(tx);
         let published =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;

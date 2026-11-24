@@ -116,7 +116,7 @@ impl Midge {
     ///
     /// Returns an error when a term record is unreadable or corrupt.
     pub(crate) fn fulltext_index_terms_in_tx(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation_id: u64,
         index_id: u64,
         term_prefix: &str,
@@ -259,7 +259,7 @@ impl<'a> TermBlockValidator<'a> {
 
 /// Reads and decodes the term record for `term`, if any.
 pub(super) fn read_term_record(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     term: &str,
@@ -276,7 +276,7 @@ pub(super) fn read_term_record(
 
 /// All term records of an index, keyed by term.
 pub(super) fn load_term_records(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
 ) -> Result<BTreeMap<String, FulltextTermRecord>, CassieError> {

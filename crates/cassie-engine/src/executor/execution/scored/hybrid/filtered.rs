@@ -9,6 +9,8 @@
 //! row scan. Anything it cannot serve declines (with a labelled reason in the filtered-vector
 //! metrics) to the existing bounded or exact paths.
 
+use crate::midge::fulltext::FulltextRequestReads;
+
 use std::collections::BTreeSet;
 
 use super::super::fulltext_filtered_topk::{conjuncts, intersect_scalar_conjuncts};

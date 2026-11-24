@@ -6,6 +6,8 @@
 //! returns an underfilled result: it degrades to the exact subset, or to the full exact scan with
 //! a labelled reason. Selection rules live in `docs/vector-filtered-search-contract.md`.
 
+use crate::midge::fulltext::FulltextRequestReads;
+
 use std::collections::BinaryHeap;
 use std::time::Instant;
 

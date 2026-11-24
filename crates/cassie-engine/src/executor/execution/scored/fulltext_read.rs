@@ -1,3 +1,5 @@
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
 use super::{
     analyzer_for_search_field, batch, cached_search_context, filter,

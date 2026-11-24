@@ -10,24 +10,24 @@ use super::{
 };
 use crate::adapter::CassieError;
 use crate::adapter::column_store::validation as column_validation;
-use crate::adapter::{DocumentRef, Midge};
+use crate::adapter::{DocumentRef, Midge, StorageRequestContext};
 use cassie_core::request::accounted::json;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use cassie_core::request::RequestMemoryReservation;
 use cassie_core::types::DataType;
-use cassie_search::query::{CompiledQuery, ResolvedQuery};
+use cassie_search::query::{CompiledQuery, ResolveError, ResolvedQuery, SearchQueryError};
 
-pub(crate) struct ControlledFulltextCandidateSet {
+pub struct ControlledFulltextCandidateSet {
     candidates: PersistedFulltextCandidateSet,
-    memory: QueryMemoryReservation,
+    memory: RequestMemoryReservation,
 }
 
-pub(crate) struct ControlledRetrievalDocument {
+pub struct ControlledRetrievalDocument {
     document: DocumentRef,
-    memory: QueryMemoryReservation,
+    memory: RequestMemoryReservation,
 }
 
 impl ControlledRetrievalDocument {
-    pub(crate) fn into_parts(self) -> (DocumentRef, QueryMemoryReservation) {
+    pub fn into_parts(self) -> (DocumentRef, RequestMemoryReservation) {
         (self.document, self.memory)
     }
 }
@@ -91,51 +91,51 @@ fn provisional_column_field_bytes(
 }
 
 impl ControlledFulltextCandidateSet {
-    pub(crate) fn into_parts(self) -> (PersistedFulltextCandidateSet, QueryMemoryReservation) {
+    pub fn into_parts(self) -> (PersistedFulltextCandidateSet, RequestMemoryReservation) {
         (self.candidates, self.memory)
     }
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
-    if controls.is_canceled() {
-        return Err(CassieError::QueryCanceled);
-    }
-    if controls.is_timed_out() {
-        return Err(CassieError::DeadlineExceeded);
-    }
+fn grow_memory(
+    memory: &mut RequestMemoryReservation,
+    additional: usize,
+) -> Result<(), CassieError> {
+    memory
+        .try_grow(additional)
+        .map_err(cassie_core::request::accounted::AccountingError::from)?;
     Ok(())
 }
 
 fn record_controlled_read(
     midge: &Midge,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(), CassieError> {
-    check_controls(controls)?;
+    controls.check_interruption()?;
     midge.record_query_scan_entry();
     if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
         return Err(CassieError::QueryCanceled);
     }
-    check_controls(controls)
+    controls.check_interruption()
 }
 
 struct ControlledPostingReadContext<'a> {
     midge: &'a Midge,
-    tx: &'acrate::adapter::AdapterTransaction,
+    tx: &'a crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     allowed_ids: Option<&'a BTreeSet<String>>,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 struct ControlledCandidateDocumentContext<'a> {
     midge: &'a Midge,
-    tx: &'acrate::adapter::AdapterTransaction,
+    tx: &'a crate::adapter::AdapterTransaction,
     collection: &'a str,
-    row_schema: &'acrate::row_blob::RowSchema,
+    row_schema: &'a crate::row_blob::RowSchema,
     relation_id: u64,
     index_id: u64,
     column_store: bool,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 fn validate_controlled_source_membership(
@@ -143,7 +143,7 @@ fn validate_controlled_source_membership(
     source_ids: &BTreeSet<String>,
 ) -> Result<(), CassieError> {
     for id in source_ids {
-        check_controls(context.controls)?;
+        context.controls.check_interruption()?;
         let exists = if context.column_store {
             let row_key = Midge::column_store_row_key(context.row_schema.relation_id, id);
             let exists = context
@@ -187,11 +187,11 @@ fn validate_controlled_source_membership(
 fn load_controlled_document_stats(
     context: &ControlledCandidateDocumentContext<'_>,
     ids: BTreeSet<String>,
-    memory: &mut QueryMemoryReservation,
+    memory: &mut RequestMemoryReservation,
 ) -> Result<BTreeMap<String, PersistedFulltextDocumentStats>, CassieError> {
     let mut stats = BTreeMap::new();
     for id in ids {
-        check_controls(context.controls)?;
+        context.controls.check_interruption()?;
         let key = Midge::fulltext_document_stats_key(context.relation_id, context.index_id, &id);
         let raw = context
             .tx
@@ -201,14 +201,16 @@ fn load_controlled_document_stats(
                 CassieError::Execution("fulltext fallback:missing-document-stats".to_string())
             })?;
         record_controlled_read(context.midge, context.controls)?;
-        memory.try_grow(key.len().saturating_add(raw.len()))?;
-        memory.try_grow(
+        grow_memory(memory, key.len().saturating_add(raw.len()))?;
+        grow_memory(
+            memory,
             raw.len()
                 .saturating_mul(2)
                 .saturating_add(retained_string_bytes(&id)),
         )?;
         let document = codec::decode_document_stats(&raw)?;
-        memory.try_grow(
+        grow_memory(
+            memory,
             document
                 .term_positions
                 .values()
@@ -228,7 +230,7 @@ fn load_controlled_document_stats(
 fn load_controlled_candidate_postings(
     context: &ControlledPostingReadContext<'_>,
     terms: &[String],
-    memory: &mut QueryMemoryReservation,
+    memory: &mut RequestMemoryReservation,
 ) -> Result<LoadedCandidatePostings, CassieError> {
     let mut loaded = LoadedCandidatePostings {
         ids: BTreeSet::new(),
@@ -237,7 +239,7 @@ fn load_controlled_candidate_postings(
         block_reads: 0,
     };
     for term in terms {
-        check_controls(context.controls)?;
+        context.controls.check_interruption()?;
         let prefix =
             Midge::fulltext_term_postings_prefix(context.relation_id, context.index_id, term);
         let mut scan = context
@@ -250,18 +252,19 @@ fn load_controlled_candidate_postings(
         record_controlled_read(context.midge, context.controls)?;
         let record = record_raw
             .map(|raw| {
-                memory.try_grow(record_key.len().saturating_add(raw.len()))?;
+                grow_memory(memory, record_key.len().saturating_add(raw.len()))?;
                 codec::decode_term_record(&raw)
             })
             .transpose()?;
         let mut validator = TermBlockValidator::new(term, context.relation_id, context.index_id);
         let mut term_documents = BTreeSet::new();
         for entry in &mut scan {
-            check_controls(context.controls)?;
+            context.controls.check_interruption()?;
             let (key, raw) = entry.map_err(CassieError::from)?;
             record_controlled_read(context.midge, context.controls)?;
-            memory.try_grow(key.len().saturating_add(raw.len()))?;
-            memory.try_grow(
+            grow_memory(memory, key.len().saturating_add(raw.len()))?;
+            grow_memory(
+                memory,
                 raw.len()
                     .saturating_mul(2)
                     .saturating_add(BTREE_ENTRY_OVERHEAD),
@@ -270,7 +273,8 @@ fn load_controlled_candidate_postings(
             validator.accept(&key, &postings)?;
             for posting in postings {
                 let retained = retained_string_bytes(&posting.document_id);
-                memory.try_grow(
+                grow_memory(
+                    memory,
                     if context
                         .allowed_ids
                         .is_none_or(|allowed| allowed.contains(&posting.document_id))
@@ -293,8 +297,10 @@ fn load_controlled_candidate_postings(
         validator.finish(record.as_ref())?;
         loaded.block_reads = loaded.block_reads.saturating_add(block_count);
         loaded.source_ids.extend(term_documents.iter().cloned());
-        memory
-            .try_grow(retained_string_bytes(term).saturating_add(std::mem::size_of::<usize>()))?;
+        grow_memory(
+            memory,
+            retained_string_bytes(term).saturating_add(std::mem::size_of::<usize>()),
+        )?;
         loaded
             .document_frequency
             .insert(term.clone(), term_documents.len());
@@ -303,23 +309,29 @@ fn load_controlled_candidate_postings(
 }
 
 impl Midge {
-    pub(crate) fn fulltext_candidate_set_controlled(
+    /// # Errors
+    ///
+    /// Returns an interruption, resource-limit, or storage error when the requested read fails.
+    pub fn fulltext_candidate_set_with_request(
         &self,
         collection: &str,
         index_name: &str,
         terms: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         self.fulltext_candidate_set_inner_controlled(collection, index_name, terms, None, controls)
     }
 
-    pub(crate) fn fulltext_candidate_set_for_ids_controlled(
+    /// # Errors
+    ///
+    /// Returns an interruption, resource-limit, or storage error when the requested read fails.
+    pub fn fulltext_candidate_set_for_ids_with_request(
         &self,
         collection: &str,
         index_name: &str,
         terms: &[String],
         allowed_ids: &BTreeSet<String>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         self.fulltext_candidate_set_inner_controlled(
             collection,
@@ -337,17 +349,20 @@ impl Midge {
     ///
     /// Returns the candidates, the resolved query and the reservation that
     /// accounts the resolved query.
-    pub(crate) fn fulltext_candidate_set_for_query_controlled(
+    /// # Errors
+    ///
+    /// Returns an interruption, resource-limit, or storage error when the requested read fails.
+    pub fn fulltext_candidate_set_for_query_with_request(
         &self,
         collection: &str,
         index_name: &str,
         query: &CompiledQuery,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<
         (
             ControlledFulltextCandidateSet,
             ResolvedQuery,
-            QueryMemoryReservation,
+            RequestMemoryReservation,
         ),
         CassieError,
     > {
@@ -359,8 +374,16 @@ impl Midge {
             None,
             controls,
             &mut |directory| {
-                let query = query.resolve(directory)?;
-                resolved_memory = Some(controls.reserve_query_memory(query.estimated_bytes())?);
+                let query = query.resolve(directory).map_err(|error| match error {
+                    ResolveError::Vocabulary(error) => error,
+                    ResolveError::Query(SearchQueryError::InvalidParameter(message)) => {
+                        CassieError::InvalidParameterValue(message)
+                    }
+                    ResolveError::Query(SearchQueryError::ResourceLimit(message)) => {
+                        CassieError::ResourceLimit(message)
+                    }
+                })?;
+                resolved_memory = Some(controls.reserve(query.estimated_bytes())?);
                 let terms = query.positive_terms().to_vec();
                 resolved = Some(query);
                 Ok(terms)
@@ -380,7 +403,7 @@ impl Midge {
         index_name: &str,
         terms: &[String],
         allowed_ids: Option<&BTreeSet<String>>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
         self.fulltext_candidate_set_resolving_controlled(
             collection,
@@ -396,17 +419,17 @@ impl Midge {
         collection: &str,
         index_name: &str,
         allowed_ids: Option<&BTreeSet<String>>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         resolve_terms: &mut dyn FnMut(&TermDirectory<'_>) -> Result<Vec<String>, CassieError>,
     ) -> Result<ControlledFulltextCandidateSet, CassieError> {
-        check_controls(controls)?;
+        controls.check_interruption()?;
         let collection = self.canonical_collection_name(collection);
         let index = self
             .get_index(&collection, index_name)?
             .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
         let (relation_id, index_id) = Self::fulltext_storage_ids(&index)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
-        let mut memory = controls.reserve_query_memory(0)?;
+        let mut memory = controls.reserve(0)?;
 
         let metadata_key = Self::fulltext_index_key(relation_id, index_id);
         let metadata_raw = tx
@@ -414,8 +437,8 @@ impl Midge {
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
         record_controlled_read(self, controls)?;
-        memory.try_grow(metadata_key.len().saturating_add(metadata_raw.len()))?;
-        memory.try_grow(metadata_raw.len().saturating_mul(2))?;
+        grow_memory(&mut memory, metadata_key.len().saturating_add(metadata_raw.len()))?;
+        grow_memory(&mut memory, metadata_raw.len().saturating_mul(2))?;
         let metadata = codec::decode_metadata(&metadata_raw)?;
         if metadata.version != STATE_VERSION
             || metadata.built_generation != self.collection_generation(&collection)?
@@ -461,7 +484,7 @@ impl Midge {
                 "fulltext fallback:stale-generation".to_string(),
             ));
         }
-        check_controls(controls)?;
+        controls.check_interruption()?;
         Ok(ControlledFulltextCandidateSet {
             candidates: PersistedFulltextCandidateSet {
                 total_documents: metadata.total_documents,
@@ -478,13 +501,16 @@ impl Midge {
         })
     }
 
-    pub(crate) fn get_retrieval_document_controlled(
+    /// # Errors
+    ///
+    /// Returns an interruption, resource-limit, or storage error when the requested read fails.
+    pub fn get_retrieval_document_with_request(
         &self,
         collection: &str,
         id: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<ControlledRetrievalDocument>, CassieError> {
-        check_controls(controls)?;
+        controls.check_interruption()?;
         let collection = self.canonical_collection_name(collection);
         let row_schema = self.row_schema(&collection)?;
         if self.collection_uses_column_store(&collection)? {
@@ -501,10 +527,10 @@ impl Midge {
                 std::mem::size_of::<DocumentRef>(),
                 checked_accounting_add(id.len(), std::mem::size_of::<serde_json::Value>())?,
             )?;
-            let mut memory = controls.reserve_query_memory(initial_bytes)?;
+            let mut memory = controls.reserve(initial_bytes)?;
             let mut payload = serde_json::Map::new();
             for field in row_schema.fields.iter().filter(|field| !field.retired) {
-                check_controls(controls)?;
+                controls.check_interruption()?;
                 let field_key = super::super::key_encoding::column_store_field_key(
                     row_schema.relation_id,
                     field.field_id,
@@ -518,7 +544,7 @@ impl Midge {
                     }
                     continue;
                 };
-                memory.try_grow(provisional_column_field_bytes(
+                grow_memory(&mut memory, provisional_column_field_bytes(
                     &field.data_type,
                     &field.name,
                     field_key.len(),
@@ -528,10 +554,10 @@ impl Midge {
                 else {
                     continue;
                 };
-                check_controls(controls)?;
+                controls.check_interruption()?;
                 payload.insert(field.name.clone(), value);
             }
-            check_controls(controls)?;
+            controls.check_interruption()?;
             return Ok(Some(ControlledRetrievalDocument {
                 document: DocumentRef {
                     id: id.to_string(),
@@ -563,9 +589,9 @@ impl Midge {
             raw_key_bytes,
             raw.len(),
         )?;
-        let memory = controls.reserve_query_memory(retained_bytes)?;
+        let memory = controls.reserve(retained_bytes)?;
         let payload = super::decode_row(&row_schema, &raw)?;
-        check_controls(controls)?;
+        controls.check_interruption()?;
         Ok(Some(ControlledRetrievalDocument {
             document: DocumentRef {
                 id: id.to_string(),
@@ -578,24 +604,18 @@ impl Midge {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use serde_json::json;
-    use uuid::Uuid;
 
-    use super::{CassieError, Midge, QueryExecutionControls};
-    use crate::catalog::{CollectionMeta, CollectionStorageMode};
-    use crate::config::CassieRuntimeLimits;
+    use super::{CassieError, Midge, StorageRequestContext};
+    use cassie_core::catalog::declarations::CollectionStorageMode;
+    use cassie_core::catalog::storage_metadata::CollectionMeta;
+    use cassie_core::request::{Interruption, RequestCancellation, RequestMemory};
     use cassie_core::types::{DataType, FieldSchema, Schema};
 
     #[test]
     fn should_reserve_before_decoding_a_column_retrieval_document_given_low_memory() {
         // Arrange
-        let path = std::env::temp_dir().join(format!(
-            "cassie-controlled-fulltext-column-retrieval-{}",
-            Uuid::new_v4()
-        ));
-        let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
         let collection = "controlled_fulltext_column_retrieval";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -619,17 +639,14 @@ mod tests {
                 json!({"body": "alpha".repeat(8_192)}),
             )
             .expect("store column document");
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes: 1_024,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        );
+        let memory = RequestMemory::new(1_024);
+        let cancellation = RequestCancellation::new();
+        let controls =
+            StorageRequestContext::new(None, Interruption::new(None, &cancellation), &memory);
         let before_reads = midge.query_scan_entries_for_diagnostics();
 
         // Act
-        let result = midge.get_retrieval_document_controlled(collection, "doc-1", &controls);
+        let result = midge.get_retrieval_document_with_request(collection, "doc-1", &controls);
         let Err(error) = result else {
             panic!("column decode must be rejected before retaining the field");
         };
@@ -640,8 +657,6 @@ mod tests {
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)));
         assert_eq!(reads, 2, "row marker and one raw field read");
-        assert_eq!(controls.current_query_memory_bytes(), 0);
-        drop(midge);
-        let _ = std::fs::remove_dir_all(path);
+        assert_eq!(memory.current_bytes(), 0);
     }
 }

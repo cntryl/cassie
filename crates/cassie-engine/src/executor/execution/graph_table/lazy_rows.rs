@@ -1,5 +1,7 @@
 //! Owned pending and indexed row copies for the lazy graph read path.
 
+use crate::midge::fulltext::FulltextRequestReads;
+
 use std::collections::HashSet;
 use std::mem::size_of;
 use std::sync::Arc;

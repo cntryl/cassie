@@ -1,4 +1,7 @@
 //! Stream the proven source in result order, probing each unique dimension in SQL order.
+
+use crate::midge::fulltext::FulltextRequestReads;
+
 use super::{
     check_timeout, combine_rows, filter, project_source_row, BatchRow, JoinRetentionContext,
     JoinRetentionPhase, QueryError, SourceExecutionEnv, SourceRowShape, Value,

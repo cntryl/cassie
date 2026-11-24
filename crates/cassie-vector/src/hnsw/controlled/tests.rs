@@ -95,9 +95,9 @@ fn should_reserve_sparse_hnsw_visited_storage_before_loading_a_neighbor() {
         &mut |id| {
             if id == "neighbor" {
                 observed_neighbor_bytes.set(request_memory.current_bytes());
-                Ok::<_, Infallible>(Some(neighbor.clone()))
+                Ok::<_, super::HnswSearchError<Infallible>>(Some(neighbor.clone()))
             } else {
-                Ok::<_, Infallible>(Some(entry.clone()))
+                Ok::<_, super::HnswSearchError<Infallible>>(Some(entry.clone()))
             }
         },
     )
@@ -145,7 +145,7 @@ fn should_keep_loaded_hnsw_layer_candidate_capacity_reserved() {
         "entry",
         1,
         &mut memory,
-        &mut |_| Ok::<_, Infallible>(Some(entry.clone())),
+        &mut |_| Ok::<_, super::HnswSearchError<Infallible>>(Some(entry.clone())),
     )
     .expect("loaded layer");
     let retained_bytes = candidates.capacity() * size_of::<SearchCandidate>()

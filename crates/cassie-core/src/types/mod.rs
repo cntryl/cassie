@@ -13,6 +13,7 @@ pub mod numeric;
 pub mod jsonb_format;
 pub mod row;
 pub mod schema;
+pub mod semantic;
 pub mod temporal;
 pub mod typed;
 pub mod value;

@@ -377,7 +377,7 @@ impl SemanticKey {
 
 #[must_use]
 pub(crate) fn compare_values(left: &Value, right: &Value) -> Ordering {
-    SemanticValue::from_value(left).cmp(&SemanticValue::from_value(right))
+    cassie_core::types::semantic::compare_values(left, right)
 }
 
 #[must_use]
@@ -542,5 +542,33 @@ mod tests {
         assert_eq!(whole_before_fraction, Ordering::Less);
         assert_eq!(fraction_after_whole, Ordering::Greater);
         assert!(same_instant);
+    }
+
+    #[test]
+    fn should_keep_core_and_engine_semantic_ordering_aligned_for_portable_values() {
+        // Arrange
+        let values = [
+            Value::Null,
+            Value::Bool(false),
+            Value::Int64(1),
+            Value::Float64(1.5),
+            Value::String("2024-01-01T12:00:00Z".into()),
+            Value::String("2024-01-01T12:00:00.500000Z".into()),
+            Value::Json(serde_json::json!({"a": 1, "b": [true, null]})),
+            Value::Typed(crate::types::typed::TypedValue::Real(1.5)),
+            Value::Typed(crate::types::typed::TypedValue::Numeric(
+                crate::types::extended::numeric::Numeric::from_i64(2),
+            )),
+        ];
+
+        // Act / Assert
+        for left in &values {
+            for right in &values {
+                assert_eq!(
+                    compare_values(left, right),
+                    SemanticKey::single(left).cmp(&SemanticKey::single(right)),
+                );
+            }
+        }
     }
 }

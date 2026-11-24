@@ -25,7 +25,7 @@ fn should_reject_stale_copy_owner_before_predicate_sequence_effect() {
     .expect("parse COPY")
     .expect("COPY request");
     let bound = bind_copy_from_stdin(&cassie, &session, request, None).expect("bind COPY");
-    let BoundCopyRequest::From(request, _statement, binding) = bound else {
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
     cassie
@@ -36,7 +36,17 @@ fn should_reject_stale_copy_owner_before_predicate_sequence_effect() {
         .expect("new generation");
 
     // Act
-    let result = execute::execute_bound_copy_payload(&binding, &session, &request, b"41\n", None);
+    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+    let result = execute::execute_copy_payload(
+        &binding.cassie,
+        &session,
+        &request,
+        &statement,
+        b"41\n",
+        None,
+        binding.owner.as_ref(),
+    );
+    drop(controls);
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback");
@@ -79,12 +89,22 @@ fn should_execute_sequence_predicate_with_current_copy_owner() {
     .expect("parse COPY")
     .expect("COPY request");
     let bound = bind_copy_from_stdin(&cassie, &session, request, None).expect("bind COPY");
-    let BoundCopyRequest::From(request, _statement, binding) = bound else {
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
 
     // Act
-    let result = execute::execute_bound_copy_payload(&binding, &session, &request, b"41\n", None);
+    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+    let result = execute::execute_copy_payload(
+        &binding.cassie,
+        &session,
+        &request,
+        &statement,
+        b"41\n",
+        None,
+        binding.owner.as_ref(),
+    );
+    drop(controls);
     cassie
         .execute_sql(&session, "COMMIT", vec![])
         .expect("commit");
@@ -143,8 +163,8 @@ fn should_binary_copy_a_staged_enum_before_transaction_commit() {
     payload.extend_from_slice(&(-1_i16).to_be_bytes());
 
     // Act
-    let result = operation.with_publication_scope(|controls| {
-        execute::execute_decoded_operation(&session, &request, &operation, &payload, None, controls)
+    let result = operation.with_publication_scope(|| {
+        execute::execute_decoded_operation(&session, &request, &operation, &payload, None)
     });
     let selected = cassie
         .execute_sql(&session, "SELECT mood FROM copy_binary_enum", Vec::new())
@@ -218,7 +238,17 @@ impl EntryFixture {
         session: &crate::app::CassieSession,
         payload: &[u8],
     ) -> Result<execute::CopyCompletion, filter::CopyWhereError> {
-        execute::execute_bound_copy_payload(&self.binding, session, &self.request, payload, None)
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&self.binding.controls));
+        execute::execute_copy_payload(
+            &self.binding.cassie,
+            session,
+            &self.request,
+            &self.statement,
+            payload,
+            None,
+            self.binding.owner.as_ref(),
+        )
     }
 
     fn retire(&self) {
@@ -339,19 +369,23 @@ fn should_preserve_autocommit_copy_without_owner() {
     fixture.retire();
     let bound = bind_copy_from_stdin(&fixture.cassie, &fixture.session, fixture.request, None)
         .expect("autocommit binding");
-    let BoundCopyRequest::From(request, _statement, binding) = bound else {
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
     assert!(binding.owner.is_none());
 
     // Act
-    let result = execute::execute_bound_copy_payload(
-        &binding,
+    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+    let result = execute::execute_copy_payload(
+        &binding.cassie,
         &fixture.session,
         &request,
+        &statement,
         b"41\n",
         None,
+        binding.owner.as_ref(),
     );
+    drop(controls);
     let rows = fixture
         .cassie
         .execute_sql(
@@ -442,18 +476,22 @@ fn should_execute_fresh_copy_predicate_after_savepoint_restoration() {
         None,
     )
     .expect("fresh binding");
-    let BoundCopyRequest::From(request, _statement, binding) = bound else {
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
 
     // Act
     let result = {
-        execute::execute_bound_copy_payload(
-            &binding,
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+        execute::execute_copy_payload(
+            &binding.cassie,
             &fixture.session,
             &request,
+            &statement,
             b"41\n",
             None,
+            binding.owner.as_ref(),
         )
     };
     fixture
@@ -562,16 +600,20 @@ fn should_reject_copy_binding_across_savepoint_restore() {
         None,
     )
     .expect("fresh bind");
-    let BoundCopyRequest::From(request, _statement, binding) = bound else {
+    let BoundCopyRequest::From(request, statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
     let fresh = {
-        execute::execute_bound_copy_payload(
-            &binding,
+        let _controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
+        execute::execute_copy_payload(
+            &binding.cassie,
             &fixture.session,
             &request,
+            &statement,
             b"41\n",
             None,
+            binding.owner.as_ref(),
         )
     };
     fixture

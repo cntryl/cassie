@@ -868,14 +868,13 @@ async fn finish_simple_copy(
         Arc::clone(&cassie),
         "pgwire_copy_from_stdin",
         move |cassie| {
-            binding.operation.with_publication_scope(|controls| {
+            binding.operation.with_publication_scope(|| {
                 execute::execute_decoded_operation(
                     &session_for_copy,
                     &request,
                     &binding.operation,
                     payload.as_slice(),
                     cancellation.as_ref(),
-                    controls,
                 )
             })
         },

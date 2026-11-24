@@ -1,5 +1,9 @@
 //! Namespace creation and stored metadata lookup.
 use super::{collect_scan, CassieError, Midge, NamespaceMeta, Query};
+use crate::catalog::{
+    canonical_relation_name, canonical_schema_name, is_system_schema, local_name, parse_name,
+    relation_database_name, ParsedName,
+};
 
 impl Midge {
     /// # Errors
@@ -80,5 +84,59 @@ impl Midge {
             }
         }
         Ok(None)
+    }
+}
+
+impl Midge {
+    /// The canonical stored name for `collection` in the default database and schema.
+    #[must_use]
+    pub fn canonical_collection_name(&self, collection: &str) -> String {
+        match parse_name(collection) {
+            Ok(ParsedName::Unqualified(name)) => canonical_relation_name(
+                &self.default_database,
+                crate::catalog::DEFAULT_SCHEMA,
+                &name,
+            ),
+            Ok(ParsedName::SchemaQualified { schema, name }) => {
+                if crate::catalog::is_system_schema(&schema) {
+                    format!("{schema}.{name}")
+                } else {
+                    canonical_relation_name(&self.default_database, &schema, &name)
+                }
+            }
+            Ok(ParsedName::DatabaseQualified {
+                database,
+                schema,
+                name,
+            }) => canonical_relation_name(&database, &schema, &name),
+            Err(_) => collection.to_string(),
+        }
+    }
+
+    pub(crate) fn canonical_namespace_name(&self, namespace: &str) -> String {
+        match parse_name(namespace) {
+            Ok(ParsedName::Unqualified(name)) if is_system_schema(&name) => name,
+            Ok(ParsedName::Unqualified(name)) => {
+                canonical_schema_name(&self.default_database, &name)
+            }
+            Ok(ParsedName::SchemaQualified { schema, name }) => {
+                canonical_schema_name(&schema, &name)
+            }
+            Ok(ParsedName::DatabaseQualified {
+                database, schema, ..
+            }) => canonical_schema_name(&database, &schema),
+            Err(_) => namespace.to_string(),
+        }
+    }
+
+    pub(crate) fn display_collection_name(&self, collection: &str) -> String {
+        let canonical = self.canonical_collection_name(collection);
+        if relation_database_name(&canonical)
+            .is_some_and(|database| database.eq_ignore_ascii_case(&self.default_database))
+        {
+            local_name(&canonical)
+        } else {
+            canonical
+        }
     }
 }

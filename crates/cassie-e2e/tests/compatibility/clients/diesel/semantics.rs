@@ -48,17 +48,17 @@ fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOu
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command
         .spawn()
-        .map_err(|error| format!("spawn sqlx probe: {error}"))?;
+        .map_err(|error| format!("spawn Diesel probe: {error}"))?;
     let started = Instant::now();
     loop {
         if child
             .try_wait()
-            .map_err(|error| format!("poll sqlx probe: {error}"))?
+            .map_err(|error| format!("poll Diesel probe: {error}"))?
             .is_some()
         {
             let output = child
                 .wait_with_output()
-                .map_err(|error| format!("collect sqlx probe output: {error}"))?;
+                .map_err(|error| format!("collect Diesel probe output: {error}"))?;
             return Ok(ProbeOutput {
                 success: output.status.success(),
                 timed_out: false,
@@ -71,7 +71,7 @@ fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOu
             let _ = child.kill();
             let output = child
                 .wait_with_output()
-                .map_err(|error| format!("collect timed-out sqlx probe output: {error}"))?;
+                .map_err(|error| format!("collect timed-out Diesel probe output: {error}"))?;
             return Ok(ProbeOutput {
                 success: false,
                 timed_out: true,
@@ -85,11 +85,11 @@ fn run_external_probe(mut command: Command, timeout: Duration) -> Result<ProbeOu
 }
 
 #[test]
-#[ignore = "requires the pinned external sqlx fixture"]
-fn should_validate_sqlx_read_model_probe_when_enabled() {
+#[ignore = "requires the pinned external Diesel fixture"]
+fn should_validate_diesel_read_model_probe_when_enabled() {
     // Arrange
-    if std::env::var("CASSIE_RUN_SQLX_COMPAT").ok().as_deref() != Some("1") {
-        eprintln!("set CASSIE_RUN_SQLX_COMPAT=1 to run the optional sqlx probe");
+    if std::env::var("CASSIE_RUN_DIESEL_COMPAT").ok().as_deref() != Some("1") {
+        eprintln!("set CASSIE_RUN_DIESEL_COMPAT=1 to run the optional Diesel probe");
         return;
     }
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -114,7 +114,7 @@ fn should_validate_sqlx_read_model_probe_when_enabled() {
                 "--manifest-path",
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/fixtures/sqlx_probe/Cargo.toml"
+                    "/tests/fixtures/diesel_probe/Cargo.toml"
                 ),
                 "--",
                 &connection,
@@ -122,45 +122,46 @@ fn should_validate_sqlx_read_model_probe_when_enabled() {
             run_external_probe(command, Duration::from_secs(120))
         })
         .await
-        .expect("sqlx probe blocking task should complete")
-        .expect("run sqlx compatibility probe");
+        .expect("Diesel probe blocking task should complete")
+        .expect("run Diesel compatibility probe");
         server.shutdown().await;
 
         // Assert
         assert!(
             !output.timed_out,
-            "sqlx probe timed out\nstdout:\n{}\nstderr:\n{}",
+            "Diesel probe timed out\nstdout:\n{}\nstderr:\n{}",
             output.stdout, output.stderr
         );
         assert!(
             output.success,
-            "sqlx probe failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            "Diesel probe failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
             output.status_code, output.stdout, output.stderr
         );
-        let expected = [
-            "sqlx_catalog=compat_sqlx_probe",
-            "sqlx_prepared=alpha",
-            "sqlx_transaction_row_count=1",
-            "sqlx_duplicate_sqlstate=23505",
-            "sqlx_missing_sqlstate=42P01",
-            "sqlx_joined=alpha",
-            "sqlx_after_duplicate=alpha",
-            "sqlx_after_missing=alpha",
-            "sqlx_same_session=true",
-            "sqlx_current_schema=compat_sqlx_named",
-            "sqlx_named_catalog=compat_sqlx_named",
-            "sqlx_named_shadow=alpha",
-            "sqlx_public_shadow=public-shadow",
-            "sqlx_restored_schema=public",
+        let expected_lines = [
+            "diesel_catalog=compat_diesel_probe",
+            "diesel_prepared=alpha",
+            "diesel_transaction_row_count=1",
+            "diesel_join=alpha:active",
+            "diesel_duplicate_error=unique_violation",
+            "diesel_after_duplicate=alpha",
+            "diesel_missing_error=relation_missing",
+            "diesel_after_missing=alpha",
+            "diesel_same_session=true",
+            "diesel_named_schema=compat_diesel_namespace",
+            "diesel_named_discovery=compat_diesel_namespace",
+            "diesel_named_shadow=named",
+            "diesel_public_shadow=public",
+            "diesel_restored_schema=public",
+            "diesel_schema_same_session=true",
         ];
-        for marker in &expected {
+        for expected in &expected_lines {
             assert!(
-                output.stdout.lines().any(|line| line == *marker),
-                "missing SQLx probe result: {marker}"
+                output.stdout.lines().any(|line| line == *expected),
+                "missing expected Diesel marker: {expected}"
             );
         }
-        for marker in expected {
-            println!("{marker}");
+        for expected in expected_lines {
+            println!("{expected}");
         }
     });
 }

@@ -17,7 +17,7 @@ use crate::support_temp_dirs::IsolatedDataDir;
 
 const MANIFEST_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/corpus/embeddings/manifest.json"
+    "/tests/corpus/embeddings/manifest.json"
 );
 
 fn encode_f32_rows(values: &[f32]) -> Vec<u8> {

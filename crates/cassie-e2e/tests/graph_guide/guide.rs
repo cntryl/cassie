@@ -8,7 +8,7 @@
 
 use cassie::types::Value;
 
-const GUIDE: &str = include_str!("../../docs/graph-guide.md");
+const GUIDE: &str = include_str!("../../../../docs/graph-guide.md");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expect {

@@ -35,10 +35,9 @@ fn should_release_the_read_directory_when_its_last_portal_closes() {
     let query = controls(1024 * 1024);
     let retention = controls(1024 * 1024);
     let frame = session
-        .capture_bound_read_view(
+        .capture_catalog_bound_read_view_for_test(
             &cassie.midge,
             cassie.default_database(),
-            false,
             &query,
             &retention,
         )
@@ -90,10 +89,9 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
     let current = controls(1024 * 1024);
     let sizing = controls(1024 * 1024);
     let measured = session
-        .capture_bound_read_view(
+        .capture_catalog_bound_read_view_for_test(
             &cassie.midge,
             cassie.default_database(),
-            false,
             &current,
             &sizing,
         )
@@ -109,10 +107,9 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
 
     // Act
     let denied_frame = session
-        .capture_bound_read_view(
+        .capture_catalog_bound_read_view_for_test(
             &cassie.midge,
             cassie.default_database(),
-            false,
             &current,
             &denied,
         )
@@ -120,10 +117,9 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
         .expect("frame");
     let failure = rejected.insert("portal", denied_frame, &denied);
     let exact_frame = session
-        .capture_bound_read_view(
+        .capture_catalog_bound_read_view_for_test(
             &cassie.midge,
             cassie.default_database(),
-            false,
             &current,
             &exact,
         )

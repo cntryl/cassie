@@ -33,8 +33,6 @@ use self::compact::decode_directory_value;
 #[cfg(any(test, feature = "transport-test-hooks"))]
 use self::compact::expected_type_tag;
 pub(crate) use compact::encode_compact_value;
-#[cfg(test)]
-pub(crate) use vector_field::split_vector_row;
 pub(crate) use vector_field::VectorColumn;
 
 pub(crate) fn encode_row(
@@ -174,72 +172,6 @@ impl<'a> RowDirectory<'a> {
         enum_value::check_column(&field.data_type, &decoded)?;
         Ok(Some(decoded))
     }
-}
-
-#[cfg(test)]
-fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {
-    value == filter_value
-}
-
-#[cfg(test)]
-fn included_field_names(
-    field: &RowFieldMeta,
-    projection: Option<&HashSet<String>>,
-    include_historical_aliases: bool,
-    active_field_names: &HashSet<String>,
-) -> Vec<String> {
-    let Some(projection) = projection else {
-        return (!field.retired)
-            .then(|| field.name.clone())
-            .into_iter()
-            .collect();
-    };
-
-    let mut names = Vec::new();
-    let field_key = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
-    if !field.retired && projection.contains(&field_key) {
-        names.push(field.name.clone());
-    }
-    if include_historical_aliases {
-        for alias in &field.aliases {
-            let alias_key = crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key();
-            if projection.contains(&alias_key)
-                && !active_field_names.contains(&alias_key)
-                && !names.iter().any(|name| name == alias)
-            {
-                names.push(alias.clone());
-            }
-        }
-    }
-    names
-}
-
-#[cfg(test)]
-fn field_matches_name(
-    field: &RowFieldMeta,
-    requested_key: &str,
-    include_historical_aliases: bool,
-    active_field_names: &HashSet<String>,
-) -> bool {
-    (!field.retired
-        && crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key()
-            == requested_key)
-        || (include_historical_aliases
-            && field.aliases.iter().any(|alias| {
-                crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key()
-                    == requested_key
-            })
-            && !active_field_names.contains(requested_key))
-}
-
-#[cfg(test)]
-fn active_field_names(schema: &RowSchema) -> HashSet<String> {
-    schema
-        .fields
-        .iter()
-        .filter(|field| !field.retired)
-        .map(|field| crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key())
-        .collect()
 }
 
 #[cfg(test)]

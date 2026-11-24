@@ -42,7 +42,22 @@ impl BoundReadView {
 }
 
 impl CassieSession {
+    /// Captures a catalog-only Bind view for portal retention tests.
+    ///
+    /// # Errors
+    /// Returns a query, transaction, or memory admission error.
+    #[cfg(feature = "transport-test-hooks")]
     #[doc(hidden)]
+    pub fn capture_catalog_bound_read_view_for_test(
+        &self,
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        retention: &QueryExecutionControls,
+    ) -> Result<Option<Arc<BoundReadView>>, CassieError> {
+        self.capture_bound_read_view(midge, database, false, controls, retention)
+    }
+
     pub(crate) fn capture_bound_read_view(
         &self,
         midge: &Arc<Midge>,

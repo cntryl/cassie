@@ -1,5 +1,6 @@
 use crate::ast::{CommentOnObjectKind, IdentifierComponent, QueryStatement};
-use crate::sql::{parse_statement, SqlErrorKind};
+use crate::sql::parse_statement;
+use crate::SqlErrorKind;
 
 #[test]
 fn should_preserve_quoted_identifier_components_given_column_comment() {

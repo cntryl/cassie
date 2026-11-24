@@ -42,7 +42,7 @@ fn should_bound_combined_depth_given_casts_below_signs_when_unary_syntax_is_pars
 #[test]
 fn should_preserve_prefix_identity_given_child_mapping_when_parameter_paths_are_rebuilt() {
     // Arrange
-    let original = Expr::UnaryNumeric {
+    let original: Expr<()> = Expr::UnaryNumeric {
         op: UnaryNumericOp::Minus,
         expr: Box::new(Expr::Param(0)),
     };
@@ -58,11 +58,11 @@ fn should_preserve_prefix_identity_given_child_mapping_when_parameter_paths_are_
 #[test]
 fn should_distinguish_prefix_identity_given_equal_operands_when_expression_shapes_are_compared() {
     // Arrange
-    let minus = Expr::UnaryNumeric {
+    let minus: Expr<()> = Expr::UnaryNumeric {
         op: UnaryNumericOp::Minus,
         expr: Box::new(Expr::Param(0)),
     };
-    let plus = Expr::UnaryNumeric {
+    let plus: Expr<()> = Expr::UnaryNumeric {
         op: UnaryNumericOp::Plus,
         expr: Box::new(Expr::Param(0)),
     };

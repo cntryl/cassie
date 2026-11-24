@@ -42,7 +42,7 @@ impl CopyBindingContext {
 }
 
 impl CopyCommandOwner {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn reservation_matches_for_test(&self, controls: &QueryExecutionControls) -> bool {
         let Self {
             _memory: memory, ..

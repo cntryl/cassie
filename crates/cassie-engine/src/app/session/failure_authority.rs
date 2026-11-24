@@ -82,7 +82,7 @@ impl FailureAuthority {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn shared_owner_reservation_matches_for_test(
         &self,
         controls: &crate::runtime::QueryExecutionControls,

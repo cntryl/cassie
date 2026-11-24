@@ -192,11 +192,19 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn bytes_for_test(&self) -> usize {
         self.bytes
     }
 
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    /// Reports whether this reservation belongs to the supplied query controls.
+    #[doc(hidden)]
+    pub fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        Arc::ptr_eq(&self.tracker, &controls.memory)
+    }
+
+    #[cfg(not(any(test, feature = "transport-test-hooks")))]
     pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         Arc::ptr_eq(&self.tracker, &controls.memory)
     }
@@ -227,7 +235,12 @@ impl QueryMemoryReservation {
     }
 
     /// Creates a separate narrow lease against the same query tracker.
-    pub(crate) fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
+    ///
+    /// # Errors
+    ///
+    /// Returns a resource-limit error when the shared query budget cannot satisfy the request.
+    #[doc(hidden)]
+    pub fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
         reserve_tracker_memory(&self.tracker, bytes)?;
         Ok(Self {
             tracker: Arc::clone(&self.tracker),
@@ -240,7 +253,12 @@ impl QueryMemoryReservation {
     }
 
     /// Transfers an already-live reservation without releasing or reserving its bytes again.
-    pub(crate) fn absorb(&mut self, mut other: Self) {
+    ///
+    /// # Panics
+    ///
+    /// Panics when the reservations belong to different query trackers.
+    #[doc(hidden)]
+    pub fn absorb(&mut self, mut other: Self) {
         assert!(Arc::ptr_eq(&self.tracker, &other.tracker));
         self.bytes = self
             .bytes
@@ -249,7 +267,8 @@ impl QueryMemoryReservation {
         other.bytes = 0;
     }
     #[must_use]
-    pub(crate) const fn bytes(&self) -> usize {
+    #[doc(hidden)]
+    pub const fn bytes(&self) -> usize {
         self.bytes
     }
 
@@ -261,7 +280,8 @@ impl QueryMemoryReservation {
     ///
     /// Panics if the shared tracker accepts growth that overflows this reservation. This indicates
     /// an internal accounting invariant violation.
-    pub(crate) fn try_grow(&mut self, additional_bytes: usize) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn try_grow(&mut self, additional_bytes: usize) -> Result<(), CassieError> {
         reserve_tracker_memory(&self.tracker, additional_bytes)?;
         self.bytes = self
             .bytes
@@ -273,7 +293,8 @@ impl QueryMemoryReservation {
     /// # Panics
     ///
     /// Panics when `retained_bytes` exceeds the current reservation.
-    pub(crate) fn shrink_to(&mut self, retained_bytes: usize) {
+    #[doc(hidden)]
+    pub fn shrink_to(&mut self, retained_bytes: usize) {
         assert!(
             retained_bytes <= self.bytes,
             "cannot grow a query memory reservation by shrinking it"
@@ -358,7 +379,13 @@ impl QueryExecutionControls {
         Ok(())
     }
 
-    pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {
+    /// Checks whether this query's cancellation or deadline has fired.
+    ///
+    /// # Errors
+    ///
+    /// Returns the cancellation or deadline error when execution should stop.
+    #[doc(hidden)]
+    pub fn check_interruption(&self) -> Result<(), CassieError> {
         if self.is_canceled() {
             return Err(CassieError::QueryCanceled);
         }

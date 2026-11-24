@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::{invalid, write_bytes, write_u16, write_u32, Reader};
 use super::chunk::MAX_SCALAR_BYTES;
@@ -8,7 +8,7 @@ use super::chunk::MAX_SCALAR_BYTES;
 const MAX_SYMBOLS: usize = 256;
 const ESCAPE: u16 = u16::MAX;
 
-pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieError> {
+pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, StorageCodecError> {
     let strings = values
         .iter()
         .map(|value| value.as_str().ok_or_else(|| invalid("FSST text expected")))
@@ -71,7 +71,10 @@ pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieErr
     Ok(out)
 }
 
-pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Value>, CassieError> {
+pub(super) fn decode(
+    payload: &[u8],
+    count: usize,
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     decode_with_selection(payload, count, None)
 }
 
@@ -79,7 +82,7 @@ pub(super) fn decode_selected(
     payload: &[u8],
     count: usize,
     selection: &[bool],
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     if selection.len() != count {
         return Err(invalid("FSST selection length mismatch"));
     }
@@ -90,7 +93,7 @@ fn decode_with_selection(
     payload: &[u8],
     count: usize,
     selection: Option<&[bool]>,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let symbols = decode_symbol_table(&mut reader)?;
     let value_count =
@@ -115,7 +118,7 @@ fn decode_with_selection(
     Ok(values)
 }
 
-fn decode_symbol_table<'a>(reader: &mut Reader<'a>) -> Result<Vec<&'a [u8]>, CassieError> {
+fn decode_symbol_table<'a>(reader: &mut Reader<'a>) -> Result<Vec<&'a [u8]>, StorageCodecError> {
     let symbol_count = usize::from(reader.read_u16()?);
     if symbol_count > MAX_SYMBOLS {
         return Err(invalid("invalid FSST symbol count"));
@@ -137,7 +140,7 @@ fn decode_value(
     encoded: &[u8],
     symbols: &[&[u8]],
     mut decoded: Option<&mut Vec<u8>>,
-) -> Result<(), CassieError> {
+) -> Result<(), StorageCodecError> {
     if let Some(decoded) = decoded.as_deref_mut() {
         decoded.clear();
     }
@@ -184,7 +187,7 @@ struct Utf8Validator {
 }
 
 impl Utf8Validator {
-    fn push(&mut self, bytes: &[u8]) -> Result<(), CassieError> {
+    fn push(&mut self, bytes: &[u8]) -> Result<(), StorageCodecError> {
         for byte in bytes {
             if self.remaining == 0 {
                 match *byte {
@@ -216,7 +219,7 @@ impl Utf8Validator {
         self.next_maximum = next_maximum;
     }
 
-    fn push_known_valid(&self) -> Result<(), CassieError> {
+    fn push_known_valid(&self) -> Result<(), StorageCodecError> {
         if self.remaining == 0 {
             Ok(())
         } else {
@@ -224,7 +227,7 @@ impl Utf8Validator {
         }
     }
 
-    fn finish(self) -> Result<(), CassieError> {
+    fn finish(self) -> Result<(), StorageCodecError> {
         if self.remaining == 0 {
             Ok(())
         } else {

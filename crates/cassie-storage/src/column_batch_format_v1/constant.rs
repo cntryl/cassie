@@ -1,10 +1,10 @@
 use super::{scalar_bytes, LogicalType};
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 pub(super) fn constant_eligible(
     logical_type: LogicalType,
     values: &[&serde_json::Value],
-) -> Result<bool, CassieError> {
+) -> Result<bool, StorageCodecError> {
     let Some(first) = values.first() else {
         return Ok(true);
     };

@@ -1,16 +1,16 @@
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::invalid;
 use super::chunk::{bit_is_set, parse_chunk, Codec, LogicalType};
 
-pub(crate) struct DecodedAlpChunk {
-    pub(crate) values: Vec<Option<i64>>,
-    pub(crate) scale: u8,
-    pub(crate) encoded_len: usize,
-    pub(crate) decoded_len: usize,
+pub struct DecodedAlpChunk {
+    pub values: Vec<Option<i64>>,
+    pub scale: u8,
+    pub encoded_len: usize,
+    pub decoded_len: usize,
 }
 
-pub(crate) fn decode_scaled(bytes: &[u8]) -> Result<DecodedAlpChunk, CassieError> {
+pub fn decode_scaled(bytes: &[u8]) -> Result<DecodedAlpChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     if parts.logical_type != LogicalType::Float64 || parts.codec != Codec::Alp {
         return Err(invalid("ALP float chunk required"));

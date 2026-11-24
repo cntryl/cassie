@@ -1,4 +1,4 @@
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::{invalid, Reader};
 use super::chunk::{
@@ -7,7 +7,7 @@ use super::chunk::{
     MAX_CHUNK_BYTES, MAX_DECODED_BYTES, MAX_SCALAR_BYTES,
 };
 
-pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, CassieError> {
+pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, StorageCodecError> {
     if bytes.len() > MAX_CHUNK_BYTES {
         return Err(invalid("column-batch chunk exceeds limit"));
     }
@@ -109,7 +109,7 @@ fn decode_selected_fsst_values(
     validity: &[u8],
     payload: &[u8],
     selection: &[bool],
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     if logical_type != LogicalType::Utf8 {
         return Err(invalid("FSST requires text"));
     }
@@ -128,7 +128,7 @@ fn restore_validity(
     value_count: usize,
     validity: &[u8],
     non_null: Vec<serde_json::Value>,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut values = Vec::with_capacity(value_count);
     let mut next = non_null.into_iter();
     for position in 0..value_count {
@@ -151,7 +151,7 @@ fn decode_dictionary_parts(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<(Vec<serde_json::Value>, Vec<u64>), CassieError> {
+) -> Result<(Vec<serde_json::Value>, Vec<u64>), StorageCodecError> {
     let mut reader = Reader::new(payload);
     let dictionary_count = checked_count(reader.read_u32()?)?;
     if dictionary_count > count && count != 0 {

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::{
     invalid, write_bytes, write_f64, write_i64, write_u16, write_u32, write_u64, Reader,
@@ -22,7 +22,7 @@ pub(super) const MAX_SCALAR_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(crate) enum LogicalType {
+pub enum LogicalType {
     Int64 = 1,
     Float64 = 2,
     Boolean = 3,
@@ -31,7 +31,7 @@ pub(crate) enum LogicalType {
 }
 
 impl LogicalType {
-    pub(crate) fn from_name(name: &str) -> Result<Self, CassieError> {
+    pub fn from_name(name: &str) -> Result<Self, StorageCodecError> {
         match name.to_ascii_lowercase().as_str() {
             "smallint" | "int" | "bigint" => Ok(Self::Int64),
             "float" => Ok(Self::Float64),
@@ -53,7 +53,7 @@ impl LogicalType {
         }
     }
 
-    pub(super) fn from_tag(tag: u8) -> Result<Self, CassieError> {
+    pub(super) fn from_tag(tag: u8) -> Result<Self, StorageCodecError> {
         match tag {
             1 => Ok(Self::Int64),
             2 => Ok(Self::Float64),
@@ -64,11 +64,11 @@ impl LogicalType {
         }
     }
 
-    pub(super) fn from_tag_for_manifest(tag: u8) -> Result<Self, CassieError> {
+    pub fn from_tag_for_manifest(tag: u8) -> Result<Self, StorageCodecError> {
         Self::from_tag(tag)
     }
 
-    pub(crate) const fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Int64 => "int64",
             Self::Float64 => "float64",
@@ -81,7 +81,7 @@ impl LogicalType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(crate) enum Codec {
+pub enum Codec {
     Plain = 0,
     Constant = 1,
     Rle = 2,
@@ -92,7 +92,7 @@ pub(crate) enum Codec {
 }
 
 impl Codec {
-    pub(super) fn from_tag(tag: u8) -> Result<Self, CassieError> {
+    pub(super) fn from_tag(tag: u8) -> Result<Self, StorageCodecError> {
         match tag {
             0 => Ok(Self::Plain),
             1 => Ok(Self::Constant),
@@ -105,11 +105,11 @@ impl Codec {
         }
     }
 
-    pub(super) fn from_tag_for_manifest(tag: u8) -> Result<Self, CassieError> {
+    pub fn from_tag_for_manifest(tag: u8) -> Result<Self, StorageCodecError> {
         Self::from_tag(tag)
     }
 
-    pub(crate) const fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Plain => "plain",
             Self::Constant => "constant",
@@ -123,22 +123,22 @@ impl Codec {
 }
 
 #[derive(Debug)]
-pub(crate) struct EncodedChunk {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) logical_type: LogicalType,
-    pub(crate) codec: Codec,
-    pub(crate) value_count: usize,
-    pub(crate) null_count: usize,
-    pub(crate) decoded_len: usize,
+pub struct EncodedChunk {
+    pub bytes: Vec<u8>,
+    pub logical_type: LogicalType,
+    pub codec: Codec,
+    pub value_count: usize,
+    pub null_count: usize,
+    pub decoded_len: usize,
 }
 
 #[derive(Debug)]
-pub(crate) struct DecodedChunk {
-    pub(crate) values: Vec<serde_json::Value>,
-    pub(crate) logical_type: LogicalType,
-    pub(crate) codec: Codec,
-    pub(crate) encoded_len: usize,
-    pub(crate) decoded_len: usize,
+pub struct DecodedChunk {
+    pub values: Vec<serde_json::Value>,
+    pub logical_type: LogicalType,
+    pub codec: Codec,
+    pub encoded_len: usize,
+    pub decoded_len: usize,
 }
 
 pub(super) struct ChunkParts<'a> {
@@ -151,21 +151,21 @@ pub(super) struct ChunkParts<'a> {
     pub(super) decoded_len: usize,
 }
 
-pub(crate) fn encode(
+pub fn encode(
     logical_type: LogicalType,
     values: &[serde_json::Value],
-) -> Result<EncodedChunk, CassieError> {
+) -> Result<EncodedChunk, StorageCodecError> {
     encode_with_policy(logical_type, values, None)
 }
 
-pub(crate) fn encode_for(values: &[serde_json::Value]) -> Result<EncodedChunk, CassieError> {
+pub fn encode_for(values: &[serde_json::Value]) -> Result<EncodedChunk, StorageCodecError> {
     encode_with_policy(LogicalType::Int64, values, Some(Codec::FrameOfReference))
 }
 
-pub(crate) fn encode_plain_for_test(
+pub fn encode_plain_for_test(
     logical_type: LogicalType,
     values: &[serde_json::Value],
-) -> Result<EncodedChunk, CassieError> {
+) -> Result<EncodedChunk, StorageCodecError> {
     encode_with_policy(logical_type, values, Some(Codec::Plain))
 }
 
@@ -173,7 +173,7 @@ fn encode_with_policy(
     logical_type: LogicalType,
     values: &[serde_json::Value],
     forced: Option<Codec>,
-) -> Result<EncodedChunk, CassieError> {
+) -> Result<EncodedChunk, StorageCodecError> {
     validate_count(values.len())?;
     let validity = validity_bitmap(values);
     let null_count = values.iter().filter(|value| value.is_null()).count();
@@ -277,7 +277,7 @@ fn encode_with_policy(
 fn codec_candidates(
     logical_type: LogicalType,
     non_null: &[&serde_json::Value],
-) -> Result<Vec<(Codec, Vec<u8>)>, CassieError> {
+) -> Result<Vec<(Codec, Vec<u8>)>, StorageCodecError> {
     let mut candidates = Vec::new();
     if constant_eligible(logical_type, non_null)? {
         candidates.push((Codec::Constant, encode_constant(logical_type, non_null)?));
@@ -327,7 +327,7 @@ fn encoded_chunk(
     }
 }
 
-pub(crate) fn decode(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
+pub fn decode(bytes: &[u8]) -> Result<DecodedChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     let non_null_count = parts.value_count - parts.null_count;
     let non_null = match parts.codec {
@@ -381,7 +381,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
     })
 }
 
-pub(super) fn parse_chunk(bytes: &[u8]) -> Result<ChunkParts<'_>, CassieError> {
+pub(super) fn parse_chunk(bytes: &[u8]) -> Result<ChunkParts<'_>, StorageCodecError> {
     if bytes.len() > MAX_CHUNK_BYTES {
         return Err(invalid("column-batch chunk exceeds limit"));
     }
@@ -436,7 +436,7 @@ fn build_chunk(
     validity: &[u8],
     payload: &[u8],
     decoded_len: usize,
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     let capacity = HEADER_LEN
         .checked_add(validity.len())
         .and_then(|length| length.checked_add(payload.len()))
@@ -481,7 +481,7 @@ fn build_chunk(
 fn encode_plain(
     logical_type: LogicalType,
     values: &[&serde_json::Value],
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     let mut out = Vec::new();
     match logical_type {
         LogicalType::Int64 => {
@@ -531,7 +531,7 @@ fn decode_plain(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let values = match logical_type {
         LogicalType::Int64 => (0..count)
@@ -570,7 +570,7 @@ fn decode_plain(
 fn encode_constant(
     logical_type: LogicalType,
     values: &[&serde_json::Value],
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     values
         .first()
         .map_or_else(|| Ok(Vec::new()), |value| scalar_bytes(logical_type, value))
@@ -580,7 +580,7 @@ fn decode_constant(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     if count == 0 {
         if payload.is_empty() {
             return Ok(Vec::new());
@@ -594,7 +594,7 @@ fn decode_constant(
 fn encode_rle(
     logical_type: LogicalType,
     values: &[&serde_json::Value],
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     let mut runs: Vec<(usize, Vec<u8>)> = Vec::new();
     for value in values {
         let scalar = scalar_bytes(logical_type, value)?;
@@ -627,7 +627,7 @@ fn decode_rle(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let run_count = checked_count(reader.read_u32()?)?;
     if run_count > count && count != 0 {
@@ -653,7 +653,7 @@ fn decode_rle(
 fn encode_dictionary(
     logical_type: LogicalType,
     values: &[&serde_json::Value],
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     let mut dictionary = BTreeMap::<Vec<u8>, u64>::new();
     for value in values {
         dictionary
@@ -690,7 +690,7 @@ fn decode_dictionary(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let dictionary_count = checked_count(reader.read_u32()?)?;
     if dictionary_count > count && count != 0 {
@@ -720,7 +720,7 @@ fn decode_dictionary(
         .collect()
 }
 
-fn encode_frame_of_reference(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieError> {
+fn encode_frame_of_reference(values: &[&serde_json::Value]) -> Result<Vec<u8>, StorageCodecError> {
     let integers = values
         .iter()
         .map(|value| {
@@ -760,7 +760,7 @@ fn encode_frame_of_reference(values: &[&serde_json::Value]) -> Result<Vec<u8>, C
 fn decode_frame_of_reference(
     payload: &[u8],
     count: usize,
-) -> Result<Vec<serde_json::Value>, CassieError> {
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let block_count = checked_count(reader.read_u32()?)?;
     if block_count != count.div_ceil(BLOCK_LEN) {
@@ -789,7 +789,7 @@ fn decode_frame_of_reference(
     Ok(values)
 }
 
-fn encode_for_blocks(values: &[u64], out: &mut Vec<u8>) -> Result<(), CassieError> {
+fn encode_for_blocks(values: &[u64], out: &mut Vec<u8>) -> Result<(), StorageCodecError> {
     write_u32(
         out,
         u32::try_from(values.len().div_ceil(BLOCK_LEN))
@@ -814,7 +814,7 @@ fn encode_for_blocks(values: &[u64], out: &mut Vec<u8>) -> Result<(), CassieErro
 pub(super) fn decode_for_blocks(
     reader: &mut Reader<'_>,
     count: usize,
-) -> Result<Vec<u64>, CassieError> {
+) -> Result<Vec<u64>, StorageCodecError> {
     let block_count = checked_count(reader.read_u32()?)?;
     if block_count != count.div_ceil(BLOCK_LEN) {
         return Err(invalid("invalid dictionary index block count"));
@@ -842,7 +842,7 @@ pub(super) fn decode_for_blocks(
 fn scalar_bytes(
     logical_type: LogicalType,
     value: &serde_json::Value,
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageCodecError> {
     let mut out = Vec::new();
     match logical_type {
         LogicalType::Int64 => write_i64(
@@ -882,7 +882,7 @@ fn scalar_bytes(
 pub(super) fn scalar_from_bytes(
     logical_type: LogicalType,
     bytes: &[u8],
-) -> Result<serde_json::Value, CassieError> {
+) -> Result<serde_json::Value, StorageCodecError> {
     if bytes.len() > MAX_SCALAR_BYTES {
         return Err(invalid("column-batch scalar exceeds limit"));
     }
@@ -918,7 +918,7 @@ pub(super) fn scalar_from_bytes(
 fn validate_scalar(
     logical_type: LogicalType,
     value: &serde_json::Value,
-) -> Result<(), CassieError> {
+) -> Result<(), StorageCodecError> {
     scalar_bytes(logical_type, value).map(|_| ())
 }
 
@@ -936,7 +936,7 @@ pub(super) fn validate_validity(
     validity: &[u8],
     value_count: usize,
     null_count: usize,
-) -> Result<(), CassieError> {
+) -> Result<(), StorageCodecError> {
     if !value_count.is_multiple_of(8) {
         let trailing_mask = !((1_u8 << (value_count % 8)) - 1);
         if validity
@@ -963,21 +963,21 @@ pub(super) fn bit_is_set(bitmap: &[u8], position: usize) -> bool {
         .is_some_and(|byte| byte & (1_u8 << (position % 8)) != 0)
 }
 
-fn validate_count(count: usize) -> Result<(), CassieError> {
+fn validate_count(count: usize) -> Result<(), StorageCodecError> {
     if count > MAX_VALUE_COUNT {
         return Err(invalid("column-batch value count exceeds limit"));
     }
     Ok(())
 }
 
-pub(super) fn checked_count(count: u32) -> Result<usize, CassieError> {
+pub(super) fn checked_count(count: u32) -> Result<usize, StorageCodecError> {
     let count =
         usize::try_from(count).map_err(|_| invalid("column-batch count conversion overflow"))?;
     validate_count(count)?;
     Ok(count)
 }
 
-pub(super) fn checked_length(length: u32, maximum: usize) -> Result<usize, CassieError> {
+pub(super) fn checked_length(length: u32, maximum: usize) -> Result<usize, StorageCodecError> {
     let length =
         usize::try_from(length).map_err(|_| invalid("column-batch length conversion overflow"))?;
     if length > maximum {
@@ -986,7 +986,7 @@ pub(super) fn checked_length(length: u32, maximum: usize) -> Result<usize, Cassi
     Ok(length)
 }
 
-pub(super) fn checked_u64_length(length: u64, maximum: usize) -> Result<usize, CassieError> {
+pub(super) fn checked_u64_length(length: u64, maximum: usize) -> Result<usize, StorageCodecError> {
     let length =
         usize::try_from(length).map_err(|_| invalid("column-batch length conversion overflow"))?;
     if length > maximum {

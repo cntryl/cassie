@@ -9,11 +9,11 @@ use crate::catalog::{
 };
 use crate::types::{Value, Vector};
 
-use super::binary::{
+use cassie_storage::column_batch_format_v1::binary::{
     invalid, write_bytes, write_f64, write_i128, write_i64, write_string, write_u16, write_u32,
     write_u64, Reader,
 };
-use super::chunk::{Codec, LogicalType};
+use cassie_storage::column_batch_format_v1::chunk::{Codec, LogicalType};
 
 const MAGIC: &[u8; 4] = b"CBM1";
 pub(crate) const FORMAT_VERSION: u16 = 1;

@@ -695,6 +695,14 @@ impl From<QueryError> for CassieError {
     }
 }
 
+impl From<cassie_storage::StorageCodecError> for CassieError {
+    fn from(error: cassie_storage::StorageCodecError) -> Self {
+        match error {
+            cassie_storage::StorageCodecError::InvalidEncoding(message) => Self::Parse(message),
+        }
+    }
+}
+
 impl From<crate::config::CassieRuntimeConfigError> for CassieError {
     fn from(value: crate::config::CassieRuntimeConfigError) -> Self {
         CassieError::Configuration(value.to_string())

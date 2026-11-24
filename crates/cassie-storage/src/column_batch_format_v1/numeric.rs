@@ -4,28 +4,28 @@ use super::chunk::{
     bit_is_set, checked_count, decode_for_blocks, parse_chunk, Codec, LogicalType, BLOCK_LEN,
     MAX_CHUNK_BYTES, MAX_SCALAR_BYTES,
 };
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 #[derive(Debug)]
-pub(crate) enum NumericValues {
+pub enum NumericValues {
     Integer(Vec<Option<i64>>),
     Float(Vec<Option<f64>>),
 }
 impl NumericValues {
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
             Self::Integer(values) => values.len(),
             Self::Float(values) => values.len(),
         }
     }
 }
-pub(crate) struct DecodedNumericChunk {
-    pub(crate) values: NumericValues,
-    pub(crate) logical_type: LogicalType,
-    pub(crate) codec: Codec,
-    pub(crate) encoded_len: usize,
-    pub(crate) decoded_len: usize,
-    pub(crate) null_count: usize,
+pub struct DecodedNumericChunk {
+    pub values: NumericValues,
+    pub logical_type: LogicalType,
+    pub codec: Codec,
+    pub encoded_len: usize,
+    pub decoded_len: usize,
+    pub null_count: usize,
 }
 #[derive(Clone, Copy)]
 enum Scalar {
@@ -33,10 +33,10 @@ enum Scalar {
     Float(f64),
 }
 
-pub(crate) fn decode(
+pub fn decode(
     bytes: &[u8],
     expected_rows: usize,
-) -> Result<DecodedNumericChunk, CassieError> {
+) -> Result<DecodedNumericChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     if parts.value_count != expected_rows {
         return Err(invalid("numeric column-batch domain mismatch"));
@@ -120,7 +120,10 @@ pub(crate) fn decode(
         null_count: parts.null_count,
     })
 }
-fn read_scalar(logical_type: LogicalType, reader: &mut Reader<'_>) -> Result<Scalar, CassieError> {
+fn read_scalar(
+    logical_type: LogicalType,
+    reader: &mut Reader<'_>,
+) -> Result<Scalar, StorageCodecError> {
     match logical_type {
         LogicalType::Int64 => reader.read_i64().map(Scalar::Integer),
         LogicalType::Float64 => {
@@ -133,7 +136,7 @@ fn read_scalar(logical_type: LogicalType, reader: &mut Reader<'_>) -> Result<Sca
         _ => Err(invalid("numeric scalar required")),
     }
 }
-fn scalar(logical_type: LogicalType, payload: &[u8]) -> Result<Scalar, CassieError> {
+fn scalar(logical_type: LogicalType, payload: &[u8]) -> Result<Scalar, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let value = read_scalar(logical_type, &mut reader)?;
     reader.finish()?;
@@ -143,7 +146,7 @@ fn plain(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<Scalar>, CassieError> {
+) -> Result<Vec<Scalar>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let mut values = Vec::with_capacity(count);
     for _ in 0..count {
@@ -156,7 +159,7 @@ fn rle(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<Scalar>, CassieError> {
+) -> Result<Vec<Scalar>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let runs = checked_count(reader.read_u32()?)?;
     if runs > count {
@@ -181,7 +184,7 @@ fn dictionary(
     logical_type: LogicalType,
     payload: &[u8],
     count: usize,
-) -> Result<Vec<Scalar>, CassieError> {
+) -> Result<Vec<Scalar>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let entries = checked_count(reader.read_u32()?)?;
     if entries > count {
@@ -213,7 +216,7 @@ fn dictionary(
     }
     Ok(values)
 }
-fn frame_of_reference(payload: &[u8], count: usize) -> Result<Vec<Scalar>, CassieError> {
+fn frame_of_reference(payload: &[u8], count: usize) -> Result<Vec<Scalar>, StorageCodecError> {
     let mut reader = Reader::new(payload);
     let blocks = checked_count(reader.read_u32()?)?;
     if blocks != count.div_ceil(BLOCK_LEN) {

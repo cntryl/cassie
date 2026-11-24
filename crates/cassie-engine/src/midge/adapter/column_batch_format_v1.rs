@@ -1,55 +1,65 @@
-mod alp;
-mod alp_chunk;
-mod binary;
-mod bitpack;
-mod boolean;
-mod chunk;
-mod fsst;
+//! Engine compatibility facade for storage-owned column codecs.
+
 mod manifest;
-mod numeric;
-mod row_ids;
-mod selected;
 
 use crate::app::CassieError;
 
-pub(crate) use alp_chunk::decode_scaled as decode_alp_scaled;
-pub(crate) use boolean::decode as decode_boolean_column_chunk;
-pub(crate) use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
-pub(crate) use numeric::{decode as decode_numeric_column_chunk, NumericValues};
+pub(crate) use cassie_storage::column_batch_format_v1::{
+    Codec, DecodedChunk, DecodedNumericChunk, EncodedChunk, LogicalType, NumericValues,
+};
 
-pub(crate) use alp::{scale_value_at as scale_alp_value, scaled_to_f64 as alp_scaled_to_f64};
+pub(crate) use cassie_storage::column_batch_format_v1::DecodedBooleanChunk;
 
 pub(crate) fn encode_column_chunk(
     logical_type: LogicalType,
     values: &[serde_json::Value],
 ) -> Result<EncodedChunk, CassieError> {
-    chunk::encode(logical_type, values)
+    cassie_storage::column_batch_format_v1::encode_column_chunk(logical_type, values)
+        .map_err(CassieError::from)
 }
 
 pub(crate) fn encode_plain_column_chunk(
     logical_type: LogicalType,
     values: &[serde_json::Value],
 ) -> Result<EncodedChunk, CassieError> {
-    chunk::encode_plain_for_test(logical_type, values)
+    cassie_storage::column_batch_format_v1::encode_plain_column_chunk(logical_type, values)
+        .map_err(CassieError::from)
 }
 
 pub(crate) fn decode_column_chunk(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
-    chunk::decode(bytes)
+    cassie_storage::column_batch_format_v1::decode_column_chunk(bytes).map_err(CassieError::from)
 }
 
 pub(crate) fn decode_selected_column_chunk(
     bytes: &[u8],
     selection: &[bool],
 ) -> Result<DecodedChunk, CassieError> {
-    selected::decode(bytes, selection)
+    cassie_storage::column_batch_format_v1::decode_selected_column_chunk(bytes, selection)
+        .map_err(CassieError::from)
 }
 
 pub(crate) fn encode_row_ids(row_ids: &[String]) -> Result<Vec<u8>, CassieError> {
-    row_ids::encode(row_ids)
+    cassie_storage::column_batch_format_v1::encode_row_ids(row_ids).map_err(CassieError::from)
 }
 
 pub(crate) fn decode_row_ids(bytes: &[u8]) -> Result<Vec<String>, CassieError> {
-    row_ids::decode(bytes)
+    cassie_storage::column_batch_format_v1::decode_row_ids(bytes).map_err(CassieError::from)
+}
+
+pub(crate) fn decode_numeric_column_chunk(
+    bytes: &[u8],
+    expected_rows: usize,
+) -> Result<DecodedNumericChunk, CassieError> {
+    cassie_storage::column_batch_format_v1::decode_numeric_column_chunk(bytes, expected_rows)
+        .map_err(CassieError::from)
+}
+
+pub(crate) fn decode_boolean_column_chunk(
+    bytes: &[u8],
+    expected_rows: usize,
+) -> Result<DecodedBooleanChunk, CassieError> {
+    cassie_storage::column_batch_format_v1::decode_boolean_column_chunk(bytes, expected_rows)
+        .map_err(CassieError::from)
 }
 
 pub(crate) use manifest::{
@@ -64,14 +74,16 @@ pub fn encode_column_chunk_for_test(
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
     let logical_type = LogicalType::from_name(logical_type)?;
-    chunk::encode(logical_type, values).map(|encoded| encoded.bytes)
+    encode_column_chunk(logical_type, values).map(|encoded| encoded.bytes)
 }
 
 #[doc(hidden)]
 pub fn encode_for_column_chunk_for_test(
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
-    chunk::encode_for(values).map(|encoded| encoded.bytes)
+    cassie_storage::column_batch_format_v1::encode_for_column_chunk(values)
+        .map(|encoded| encoded.bytes)
+        .map_err(CassieError::from)
 }
 
 #[doc(hidden)]
@@ -80,12 +92,12 @@ pub fn encode_plain_column_chunk_for_test(
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
     let logical_type = LogicalType::from_name(logical_type)?;
-    chunk::encode_plain_for_test(logical_type, values).map(|encoded| encoded.bytes)
+    encode_plain_column_chunk(logical_type, values).map(|encoded| encoded.bytes)
 }
 
 #[doc(hidden)]
 pub fn decode_column_chunk_for_test(bytes: &[u8]) -> Result<Vec<serde_json::Value>, CassieError> {
-    chunk::decode(bytes).map(|decoded| decoded.values)
+    decode_column_chunk(bytes).map(|decoded| decoded.values)
 }
 
 #[doc(hidden)]
@@ -93,22 +105,22 @@ pub fn decode_selected_column_chunk_for_test(
     bytes: &[u8],
     selection: &[bool],
 ) -> Result<Vec<serde_json::Value>, CassieError> {
-    selected::decode(bytes, selection).map(|decoded| decoded.values)
+    decode_selected_column_chunk(bytes, selection).map(|decoded| decoded.values)
 }
 
 #[doc(hidden)]
 pub fn column_chunk_codec_for_test(bytes: &[u8]) -> Result<&'static str, CassieError> {
-    chunk::decode(bytes).map(|decoded| decoded.codec.name())
+    decode_column_chunk(bytes).map(|decoded| decoded.codec.name())
 }
 
 #[doc(hidden)]
 pub fn encode_row_id_chunk_for_test(row_ids: &[String]) -> Result<Vec<u8>, CassieError> {
-    row_ids::encode(row_ids)
+    encode_row_ids(row_ids)
 }
 
 #[doc(hidden)]
 pub fn decode_row_id_chunk_for_test(bytes: &[u8]) -> Result<Vec<String>, CassieError> {
-    row_ids::decode(bytes)
+    decode_row_ids(bytes)
 }
 
 #[doc(hidden)]
@@ -130,3 +142,21 @@ mod numeric_tests;
 
 #[cfg(test)]
 pub(crate) mod boolean_tests;
+
+#[cfg(test)]
+mod storage_error_tests {
+    use super::decode_column_chunk;
+
+    #[test]
+    fn should_keep_malformed_chunk_sqlstate_after_storage_conversion() {
+        // Arrange
+        let malformed = b"bad";
+
+        // Act
+        let error = decode_column_chunk(malformed).expect_err("malformed bytes");
+
+        // Assert
+        assert_eq!(error.sql_state(), "42601");
+        assert_eq!(error.to_string(), "truncated column-batch record");
+    }
+}

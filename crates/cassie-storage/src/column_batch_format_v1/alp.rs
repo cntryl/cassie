@@ -1,5 +1,5 @@
-use crate::app::CassieError;
-use crate::types::numeric::i64_to_f64;
+use crate::StorageCodecError;
+use cassie_core::types::numeric::i64_to_f64;
 
 use super::binary::{invalid, write_i64, write_u32, Reader};
 use super::bitpack;
@@ -7,7 +7,7 @@ use super::chunk::{checked_count, BLOCK_LEN};
 
 const MAX_SCALE: u8 = 18;
 
-pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieError> {
+pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, StorageCodecError> {
     let mut selected = None;
     for scale in 0..=MAX_SCALE {
         let Some(scaled) = values
@@ -30,7 +30,10 @@ pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieErr
         .ok_or_else(|| invalid("ALP requires finite exactly representable values"))
 }
 
-pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Value>, CassieError> {
+pub(super) fn decode(
+    payload: &[u8],
+    count: usize,
+) -> Result<Vec<serde_json::Value>, StorageCodecError> {
     decode_f64(payload, count)?
         .into_iter()
         .map(|value| {
@@ -41,7 +44,7 @@ pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Val
         .collect()
 }
 
-pub(super) fn decode_f64(payload: &[u8], count: usize) -> Result<Vec<f64>, CassieError> {
+pub(super) fn decode_f64(payload: &[u8], count: usize) -> Result<Vec<f64>, StorageCodecError> {
     let (scale, scaled) = decode_scaled(payload, count)?;
     Ok(scaled
         .into_iter()
@@ -49,7 +52,10 @@ pub(super) fn decode_f64(payload: &[u8], count: usize) -> Result<Vec<f64>, Cassi
         .collect())
 }
 
-pub(super) fn decode_scaled(payload: &[u8], count: usize) -> Result<(u8, Vec<i64>), CassieError> {
+pub(super) fn decode_scaled(
+    payload: &[u8],
+    count: usize,
+) -> Result<(u8, Vec<i64>), StorageCodecError> {
     let mut reader = Reader::new(payload);
     let scale = reader.read_u8()?;
     if scale > MAX_SCALE || reader.read_u8()? != 0 {
@@ -103,7 +109,7 @@ fn scale_value(value: &serde_json::Value, scale: u8) -> Option<i64> {
     (reconstructed.to_bits() == value.to_bits()).then_some(scaled)
 }
 
-fn encode_scaled(values: &[i64], scale: u8) -> Result<Vec<u8>, CassieError> {
+fn encode_scaled(values: &[i64], scale: u8) -> Result<Vec<u8>, StorageCodecError> {
     let mut out = Vec::new();
     out.push(scale);
     out.push(0);
@@ -143,14 +149,14 @@ fn scale_factor(scale: u8) -> f64 {
     10_f64.powi(i32::from(scale))
 }
 
-pub(crate) fn scale_value_at(value: &serde_json::Value, scale: u8) -> Option<i64> {
+pub fn scale_value_at(value: &serde_json::Value, scale: u8) -> Option<i64> {
     if scale > MAX_SCALE {
         return None;
     }
     scale_value(value, scale)
 }
 
-pub(crate) fn scaled_to_f64(value: i64, scale: u8) -> f64 {
+pub fn scaled_to_f64(value: i64, scale: u8) -> f64 {
     i64_to_f64(value) / scale_factor(scale)
 }
 

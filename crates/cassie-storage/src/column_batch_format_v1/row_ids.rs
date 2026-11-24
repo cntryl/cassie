@@ -1,4 +1,4 @@
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::{invalid, write_bytes, write_u16, write_u32, write_u64, Reader};
 
@@ -8,7 +8,7 @@ const MAX_ROW_IDS: usize = 1_048_576;
 const MAX_ROW_ID_BYTES: usize = 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 64 * 1024 * 1024;
 
-pub(crate) fn encode(row_ids: &[String]) -> Result<Vec<u8>, CassieError> {
+pub fn encode(row_ids: &[String]) -> Result<Vec<u8>, StorageCodecError> {
     if row_ids.len() > MAX_ROW_IDS {
         return Err(invalid("column-batch row-ID count exceeds limit"));
     }
@@ -51,7 +51,7 @@ pub(crate) fn encode(row_ids: &[String]) -> Result<Vec<u8>, CassieError> {
     Ok(out)
 }
 
-pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<String>, CassieError> {
+pub fn decode(bytes: &[u8]) -> Result<Vec<String>, StorageCodecError> {
     if bytes.len() > MAX_CHUNK_BYTES {
         return Err(invalid("column-batch row-ID chunk exceeds limit"));
     }

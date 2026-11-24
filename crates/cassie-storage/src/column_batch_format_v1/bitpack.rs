@@ -1,4 +1,4 @@
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
 use super::binary::invalid;
 
@@ -6,7 +6,7 @@ pub(super) fn required_bits(maximum: u64) -> u8 {
     u8::try_from(maximum.bit_width()).expect("u64 bit width fits in u8")
 }
 
-pub(super) fn packed_len(count: usize, width: u8) -> Result<usize, CassieError> {
+pub(super) fn packed_len(count: usize, width: u8) -> Result<usize, StorageCodecError> {
     if width > 64 {
         return Err(invalid("invalid column-batch bit width"));
     }
@@ -17,7 +17,7 @@ pub(super) fn packed_len(count: usize, width: u8) -> Result<usize, CassieError> 
         .ok_or_else(|| invalid("column-batch bit-packed length overflow"))
 }
 
-pub(super) fn pack(values: &[u64], width: u8) -> Result<Vec<u8>, CassieError> {
+pub(super) fn pack(values: &[u64], width: u8) -> Result<Vec<u8>, StorageCodecError> {
     let mut out = vec![0_u8; packed_len(values.len(), width)?];
     if width == 0 {
         if values.iter().any(|value| *value != 0) {
@@ -50,7 +50,7 @@ pub(super) fn pack(values: &[u64], width: u8) -> Result<Vec<u8>, CassieError> {
     Ok(out)
 }
 
-pub(super) fn unpack(bytes: &[u8], count: usize, width: u8) -> Result<Vec<u64>, CassieError> {
+pub(super) fn unpack(bytes: &[u8], count: usize, width: u8) -> Result<Vec<u64>, StorageCodecError> {
     let mut values = Vec::with_capacity(count);
     unpack_each(bytes, count, width, |value| {
         values.push(value);
@@ -63,8 +63,8 @@ pub(super) fn unpack_each(
     bytes: &[u8],
     count: usize,
     width: u8,
-    mut consume: impl FnMut(u64) -> Result<(), CassieError>,
-) -> Result<(), CassieError> {
+    mut consume: impl FnMut(u64) -> Result<(), StorageCodecError>,
+) -> Result<(), StorageCodecError> {
     if bytes.len() != packed_len(count, width)? {
         return Err(invalid("invalid column-batch bit-packed length"));
     }

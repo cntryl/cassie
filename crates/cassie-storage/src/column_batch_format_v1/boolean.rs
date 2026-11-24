@@ -1,21 +1,21 @@
 //! Primitive Plain CBC1 Boolean decode; no JSON or SQL Value lane objects.
 use super::binary::invalid;
 use super::chunk::{bit_is_set, parse_chunk, Codec, LogicalType};
-use crate::app::CassieError;
+use crate::StorageCodecError;
 
-pub(crate) struct DecodedBooleanChunk {
-    pub(crate) values: Vec<Option<bool>>,
-    pub(crate) logical_type: LogicalType,
-    pub(crate) codec: Codec,
-    pub(crate) encoded_len: usize,
-    pub(crate) decoded_len: usize,
-    pub(crate) null_count: usize,
+pub struct DecodedBooleanChunk {
+    pub values: Vec<Option<bool>>,
+    pub logical_type: LogicalType,
+    pub codec: Codec,
+    pub encoded_len: usize,
+    pub decoded_len: usize,
+    pub null_count: usize,
 }
 
-pub(crate) fn decode(
+pub fn decode(
     bytes: &[u8],
     expected_rows: usize,
-) -> Result<DecodedBooleanChunk, CassieError> {
+) -> Result<DecodedBooleanChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     if parts.value_count != expected_rows {
         return Err(invalid("Boolean column-batch domain mismatch"));

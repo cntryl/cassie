@@ -139,7 +139,7 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
     };
     let index_hits = cassie
         .midge
-        .scan_scalar_index_controlled(&index, &index_request, &controls)
+        .scan_scalar_index_controlled(&index, &index_request, &controls.storage_request())
         .unwrap();
     let indexed_after_retry = execute(
         &cassie,

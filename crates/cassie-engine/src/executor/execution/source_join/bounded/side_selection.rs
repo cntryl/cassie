@@ -216,7 +216,7 @@ fn count_rows_until(
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
         collection,
         crate::midge::adapter::RowDecode::Projected(Vec::new()),
-        env.controls,
+        &env.controls.storage_request(),
         |_document| {
             check_timeout(env.controls)?;
             rows += 1;
@@ -340,7 +340,7 @@ pub(super) fn sample_join_keys_with_context(
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
         collection,
         crate::midge::adapter::RowDecode::Full,
-        env.controls,
+        &env.controls.storage_request(),
         |document| {
             check_timeout(env.controls)?;
             let row = project_source_row(

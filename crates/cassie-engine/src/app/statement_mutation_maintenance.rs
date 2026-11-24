@@ -60,7 +60,7 @@ impl Cassie {
         // can be building from this source while this committed write marks it
         // stale, and waiting would make the source write part of that refresh.
         self.midge
-            .with_transaction_write_gates(&names, false, controls, || {
+            .with_transaction_write_gates(&names, false, &controls.storage_request(), || {
                 if self.midge.current_row_schema_identity(collection)?
                     != Some(committed.relation_id)
                 {

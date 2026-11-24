@@ -70,7 +70,7 @@ pub(super) fn probe_scalar_equality(
                     equality_prefix: vec![value],
                     ..crate::midge::adapter::ScalarIndexScanRequest::default()
                 },
-                controls,
+                &controls.storage_request(),
             )
             .map_err(QueryError::from)?;
         let (hits, hit_memory) = hits.into_parts();
@@ -82,7 +82,7 @@ pub(super) fn probe_scalar_equality(
         });
         let id_memory = controls.reserve_query_memory(retained_bytes)?;
         ids.extend(hits.into_iter().map(|hit| hit.id));
-        memory.push(hit_memory);
+        memory.push(crate::runtime::QueryMemoryReservation::from_core(hit_memory));
         memory.push(id_memory);
     }
     Ok(Some(ControlledScalarCandidates { ids, memory }))

@@ -250,7 +250,7 @@ impl Cassie {
         let mut commit_seal = session.seal_transaction_for_operation()?;
         let (storage_overlay, _sequence_buffers, _sequence_directory) = session
             .transaction_storage_overlay_snapshot()
-            .with_sequence_cursors(controls)?;
+            .with_sequence_cursors(&controls.storage_request())?;
         let catalog_overlay = session.transaction_catalog_overlay().filter(|catalog| {
             // A detached but untouched catalog is read authority, not a write.
             // Publishing it would overwrite unrelated newer metadata and make
@@ -263,7 +263,7 @@ impl Cassie {
             .map_or_default(|catalog| self.role_grant_targets_removed_by_transaction(catalog));
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
-            let staged = storage_overlay.staged_sequence_object_ids(controls)?;
+            let staged = storage_overlay.staged_sequence_object_ids(&controls.storage_request())?;
             catalog.refresh_published_sequence_cursors(&self.publication_catalog, &staged);
         }
         let database = session
@@ -286,7 +286,7 @@ impl Cassie {
         #[cfg(test)]
         output_admission_tests::cancel_before_index_guard_if_armed();
         let index_guard =
-            crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, controls)
+            crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, &controls.storage_request())
                 .inspect_err(|_| session.mark_transaction_failed())?;
         let (row_collections, referential) = self.transaction_commit_write_gates(session)?;
         let gate_names = if index_guard.is_empty() {
@@ -294,7 +294,7 @@ impl Cassie {
         } else {
             Some(
                 index_guard
-                    .gate_names(&row_collections, controls)
+                    .gate_names(&row_collections, &controls.storage_request())
                     .inspect_err(|_| session.mark_transaction_failed())?,
             )
         };
@@ -314,7 +314,7 @@ impl Cassie {
         };
         let committed = if repeatable_write {
             self.midge
-                .with_transaction_write_gates(collections, referential, controls, || {
+                .with_transaction_write_gates(collections, referential, &controls.storage_request(), || {
                     if referential {
                         self.validate_staged_foreign_keys(session)?;
                         self.validate_staged_parent_references(session)?;

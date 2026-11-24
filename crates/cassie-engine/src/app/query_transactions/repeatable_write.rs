@@ -86,7 +86,7 @@ impl Cassie {
         };
         if repeatable_write {
             self.midge
-                .with_database_publication(database, controls, operation)
+                .with_database_publication(database, &controls.storage_request(), operation)
         } else {
             operation()
         }

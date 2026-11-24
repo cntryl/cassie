@@ -235,7 +235,7 @@ impl Cassie {
         let started_at = Instant::now();
         let mut top = AccountedCandidates::new(request.controls)?;
         let mut candidates = 0usize;
-        while let Some(document) = cursor.next_accounted_document(&self.midge, request.controls)? {
+        while let Some(document) = cursor.next_accounted_document(&self.midge, &request.controls.storage_request())? {
             check_controls(request.controls)?;
             let Some(value) = document.document().payload.get(request.vector_field) else {
                 continue;

@@ -110,7 +110,7 @@ impl SessionRowCursor {
         while output.len() < limit {
             check_controls(controls)?;
             if self.persisted_pending.is_none() {
-                self.persisted_pending = self.persisted.next_accounted_document(midge, controls)?;
+                self.persisted_pending = self.persisted.next_accounted_document(midge, &controls.storage_request())?;
             }
             let persisted_id = self.persisted_pending.as_ref().map(AccountedDocument::id);
             let staged_id = self.staged_ids.as_slice().get(self.staged_index);
@@ -179,7 +179,7 @@ impl SessionRowCursor {
             return Ok(None);
         };
         let retained_bytes = staged_document_retained_bytes(id, payload, &self.projection)?;
-        AccountedDocument::try_build(controls, retained_bytes, || {
+        AccountedDocument::try_build(&controls.storage_request(), retained_bytes, || {
             let payload = match &self.projection {
                 StagedProjection::Full => payload.clone(),
                 StagedProjection::Fields(fields) => project_payload_fields(payload, fields),
@@ -190,6 +190,7 @@ impl SessionRowCursor {
             })
         })
         .map(Some)
+        .map_err(CassieError::from)
     }
 }
 
@@ -346,7 +347,7 @@ mod tests {
                 .expect("staged document retained estimate");
 
             // Act
-            let result = AccountedDocument::try_build(&controls, retained_bytes, || {
+            let result = AccountedDocument::try_build(&controls.storage_request(), retained_bytes, || {
                 clone_calls.set(clone_calls.get() + 1);
                 let payload = match projection {
                     StagedProjection::Full => payload.clone(),
@@ -358,7 +359,8 @@ mod tests {
                     id: "one".to_owned(),
                     payload,
                 })
-            });
+            })
+            .map_err(CassieError::from);
 
             // Assert
             assert!(matches!(result, Err(CassieError::ResourceLimit(_))));

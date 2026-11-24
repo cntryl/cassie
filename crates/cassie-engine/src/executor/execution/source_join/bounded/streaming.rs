@@ -108,7 +108,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
             spec.left_collection,
             crate::midge::adapter::RowDecode::Full,
             spec.traversal,
-            env.controls,
+            &env.controls.storage_request(),
             |left_document| {
                 let left_row = project_source_row(
                     env,
@@ -132,7 +132,7 @@ pub(super) fn execute_dense_streaming_bounded_inner_join(
                         spec.right_collection,
                         crate::midge::adapter::RowDecode::Full,
                         spec.traversal,
-                        env.controls,
+                        &env.controls.storage_request(),
                         |right_document| {
                             let right_row = project_source_row(
                                 env,
@@ -339,7 +339,7 @@ fn stream_rows(
             collection,
             crate::midge::adapter::RowDecode::Full,
             spec.traversal,
-            env.controls,
+            &env.controls.storage_request(),
             |document| {
                 let row = project_source_row(
                     env,

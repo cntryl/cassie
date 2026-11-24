@@ -259,7 +259,7 @@ impl Cassie {
         let collections = self.referential_write_collections(&statement.table);
         let (affected, report, skipped) =
             self.midge
-                .with_transaction_write_gates(&collections, true, &controls, || {
+                .with_transaction_write_gates(&collections, true, &controls.storage_request(), || {
                     self.stage_and_apply_copy_rows(
                         rows,
                         &CopyRowsContext {

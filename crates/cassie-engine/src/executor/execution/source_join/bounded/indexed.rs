@@ -48,7 +48,7 @@ pub(super) fn execute_indexed_bounded_inner_join(
             stream_collection,
             crate::midge::adapter::RowDecode::Full,
             spec.traversal,
-            env.controls,
+            &env.controls.storage_request(),
             |document| {
                 let stream_row = project_source_row(
                     env,
@@ -246,10 +246,10 @@ fn scan_indexed_join_ids(
                 limit: Some(limit),
                 ..Default::default()
             },
-            env.controls,
+            &env.controls.storage_request(),
         )?;
         let (hits, memory) = hits.into_parts();
-        hit_memory.try_push_with(0, || memory)?;
+        hit_memory.try_push_with(0, || QueryMemoryReservation::from_core(memory))?;
         for hit in hits {
             // Preserve first-hit ordering and signed-zero duplicate suppression. The finite
             // bounded output limit makes this borrowed check avoid a second owning ID set.

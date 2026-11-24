@@ -37,7 +37,7 @@ enum Attempt {
 enum SelectedGroupScan {
     Documents(
         Vec<DocumentRef>,
-        Vec<crate::runtime::QueryMemoryReservation>,
+        Vec<cassie_core::request::RequestMemoryReservation>,
     ),
     Fallback(&'static str),
 }
@@ -545,9 +545,9 @@ fn scan_selected_group(
             Some(&group.partition),
             Some(group.bucket_seconds),
             Some(upper),
-            controls,
+            &controls.storage_request(),
         )
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
     {
         ControlledTimeSeriesIndexScanOutcome::Native(report) => (report.hits, report.memory),
         ControlledTimeSeriesIndexScanOutcome::Fallback(reason) => {
@@ -570,8 +570,8 @@ fn scan_selected_group(
     let fields = fields.into_iter().collect::<Vec<_>>();
     match cassie
         .midge
-        .scan_time_series_hit_documents_controlled(index, &hits, &fields, controls)
-        .map_err(QueryError::Cassie)?
+        .scan_time_series_hit_documents_controlled(index, &hits, &fields, &controls.storage_request())
+        .map_err(QueryError::from)?
     {
         ControlledTimeSeriesDocumentScanOutcome::Native(report) => {
             let mut memory = scan_memory;

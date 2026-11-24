@@ -55,10 +55,10 @@ pub(super) fn execute_ivfflat_vector_top_k(
         stored_vector_field,
         &training,
         &probed_lists,
-        controls,
+        &controls.storage_request(),
     ) {
         Ok(batch) => batch,
-        Err(error) => return handle_ivfflat_storage_error(cassie, error),
+        Err(error) => return handle_ivfflat_storage_error(cassie, error.into()),
     };
     let (built_generation, records, membership_reads, vector_reads, candidate_memory) =
         batch.into_parts();
@@ -178,13 +178,13 @@ fn ivfflat_training(
     let training = match cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
         stored_vector_field,
-        controls,
+        &controls.storage_request(),
     ) {
         Ok(training) => training,
         Err(error) => {
             // A stale or inconsistent manifest is a diagnosed fallback, never a
             // query failure: the exact path answers instead.
-            handle_ivfflat_storage_error(cassie, error)?;
+            handle_ivfflat_storage_error(cassie, error.into())?;
             return Ok(None);
         }
     };

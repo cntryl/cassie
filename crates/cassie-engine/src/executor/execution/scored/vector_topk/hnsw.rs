@@ -63,14 +63,14 @@ pub(super) fn execute_hnsw_vector_top_k(
         &spec.query,
         &index.metadata,
         candidate_limit,
-        controls,
+        &controls.storage_request(),
     ) {
         Ok(Some(batch)) => batch,
         Ok(None) => {
             cassie.runtime.record_hnsw_fallback("missing-graph");
             return Ok(None);
         }
-        Err(error) => return handle_hnsw_storage_error(cassie, error),
+        Err(error) => return handle_hnsw_storage_error(cassie, error.into()),
     };
     let source_row_count = batch.source_row_count;
     let (built_generation, candidates, candidate_count, ann_reads, candidate_memory) =

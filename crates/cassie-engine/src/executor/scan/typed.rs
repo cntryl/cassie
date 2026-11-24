@@ -121,7 +121,7 @@ impl<'a> TypedScanStream<'a> {
         {
             match cassie
                 .midge
-                .controlled_encoded_source(collection, fields, controls)
+                .controlled_encoded_source(collection, fields, &controls.storage_request())
             {
                 Ok(crate::midge::adapter::EncodedSourceDecision::Hit(source)) => {
                     cassie.runtime.record_column_batch_scan(&source.metrics);

@@ -34,7 +34,7 @@ fn fixture(controls: &QueryExecutionControls) -> (Cassie, EncodedSource) {
         .expect("index");
     let decision = cassie
         .midge
-        .controlled_encoded_source("boolean_owner", &["b".into()], controls)
+        .controlled_encoded_source("boolean_owner", &["b".into()], &controls.storage_request())
         .expect("source");
     let EncodedSourceDecision::Hit(source) = decision else {
         panic!("encoded source")

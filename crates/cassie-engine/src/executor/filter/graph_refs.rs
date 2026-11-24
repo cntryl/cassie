@@ -262,7 +262,7 @@ fn find_element(
             ..crate::midge::adapter::ScalarIndexScanRequest::default()
         };
         let (hits, _hits_memory) = midge
-            .scan_scalar_index_controlled(&index, &request, controls)?
+            .scan_scalar_index_controlled(&index, &request, &controls.storage_request())?
             .into_parts();
         midge.record_graph_reference_reads(hits.len() as u64);
         for hit in hits {
@@ -329,7 +329,7 @@ fn scan_for_element(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<Option<serde_json::Value>, QueryError> {
     let mut found = None;
-    midge.scan_rows_until::<QueryError, _>(&resolved.table, RowDecode::Full, controls, |row| {
+    midge.scan_rows_until::<QueryError, _>(&resolved.table, RowDecode::Full, &controls.storage_request(), |row| {
         // A row the transaction rewrote or deleted is judged by its change below.
         midge.record_graph_reference_reads(1);
         if !changes.contains_key(&row.id) && matches(&row.payload, resolved, key) {

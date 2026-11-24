@@ -96,7 +96,7 @@ impl AuthoritativeSource {
             .map(String::as_str)
             .collect::<Vec<_>>();
         self.reader
-            .set_pruning(&cassie.midge, filter, &staged, controls);
+            .set_pruning(&cassie.midge, filter, &staged, &controls.storage_request());
     }
 
     pub(super) fn next_batch(
@@ -140,8 +140,8 @@ impl AuthoritativeSource {
         }
         match self
             .reader
-            .next_batch(&cassie.midge, limit, controls)
-            .map_err(|error| controlled_storage_error(cassie, error))?
+            .next_batch(&cassie.midge, limit, &controls.storage_request())
+            .map_err(|error| controlled_storage_error(cassie, error.into()))?
         {
             Some(batch) => self.current = Some((batch, 0)),
             None => self.persisted_done = true,

@@ -388,7 +388,7 @@ fn controlled_vector_candidate_ids(
                 &spec.vector_query,
                 &index.metadata,
                 limit,
-                controls,
+                &controls.storage_request(),
             )?
             else {
                 return Ok(None);
@@ -426,7 +426,7 @@ fn controlled_ivfflat_candidate_ids(
     let Some(training) = cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
         &spec.vector_field,
-        controls,
+        &controls.storage_request(),
     )?
     else {
         return Ok(None);
@@ -452,7 +452,7 @@ fn controlled_ivfflat_candidate_ids(
         &spec.vector_field,
         &training,
         &lists,
-        controls,
+        &controls.storage_request(),
     )?;
     let (batch_generation, records, membership_reads, vector_reads, candidate_memory) =
         batch.into_parts();

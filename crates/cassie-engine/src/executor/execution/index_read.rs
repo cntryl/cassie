@@ -75,7 +75,7 @@ fn execute_scalar_spec(
     let hits = if spec.timestamp_fields.is_empty() {
         cassie
             .midge
-            .scan_scalar_index_controlled(&spec.index, &spec.request, controls)?
+            .scan_scalar_index_controlled(&spec.index, &spec.request, &controls.storage_request())?
     } else {
         let Some(window) = spec.request.limit else {
             return Ok(None);

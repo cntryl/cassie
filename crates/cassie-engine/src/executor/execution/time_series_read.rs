@@ -334,7 +334,7 @@ struct TimeSeriesDocuments {
     indexed_total_buckets: Option<usize>,
     bucket_native: bool,
     fallback_reason: Option<&'static str>,
-    memory: Vec<QueryMemoryReservation>,
+    memory: Vec<cassie_core::request::RequestMemoryReservation>,
 }
 
 fn time_series_documents(
@@ -347,7 +347,7 @@ fn time_series_documents(
         request.partition_key,
         request.lower_bucket_seconds,
         request.upper_bucket_seconds,
-        controls,
+        &controls.storage_request(),
     ) {
         Ok(ControlledTimeSeriesIndexScanOutcome::Native(report)) => {
             let indexed_total_buckets = Some(hit_bucket_count(report.hits.as_slice()));
@@ -369,7 +369,7 @@ fn time_series_documents(
                     request.index,
                     &hits,
                     request.scan_fields,
-                    controls,
+                    &controls.storage_request(),
                 )
                 .map_err(QueryError::from)?;
             match documents {
@@ -423,7 +423,7 @@ fn time_series_documents(
             0,
             reason,
         ),
-        Err(error) => time_series_error_fallback(cassie, request, controls, error),
+        Err(error) => time_series_error_fallback(cassie, request, controls, error.into()),
     }
 }
 

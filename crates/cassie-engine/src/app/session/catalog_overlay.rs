@@ -118,7 +118,7 @@ impl CassieSession {
         let staged = transaction
             .storage_overlay
             .lock()
-            .staged_sequence_object_ids(controls)?;
+            .staged_sequence_object_ids(&controls.storage_request())?;
         // Published sequence cursors are not transactional: the view always
         // reports the current cursor, apart from sequences this transaction
         // stages itself.

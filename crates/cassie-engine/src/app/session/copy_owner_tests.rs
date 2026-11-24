@@ -275,7 +275,7 @@ fn should_not_pair_old_copy_snapshot_with_recreated_physical_target() {
         let overlay = overlay.lock();
         cassie
             .midge
-            .copy_physical_identity(name, &overlay, &controls)
+            .copy_physical_identity(name, &overlay, &controls.storage_request())
             .expect("identity")
             .expect("stable id")
     };
@@ -353,7 +353,7 @@ fn should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay() 
     };
     let physical_id = cassie
         .midge
-        .copy_physical_identity(&target, &overlay.lock(), &controls)
+        .copy_physical_identity(&target, &overlay.lock(), &controls.storage_request())
         .expect("staged physical identity");
 
     // Assert

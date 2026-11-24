@@ -140,7 +140,7 @@ pub fn fetch_portal_page(
     let documents = page.cursor.next_accounted_page(
         &cassie.midge,
         requested_rows,
-        controls,
+        &controls.storage_request(),
     )?;
     let has_more = documents.has_more();
     let QueryStatement::Select(select) = &parsed.statement else {

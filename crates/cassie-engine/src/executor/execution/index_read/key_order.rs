@@ -2,7 +2,7 @@
 use super::{Cassie, IndexMeta, QueryError, QueryExecutionControls, ScalarIndexScanRequest};
 use crate::midge::adapter::ScalarIndexScanHit;
 use crate::planner::physical::ScalarIndexPlanShape;
-use crate::runtime::accounted::AccountedVec;
+use cassie_core::request::accounted::AccountedVec;
 use crate::types::DataType;
 
 /// Integer and boolean keys have exact order encodings. Unconstrained timestamp order keys
@@ -58,7 +58,7 @@ pub(in crate::executor::execution) fn timestamp_page(
     };
     let hits = cassie
         .midge
-        .scan_scalar_index_controlled(index, &request, controls)?;
+        .scan_scalar_index_controlled(index, &request, &controls.storage_request())?;
     let reason = if hits.len() > maximum {
         "prefix_exceeds_window"
     } else if hits.as_slice().iter().all(|hit| {

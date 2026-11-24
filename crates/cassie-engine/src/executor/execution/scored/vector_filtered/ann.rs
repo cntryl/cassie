@@ -115,11 +115,11 @@ fn hnsw_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
                 request.query,
                 &request.index.metadata,
                 window,
-                request.controls,
+                &request.controls.storage_request(),
             ) {
             Ok(Some(batch)) => batch,
             Ok(None) => return Ok(AnnOutcome::Declined("missing-graph".to_string())),
-            Err(error) => return storage_decline(error, "hnsw fallback:"),
+            Err(error) => return storage_decline(error.into(), "hnsw fallback:"),
         };
         let source_rows = batch.source_row_count;
         let (generation, candidates, _, reads, candidate_memory) = batch.into_parts();
@@ -179,7 +179,7 @@ fn ivfflat_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
         .get_ivfflat_training_manifest_controlled(
             request.collection,
             request.stored_field,
-            request.controls,
+            &request.controls.storage_request(),
         )?
     else {
         return Ok(AnnOutcome::Declined("missing-training".to_string()));
@@ -220,10 +220,10 @@ fn ivfflat_windows(request: &AnnRequest<'_>) -> Result<AnnOutcome, QueryError> {
             request.stored_field,
             &training,
             &lists,
-            request.controls,
+            &request.controls.storage_request(),
         ) {
             Ok(batch) => batch,
-            Err(error) => return storage_decline(error, "ivfflat fallback:"),
+            Err(error) => return storage_decline(error.into(), "ivfflat fallback:"),
         };
         let (batch_generation, records, membership_reads, vector_reads, candidate_memory) =
             batch.into_parts();

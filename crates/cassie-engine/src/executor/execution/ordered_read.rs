@@ -125,14 +125,14 @@ fn execute_ordered_row_id_page_with_projection_probe(
                 reverse: matches!(spec.direction, SortDirection::Desc),
                 limit: Some(scan_limit),
             },
-            controls,
+            &controls.storage_request(),
         )
         .map_err(QueryError::from)?;
     let mut rows = AccountedVec::try_new(controls)?;
     let mut skipped = 0;
     while rows.len() < spec.limit {
         check_timeout(controls)?;
-        let Some(document) = cursor.next_accounted_document(&cassie.midge, controls)? else {
+        let Some(document) = cursor.next_accounted_document(&cassie.midge, &controls.storage_request())? else {
             break;
         };
         if skipped < spec.offset {

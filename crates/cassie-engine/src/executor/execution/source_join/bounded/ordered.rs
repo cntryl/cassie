@@ -99,7 +99,7 @@ fn visit_ordered_source(
         env.cassie.midge.visit_scalar_index_documents(
             &join.index,
             &join.request,
-            env.controls,
+            &env.controls.storage_request(),
             |doc| {
                 visited += 1;
                 consume(doc)
@@ -179,7 +179,7 @@ fn probe(
         let hits =
             env.cassie
                 .midge
-                .scan_scalar_index_controlled(&probe.index, &request, env.controls)?;
+                .scan_scalar_index_controlled(&probe.index, &request, &env.controls.storage_request())?;
         env.cassie.runtime.record_read_path_index_seek(
             &probe.relation.collection,
             hits.len(),

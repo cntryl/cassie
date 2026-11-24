@@ -82,8 +82,8 @@ impl AuthoritativeSource {
             return serial(SINGLE_PARTITION);
         }
         self.reader
-            .split_by_segments(controls)
-            .map_err(|error| super::controlled_storage_error(cassie, error))?;
+            .split_by_segments(&controls.storage_request())
+            .map_err(|error| super::controlled_storage_error(cassie, error.into()))?;
         let partitions = self.reader.partition_ranges().len();
         if partitions < 2 {
             return serial(SINGLE_PARTITION);
@@ -123,8 +123,12 @@ impl PartitionBatches<'_> {
         conversion::check_controls(scan.controls)?;
         let Some(batch) = self
             .reader
-            .next_batch(&scan.cassie.midge, COLUMN_VECTOR_BATCH_ROWS, scan.controls)
-            .map_err(|error| super::controlled_storage_error(scan.cassie, error))?
+            .next_batch(
+                &scan.cassie.midge,
+                COLUMN_VECTOR_BATCH_ROWS,
+                &scan.controls.storage_request(),
+            )
+            .map_err(|error| super::controlled_storage_error(scan.cassie, error.into()))?
         else {
             return Ok(None);
         };

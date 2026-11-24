@@ -176,7 +176,7 @@ impl Cassie {
         let (records, records_memory) = self.midge.list_normalized_vectors_controlled(
             request.collection,
             request.vector_field,
-            request.controls,
+            &request.controls.storage_request(),
         )?;
         if records.len() != expected
             || !records.iter().all(|record| {
@@ -247,7 +247,7 @@ impl Cassie {
                 request.collection,
                 request.vector_field,
                 &expected.id,
-                request.controls,
+                &request.controls.storage_request(),
             )?
             else {
                 return Ok(false);

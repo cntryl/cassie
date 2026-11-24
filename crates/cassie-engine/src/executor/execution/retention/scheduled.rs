@@ -219,7 +219,7 @@ fn stage_retention_rows(
                 reverse: false,
                 limit: Some(BATCH_ROWS),
             },
-            controls,
+            &controls.storage_request(),
         )
         .map_err(QueryError::from)?;
     let mut staged = StagedRetentionRows {
@@ -230,7 +230,7 @@ fn stage_retention_rows(
         last_row_id: metadata.pending_last_row_id.clone(),
     };
     while let Some(accounted) = cursor
-        .next_accounted_document(&cassie.midge, controls)
+        .next_accounted_document(&cassie.midge, &controls.storage_request())
         .map_err(QueryError::from)?
     {
         let (document, _memory) = accounted.into_parts();

@@ -135,7 +135,7 @@ fn pending_of(
                         crate::runtime::accounted::json::retained_bytes(payload)?,
                     )?,
                 )?;
-                let document = AccountedDocument::try_build(env.controls, bytes, || {
+                let document = AccountedDocument::try_build(&env.controls.storage_request(), bytes, || {
                     Ok(DocumentRef {
                         id: id.clone(),
                         payload: payload.clone(),
@@ -188,7 +188,7 @@ pub(super) fn lookup_rows(
     let hits =
         env.cassie
             .midge
-            .scan_scalar_index_controlled(&index.index, &request, env.controls)?;
+            .scan_scalar_index_controlled(&index.index, &request, &env.controls.storage_request())?;
     let (hits, _hits_memory) = hits.into_parts();
     reads.index_entries += hits.len() as u64;
     let schema = env.cassie.catalog.get_schema(table);

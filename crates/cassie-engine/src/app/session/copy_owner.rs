@@ -174,7 +174,7 @@ impl CopyCommandOwner {
         }
         let physical_id = self
             .midge
-            .copy_physical_identity(&name, &overlay, controls)?
+            .copy_physical_identity(&name, &overlay, &controls.storage_request())?
             .ok_or_else(|| {
                 CassieError::Unsupported("COPY target has no stable physical identity".into())
             })?;
@@ -410,7 +410,7 @@ impl Cassie {
                 .unwrap_or(&self.publication_catalog)
                 .snapshot_with_controls(controls)?
         };
-        let storage = transaction.storage_overlay.lock().copy_snapshot(controls)?;
+        let storage = transaction.storage_overlay.lock().copy_snapshot(&controls.storage_request())?;
         let database_source = session.current_database().unwrap_or(&self.default_database);
         let database_memory;
         let database;
@@ -494,7 +494,7 @@ impl Cassie {
         self.midge.with_transaction_write_gates(
             std::slice::from_ref(&candidate),
             true,
-            controls,
+            &controls.storage_request(),
             || {
                 let mut owner = self.capture_copy_command_view_guarded(session, controls)?;
                 let context_memory;
@@ -566,7 +566,7 @@ impl CassieSession {
         owner.midge.with_transaction_write_gates(
             std::slice::from_ref(target),
             true,
-            controls,
+            &controls.storage_request(),
             || self.fork_copy_statement_batch_guarded(owner, controls, &publication),
         )
     }
@@ -618,7 +618,7 @@ impl CassieSession {
                 || !owner.storage.matches(&overlay, controls)?
                 || owner
                     .midge
-                    .copy_physical_identity(target, &overlay, controls)?
+                    .copy_physical_identity(target, &overlay, &controls.storage_request())?
                     != Some(*physical_id)
             {
                 return Err(stale_copy());

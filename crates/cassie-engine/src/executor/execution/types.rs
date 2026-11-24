@@ -248,3 +248,9 @@ pub enum QueryError {
     #[error(transparent)]
     Cassie(#[from] crate::app::CassieError),
 }
+
+impl From<cassie_storage::StorageError> for QueryError {
+    fn from(error: cassie_storage::StorageError) -> Self {
+        Self::Cassie(error.into())
+    }
+}

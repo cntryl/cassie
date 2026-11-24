@@ -57,7 +57,7 @@ fn accounted_input(controls: &QueryExecutionControls, payload: serde_json::Value
         payload,
     };
     let bytes = AccountedDocument::estimated_retained_bytes(&document).expect("source size");
-    let accounted = AccountedDocument::try_build(controls, bytes, || Ok(document)).expect("source");
+    let accounted = AccountedDocument::try_build(&controls.storage_request(), bytes, || Ok(document)).expect("source");
     InputBatch::Accounted(vec![accounted])
 }
 

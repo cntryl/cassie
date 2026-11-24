@@ -57,7 +57,7 @@ impl Context<'_> {
             table,
             RowDecode::Full,
             crate::midge::adapter::RowTraversal::CompleteSource,
-            self.controls,
+            &self.controls.storage_request(),
             |document| {
                 let _row_memory = self
                     .controls

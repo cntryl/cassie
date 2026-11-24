@@ -26,14 +26,14 @@ impl Cassie {
             request.query,
             &index.metadata,
             request.top_needed,
-            request.controls,
+            &request.controls.storage_request(),
         ) {
             Ok(Some(batch)) => batch,
             Ok(None) => {
                 self.runtime.record_hnsw_fallback("missing-graph");
                 return Ok(None);
             }
-            Err(error) => return self.rest_ann_fallback(error, true),
+            Err(error) => return self.rest_ann_fallback(error.into(), true),
         };
         let source_rows = batch.source_row_count;
         let (_, candidates, candidate_count, _, _candidate_memory) = batch.into_parts();
@@ -68,14 +68,14 @@ impl Cassie {
         let snapshot = match self.midge.get_ivfflat_training_manifest_controlled(
             request.collection,
             request.vector_field,
-            request.controls,
+            &request.controls.storage_request(),
         ) {
             Ok(Some(snapshot)) => snapshot,
             Ok(None) => {
                 self.runtime.record_ivfflat_fallback("missing-training");
                 return Ok(None);
             }
-            Err(error) => return self.rest_ann_fallback(error, false),
+            Err(error) => return self.rest_ann_fallback(error.into(), false),
         };
         let (_, training, membership_count, _, _manifest_memory) = snapshot.into_parts();
         if let Some(reason) = crate::vector::ivfflat::compact_manifest_fallback_reason(
@@ -105,10 +105,10 @@ impl Cassie {
             request.vector_field,
             &training,
             &probed_lists,
-            request.controls,
+            &request.controls.storage_request(),
         ) {
             Ok(batch) => batch,
-            Err(error) => return self.rest_ann_fallback(error, false),
+            Err(error) => return self.rest_ann_fallback(error.into(), false),
         };
         let (_, records, _, _, _candidate_memory) = batch.into_parts();
         let mut top = AccountedCandidates::new(request.controls)?;

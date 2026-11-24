@@ -44,7 +44,7 @@ pub(super) fn rank_direct_pages(
         let rows = scan.cursor.next_vector_rows(
             &cassie.midge,
             page_rows,
-            request.controls,
+            &request.controls.storage_request(),
             scan.column,
             with_payload,
         )?;

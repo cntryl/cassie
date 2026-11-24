@@ -23,7 +23,7 @@ pub(super) fn materialize(env: &SourceExecutionEnv<'_>) -> Result<Vec<Batch>, Qu
     let checkpoints = env
         .cassie
         .midge
-        .checkpoint_rows_for_statement(database, env.controls)
+        .checkpoint_rows_for_statement(database, &env.controls.storage_request())
         .map_err(QueryError::from)?;
     let mut rows = Vec::new();
     for (checkpoint, memory) in checkpoints {

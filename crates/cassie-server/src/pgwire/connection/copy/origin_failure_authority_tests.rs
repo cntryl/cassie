@@ -46,7 +46,7 @@ fn should_preserve_replacement_when_old_copy_predicate_fails() {
     let (resume_tx, resume_rx) = mpsc::sync_channel(1);
     let old_session = session.clone();
     let worker = std::thread::spawn(move || {
-        let _pause = execute::authority_test_hooks::install_after_owner_check(
+        let _pause = crate::app::transport::copy::test_hooks::install_after_owner_check(
             &binding.cassie,
             &old_session,
             entered_tx,

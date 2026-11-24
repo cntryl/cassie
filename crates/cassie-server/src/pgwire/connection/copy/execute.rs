@@ -1,8 +1,5 @@
 //! Decoding and executing a single buffered COPY input.
 
-#[cfg(test)]
-#[path = "execute/authority_test_hooks.rs"]
-pub(super) mod authority_test_hooks;
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 use super::{filter, input, payload_owner, request, CassieSession, CopyRequest};
 
@@ -66,7 +63,7 @@ pub(super) fn execute_decoded_operation(
             let decoded = operation.with_binary_columns(controls, |columns| {
                 input::parse_binary_payload_with_columns(payload, columns, controls)
             })?;
-            let (rows, memory) = decoded.map_err(copy_decode_error)?;
+            let (rows, memory) = decoded?;
             (rows, Some(memory))
         }
     };
@@ -117,20 +114,6 @@ fn copy_force_selection(
     }
 }
 
-fn copy_decode_error(
-    error: filter::CopyWhereError,
-) -> crate::app::transport::copy::CopyOperationError {
-    use crate::app::transport::copy::CopyOperationError;
-    match error {
-        filter::CopyWhereError::Cassie(error) => CopyOperationError::Cassie(error),
-        #[cfg(test)]
-        filter::CopyWhereError::Undefined(name) => {
-            CopyOperationError::Undefined(name)
-        }
-        filter::CopyWhereError::Jsonb(error) => CopyOperationError::Jsonb(error),
-    }
-}
-
 #[cfg(test)]
 pub(super) fn execute_bound_copy_payload(
     binding: &super::binding::CopyFromBinding,
@@ -150,19 +133,7 @@ pub(super) fn execute_bound_copy_payload(
                 cancellation,
                 controls,
             )
-            .map_err(copy_operation_error)
         })
-}
-
-#[cfg(test)]
-fn copy_operation_error(
-    error: crate::app::transport::copy::CopyOperationError,
-) -> filter::CopyWhereError {
-    match error {
-        filter::CopyWhereError::Cassie(error) => filter::CopyWhereError::Cassie(error),
-        filter::CopyWhereError::Undefined(name) => filter::CopyWhereError::Undefined(name),
-        filter::CopyWhereError::Jsonb(error) => filter::CopyWhereError::Jsonb(error),
-    }
 }
 
 fn skipped_row_notices<'a>(

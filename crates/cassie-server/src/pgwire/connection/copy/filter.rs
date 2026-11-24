@@ -8,32 +8,14 @@ use crate::sql::ast::CopyStatement;
 #[cfg(test)]
 use crate::types::{DataType, Value};
 
+pub(super) use crate::app::transport::copy::CopyOperationError as CopyWhereError;
+
 #[cfg(test)]
 type CopyRowsWithMemory = (Vec<Vec<Option<String>>>, QueryMemoryReservation);
 
 #[cfg(test)]
 #[path = "filter_tests.rs"]
 mod tests;
-
-#[derive(Debug)]
-pub(super) enum CopyWhereError {
-    Cassie(CassieError),
-    #[cfg(test)]
-    Undefined(String),
-    Jsonb(crate::runtime::accounted::json_arena::JsonbDiagnostic),
-}
-
-impl From<CassieError> for CopyWhereError {
-    fn from(error: CassieError) -> Self {
-        Self::Cassie(error)
-    }
-}
-
-impl From<crate::app::DiagnosticError> for CopyWhereError {
-    fn from(error: crate::app::DiagnosticError) -> Self {
-        Self::Cassie(error.into())
-    }
-}
 
 #[cfg(test)]
 fn reserve_filter_rows(

@@ -15,7 +15,7 @@ fn should_keep_the_replacement_healthy_after_a_copy_worker_error() {
     let request = request::parse_copy_request("COPY copy_outer_rows (id) FROM STDIN")
         .unwrap()
         .unwrap();
-    let BoundCopyRequest::From(request, statement, binding) =
+    let BoundCopyRequest::From(request, _statement, binding) =
         bind_copy_from_stdin(&cassie, &operation, request, None).unwrap()
     else {
         panic!("COPY FROM");
@@ -46,10 +46,10 @@ fn should_keep_the_replacement_healthy_after_a_copy_worker_error() {
     // Act
     let mut output = Vec::new();
     let handled = runtime.block_on(finish_simple_copy(
+        cassie.clone(),
         *binding,
-        operation,
+        session.clone(),
         request,
-        *statement,
         payload,
         None,
         &mut output,

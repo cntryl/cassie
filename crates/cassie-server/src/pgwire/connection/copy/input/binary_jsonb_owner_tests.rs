@@ -287,8 +287,9 @@ fn should_match_legacy_jsonb_array_text_with_compact_fallback() {
         let expected = super::super::super::codecs::value_to_text(&value, 3807);
         let actual = render(&input, 1, &controls).expect("controlled output");
         // Assert
-        assert_eq!(actual.as_str(), expected);
-        drop(actual);
+        let (actual, memory) = actual.into_parts();
+        assert_eq!(actual, expected);
+        drop(memory);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }

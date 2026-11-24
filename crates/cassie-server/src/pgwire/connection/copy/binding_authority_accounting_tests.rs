@@ -394,12 +394,11 @@ fn should_retain_copy_binding_charge_until_blocking_worker_finishes() {
                     .expect("resume worker");
                 let super::CopyFromBinding {
                     cassie,
-                    owner,
                     controls,
                     authority,
                     operation,
                 } = *binding;
-                drop((cassie, owner, controls, authority));
+                drop((cassie, controls, authority));
                 let before = tracker.current_query_memory_bytes();
                 drop(operation);
                 let after = tracker.current_query_memory_bytes();

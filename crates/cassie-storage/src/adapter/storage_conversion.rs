@@ -6,7 +6,7 @@
 //! storage overlay, so the rewrite commits or rolls back with that transaction.
 use super::column_store::validation::{decode_deleted_marker, decode_marker_parts};
 use super::{
-    decode_row, encode_row, key_encoding, CassieError, CollectionStorageMode, Midge, Query,
+    encode_row, key_encoding, CassieError, CollectionStorageMode, Midge, Query,
     RowSchema,
 };
 use std::collections::HashSet;

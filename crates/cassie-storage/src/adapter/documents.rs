@@ -1,5 +1,5 @@
 use super::{
-    check_document_write_failure_point, decode_row, encode_row, key_encoding, CassieError,
+    check_document_write_failure_point, encode_row, key_encoding, CassieError,
     DataType, DocumentRef, DocumentWriteFailurePoint, FieldConstraint, IndexKind, IndexMeta, Midge,
     RowSchema, Schema, Uuid,
 };

@@ -1,6 +1,5 @@
 use super::super::{
-    decode_projected_row, decode_projected_row_matching_with_aliases,
-    decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
+    key_encoding, CassieError,
     ColumnStoreScanRequest, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, Query,
     RowDecode, RowFilter, RowSchema,
 };

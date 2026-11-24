@@ -4,7 +4,7 @@ use std::mem::size_of;
 use cntryl_midge::Query;
 
 use super::{
-    decode_projected_row, decode_row, key_encoding, metadata, time_series_scan_query,
+    key_encoding, metadata, time_series_scan_query,
     BucketIdentity, CassieError, DocumentRef, IndexMeta, Midge, TimeSeriesIndexScanHit,
     CORRUPT_BUCKET_METADATA, DANGLING_BUCKET_MEMBERSHIP, INCOMPLETE_BUCKET_MEMBERSHIP,
     MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,

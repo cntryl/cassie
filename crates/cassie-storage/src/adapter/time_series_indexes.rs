@@ -4,7 +4,7 @@ use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, Of
 use cassie_core::types::temporal::parse_timestamp_utc;
 
 use super::{
-    check_document_write_failure_point, collect_scan, decode_projected_row, decode_row, encode_row,
+    check_document_write_failure_point, collect_scan, encode_row,
     key_encoding, CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
 };
 use crate::catalog::{IndexKind, IndexMeta};

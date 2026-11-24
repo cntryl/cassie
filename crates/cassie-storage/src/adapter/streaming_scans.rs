@@ -1,5 +1,5 @@
 use super::{
-    decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
+    key_encoding, CassieError,
     DocumentRef, HashSet, Midge, OrderedRowScanRequest, Query, RowDecode,
 };
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};

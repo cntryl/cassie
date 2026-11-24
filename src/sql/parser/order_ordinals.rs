@@ -32,9 +32,8 @@ pub(super) fn resolve_order_ordinals(
                                 |reference| reference.matches_field_name(&output.output_name()),
                             )
                         })
-                        .map(SelectItem::output_name)
-                        .collect::<std::collections::HashSet<_>>();
-                    if matches.len() > 1 {
+                        .count();
+                    if matches > 1 {
                         return Err(SqlError::diagnostic(
                             "42702",
                             format!("ORDER BY \"{name}\" is ambiguous"),

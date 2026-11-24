@@ -16,6 +16,9 @@ mod native_memory_tests;
 #[cfg(test)]
 #[path = "adapter/legacy_graph_state_tests.rs"]
 mod legacy_graph_state_tests;
+#[cfg(test)]
+#[path = "adapter/unique_constraint_publication_tests.rs"]
+mod unique_constraint_publication_tests;
 
 use std::cell::RefCell;
 

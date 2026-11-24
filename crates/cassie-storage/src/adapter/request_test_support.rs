@@ -40,7 +40,12 @@ impl TestRequest {
     }
 
     pub(super) fn with_cancellation(cancellation: RequestCancellation) -> Self {
-        Self { cancellation, ..Self::default() }
+        Self::with_budget(DEFAULT_BUDGET).using_cancellation(cancellation)
+    }
+
+    pub(super) fn using_cancellation(mut self, cancellation: RequestCancellation) -> Self {
+        self.cancellation = cancellation;
+        self
     }
 
     pub(super) fn cancel(&self) {
@@ -54,6 +59,10 @@ impl TestRequest {
             &self.memory,
         )
         .with_scan_control(self.scan_control.as_deref())
+    }
+
+    pub(super) fn peak_query_memory_bytes(&self) -> usize {
+        self.memory.peak_bytes()
     }
 
     pub(super) fn current_query_memory_bytes(&self) -> usize {

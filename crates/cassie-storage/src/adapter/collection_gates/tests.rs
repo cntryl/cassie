@@ -5,9 +5,10 @@ use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use super::*;
-use crate::catalog::{Catalog, SequenceMeta};
-use crate::config::CassieRuntimeLimits;
-use crate::runtime::QueryCancellationHandle;
+use crate::catalog::SequenceMeta;
+use crate::adapter::request_test_support::TestRequest;
+use crate::adapter::NativePublicationControlScope;
+use cassie_core::request::RequestCancellation;
 use cassie_core::types::DataType;
 
 thread_local! {
@@ -22,16 +23,8 @@ pub(super) fn observe_wait(boundary: WaitBoundary) {
     });
 }
 
-fn controls(budget: usize, cancellation: QueryCancellationHandle) -> QueryExecutionControls {
-    QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            query_timeout_ms: 0,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-        cancellation,
-    )
+fn controls(budget: usize, cancellation: RequestCancellation) -> TestRequest {
+    TestRequest::without_deadline(budget).using_cancellation(cancellation)
 }
 
 #[test]
@@ -40,7 +33,7 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory engine"));
     let gate = midge.collection_write_gate("items");
     let held = gate.lock();
-    let current = QueryCancellationHandle::new();
+    let current = RequestCancellation::new();
     let worker_cancel = current.clone();
     let other = Arc::clone(&midge);
     let (waiting_tx, waiting_rx) = mpsc::channel();
@@ -49,7 +42,7 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
         let controls = controls(1024 * 1024, worker_cancel);
         WAITING.with(|slot| slot.replace(Some(waiting_tx)));
         let result =
-            other.with_transaction_write_gates(&["items".to_owned()], false, &controls, || Ok(()));
+            other.with_transaction_write_gates(&["items".to_owned()], false, &controls.context(), || Ok::<(), CassieError>(()));
         result_tx
             .send((result, controls.current_query_memory_bytes()))
             .expect("canceled result");
@@ -81,17 +74,16 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
     sequence.object_id = 91;
     sequence.is_called = true;
     midge.put_sequence(&sequence).expect("persist sequence");
-    let catalog = Arc::new(Catalog::new());
-    catalog.register_sequence(sequence);
+    let published_cursor = Arc::new(parking_lot::Mutex::new(sequence));
 
     let (advanced_tx, advanced_rx) = mpsc::channel();
     let (resume_tx, resume_rx) = mpsc::channel();
     let first_midge = Arc::clone(&midge);
-    let first_catalog = Arc::clone(&catalog);
+    let first_cursor = Arc::clone(&published_cursor);
     let first_name = name.to_owned();
     let first = std::thread::spawn(move || {
-        let query_controls = controls(1024 * 1024, QueryCancellationHandle::new());
-        let _query = PublicationControlScope::enter(Some(&query_controls));
+        let query_controls = controls(1024 * 1024, RequestCancellation::new());
+        let _query = NativePublicationControlScope::enter(Some(&query_controls.context()));
         first_midge.with_sequence_update_gate(&first_name, || {
             let (_, updated) = first_midge.update_sequence_retrying(&first_name, |metadata| {
                 metadata.advance().map_err(Into::into)
@@ -102,8 +94,8 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
             resume_rx
                 .recv_timeout(Duration::from_secs(5))
                 .expect("resume cursor publication");
-            first_catalog.update_sequence_cursor(&updated);
-            Ok(())
+            *first_cursor.lock() = updated;
+            Ok::<(), CassieError>(())
         })
     });
 
@@ -111,19 +103,19 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
         .recv_timeout(Duration::from_secs(5))
         .expect("first Midge cursor update");
     let second_midge = Arc::clone(&midge);
-    let second_catalog = Arc::clone(&catalog);
+    let second_cursor = Arc::clone(&published_cursor);
     let second_name = name.to_owned();
     let (waiting_tx, waiting_rx) = mpsc::channel();
     let second = std::thread::spawn(move || {
-        let query_controls = controls(1024 * 1024, QueryCancellationHandle::new());
+        let query_controls = controls(1024 * 1024, RequestCancellation::new());
         WAITING.with(|slot| slot.replace(Some(waiting_tx)));
-        let _query = PublicationControlScope::enter(Some(&query_controls));
+        let _query = NativePublicationControlScope::enter(Some(&query_controls.context()));
         second_midge.with_sequence_update_gate(&second_name, || {
             let (_, updated) = second_midge.update_sequence_retrying(&second_name, |metadata| {
                 metadata.advance().map_err(Into::into)
             })?;
-            second_catalog.update_sequence_cursor(&updated);
-            Ok(())
+            *second_cursor.lock() = updated;
+            Ok::<(), CassieError>(())
         })
     });
 
@@ -142,9 +134,7 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
     assert_eq!(boundary, WaitBoundary::Collection);
     assert!(first_result.is_ok());
     assert!(second_result.is_ok());
-    let published = catalog
-        .get_sequence(name)
-        .expect("catalog sequence remains published");
+    let published = published_cursor.lock();
     let stored = midge
         .get_sequence(name)
         .expect("read stored sequence")
@@ -159,7 +149,7 @@ fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
 fn should_preserve_rest_cancellation_while_waiting_for_the_referential_gate() {
     // Arrange
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory engine"));
-    let cancellation = QueryCancellationHandle::new();
+    let cancellation = RequestCancellation::new();
     let rest_cancellation = cancellation.clone();
     let (waiting_tx, waiting_rx) = mpsc::channel();
     let (result_tx, result_rx) = mpsc::channel();
@@ -169,13 +159,13 @@ fn should_preserve_rest_cancellation_while_waiting_for_the_referential_gate() {
     midge.with_collection_write_gates(&[], || {
         let other = Arc::clone(&midge);
         worker = Some(std::thread::spawn(move || {
-            let controls = controls(1024 * 1024, QueryCancellationHandle::new());
-            let _rest = PublicationControlScope::enter_for_rest(
+            let controls = controls(1024 * 1024, RequestCancellation::new());
+            let _rest = NativePublicationControlScope::enter_for_rest(
                 &rest_cancellation,
                 Instant::now() + Duration::from_secs(5),
             );
             WAITING.with(|slot| slot.replace(Some(waiting_tx)));
-            let result = other.with_transaction_write_gates(&[], true, &controls, || Ok(()));
+            let result = other.with_transaction_write_gates(&[], true, &controls.context(), || Ok::<(), CassieError>(()));
             result_tx
                 .send((result, controls.current_query_memory_bytes()))
                 .expect("REST wait result");
@@ -206,21 +196,21 @@ fn should_admit_gate_directories_before_running_the_operation() {
     // Arrange
     let midge = Midge::new_in_memory("postgres").expect("memory engine");
     let name = ["items".to_owned()];
-    let measured = controls(1024 * 1024, QueryCancellationHandle::new());
+    let measured = controls(1024 * 1024, RequestCancellation::new());
     midge
-        .with_transaction_write_gates(&name, false, &measured, || Ok(()))
+        .with_transaction_write_gates(&name, false, &measured.context(), || Ok::<(), CassieError>(()))
         .expect("measure directories");
     let peak = measured.peak_query_memory_bytes();
-    let below = controls(peak - 1, QueryCancellationHandle::new());
-    let exact = controls(peak, QueryCancellationHandle::new());
+    let below = controls(peak - 1, RequestCancellation::new());
+    let exact = controls(peak, RequestCancellation::new());
     let ran = Cell::new(false);
 
     // Act
-    let denied = midge.with_transaction_write_gates(&name, false, &below, || {
+    let denied = midge.with_transaction_write_gates(&name, false, &below.context(), || {
         ran.set(true);
-        Ok(())
+        Ok::<(), CassieError>(())
     });
-    let admitted = midge.with_transaction_write_gates(&name, false, &exact, || Ok(()));
+    let admitted = midge.with_transaction_write_gates(&name, false, &exact.context(), || Ok::<(), CassieError>(()));
 
     // Assert
     assert!(matches!(denied, Err(CassieError::ResourceLimit(_))));

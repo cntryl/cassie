@@ -2,20 +2,13 @@
 
 use super::{decode, CheckingReader, StorageOverlay, CURSOR_BYTES};
 use crate::catalog::SequenceMeta;
-use crate::config::CassieRuntimeLimits;
-use crate::adapter::PublicationControlScope;
-use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+use crate::adapter::request_test_support::TestRequest;
+use crate::adapter::NativePublicationControlScope;
+use cassie_core::request::{RequestCancellation, RequestMemory};
 use cassie_core::types::DataType;
-use std::time::Instant;
 
-fn controls() -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: CURSOR_BYTES,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    )
+fn controls() -> TestRequest {
+    TestRequest::with_budget(CURSOR_BYTES)
 }
 
 #[test]
@@ -32,25 +25,25 @@ fn should_bound_with_retire_transaction_cursor_owners_across_statements() {
 
     // Act
     let first_value = {
-        let _scope = PublicationControlScope::enter(Some(&statement_one));
+        let _scope = NativePublicationControlScope::enter(Some(&statement_one.context()));
         owner.advance(first, 0, None, |sequence| {
             sequence.advance().map_err(Into::into)
         })
     };
     let rejected = {
-        let _scope = PublicationControlScope::enter(Some(&statement_two));
+        let _scope = NativePublicationControlScope::enter(Some(&statement_two.context()));
         owner.advance(second.clone(), 0, None, |sequence| {
             sequence.advance().map_err(Into::into)
         })
     };
     {
-        let _scope = PublicationControlScope::enter(Some(&statement_two));
+        let _scope = NativePublicationControlScope::enter(Some(&statement_two.context()));
         overlay
-            .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
+            .prune_sequence_cursors_with(std::iter::empty(), &statement_two.context())
             .expect("prune retired identity");
     }
     let second_value = {
-        let _scope = PublicationControlScope::enter(Some(&statement_two));
+        let _scope = NativePublicationControlScope::enter(Some(&statement_two.context()));
         owner.advance(second, 0, None, |sequence| {
             sequence.advance().map_err(Into::into)
         })
@@ -63,9 +56,9 @@ fn should_bound_with_retire_transaction_cursor_owners_across_statements() {
         .expect("transaction admission")
         .bytes();
     {
-        let _scope = PublicationControlScope::enter(Some(&statement_two));
+        let _scope = NativePublicationControlScope::enter(Some(&statement_two.context()));
         overlay
-            .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
+            .prune_sequence_cursors_with(std::iter::empty(), &statement_two.context())
             .expect("retire final identity");
     }
     let released = owner
@@ -93,24 +86,16 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     let raw = serde_json::to_vec(&metadata).expect("sequence metadata");
     let bytes =
         cassie_core::request::accounted::json::serialized_decode_bytes(raw.len()).expect("decode bound");
-    let limits = |budget| CassieRuntimeLimits {
-        query_memory_budget_bytes: budget,
-        ..CassieRuntimeLimits::default()
-    };
-    let below = QueryExecutionControls::from_limits(&limits(bytes - 1), Instant::now());
-    let exact = QueryExecutionControls::from_limits(&limits(bytes), Instant::now());
-    let cancellation = QueryCancellationHandle::new();
-    let interrupted = QueryExecutionControls::with_cancellation(
-        &limits(bytes),
-        Instant::now(),
-        cancellation.clone(),
-    );
+    let below = TestRequest::with_budget(bytes - 1);
+    let exact = TestRequest::with_budget(bytes);
+    let cancellation = RequestCancellation::new();
+    let interrupted = TestRequest::with_budget(bytes).using_cancellation(cancellation.clone());
     cancellation.cancel();
 
     // Act
-    let rejected = decode(&raw, &below);
-    let admitted = decode(&raw, &exact);
-    let canceled = decode(&raw, &interrupted);
+    let rejected = decode(&raw, &below.context());
+    let admitted = decode(&raw, &exact.context());
+    let canceled = decode(&raw, &interrupted.context());
     let held = exact.current_query_memory_bytes();
     drop(admitted);
 
@@ -127,17 +112,11 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
 #[test]
 fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
     // Arrange
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
+    let controls = TestRequest::with_budget(1024 * 1024);
     let mut current = StorageOverlay::default();
     let mut sequence = SequenceMeta::new("saved", DataType::BigInt);
     sequence.object_id = 91;
-    let _scope = PublicationControlScope::enter(Some(&controls));
+    let _scope = NativePublicationControlScope::enter(Some(&controls.context()));
     let first = current
         .sequence_cursors
         .advance(sequence.clone(), 0, None, |value| {
@@ -157,7 +136,7 @@ fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
 
     // Act
     current
-        .prune_sequence_cursors_with(std::iter::once(&savepoint), &controls)
+        .prune_sequence_cursors_with(std::iter::once(&savepoint), &controls.context())
         .expect("preserve savepoint");
     let second = current
         .sequence_cursors
@@ -165,7 +144,7 @@ fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
             value.advance().map_err(Into::into)
         });
     current
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("retire released owner");
     let retained = current
         .sequence_cursors
@@ -186,17 +165,13 @@ fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
 fn should_interrupt_metadata_reader_at_a_deterministic_chunk_boundary() {
     // Arrange
     use std::io::Read;
-    let cancellation = QueryCancellationHandle::new();
-    let controls = QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits::default(),
-        Instant::now(),
-        cancellation.clone(),
-    );
+    let cancellation = RequestCancellation::new();
+    let controls = TestRequest::with_cancellation(cancellation.clone());
     let input = vec![b'x'; 4097];
     let mut reader = CheckingReader {
         bytes: &input,
         position: 0,
-        controls: &controls,
+        controls: &controls.context(),
     };
     let mut chunk = [0; 4096];
     reader.read_exact(&mut chunk).expect("first chunk");
@@ -213,26 +188,20 @@ fn should_interrupt_metadata_reader_at_a_deterministic_chunk_boundary() {
 #[test]
 fn should_retain_an_inflight_fork_cursor_until_the_fork_retires() {
     // Arrange
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _scope = PublicationControlScope::enter(Some(&controls));
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _scope = NativePublicationControlScope::enter(Some(&controls.context()));
     let parent = StorageOverlay::default();
     let mut fork = parent.clone();
-    fork.attach_sequence_fork_lease(Some(&controls))
+    fork.attach_sequence_fork_lease(Some(&controls.context()))
         .expect("fork admission");
     let mut sequence = SequenceMeta::new("fork_only", DataType::BigInt);
     sequence.object_id = 111;
-    fork.advance_private_for_test(sequence, 17, &controls)
+    fork.advance_private_for_test(sequence, 17, &controls.context())
         .expect("fork allocation");
 
     // Act
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("concurrent prune");
     let retained_during_fork = parent
         .sequence_cursors
@@ -242,7 +211,7 @@ fn should_retain_an_inflight_fork_cursor_until_the_fork_retires() {
         .contains_key(&(111, 17));
     drop(fork);
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("post-fork prune");
     let retained_after_fork = parent
         .sequence_cursors
@@ -259,14 +228,8 @@ fn should_retain_an_inflight_fork_cursor_until_the_fork_retires() {
 #[test]
 fn should_reference_count_duplicate_fork_cursor_leases() {
     // Arrange
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _scope = PublicationControlScope::enter(Some(&controls));
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _scope = NativePublicationControlScope::enter(Some(&controls.context()));
     let parent = StorageOverlay::default();
     let mut sequence = SequenceMeta::new("shared_fork", DataType::BigInt);
     sequence.object_id = 112;
@@ -279,16 +242,16 @@ fn should_reference_count_duplicate_fork_cursor_leases() {
     let mut first = parent.clone();
     let mut second = parent.clone();
     first
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("first fork");
     second
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("second fork");
 
     // Act
     drop(first);
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("one fork remains");
     let retained = parent
         .sequence_cursors
@@ -299,7 +262,7 @@ fn should_reference_count_duplicate_fork_cursor_leases() {
         .copied();
     drop(second);
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("forks retired");
     let state = parent.sequence_cursors.state.lock();
     let remaining = state.cursors.len();
@@ -319,15 +282,9 @@ fn should_reference_count_duplicate_fork_cursor_leases() {
 fn should_keep_fork_only_sequence_epoch_through_prune_with_publication() {
     // Arrange
     use std::sync::Arc;
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _controls = PublicationControlScope::enter(Some(&controls));
-    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _controls = NativePublicationControlScope::enter(Some(&controls.context()));
+    let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
     let _parent_scope = midge
@@ -342,7 +299,7 @@ fn should_keep_fork_only_sequence_epoch_through_prune_with_publication() {
         .0;
     let mut fork_value = parent.lock().clone();
     fork_value
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("fork lease");
     let fork = Arc::new(parking_lot::Mutex::new(fork_value));
     let fork_scope = midge
@@ -362,7 +319,7 @@ fn should_keep_fork_only_sequence_epoch_through_prune_with_publication() {
     // Act
     parent
         .lock()
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("concurrent prune");
     let mut published = fork.lock().clone();
     published.clear_sequence_fork_lease();
@@ -383,17 +340,11 @@ fn should_keep_fork_only_sequence_epoch_through_prune_with_publication() {
 #[test]
 fn should_not_prune_parent_cursors_from_an_older_fork_view() {
     // Arrange
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _scope = PublicationControlScope::enter(Some(&controls));
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _scope = NativePublicationControlScope::enter(Some(&controls.context()));
     let parent = StorageOverlay::default();
     let mut fork = parent.clone();
-    fork.attach_sequence_fork_lease(Some(&controls))
+    fork.attach_sequence_fork_lease(Some(&controls.context()))
         .expect("fork");
     let mut later = SequenceMeta::new("later_parent", DataType::BigInt);
     later.object_id = 114;
@@ -403,7 +354,7 @@ fn should_not_prune_parent_cursors_from_an_older_fork_view() {
         .expect("parent allocation");
 
     // Act
-    fork.prune_sequence_cursors_with(std::iter::empty(), &controls)
+    fork.prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("fork preflight");
     let retained = parent
         .sequence_cursors
@@ -420,13 +371,10 @@ fn should_not_prune_parent_cursors_from_an_older_fork_view() {
 fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
     // Arrange
     use std::sync::Arc;
-    let limits = CassieRuntimeLimits {
-        query_memory_budget_bytes: 1024 * 1024,
-        ..CassieRuntimeLimits::default()
-    };
-    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-    let _controls = PublicationControlScope::enter(Some(&controls));
-    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    let budget = 1024 * 1024;
+    let controls = TestRequest::with_budget(budget);
+    let _controls = NativePublicationControlScope::enter(Some(&controls.context()));
+    let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
     let _scope = midge
@@ -444,7 +392,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
         let overlay = parent.lock();
         let mut state = overlay.sequence_cursors.state.lock();
         state.admission = Some(
-            crate::adapter::QueryMemoryReservation::independent_budget(CURSOR_BYTES, CURSOR_BYTES)
+            RequestMemory::new(CURSOR_BYTES).reserve(CURSOR_BYTES)
                 .expect("exact owner budget"),
         );
     }
@@ -472,13 +420,10 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
 fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() {
     // Arrange
     use std::sync::Arc;
-    let limits = CassieRuntimeLimits {
-        query_memory_budget_bytes: 1024 * 1024,
-        ..CassieRuntimeLimits::default()
-    };
-    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-    let controls_scope = PublicationControlScope::enter(Some(&controls));
-    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    let budget = 1024 * 1024;
+    let controls = TestRequest::with_budget(budget);
+    let controls_scope = NativePublicationControlScope::enter(Some(&controls.context()));
+    let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
     let _scope = midge
@@ -493,20 +438,20 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() 
         })
         .expect("first");
     drop(controls_scope);
-    let cancellation = QueryCancellationHandle::new();
+    let cancellation = RequestCancellation::new();
     let canceled_controls =
-        QueryExecutionControls::with_cancellation(&limits, Instant::now(), cancellation.clone());
+        TestRequest::with_budget(budget).using_cancellation(cancellation.clone());
     cancellation.cancel();
 
     // Act
     let canceled = {
-        let _canceled = PublicationControlScope::enter(Some(&canceled_controls));
+        let _canceled = NativePublicationControlScope::enter(Some(&canceled_controls.context()));
         midge.update_sequence("canceled_restart", |value| {
             value.assign(10, false)?;
             Ok(())
         })
     };
-    let _normal_controls = PublicationControlScope::enter(Some(&controls));
+    let _normal_controls = NativePublicationControlScope::enter(Some(&controls.context()));
     let next = midge.update_sequence_retrying("canceled_restart", |value| {
         value.advance().map_err(Into::into)
     });
@@ -523,38 +468,32 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() 
 #[test]
 fn should_transfer_inner_epoch_protection_to_an_unpublished_parent_fork() {
     // Arrange
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _scope = PublicationControlScope::enter(Some(&controls));
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _scope = NativePublicationControlScope::enter(Some(&controls.context()));
     let parent = StorageOverlay::default();
     let mut outer = parent.clone();
     outer
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("outer fork");
     let mut inner = outer.clone();
     inner
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("inner fork");
     let mut sequence = SequenceMeta::new("inner_only", DataType::BigInt);
     sequence.object_id = 117;
     inner
-        .advance_private_for_test(sequence, 23, &controls)
+        .advance_private_for_test(sequence, 23, &controls.context())
         .expect("inner epoch");
 
     // Act
     let mut published = inner.clone();
     published
-        .inherit_sequence_fork_lease(&outer, Some(&controls))
+        .inherit_sequence_fork_lease(&outer, Some(&controls.context()))
         .expect("transfer lease");
     outer = published;
     drop(inner);
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("parent prune");
     let retained = parent
         .sequence_cursors
@@ -564,7 +503,7 @@ fn should_transfer_inner_epoch_protection_to_an_unpublished_parent_fork() {
         .contains_key(&(117, 23));
     drop(outer);
     parent
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("outer retired");
     let released = !parent
         .sequence_cursors
@@ -582,15 +521,9 @@ fn should_transfer_inner_epoch_protection_to_an_unpublished_parent_fork() {
 fn should_discard_a_fork_restart_when_the_fork_is_aborted() {
     // Arrange
     use std::sync::Arc;
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
-    let _controls = PublicationControlScope::enter(Some(&controls));
-    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    let controls = TestRequest::with_budget(1024 * 1024);
+    let _controls = NativePublicationControlScope::enter(Some(&controls.context()));
+    let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
     let _parent_scope = midge
@@ -606,7 +539,7 @@ fn should_discard_a_fork_restart_when_the_fork_is_aborted() {
         .expect("first");
     let mut fork_value = parent.lock().clone();
     fork_value
-        .attach_sequence_fork_lease(Some(&controls))
+        .attach_sequence_fork_lease(Some(&controls.context()))
         .expect("fork lease");
     let fork = Arc::new(parking_lot::Mutex::new(fork_value));
     {
@@ -630,7 +563,7 @@ fn should_discard_a_fork_restart_when_the_fork_is_aborted() {
     drop(fork);
     parent
         .lock()
-        .prune_sequence_cursors_with(std::iter::empty(), &controls)
+        .prune_sequence_cursors_with(std::iter::empty(), &controls.context())
         .expect("retire aborted epoch");
     let next = midge.update_sequence_retrying("aborted_fork_epoch", |value| {
         value.advance().map_err(Into::into)
@@ -645,17 +578,13 @@ fn should_discard_a_fork_restart_when_the_fork_is_aborted() {
 fn should_interrupt_metadata_writer_at_a_deterministic_chunk_boundary() {
     // Arrange
     use std::io::Write;
-    let cancellation = QueryCancellationHandle::new();
-    let controls = QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits::default(),
-        Instant::now(),
-        cancellation.clone(),
-    );
+    let cancellation = RequestCancellation::new();
+    let controls = TestRequest::with_cancellation(cancellation.clone());
     let mut output = Vec::with_capacity(4097);
     let mut writer = super::CheckingWriter {
         output: &mut output,
         position: 0,
-        controls: &controls,
+        controls: &controls.context(),
     };
     let chunk = [b'x'; 4096];
     writer.write_all(&chunk).expect("first chunk");
@@ -673,7 +602,7 @@ fn should_interrupt_metadata_writer_at_a_deterministic_chunk_boundary() {
 fn should_encode_sequence_metadata_like_the_existing_serde_format() {
     // Arrange
     let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        TestRequest::default();
     let mut metadata = SequenceMeta::new("unicode-é-\\\"-\n-\u{1}", DataType::BigInt);
     metadata.object_id = 999;
     metadata.owned_by = Some(crate::catalog::SequenceOwner {
@@ -684,7 +613,7 @@ fn should_encode_sequence_metadata_like_the_existing_serde_format() {
     let mut actual = Vec::new();
 
     // Act
-    let result = super::encode_sequence_metadata(&mut actual, &metadata, &controls);
+    let result = super::encode_sequence_metadata(&mut actual, &metadata, &controls.context());
 
     // Assert
     result.expect("encode metadata");
@@ -696,9 +625,9 @@ fn should_treat_private_next_sequence_api_as_nontransactional_advance() {
     // Arrange
     use std::sync::Arc;
     let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-    let _controls = PublicationControlScope::enter(Some(&controls));
-    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+        TestRequest::default();
+    let _controls = NativePublicationControlScope::enter(Some(&controls.context()));
+    let midge = crate::adapter::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
     let _scope = midge
@@ -730,7 +659,7 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
     // Arrange
     use std::io::{self, Write};
     struct CancelAfterFirstChunk {
-        cancellation: QueryCancellationHandle,
+        cancellation: RequestCancellation,
         bytes: usize,
     }
     impl Write for CancelAfterFirstChunk {
@@ -745,12 +674,8 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
             Ok(())
         }
     }
-    let cancellation = QueryCancellationHandle::new();
-    let controls = QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits::default(),
-        Instant::now(),
-        cancellation.clone(),
-    );
+    let cancellation = RequestCancellation::new();
+    let controls = TestRequest::with_cancellation(cancellation.clone());
     let metadata = SequenceMeta::new("x".repeat(8192), DataType::BigInt);
     let mut writer = CancelAfterFirstChunk {
         cancellation,
@@ -758,7 +683,7 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
     };
 
     // Act
-    let result = super::encode_sequence_metadata(&mut writer, &metadata, &controls);
+    let result = super::encode_sequence_metadata(&mut writer, &metadata, &controls.context());
 
     // Assert
     assert!(matches!(

@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn should_ignore_ordinary_composite_types() {
         // Arrange
-        let ordinary = DataType::Composite(CompositeType::anonymous(vec![DataType::Int]));
+        let ordinary = DataType::Composite(CompositeType::anonymous(vec![DataType::Int]).into());
 
         // Act
         let contains_reserved = mentions_reserved(&ordinary);
@@ -90,9 +90,8 @@ mod tests {
         let mut reserved = CompositeType::anonymous(Vec::new());
         reserved.name = super::KEY_PART_TYPE.to_owned();
         reserved.qualified_name = "postgres.cassie_graph.graph_key_part".to_owned();
-        let outer = DataType::Composite(CompositeType::anonymous(vec![DataType::Array(Box::new(
-            DataType::Composite(reserved),
-        ))]));
+        let nested = DataType::Array(Box::new(DataType::Composite(reserved.into())));
+        let outer = DataType::Composite(CompositeType::anonymous(vec![nested]).into());
 
         // Act
         let contains_reserved = mentions_reserved(&outer);

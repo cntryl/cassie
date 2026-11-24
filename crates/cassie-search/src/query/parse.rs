@@ -353,6 +353,7 @@ fn classify_word(word: &[(char, bool)]) -> Result<Expr, super::SearchQueryError>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::SearchQueryError;
 
     fn word(text: &str) -> Expr {
         Expr::Word(text.to_string())
@@ -530,7 +531,7 @@ mod tests {
         // Assert
         for (query, result) in queries.iter().zip(errors) {
             assert!(
-                matches!(result, Err(super::SearchQueryError::InvalidParameter(_))),
+                matches!(result, Err(SearchQueryError::InvalidParameter(_))),
                 "expected an invalid-parameter error for {query:?}"
             );
         }

@@ -178,8 +178,9 @@ fn fold_single_token(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::SearchQueryError;
 
-    fn compile(text: &str) -> Result<CompiledQuery, super::SearchQueryError> {
+    fn compile(text: &str) -> Result<CompiledQuery, SearchQueryError> {
         CompiledQuery::compile(
             &SearchQueryInput::new(text, SearchSyntax::Query),
             &AnalyzerConfig::default(),
@@ -290,7 +291,7 @@ mod tests {
         // Assert
         assert!(results
             .iter()
-            .all(|result| matches!(result, Err(super::SearchQueryError::InvalidParameter(_)))));
+            .all(|result| matches!(result, Err(SearchQueryError::InvalidParameter(_)))));
     }
 
     #[test]
@@ -304,7 +305,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(super::SearchQueryError::InvalidParameter(_))
+            Err(SearchQueryError::InvalidParameter(_))
         ));
     }
 }

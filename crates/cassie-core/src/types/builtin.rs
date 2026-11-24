@@ -294,10 +294,10 @@ mod tests {
         ];
 
         // Act
+        let expected = cases.each_ref().map(|(_, array_oid)| i64::from(*array_oid));
         let actual = cases.map(|(element, _)| DataType::Array(Box::new(element)).type_oid());
 
         // Assert
-        let expected = cases.map(|(_, array_oid)| i64::from(array_oid));
         assert_eq!(actual, expected);
     }
 }

@@ -39,6 +39,8 @@ impl PublicationControlScope {
         if let Some(current) = Self::current_query_controls() {
             current.check_interruption()?;
         }
+        cassie_storage::adapter::NativePublicationControlScope::check_current()
+            .map_err(crate::app::CassieError::from)?;
         controls.check_interruption()
     }
 

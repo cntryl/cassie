@@ -10,7 +10,8 @@ use crate::types::DataType;
 pub mod ast;
 pub mod binder;
 pub(crate) mod catalog_scope;
-pub(crate) use cassie_sql::column_identifier::ColumnIdentifierPath;
+#[doc(hidden)]
+pub use cassie_sql::column_identifier::ColumnIdentifierPath;
 pub(crate) mod cte_identity;
 pub(crate) mod definition_guard;
 pub mod functions;

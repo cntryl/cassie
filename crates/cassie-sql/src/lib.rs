@@ -9,10 +9,15 @@ pub mod default_expression;
 pub mod identifier_text;
 pub mod index_options;
 pub mod parser;
+mod parameter_count;
 pub mod sequence_default;
 
 mod ast_attachment_tests;
 pub mod declarations;
+pub mod registry;
+
+pub use parameter_count::parameter_count;
+pub use registry::{functions, table_sources};
 
 pub use parser::{
     parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,
@@ -25,4 +30,5 @@ pub mod sql {
     pub use crate::ast::*;
     pub use crate::parser;
     pub use crate::parse_statement;
+    pub use crate::parameter_count;
 }

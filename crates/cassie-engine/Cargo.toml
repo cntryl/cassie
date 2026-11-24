@@ -16,6 +16,7 @@ cassie-core = { path = "../cassie-core" }
 cassie-search = { path = "../cassie-search" }
 cassie-vector = { path = "../cassie-vector" }
 cassie-embeddings = { path = "../cassie-embeddings" }
+cassie-sql = { path = "../cassie-sql" }
 num-traits = "0.2.19"
 num-bigint = "0.5.1"
 num-integer = "0.1.47"

@@ -1,13 +1,13 @@
 //! Counts existing statement parameter slots without type resolution.
 
-use crate::sql::{ast, ParsedStatement, QueryStatement};
+use crate::ast::{self, ParsedStatement, QueryStatement};
 
 #[must_use]
-pub fn parameter_count(statement: &ParsedStatement) -> usize {
+pub fn parameter_count<A>(statement: &ParsedStatement<A>) -> usize {
     parameter_count_query(&statement.statement)
 }
 
-fn parameter_count_query(statement: &QueryStatement) -> usize {
+fn parameter_count_query<A>(statement: &QueryStatement<A>) -> usize {
     match statement {
         QueryStatement::Explain(statement) => parameter_count(&statement.statement),
         QueryStatement::Select(statement) => parameter_count_select(statement),
@@ -81,7 +81,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
     }
 }
 
-fn parameter_count_select(statement: &ast::SelectStatement) -> usize {
+fn parameter_count_select<A>(statement: &ast::SelectStatement<A>) -> usize {
     let mut count = parameter_count_query_source(&statement.source);
     for cte in &statement.ctes {
         count = count.max(parameter_count_cte_query(&cte.query));
@@ -113,7 +113,7 @@ fn parameter_count_select(statement: &ast::SelectStatement) -> usize {
     count
 }
 
-fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
+fn parameter_count_cte_query<A>(query: &ast::CteQuery<A>) -> usize {
     match query {
         ast::CteQuery::Simple(statement) => parameter_count_query(&statement.statement),
         ast::CteQuery::Recursive {
@@ -124,7 +124,7 @@ fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
     }
 }
 
-fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
+fn parameter_count_query_source<A>(source: &ast::QuerySource<A>) -> usize {
     match source {
         ast::QuerySource::Values { rows } => rows
             .iter()
@@ -163,7 +163,7 @@ fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
     }
 }
 
-fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
+fn parameter_count_select_item<A>(item: &ast::SelectItem<A>) -> usize {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => 0,
         ast::SelectItem::Function { function, .. } => parameter_count_function(function),
@@ -185,7 +185,7 @@ fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
     }
 }
 
-fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
+fn parameter_count_insert<A>(statement: &ast::InsertStatement<A>) -> usize {
     let mut count = 0;
     if let ast::InsertSource::Values(rows) = &statement.source {
         for row in rows {
@@ -219,9 +219,9 @@ fn parameter_count_insert(statement: &ast::InsertStatement) -> usize {
     count
 }
 
-fn parameter_count_assignments(
-    assignments: &[(String, ast::Expr)],
-    row_subqueries: &[ast::RowSubqueryAssignment],
+fn parameter_count_assignments<A>(
+    assignments: &[(String, ast::Expr<A>)],
+    row_subqueries: &[ast::RowSubqueryAssignment<A>],
 ) -> usize {
     assignments
         .iter()
@@ -235,11 +235,11 @@ fn parameter_count_assignments(
         .unwrap_or(0)
 }
 
-fn parameter_count_mutation_source(source: Option<&ast::MutationSource>) -> usize {
+fn parameter_count_mutation_source<A>(source: Option<&ast::MutationSource<A>>) -> usize {
     source.map_or(0, |source| parameter_count_query_source(&source.source))
 }
 
-fn parameter_count_merge(statement: &ast::MergeStatement) -> usize {
+fn parameter_count_merge<A>(statement: &ast::MergeStatement<A>) -> usize {
     let mut count = statement
         .ctes
         .iter()
@@ -272,7 +272,7 @@ fn parameter_count_merge(statement: &ast::MergeStatement) -> usize {
     count
 }
 
-fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
+fn parameter_count_update<A>(statement: &ast::UpdateStatement<A>) -> usize {
     let mut count = parameter_count_assignments(&statement.assignments, &statement.row_subqueries)
         .max(parameter_count_mutation_source(statement.from.as_ref()));
     for target in &statement.array_targets {
@@ -298,7 +298,7 @@ fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
     count
 }
 
-fn parameter_count_delete(statement: &ast::DeleteStatement) -> usize {
+fn parameter_count_delete<A>(statement: &ast::DeleteStatement<A>) -> usize {
     let mut count = parameter_count_mutation_source(statement.using.as_ref());
     if let Some(filter) = &statement.filter {
         count = count.max(parameter_count_expr(filter));
@@ -309,7 +309,7 @@ fn parameter_count_delete(statement: &ast::DeleteStatement) -> usize {
     count
 }
 
-fn parameter_count_function(function: &ast::FunctionCall) -> usize {
+fn parameter_count_function<A>(function: &ast::FunctionCall<A>) -> usize {
     function
         .args
         .iter()
@@ -318,7 +318,7 @@ fn parameter_count_function(function: &ast::FunctionCall) -> usize {
         .unwrap_or(0)
 }
 
-fn parameter_count_expr(expr: &ast::Expr) -> usize {
+fn parameter_count_expr<A>(expr: &ast::Expr<A>) -> usize {
     match expr {
         ast::Expr::Case {
             operand,

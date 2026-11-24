@@ -7,7 +7,8 @@ pub use expr::parse_expression;
 #[path = "parser/pattern_function_call.rs"]
 mod pattern_function_call;
 
-use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
+use crate::declarations::{ConstraintCheck, ConstraintOperator, FieldConstraint};
+use cassie_core::catalog::declarations::IndexKind;
 use crate::ast::{
     AlterIndexOperation, AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
     AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,

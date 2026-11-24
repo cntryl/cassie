@@ -353,6 +353,7 @@ dependencies = [
  "cassie-core",
  "cassie-embeddings",
  "cassie-search",
+ "cassie-sql",
  "cassie-vector",
  "chrono",
  "cntryl-lexkey",
@@ -388,6 +389,15 @@ name = "cassie-search"
 version = "0.2.0"
 dependencies = [
  "rust-stemmers",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cassie-sql"
+version = "0.1.0"
+dependencies = [
+ "cassie-core",
  "serde",
  "serde_json",
 ]

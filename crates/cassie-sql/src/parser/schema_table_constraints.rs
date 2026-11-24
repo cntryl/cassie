@@ -51,7 +51,7 @@ fn name_unnamed_composite_primary_key(
             .filter(|constraint| constraint.primary_key)
             .all(|constraint| constraint.primary_key_name.is_none())
     {
-        let name = format!("{}_pkey", crate::catalog::local_name(table));
+        let name = format!("{}_pkey", cassie_core::catalog::scope::local_name(table));
         for constraint in &mut constraints {
             if constraint.primary_key {
                 constraint.primary_key_name = Some(name.clone());
@@ -74,7 +74,7 @@ fn name_unnamed_composite_unique(
     if unnamed_unique < 2 {
         return constraints;
     }
-    let local_table = crate::catalog::local_name(table);
+    let local_table = cassie_core::catalog::scope::local_name(table);
     let columns = constraints
         .iter()
         .map(|constraint| constraint.field.as_str())

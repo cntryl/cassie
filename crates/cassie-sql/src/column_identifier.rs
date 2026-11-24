@@ -3,19 +3,22 @@ use crate::sql::ast::IdentifierComponent;
 /// A column reference keeps delimiter state for its final component while
 /// retaining the engine's existing case-insensitive relation qualifiers.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ColumnIdentifierPath {
+#[doc(hidden)]
+pub struct ColumnIdentifierPath {
     components: Vec<IdentifierComponent>,
 }
 
 impl ColumnIdentifierPath {
-    pub(crate) fn is_qualified_wildcard(raw: &str) -> bool {
+    #[doc(hidden)]
+    pub fn is_qualified_wildcard(raw: &str) -> bool {
         raw.ends_with(".*")
             && Self::parse(raw).is_ok_and(|path| path.is_qualified() && path.final_name() == "*")
     }
 
     /// Retains quoted qualifier identity for an alias namespace. Catalog
     /// qualifier lookup keeps using its historical folded key.
-    pub(crate) fn namespace_key(&self) -> String {
+    #[doc(hidden)]
+    pub fn namespace_key(&self) -> String {
         let last = self.components.len() - 1;
         self.components
             .iter()
@@ -40,7 +43,8 @@ impl ColumnIdentifierPath {
             .join(".")
     }
 
-    pub(crate) fn namespace_qualifier(&self) -> Option<String> {
+    #[doc(hidden)]
+    pub fn namespace_qualifier(&self) -> Option<String> {
         (self.components.len() == 2).then(|| {
             let component = &self.components[0];
             if component.is_delimited() {
@@ -51,7 +55,8 @@ impl ColumnIdentifierPath {
         })
     }
 
-    pub(crate) fn namespace_prefix_keys(&self) -> Vec<String> {
+    #[doc(hidden)]
+    pub fn namespace_prefix_keys(&self) -> Vec<String> {
         let final_index = self.components.len() - 1;
         (0..final_index)
             .map(|start| {
@@ -63,18 +68,21 @@ impl ColumnIdentifierPath {
             .collect()
     }
     /// Returns the canonical key for a SQL column reference's final component.
-    pub(crate) fn reference_field_key(raw: &str) -> String {
+    #[doc(hidden)]
+    pub fn reference_field_key(raw: &str) -> String {
         Self::parse(raw).map_or_else(|_| raw.to_ascii_lowercase(), |path| path.field_lookup_key())
     }
 
     /// Returns the canonical key for a catalog field's stored spelling.
-    pub(crate) fn stored_field_key(raw: &str) -> String {
+    #[doc(hidden)]
+    pub fn stored_field_key(raw: &str) -> String {
         Self::from_field_name(raw).lookup_key()
     }
 
     /// Returns a row entry key with relation qualifiers folded and the final
     /// stored field spelling retained exactly.
-    pub(crate) fn stored_row_lookup_key(raw: &str) -> String {
+    #[doc(hidden)]
+    pub fn stored_row_lookup_key(raw: &str) -> String {
         let mut path = Self::parse(raw).unwrap_or_else(|_| Self::from_field_name(raw));
         let final_index = path.components.len() - 1;
         let final_name = path.components[final_index].value().to_string();
@@ -83,24 +91,28 @@ impl ColumnIdentifierPath {
     }
 
     /// Returns the exact stored spelling of a row entry's final field.
-    pub(crate) fn stored_row_field_key(raw: &str) -> String {
+    #[doc(hidden)]
+    pub fn stored_row_field_key(raw: &str) -> String {
         let path = Self::parse(raw).unwrap_or_else(|_| Self::from_field_name(raw));
         Self::stored_field_key(path.final_name())
     }
 
     /// Matches either a literal catalog field name or an encoded SQL column
     /// reference to a stored catalog field name.
-    pub(crate) fn matches_stored_field(reference: &str, stored_name: &str) -> bool {
+    #[doc(hidden)]
+    pub fn matches_stored_field(reference: &str, stored_name: &str) -> bool {
         reference == stored_name
             || Self::reference_field_key(reference) == Self::stored_field_key(stored_name)
     }
 
     /// Parses a column reference, including a three-part relation qualifier.
-    pub(crate) fn parse(raw: &str) -> Result<Self, String> {
+    #[doc(hidden)]
+    pub fn parse(raw: &str) -> Result<Self, String> {
         Self::parse_inner(raw, false)
     }
 
-    pub(crate) fn parse_sql(raw: &str) -> Result<Self, String> {
+    #[doc(hidden)]
+    pub fn parse_sql(raw: &str) -> Result<Self, String> {
         Self::parse_inner(raw, true)
     }
 
@@ -157,18 +169,21 @@ impl ColumnIdentifierPath {
         Ok(Self { components })
     }
 
-    pub(crate) fn from_field_name(name: &str) -> Self {
+    #[doc(hidden)]
+    pub fn from_field_name(name: &str) -> Self {
         Self {
             components: vec![IdentifierComponent::delimited(name)],
         }
     }
 
-    pub(crate) fn matches_field_name(&self, name: &str) -> bool {
+    #[doc(hidden)]
+    pub fn matches_field_name(&self, name: &str) -> bool {
         self.field_lookup_key() == Self::from_field_name(name).lookup_key()
     }
 
     /// Returns the canonical key used by binder and executor lookup.
-    pub(crate) fn lookup_key(&self) -> String {
+    #[doc(hidden)]
+    pub fn lookup_key(&self) -> String {
         let last = self.components.len() - 1;
         self.components
             .iter()
@@ -195,7 +210,8 @@ impl ColumnIdentifierPath {
     }
 
     /// Returns the key for the final component, with its SQL folding applied.
-    pub(crate) fn field_lookup_key(&self) -> String {
+    #[doc(hidden)]
+    pub fn field_lookup_key(&self) -> String {
         let component = self
             .components
             .last()
@@ -206,14 +222,16 @@ impl ColumnIdentifierPath {
         .lookup_key()
     }
 
-    pub(crate) fn final_name(&self) -> &str {
+    #[doc(hidden)]
+    pub fn final_name(&self) -> &str {
         self.components
             .last()
             .expect("column identifier paths contain a component")
             .value()
     }
 
-    pub(crate) fn declared_name(&self) -> String {
+    #[doc(hidden)]
+    pub fn declared_name(&self) -> String {
         let component = self
             .components
             .last()
@@ -228,16 +246,19 @@ impl ColumnIdentifierPath {
     /// Returns PostgreSQL's implicit output label for this column reference.
     /// Quoted final components keep their declared case; unquoted components
     /// use SQL's folded identifier spelling.
-    pub(crate) fn implicit_output_label(&self) -> String {
+    #[doc(hidden)]
+    pub fn implicit_output_label(&self) -> String {
         self.declared_name()
     }
 
-    pub(crate) fn is_qualified(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_qualified(&self) -> bool {
         self.components.len() > 1
     }
 
     /// Candidate row keys in qualifier preference order, then the bare field.
-    pub(crate) fn row_lookup_candidates(&self) -> Vec<String> {
+    #[doc(hidden)]
+    pub fn row_lookup_candidates(&self) -> Vec<String> {
         let last = self.components.len() - 1;
         let field = self.final_name();
         let mut candidates = Vec::with_capacity(last + 1);
@@ -258,7 +279,8 @@ impl ColumnIdentifierPath {
     }
 
     /// Returns the full identifier path with SQL delimiter syntax removed.
-    pub(crate) fn display_name(&self) -> String {
+    #[doc(hidden)]
+    pub fn display_name(&self) -> String {
         self.components
             .iter()
             .map(IdentifierComponent::value)
@@ -267,7 +289,8 @@ impl ColumnIdentifierPath {
     }
 
     /// Returns parseable SQL that keeps the exact final column spelling.
-    pub(crate) fn canonical_sql(&self) -> String {
+    #[doc(hidden)]
+    pub fn canonical_sql(&self) -> String {
         let last = self.components.len() - 1;
         self.components
             .iter()

@@ -4,7 +4,6 @@ use crate::sql::{ast, ParsedStatement};
 use crate::types::DataType;
 
 mod admission;
-mod count;
 mod diagnostics;
 mod fold;
 mod function_diagnostics;
@@ -25,7 +24,7 @@ pub use diagnostics::{
 };
 pub(crate) use occurrences::PrivateParameterTypeInput;
 
-pub use count::parameter_count;
+pub use cassie_sql::parameter_count;
 use inference::infer_parameter_type_oids_query;
 
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;

@@ -2,9 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::declarations::CollectionStorageMode;
+pub use crate::catalog::declarations::{CollectionStorageMode, IndexKind};
 use crate::types::Value;
-pub use crate::catalog::declarations::IndexKind;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionMeta {
@@ -224,7 +223,3 @@ pub struct ColumnBatchRow {
     pub row_id: String,
     pub values: std::collections::BTreeMap<String, serde_json::Value>,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum IndexKind { Scalar, FullText, Vector, Hybrid, Column, TimeSeries }

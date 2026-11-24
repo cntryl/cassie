@@ -5,12 +5,16 @@ pub mod attachment;
 pub use cassie_core::{catalog, types};
 pub mod column_identifier;
 pub mod catalog_declarations;
+pub mod maintenance_declarations;
 pub mod definition_guard;
 pub mod default_expression;
 pub mod identifier_text;
 pub mod index_options;
+pub mod maintenance_declarations;
 pub mod parser;
 mod parameter_count;
+pub mod rollup_declarations;
+pub mod routine_declarations;
 pub mod sequence_default;
 
 #[cfg(test)]

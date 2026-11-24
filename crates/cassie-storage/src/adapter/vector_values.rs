@@ -1,13 +1,4 @@
-use cassie_core::types::{Value, Vector};
-
-impl From<&Value> for Vector {
-    fn from(value: &Value) -> Self {
-        match value {
-            Value::Vector(value) => value.clone(),
-            _ => Vector::new(Vec::new()),
-        }
-    }
-}
+use cassie_core::types::Vector;
 
 #[must_use]
 pub fn vector_from_json(value: &serde_json::Value) -> Option<Vector> {

@@ -293,7 +293,7 @@ fn load_controlled_ivfflat_vectors(
     ),
     CassieError,
 > {
-    let mut records = AccountedVec::try_new(context.controls)?;
+    let mut records = AccountedVec::try_new(context.controls.memory())?;
     let mut reads = 0usize;
     let floor =
         Midge::normalized_generation_floor(context.tx, context.relation_id, context.field_id)?;
@@ -801,7 +801,7 @@ impl Midge {
                 limit,
             },
             controls.interruption(),
-            controls.request_memory(),
+            controls.memory(),
             |id| {
                 check_ann_controls(controls)?;
                 let raw = tx
@@ -818,7 +818,7 @@ impl Midge {
                     return Ok(None);
                 };
                 controlled_hnsw::decode_node(&raw, id, controls)
-                    .map(|(node, memory)| Some((node, memory.into_core())))
+                    .map(|(node, memory)| Some((node, memory)))
             },
         ).map_err(|error| match error {
             crate::vector::hnsw::HnswSearchError::Loader(error) => error,
@@ -867,7 +867,6 @@ impl Midge {
                     "controlled HNSW candidate accounting overflow".to_owned(),
                 )
             })?;
-        let mut candidate_memory = crate::adapter::QueryMemoryReservation::from_core(candidate_memory);
         if candidate_bytes > candidate_memory.bytes() {
             candidate_memory.try_grow(candidate_bytes - candidate_memory.bytes())?;
         } else {

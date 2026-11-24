@@ -75,7 +75,9 @@ impl MidgeRowCursor {
             };
             memory.try_grow(field_bytes)?;
             counters.record_decode();
-            let Some(value) = decode_field(&self.collection, &id, field, &raw)? else {
+            let Some(value) =
+                decode_field(&self.collection, &id, field, &raw, &midge.value_hooks())?
+            else {
                 continue;
             };
             counters.record_retained(field_bytes);

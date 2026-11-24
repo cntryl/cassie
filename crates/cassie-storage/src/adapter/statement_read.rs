@@ -54,7 +54,7 @@ impl NativeRequestControls {
     /// Creates a borrowed request context with the same cancellation and memory owners.
     #[doc(hidden)]
     #[must_use]
-    pub fn context(&self) -> StorageRequestContext<'static> {
+    pub fn context(&self) -> StorageRequestContext<'_> {
         StorageRequestContext::new(
             None,
             Interruption::new(self.deadline, &self.cancellation),
@@ -88,8 +88,8 @@ impl NativeRequestControls {
 impl<'a> StorageRequestContext<'a> {
     pub fn new(
         snapshot: Option<&'a NativeStatementSnapshot>,
-        interruption: Interruption<'a>,
-        memory: &'a RequestMemory,
+        interruption: Interruption<'_>,
+        memory: &RequestMemory,
     ) -> Self {
         Self {
             snapshot,

@@ -375,7 +375,13 @@ impl Midge {
                     super::super::column_store::column_payload_logical_len(&raw),
                 )?)?;
                 if let Some(value) =
-                    column_validation::decode_field(collection, &hit.id, field, &raw)?
+                    column_validation::decode_field(
+                        collection,
+                        &hit.id,
+                        field,
+                        &raw,
+                        &self.value_hooks(),
+                    )?
                 {
                     payload.insert(field.name.clone(), value);
                 }

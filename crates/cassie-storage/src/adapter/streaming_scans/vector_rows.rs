@@ -12,7 +12,7 @@ use super::{
 };
 use crate::row_blob::{split_vector_row, PackedVector, VectorColumn};
 use cassie_core::request::accounted::json;
-use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext, StorageValueHooks};
 
 /// One row read for vector ranking, with the reservation that covers what it retains.
 pub(crate) struct AccountedVectorRow {
@@ -109,6 +109,7 @@ impl MidgeRowCursor {
                 id,
                 &raw_value,
                 with_payload,
+                &midge.value_hooks(),
             )?;
             rows.try_reserve_exact(1).map_err(|error| {
                 CassieError::ResourceLimit(format!(
@@ -128,8 +129,9 @@ fn build_vector_row(
     id: String,
     raw_value: &[u8],
     with_payload: bool,
+    hooks: &StorageValueHooks,
 ) -> Result<AccountedVectorRow, CassieError> {
-    let parts = split_vector_row(schema, column, raw_value, with_payload)?;
+    let parts = split_vector_row(schema, column, raw_value, with_payload, hooks.decode_json)?;
     let vector_bytes = parts.vector.as_ref().map_or(0, PackedVector::decoded_bytes);
     let payload_bytes = parts
         .payload

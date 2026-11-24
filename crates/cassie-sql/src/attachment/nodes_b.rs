@@ -20,7 +20,7 @@ impl MapAttachment for JsonTableColumn<()> {
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
         match self {
             Self::Ordinality { name } => JsonTableColumn::<B>::Ordinality {
-                name: name,
+                name,
             },
             Self::Value(value0) => JsonTableColumn::<B>::Value(value0.rebind_attachment::<B>()),
             Self::Exists(value0) => JsonTableColumn::<B>::Exists(value0),
@@ -80,9 +80,9 @@ impl MapAttachment for MergeAction<()> {
             Self::Delete => MergeAction::<B>::Delete,
             Self::DoNothing => MergeAction::<B>::DoNothing,
             Self::Insert { columns, values, overriding } => MergeAction::<B>::Insert {
-                columns: columns,
+                columns,
                 values: values.rebind_attachment::<B>(),
-                overriding: overriding,
+                overriding,
             },
         }
     }
@@ -170,31 +170,31 @@ impl MapAttachment for QuerySource<()> {
             Self::Cte(value0) => QuerySource::<B>::Cte(value0),
             Self::TableSample { source, method, rate, repeatable } => QuerySource::<B>::TableSample {
                 source: source.rebind_attachment::<B>(),
-                method: method,
+                method,
                 rate: rate.rebind_attachment::<B>(),
                 repeatable: repeatable.rebind_attachment::<B>(),
             },
             Self::Aliased { source, alias, column_aliases } => QuerySource::<B>::Aliased {
                 source: source.rebind_attachment::<B>(),
-                alias: alias,
-                column_aliases: column_aliases,
+                alias,
+                column_aliases,
             },
             Self::TableFunction { name, function, lateral, with_ordinality, form } => QuerySource::<B>::TableFunction {
-                name: name,
+                name,
                 function: function.rebind_attachment::<B>(),
-                lateral: lateral,
-                with_ordinality: with_ordinality,
+                lateral,
+                with_ordinality,
                 form: form.rebind_attachment::<B>(),
             },
             Self::Subquery { alias, select, lateral } => QuerySource::<B>::Subquery {
-                alias: alias,
+                alias,
                 select: select.rebind_attachment::<B>(),
-                lateral: lateral,
+                lateral,
             },
             Self::Join { left, right, kind, on } => QuerySource::<B>::Join {
                 left: left.rebind_attachment::<B>(),
                 right: right.rebind_attachment::<B>(),
-                kind: kind,
+                kind,
                 on: on.rebind_attachment::<B>(),
             },
             Self::SingleRow => QuerySource::<B>::SingleRow,
@@ -301,17 +301,17 @@ impl MapAttachment for SelectItem<()> {
         match self {
             Self::Wildcard => SelectItem::<B>::Wildcard,
             Self::Column { name, alias } => SelectItem::<B>::Column {
-                name: name,
-                alias: alias,
+                name,
+                alias,
             },
             Self::Function { function, alias } => SelectItem::<B>::Function {
                 function: function.rebind_attachment::<B>(),
-                alias: alias,
+                alias,
             },
             Self::Expr => SelectItem::<B>::Expr,
             Self::WindowFunction { function, alias } => SelectItem::<B>::WindowFunction {
                 function: function.rebind_attachment::<B>(),
-                alias: alias,
+                alias,
             },
         }
     }
@@ -384,14 +384,14 @@ impl MapAttachment for SubqueryKind<()> {
             Self::Array => SubqueryKind::<B>::Array,
             Self::Row { left, op } => SubqueryKind::<B>::Row {
                 left: left.rebind_attachment::<B>(),
-                op: op,
+                op,
             },
             Self::Quantified { left, op, all, membership, negated } => SubqueryKind::<B>::Quantified {
                 left: left.rebind_attachment::<B>(),
-                op: op,
-                all: all,
-                membership: membership,
-                negated: negated,
+                op,
+                all,
+                membership,
+                negated,
             },
         }
     }

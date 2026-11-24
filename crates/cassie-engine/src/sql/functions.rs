@@ -12,6 +12,7 @@ mod table;
 mod unsupported_server_control;
 mod unsupported_server_files;
 
+pub use cassie_sql::registry::functions::registry;
 pub(crate) use cassie_sql::registry::functions::*;
 pub(crate) use constant_folding::is_immutable_scalar;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};

@@ -29,6 +29,7 @@ pub use parser::{
 pub mod sql {
     pub use crate::ast;
     pub use crate::ast::*;
+    pub use crate::functions;
     pub use crate::parser;
     pub use crate::parse_statement;
     pub use crate::parameter_count;

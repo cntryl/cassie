@@ -3,6 +3,7 @@ use super::{
     PasswordHasher, PasswordVerifier, RoleMeta,
 };
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::OnceLock;
 
@@ -23,7 +24,7 @@ pub(crate) struct AuthenticatedPrincipal {
 }
 
 /// Authentication data safe to return to a network adapter.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[doc(hidden)]
 pub struct NetworkPrincipal {
     pub session: CassieSession,
@@ -31,11 +32,36 @@ pub struct NetworkPrincipal {
 }
 
 /// Public role facts required by network adapters, without credential material.
-#[derive(Debug)]
+#[derive(Clone)]
 #[doc(hidden)]
 pub struct NetworkRole {
     pub name: String,
     pub is_admin: bool,
+    database_grants: Option<BTreeSet<String>>,
+}
+
+impl std::fmt::Debug for NetworkRole {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("NetworkRole")
+            .field("name", &self.name)
+            .field("is_admin", &self.is_admin)
+            .finish_non_exhaustive()
+    }
+}
+
+impl NetworkRole {
+    /// Reports whether this authenticated role snapshot grants database access.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn can_access_database(&self, database: &str) -> bool {
+        self.is_admin
+            || self.database_grants.as_ref().is_some_and(|grants| {
+                grants
+                    .iter()
+                    .any(|grant| grant.eq_ignore_ascii_case(database))
+            })
+    }
 }
 
 impl From<AuthenticatedPrincipal> for NetworkPrincipal {
@@ -45,6 +71,7 @@ impl From<AuthenticatedPrincipal> for NetworkPrincipal {
             role: NetworkRole {
                 name: principal.role.name,
                 is_admin: principal.role.is_admin,
+                database_grants: principal.role.database_grants,
             },
         }
     }
@@ -414,6 +441,26 @@ mod tests {
         assert_eq!(principal.session.user, "root");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_preserve_authenticated_database_grant_snapshot() {
+        // Arrange
+        let mut role = RoleMeta::new("reader", true, false, None);
+        role.grant_database("Orders");
+        let authenticated = AuthenticatedPrincipal {
+            session: CassieSession::authenticated("reader".to_string(), None, false),
+            role: role.clone(),
+        };
+
+        // Act
+        let principal = NetworkPrincipal::from(authenticated);
+        role.revoke_database("orders");
+
+        // Assert
+        assert!(principal.role.can_access_database("orders"));
+        assert!(!principal.role.can_access_database("inventory"));
+        assert!(!role.can_access_database("orders"));
     }
 
     #[test]

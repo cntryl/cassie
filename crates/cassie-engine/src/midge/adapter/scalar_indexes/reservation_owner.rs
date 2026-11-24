@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use super::super::{key_encoding, CassieError, Midge};
 
 impl Midge {

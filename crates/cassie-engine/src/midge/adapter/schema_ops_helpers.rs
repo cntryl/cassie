@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use super::{
     collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
     RetentionPolicyMeta,

@@ -1,4 +1,5 @@
 //! Reconcile committed unique reservation owners with the session's staged view.
+use crate::catalog::EngineIndexMetaExt;
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::midge::adapter::Midge;

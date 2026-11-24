@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use super::super::index_publication::PendingIndexPublication;
 use super::super::{check_index_publication_failure_point, CassieError, IndexMeta, Midge};
 

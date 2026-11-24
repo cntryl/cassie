@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use super::{
     key_encoding, CassieError, DocumentWriteBatchContext, FieldConstraint, IndexMeta, Midge,
     PreparedWrite, RowSchema,

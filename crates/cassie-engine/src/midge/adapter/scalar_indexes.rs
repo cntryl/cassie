@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use super::{
     check_document_write_failure_point, key_encoding, CassieError, DataType,
     DocumentWriteFailurePoint, Midge, RowDecode, RowSchema,

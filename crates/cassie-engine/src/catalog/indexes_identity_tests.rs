@@ -1,3 +1,4 @@
+use crate::catalog::EngineIndexMetaExt;
 use std::collections::BTreeMap;
 
 use super::{IndexKind, IndexMeta, ReservationIdentity};

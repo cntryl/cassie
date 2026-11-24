@@ -83,6 +83,7 @@ pub use indexes::{
     ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
     ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind, IndexMeta,
 };
+pub(crate) use indexes::EngineIndexMetaExt;
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
 pub(crate) use metadata::ControlledCatalogSnapshot;

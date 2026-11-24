@@ -4,12 +4,7 @@
 #[path = "execute/authority_test_hooks.rs"]
 pub(super) mod authority_test_hooks;
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
-use super::{
-    filter, input, payload_owner, request, Cassie, CassieError, CassieSession,
-    CopyRequest, CopyStatement,
-};
-#[cfg(test)]
-use super::validation;
+use super::{filter, input, payload_owner, request, CassieSession, CopyRequest};
 
 pub(super) struct CopyCompletion {
     pub(super) command: String,
@@ -24,14 +19,14 @@ pub(super) fn execute_decoded_operation(
     operation: &crate::app::transport::copy::CopyFromOperation,
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+    controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<CopyCompletion, crate::app::transport::copy::CopyOperationError> {
     use crate::app::transport::copy::{CopyExecutionOptions, CopyHeaderMode};
 
-    let controls = operation.controls();
     let decoded_payload = payload_owner::decode_copy_payload(
         payload,
         request.encoding.as_deref(),
-        &controls,
+        controls,
     )?;
     let payload = decoded_payload
         .as_ref()
@@ -55,7 +50,7 @@ pub(super) fn execute_decoded_operation(
                     force_not_null: &force_not_null,
                 },
                 request.null_marker().is_empty(),
-                &controls,
+                controls,
             )?;
             (rows, Some(memory))
         }
@@ -64,13 +59,13 @@ pub(super) fn execute_decoded_operation(
                 payload,
                 request.text_delimiter(),
                 request.null_marker(),
-                &controls,
+                controls,
             )?;
             (rows, Some(memory))
         }
         CopyWireFormat::Binary => {
-            let decoded = operation.with_binary_columns(|columns| {
-                input::parse_binary_payload_with_columns(payload, columns, &controls)
+            let decoded = operation.with_binary_columns(controls, |columns| {
+                input::parse_binary_payload_with_columns(payload, columns, controls)
             })?;
             let (rows, memory) = decoded.map_err(copy_decode_error)?;
             (rows, Some(memory))
@@ -81,7 +76,7 @@ pub(super) fn execute_decoded_operation(
         CopyHeader::Skip => CopyHeaderMode::Skip,
         CopyHeader::Match => CopyHeaderMode::Match,
     };
-    let result = operation.execute_decoded_rows(
+    let result = operation.execute_decoded_rows_with_controls(
         session,
         rows,
         CopyExecutionOptions {
@@ -92,6 +87,7 @@ pub(super) fn execute_decoded_operation(
             reject_limit: request.reject_limit,
         },
         cancellation,
+        controls,
     )?;
     let notices = if request.log_verbosity == CopyLogVerbosity::Verbose {
         skipped_row_notices(result.skipped.iter().map(|skipped| {
@@ -136,186 +132,37 @@ fn copy_decode_error(
 }
 
 #[cfg(test)]
-pub(super) fn execute_copy_payload(
-    cassie: &Cassie,
+pub(super) fn execute_bound_copy_payload(
+    binding: &super::binding::CopyFromBinding,
     session: &CassieSession,
     request: &CopyRequest,
-    statement: &CopyStatement,
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-    owner: Option<&crate::app::CopyCommandOwner>,
 ) -> Result<CopyCompletion, filter::CopyWhereError> {
-    execute_copy_payload_for_operation(
-        cassie,
-        session,
-        request,
-        statement,
-        payload,
-        cancellation,
-        (owner, None),
-    )
-}
-
-#[cfg(test)]
-pub(super) fn execute_copy_payload_for_operation(
-    cassie: &Cassie,
-    session: &CassieSession,
-    request: &CopyRequest,
-    statement: &CopyStatement,
-    payload: &[u8],
-    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-    scope: (
-        Option<&crate::app::CopyCommandOwner>,
-        Option<&crate::app::FailureAuthority>,
-    ),
-) -> Result<CopyCompletion, filter::CopyWhereError> {
-    let (owner, authority) = scope;
-    let operation_session = session.with_operation_failure_authority(authority);
-    let session = &operation_session;
-    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
-        .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
-    let decoded_payload =
-        payload_owner::decode_copy_payload(payload, request.encoding.as_deref(), &controls)?;
-    let payload = decoded_payload
-        .as_ref()
-        .map_or(payload, payload_owner::DecodedPayload::as_slice);
-    let target_columns = validation::copy_target_columns(cassie, statement)?;
-    let force_null = request::CopyRequest::force_indices(&request.force_null, &target_columns);
-    let force_not_null =
-        request::CopyRequest::force_indices(&request.force_not_null, &target_columns);
-    let _decoded_rows_memory;
-    let _filter_rows_memory;
-    let mut rows;
-    (rows, _decoded_rows_memory) = match request.format {
-        CopyWireFormat::Csv => {
-            let (rows, memory) = crate::app::parse_copy_csv_payload_controlled(
+    binding
+        .operation
+        .with_publication_scope(|controls| {
+            execute_decoded_operation(
+                session,
+                request,
+                &binding.operation,
                 payload,
-                crate::app::CopyCsvOptions {
-                    delimiter: request.csv_delimiter(),
-                    quote: request.quote,
-                    escape: request.escape,
-                    null_marker: request.null_marker(),
-                    force_null: &force_null,
-                    force_not_null: &force_not_null,
-                },
-                request.null_marker().is_empty(),
-                &controls,
-            )?;
-            (rows, Some(memory))
-        }
-        CopyWireFormat::Text => {
-            let (rows, memory) = input::parse_text_payload(
-                payload,
-                request.text_delimiter(),
-                request.null_marker(),
-                &controls,
-            )?;
-            (rows, Some(memory))
-        }
-        CopyWireFormat::Binary => {
-            let database = session
-                .current_database()
-                .unwrap_or(cassie.default_database());
-            let (rows, memory) = input::parse_binary_payload_in_database(
-                payload, cassie, database, statement, &controls,
-            )?;
-            (rows, Some(memory))
-        }
-    };
-    validate_and_strip_copy_header(cassie, request, statement, &mut rows)?;
-    if let Some(owner) = owner {
-        owner.ensure_current_transaction(session, &controls)?;
-        #[cfg(test)]
-        authority_test_hooks::after_owner_check(cassie, session);
-    }
-    if let Some(predicate) = request.where_clause.as_deref() {
-        let (accepted, memory) = filter::filter_rows_for_operation(
-            cassie,
-            session,
-            statement,
-            rows,
-            predicate,
-            (&controls, authority),
-        )?;
-        rows = accepted;
-        _filter_rows_memory = Some(memory);
-    } else {
-        _filter_rows_memory = None;
-    }
-    let result = cassie.ingest_copy_rows_with_default_marker(
-        session,
-        statement,
-        rows,
-        cancellation,
-        crate::app::CopyIngestOptions {
-            default_marker: request.default_marker.as_deref(),
-            on_error_ignore: request.on_error == CopyOnError::Ignore,
-            reject_limit: request.reject_limit,
-        },
-        owner,
-    )?;
-    let notices = if request.log_verbosity == CopyLogVerbosity::Verbose {
-        skipped_row_notices(result.skipped.iter().map(|skipped| {
-            (
-                skipped.line,
-                skipped.column.as_str(),
-                skipped.value.as_str(),
+                cancellation,
+                controls,
             )
-        }))
-    } else {
-        Vec::new()
-    };
-    Ok(CopyCompletion {
-        command: format!("COPY {}", result.count),
-        notices,
-    })
+            .map_err(copy_operation_error)
+        })
 }
 
 #[cfg(test)]
-fn validate_and_strip_copy_header(
-    cassie: &Cassie,
-    request: &CopyRequest,
-    statement: &CopyStatement,
-    rows: &mut Vec<Vec<Option<String>>>,
-) -> Result<(), filter::CopyWhereError> {
-    validate_copy_header(cassie, request, statement, rows)?;
-    if request.header != CopyHeader::None && !rows.is_empty() {
-        rows.remove(0);
+fn copy_operation_error(
+    error: crate::app::transport::copy::CopyOperationError,
+) -> filter::CopyWhereError {
+    match error {
+        filter::CopyWhereError::Cassie(error) => filter::CopyWhereError::Cassie(error),
+        filter::CopyWhereError::Undefined(name) => filter::CopyWhereError::Undefined(name),
+        filter::CopyWhereError::Jsonb(error) => filter::CopyWhereError::Jsonb(error),
     }
-    Ok(())
-}
-
-#[cfg(test)]
-fn validate_copy_header(
-    cassie: &Cassie,
-    request: &CopyRequest,
-    statement: &CopyStatement,
-    rows: &[Vec<Option<String>>],
-) -> Result<(), filter::CopyWhereError> {
-    if request.header != CopyHeader::Match || rows.is_empty() {
-        return Ok(());
-    }
-    let fields = cassie
-        .catalog
-        .get_schema(&statement.table)
-        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
-    let columns = crate::app::copy_columns(statement, &fields.fields)?;
-    let matches = rows[0].len() == columns.len()
-        && rows[0].iter().zip(&columns).all(|(header, column)| {
-            let expected = match column {
-                crate::app::CopyColumn::Field(field) => field.name.as_str(),
-                crate::app::CopyColumn::RowId => "id",
-            };
-            header.as_deref() == Some(expected)
-        });
-    if !matches {
-        return Err(crate::app::DiagnosticError::new(
-            "22P04",
-            "COPY CSV header does not match the target column list",
-        )
-        .into());
-    }
-    Ok(())
 }
 
 fn skipped_row_notices<'a>(

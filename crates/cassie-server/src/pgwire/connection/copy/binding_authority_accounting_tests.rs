@@ -289,22 +289,11 @@ fn should_report_malformed_payload_after_binding_is_admitted() {
     // Arrange
     let (cassie, session, request) = fixture(true);
     let bound = bind_copy_from_stdin(&cassie, &session, request, None).expect("binding admitted");
-    let BoundCopyRequest::From(request, statement, binding) = bound else {
+    let BoundCopyRequest::From(request, _statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
-    let scope = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
-
     // Act
-    let result = super::execute::execute_copy_payload_for_operation(
-        &binding.cassie,
-        &session,
-        &request,
-        &statement,
-        &[0xff],
-        None,
-        (binding.owner.as_ref(), Some(&binding.authority)),
-    );
-    drop(scope);
+    let result = super::execute::execute_bound_copy_payload(&binding, &session, &request, &[0xff], None);
     drop(binding);
     session.rollback_transaction();
 

@@ -1,8 +1,4 @@
-//! Authored, unrun probes for COPY's originating failure authority.
-//!
-//! The test-only operation-authority accessor and post-owner-check pause are
-//! future seams. They must observe the real binding and execution path; they
-//! are not implemented by this test.
+//! Probes for COPY's originating failure authority through the typed operation.
 
 use super::{bind_copy_from_stdin, execute, filter, request, BoundCopyRequest};
 use crate::app::{Cassie, CassieError};
@@ -42,7 +38,7 @@ fn should_preserve_replacement_when_old_copy_predicate_fails() {
     let (cassie, session, request) = fixture();
     let owner_a = session.transaction_unique_owner_id();
     let bound = bind_copy_from_stdin(&cassie, &session, request, None).expect("bind in A");
-    let BoundCopyRequest::From(request, statement, binding) = bound else {
+    let BoundCopyRequest::From(request, _statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
     assert_eq!(binding.failure_authority_owner_for_test(), Some(owner_a));
@@ -69,15 +65,7 @@ fn should_preserve_replacement_when_old_copy_predicate_fails() {
         assert!(reservation.belongs_to(&ambient));
         assert!(!reservation.belongs_to(&binding.controls));
         drop(reservation);
-        execute::execute_copy_payload_for_operation(
-            &binding.cassie,
-            &old_session,
-            &request,
-            &statement,
-            b"41\n",
-            None,
-            (binding.owner.as_ref(), Some(&binding.authority)),
-        )
+        execute::execute_bound_copy_payload(&binding, &old_session, &request, b"41\n", None)
     });
     entered_rx
         .recv_timeout(Duration::from_secs(5))
@@ -119,23 +107,13 @@ fn should_fail_origin_when_current_copy_predicate_fails() {
     let (cassie, session, request) = fixture();
     let owner = session.transaction_unique_owner_id();
     let bound = bind_copy_from_stdin(&cassie, &session, request, None).expect("bind in A");
-    let BoundCopyRequest::From(request, statement, binding) = bound else {
+    let BoundCopyRequest::From(request, _statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
     assert_eq!(binding.failure_authority_owner_for_test(), Some(owner));
 
     // Act
-    let controls = crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
-    let result = execute::execute_copy_payload_for_operation(
-        &binding.cassie,
-        &session,
-        &request,
-        &statement,
-        b"41\n",
-        None,
-        (binding.owner.as_ref(), Some(&binding.authority)),
-    );
-    drop(controls);
+    let result = execute::execute_bound_copy_payload(&binding, &session, &request, b"41\n", None);
     let failed = session.is_transaction_failed();
     session.rollback_transaction();
 

@@ -5,7 +5,7 @@ use crate::catalog::SequenceCursor;
 use crate::config::CassieRuntimeConfig;
 use crate::midge::adapter::data_policy_test_observer::{self, Report};
 use crate::types::Value;
-use cntryl_midge::{DurabilityPolicy, WriteOptions};
+use cassie_storage::native::{DurabilityPolicy, WriteOptions};
 use std::cell::RefCell;
 
 #[derive(Debug, PartialEq, Eq)]

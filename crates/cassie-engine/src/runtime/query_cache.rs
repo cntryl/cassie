@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cntryl_lexkey::{Encoder, LexKey};
-use cntryl_midge::TransactionMode;
+use cassie_storage::native::TransactionMode;
 use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;
@@ -147,7 +147,7 @@ pub(crate) fn lookup_plan(
         }
         Err(error) => {
             runtime.record_storage_access("temp", false, false);
-            return Err(error);
+            return Err(error.into());
         }
     }) else {
         runtime.record_query_cache_l2_miss();
@@ -240,7 +240,7 @@ pub(crate) fn lookup_fulltext_stats(
         }
         Err(error) => {
             runtime.record_storage_access("temp", false, false);
-            return Err(error);
+            return Err(error.into());
         }
     }) else {
         runtime.record_query_cache_fulltext_stats_miss();

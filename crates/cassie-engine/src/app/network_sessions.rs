@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use argon2::PasswordHash;
-use cntryl_midge::{ConflictPolicy, Query, TransactionMode};
+use cassie_storage::native::{ConflictPolicy, Query, TransactionMode};
 use getrandom::fill;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -225,6 +225,7 @@ pub fn revoke(cassie: &Cassie, token: &str) -> Result<(), CassieError> {
     cassie
         .midge
         .raw_delete(StorageFamily::Schema, &session_key(token))
+        .map_err(CassieError::from)
 }
 
 fn current_role(cassie: &Cassie, record: &PersistedSession) -> Result<RoleMeta, CassieError> {

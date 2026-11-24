@@ -55,13 +55,13 @@ fn should_reject_fresh_native_transaction_acquisition_after_quarantine() {
     // Act
     let data = cassie
         .midge
-        .data_tx(cntryl_midge::TransactionMode::ReadOnly);
+        .data_tx(cassie_storage::native::TransactionMode::ReadOnly);
     let schema = cassie
         .midge
-        .schema_tx(cntryl_midge::TransactionMode::ReadWrite);
+        .schema_tx(cassie_storage::native::TransactionMode::ReadWrite);
     let temporary = cassie
         .midge
-        .temp_tx(cntryl_midge::TransactionMode::ReadWrite);
+        .temp_tx(cassie_storage::native::TransactionMode::ReadWrite);
 
     // Assert
     for result in [data, schema, temporary] {

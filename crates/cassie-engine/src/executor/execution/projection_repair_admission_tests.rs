@@ -34,7 +34,7 @@ fn corrupt_first_row_hash(cassie: &Cassie, collection: &str) {
     row_hash.state = StoredHashState::Stale;
     let mut transaction = cassie
         .midge
-        .data_tx(cntryl_midge::TransactionMode::ReadWrite)
+        .data_tx(cassie_storage::native::TransactionMode::ReadWrite)
         .expect("corruption transaction");
     transaction
         .put(

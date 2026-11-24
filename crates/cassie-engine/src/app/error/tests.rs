@@ -69,9 +69,9 @@ fn should_map_builtin_function_arity_mismatch_to_undefined_function() {
 fn should_classify_retryable_storage_errors_by_kind() {
     // Arrange
     let errors = [
-        cntryl_midge::MidgeError::WriteConflict("overlap".to_string()),
-        cntryl_midge::MidgeError::WriteStall("memtable full".to_string()),
-        cntryl_midge::MidgeError::Fenced("stale epoch".to_string()),
+        cassie_storage::native::MidgeError::WriteConflict("overlap".to_string()),
+        cassie_storage::native::MidgeError::WriteStall("memtable full".to_string()),
+        cassie_storage::native::MidgeError::Fenced("stale epoch".to_string()),
     ];
 
     // Act

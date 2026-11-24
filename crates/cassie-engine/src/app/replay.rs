@@ -197,7 +197,7 @@ impl Cassie {
     fn replay_projection_batch_controlled(
         &self,
         batch: ProjectionReplayBatch,
-        commit: cntryl_midge::WriteOptions,
+        commit: cassie_storage::native::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
         let gated_projection = batch.projection.clone();
@@ -211,7 +211,7 @@ impl Cassie {
     fn replay_projection_batch_with_options(
         &self,
         batch: ProjectionReplayBatch,
-        commit: cntryl_midge::WriteOptions,
+        commit: cassie_storage::native::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
         let gated_projection = batch.projection.clone();
@@ -224,7 +224,7 @@ impl Cassie {
     fn replay_projection_batch_gated(
         &self,
         batch: ProjectionReplayBatch,
-        commit: cntryl_midge::WriteOptions,
+        commit: cassie_storage::native::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         let stored_metadata = self.midge.projection_metadata(&batch.projection)?;
         let metadata = stored_metadata
@@ -422,7 +422,7 @@ impl Cassie {
         batch: ProjectionReplayBatch,
         mut prepared: PreparedReplay,
         stored_metadata: Option<crate::catalog::ProjectionMeta>,
-        commit: cntryl_midge::WriteOptions,
+        commit: cassie_storage::native::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         let previous_metadata = metadata.clone();
         if metadata.source_identity.is_none() {

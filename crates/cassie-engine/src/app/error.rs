@@ -873,27 +873,27 @@ impl CassieError {
     }
 }
 
-impl From<cntryl_midge::MidgeError> for CassieError {
-    fn from(value: cntryl_midge::MidgeError) -> Self {
+impl From<cassie_storage::native::MidgeError> for CassieError {
+    fn from(value: cassie_storage::native::MidgeError) -> Self {
         let message = value.to_string();
         match value {
-            cntryl_midge::MidgeError::OutcomeUnknown(detail) => CassieError::Storage(format!(
+            cassie_storage::native::MidgeError::OutcomeUnknown(detail) => CassieError::Storage(format!(
                 "midge write outcome unknown: {detail}; reconcile the transaction after recovery before retrying"
             )),
-            cntryl_midge::MidgeError::WriteStall(message) => CassieError::storage_retryable(
+            cassie_storage::native::MidgeError::WriteStall(message) => CassieError::storage_retryable(
                 StorageRetryKind::WriteStall,
                 STORAGE_WRITE_STALL_PREFIX,
                 &message,
             ),
-            cntryl_midge::MidgeError::Fenced(message) => CassieError::storage_retryable(
+            cassie_storage::native::MidgeError::Fenced(message) => CassieError::storage_retryable(
                 StorageRetryKind::Fenced,
                 STORAGE_FENCED_PREFIX,
                 &message,
             ),
-            cntryl_midge::MidgeError::NotFound => {
+            cassie_storage::native::MidgeError::NotFound => {
                 CassieError::StorageMissingFamily("midge key not found".to_string())
             }
-            cntryl_midge::MidgeError::InvalidArgument(message) => {
+            cassie_storage::native::MidgeError::InvalidArgument(message) => {
                 if message.to_ascii_lowercase().contains("does not exist") {
                     CassieError::StorageMissingFamily(format!(
                         "midge family missing or invalid argument: {message}"
@@ -902,7 +902,7 @@ impl From<cntryl_midge::MidgeError> for CassieError {
                     CassieError::Storage(message)
                 }
             }
-            cntryl_midge::MidgeError::WriteConflict(_) => {
+            cassie_storage::native::MidgeError::WriteConflict(_) => {
                 CassieError::storage_retryable(
                     StorageRetryKind::WriteConflict,
                     STORAGE_WRITE_CONFLICT_PREFIX,

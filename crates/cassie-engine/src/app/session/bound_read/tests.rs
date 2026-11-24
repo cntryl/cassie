@@ -276,7 +276,7 @@ fn should_reserve_native_write_authority_for_restorable_modes() {
         }
         let native = cassie
             .midge
-            .data_tx(cntryl_midge::TransactionMode::ReadWrite);
+            .data_tx(cassie_storage::native::TransactionMode::ReadWrite);
         let blocked = match native {
             Ok(transaction) => {
                 transaction.rollback().expect("retire external capability");

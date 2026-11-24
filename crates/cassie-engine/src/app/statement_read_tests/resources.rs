@@ -169,7 +169,7 @@ fn should_measure_combined_statement_owner_charge_during_materialized_source_exe
     let data_released = data_controls.current_query_memory_bytes();
     println!(
         "data-only: budget={calibration_budget} Transaction={} StatementDataRead={} charge={data_charge} final={data_released}",
-        std::mem::size_of::<cntryl_midge::Transaction>(),
+        std::mem::size_of::<cassie_storage::native::Transaction>(),
         std::mem::size_of::<crate::midge::adapter::StatementDataRead>()
     );
 

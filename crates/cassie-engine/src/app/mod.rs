@@ -95,7 +95,6 @@ use cache::{
     current_time_millis, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, PlanCacheProvenance,
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
-pub(crate) use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
 pub(crate) use error::unsupported_sql_error;
 pub use error::{
     CassieError, CatalogObjectKind, DiagnosticError, OwnedNumericLiteralError,

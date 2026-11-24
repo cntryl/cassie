@@ -131,7 +131,7 @@ fn should_keep_nonplain_boolean_chunks_on_the_validated_json_path() {
             diagnose(&cassie, &table, &["b".into()], &controls);
         // Assert
         assert!(hit, "non-Plain Boolean remains supported");
-        assert_eq!(fallback, None);
+        assert!(fallback.is_none());
         assert_eq!(boolean_payload, Some(false));
         assert_eq!(value_count, 3);
         assert_eq!(materialized_values, 3);

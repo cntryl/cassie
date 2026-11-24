@@ -1,5 +1,6 @@
 use super::*;
 use crate::catalog::COMPOSITE_TYPE_FORMAT_VERSION;
+use cassie_core::types::CompositeField;
 
 fn meta(name: &str, object_id: u64, fields: &[(&str, DataType)]) -> CompositeTypeMeta {
     CompositeTypeMeta {

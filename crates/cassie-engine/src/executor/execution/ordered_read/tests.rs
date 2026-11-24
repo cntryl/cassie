@@ -79,7 +79,7 @@ impl Fixture {
             .expect("poison second row");
         assert!(matches!(
             cassie.midge.get_document(COLLECTION, "doc-0001"),
-            Err(CassieError::Parse(_))
+            Err(cassie_storage::StorageError::Parse(_))
         ));
         if poison_first {
             let payload = "x".repeat(8192);
@@ -105,7 +105,7 @@ impl Fixture {
                 .expect("invalid first-row UTF-8 canary");
             assert!(matches!(
                 cassie.midge.get_document(COLLECTION, "doc-0000"),
-                Err(CassieError::Parse(_))
+                Err(cassie_storage::StorageError::Parse(_))
             ));
         }
         Self {

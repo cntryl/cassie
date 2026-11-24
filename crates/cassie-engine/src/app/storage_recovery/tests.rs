@@ -209,8 +209,9 @@ fn should_finish_an_existing_cursor_with_owned_descriptors_after_quarantine() {
     cassie.midge.latch_storage_recovery_required_for_test();
 
     // Act
+    let request = controls.storage_request();
     let rows = cursor
-        .next_documents(&cassie.midge, 1, &controls)
+        .next_documents(&cassie.midge, 1, &request)
         .expect("already owned cursor view");
     drop(scope);
     let fresh = cassie.execute_sql(

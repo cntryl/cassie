@@ -282,7 +282,7 @@ fn should_reserve_native_write_authority_for_restorable_modes() {
                 transaction.rollback().expect("retire external capability");
                 false
             }
-            Err(CassieError::Unsupported(_)) => true,
+            Err(cassie_storage::StorageError::Unsupported(_)) => true,
             Err(error) => panic!("unexpected native admission: {error}"),
         };
         session.rollback_transaction();

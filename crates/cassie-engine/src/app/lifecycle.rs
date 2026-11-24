@@ -391,7 +391,7 @@ mod tests {
             .get_role("root")
             .expect("load root role")
             .expect("root role");
-        let token = super::network_sessions::issue(cassie, &role)
+        let token = crate::app::network_sessions::issue(cassie, &role)
             .expect("write cloud REST session");
         query_cache::store_fulltext_stats(
             &cassie.midge,
@@ -439,7 +439,7 @@ mod tests {
             .expect("read index")
             .is_some());
         assert_eq!(
-            super::network_sessions::authenticate(&cassie, &token)
+            crate::app::network_sessions::authenticate(&cassie, &token)
                 .expect("authenticate cloud session")
                 .session
                 .user,

@@ -88,7 +88,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<u64, CassieError> {
-        self.create_collection_with_meta_inner(
+        self.create_collection_with_meta_inner::<()>(
             name,
             schema,
             metadata,
@@ -114,7 +114,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<Option<u64>, CassieError> {
-        self.create_collection_with_meta_inner(
+        self.create_collection_with_meta_inner::<()>(
             name,
             schema,
             metadata,
@@ -344,7 +344,11 @@ impl Midge {
             self.require_constraint_definitions(constraints)?;
         }
         for index in initial.indexes.unwrap_or(&[]) {
-            cassie_sql::definition_guard::index(index)?;
+            cassie_sql::definition_guard::index(
+                index.definition_semantics_version,
+                if index.expressions.is_empty() { &index.fields } else { &index.expressions },
+                index.predicate.as_deref(),
+            )?;
             self.require_definition_version(index.definition_semantics_version)?;
         }
         Ok(())
@@ -374,7 +378,11 @@ impl Midge {
                         .to_string(),
                 ));
             }
-            cassie_sql::definition_guard::index(&index)?;
+            cassie_sql::definition_guard::index(
+                index.definition_semantics_version,
+                if index.expressions.is_empty() { &index.fields } else { &index.expressions },
+                index.predicate.as_deref(),
+            )?;
             let index_key = Self::index_key(name, &index.name);
             if tx.get(&index_key).map_err(CassieError::from)?.is_some() {
                 return Err(CassieError::CatalogObjectAlreadyExists {

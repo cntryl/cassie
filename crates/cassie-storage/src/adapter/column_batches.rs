@@ -463,7 +463,7 @@ impl Midge {
         else {
             return Ok(None);
         };
-        decode_manifest(&raw).map(Some)
+        Ok(decode_manifest(&raw).map(Some)?)
     }
 
     /// # Errors

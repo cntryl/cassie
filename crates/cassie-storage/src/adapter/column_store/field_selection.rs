@@ -95,7 +95,7 @@ pub(crate) struct ColumnRowRef<'a> {
     pub marker_version: u32,
 }
 
-implcrate::adapter::Midge {
+impl crate::adapter::Midge {
     /// Reads and validates one selected field of a live column row, counting
     /// the fetched payload and its decode. Behaves exactly like
     /// `read_column_store_field` otherwise.

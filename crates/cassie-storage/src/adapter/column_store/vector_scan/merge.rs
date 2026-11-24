@@ -192,7 +192,7 @@ crate::adapter::streaming_scans::decode_expansion_factor(&field.data_type),
     memory.try_grow(field_bytes)?;
     counters.record_decode();
     vector.record_value_decoded();
-    decode_into_lane(builder, relation, &marker.id, field, raw, midge.value_hooks())?;
+    decode_into_lane(builder, relation, &marker.id, field, raw, &midge.value_hooks())?;
     counters.record_retained(field_bytes);
     check_controls(controls)
 }

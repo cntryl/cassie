@@ -15,6 +15,15 @@ mod selected;
 pub use boolean::DecodedBooleanChunk;
 pub use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
 pub use numeric::{DecodedNumericChunk, NumericValues};
+pub use alp_chunk::{decode_scaled as decode_alp_scaled, DecodedAlpChunk};
+
+pub fn scale_alp_value(value: &serde_json::Value, scale: u8) -> Option<i64> {
+    alp::scale_value_at(value, scale)
+}
+
+pub fn alp_scaled_to_f64(value: i64, scale: u8) -> f64 {
+    alp::scaled_to_f64(value, scale)
+}
 
 use crate::StorageCodecError;
 

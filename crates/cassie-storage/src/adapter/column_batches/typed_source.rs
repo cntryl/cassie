@@ -114,7 +114,7 @@ impl Midge {
             ));
         };
         let available = controls
-            .query_memory_budget_bytes
+            .query_memory_budget_bytes()
             .saturating_sub(controls.current_query_memory_bytes());
         if source_bytes
             .checked_add(metadata_overhead)
@@ -124,10 +124,10 @@ impl Midge {
         }
         match metadata_memory.try_grow(metadata_overhead) {
             Ok(()) => {}
-            Err(CassieError::ResourceLimit(_)) => {
+            Err(_) => {
                 return Ok(EncodedSourceDecision::TransportBudget)
             }
-            Err(error) => return Err(error),
+            Err(error) => return Err(error.into()),
         }
         let metadata = Arc::new(Accounted::from_admitted(plan.metadata, metadata_memory));
         self.load_encoded_source(&collection, &plan.index, &plan.wanted, &metadata, controls)
@@ -258,7 +258,7 @@ fn field_retained_bytes(
     row_count: usize,
     field: &str,
 ) -> Result<usize, CassieError> {
-    add(
+    Ok(add(
         add(chunk.encoded_len, mul(chunk.decoded_len, 64)?)?,
         add(
             mul(row_count, size_of::<serde_json::Value>().max(64))?,
@@ -267,19 +267,19 @@ fn field_retained_bytes(
                 size_of::<Accounted<ValidatedEncodedField>>() + 2 * size_of::<usize>(),
             )?,
         )?,
-    )
+    )?)
 }
 
 fn row_retained_bytes(
     segment: &crate::catalog::ColumnBatchSegmentMeta,
 ) -> Result<usize, CassieError> {
-    add(
+    Ok(add(
         mul(segment.row_count, size_of::<String>())?,
         mul(
             segment.row_ids.decoded_len.max(segment.row_ids.encoded_len),
             8,
         )?,
-    )
+    )?)
 }
 
 fn record_segment(

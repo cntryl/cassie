@@ -1,5 +1,7 @@
 //! Native UUID text syntax, parsed into a fixed-size buffer.
-pub(crate) fn parse(input: &str) -> Option<uuid::Uuid> {
+/// Parses PostgreSQL UUID text syntax.
+#[must_use]
+pub fn parse(input: &str) -> Option<uuid::Uuid> {
     let input = if let Some(inner) = input.strip_prefix('{') {
         inner.strip_suffix('}')?
     } else {

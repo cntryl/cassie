@@ -247,6 +247,7 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "bytes",
+ "cassie-core",
  "chrono",
  "cntryl-lexkey",
  "cntryl-midge",
@@ -282,6 +283,15 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "cassie-core"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "thiserror",
  "uuid",
 ]
 

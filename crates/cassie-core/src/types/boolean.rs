@@ -4,7 +4,7 @@
 
 /// Accepts the existing text Bind vocabulary without allocating a normalized string.
 #[must_use]
-pub(crate) fn parse_text(input: &str) -> Option<bool> {
+pub fn parse_text(input: &str) -> Option<bool> {
     let value = input.trim_matches(|c: char| c.is_ascii_whitespace() || c == '\u{b}');
     let is_prefix_of = |word: &str| {
         !value.is_empty()

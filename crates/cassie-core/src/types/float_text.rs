@@ -8,21 +8,34 @@ mod dyadic;
 #[path = "float_text/tests.rs"]
 mod tests;
 
-pub(crate) struct StackText {
+pub struct StackText {
     bytes: [u8; 128],
     len: usize,
 }
 
 impl StackText {
-    pub(crate) const fn new() -> Self {
+    /// Creates an empty stack-backed text buffer.
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             bytes: [0; 128],
             len: 0,
         }
     }
 
-    pub(crate) fn as_str(&self) -> Result<&str, fmt::Error> {
+    /// Returns the formatted UTF-8 text.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer does not contain valid UTF-8.
+    pub fn as_str(&self) -> Result<&str, fmt::Error> {
         std::str::from_utf8(&self.bytes[..self.len]).map_err(|_| fmt::Error)
+    }
+}
+
+impl Default for StackText {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -38,7 +51,13 @@ impl fmt::Write for StackText {
     }
 }
 
-pub(crate) fn format(value: f64) -> String {
+/// Formats a FLOAT8 using PostgreSQL's default text spelling.
+///
+/// # Panics
+///
+/// Panics if the internal decimal conversion violates its fixed formatting invariants.
+#[must_use]
+pub fn format(value: f64) -> String {
     let mut output = if value.is_finite() && value != 0.0 {
         String::with_capacity(25)
     } else {
@@ -48,7 +67,16 @@ pub(crate) fn format(value: f64) -> String {
     output
 }
 
-pub(crate) fn format_to(value: f64, output: &mut impl fmt::Write) -> fmt::Result {
+/// Writes a FLOAT8 using PostgreSQL's default text spelling.
+///
+/// # Errors
+///
+/// Returns an error from `output` or from the internal decimal formatter.
+///
+/// # Panics
+///
+/// Panics if the internal decimal conversion violates its fixed formatting invariants.
+pub fn format_to(value: f64, output: &mut impl fmt::Write) -> fmt::Result {
     if value.is_nan() {
         return output.write_str("NaN");
     }

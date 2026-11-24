@@ -9,7 +9,9 @@ pub enum FloatInputError {
 }
 
 impl FloatInputError {
-    pub(crate) const fn sql_state(self) -> &'static str {
+    /// Returns the PostgreSQL SQLSTATE for this input error.
+    #[must_use]
+    pub const fn sql_state(self) -> &'static str {
         match self {
             Self::Syntax => "22P02",
             Self::Range => "22003",
@@ -17,7 +19,12 @@ impl FloatInputError {
     }
 }
 
-pub(crate) fn parse(input: &str) -> Result<f64, FloatInputError> {
+/// Parses PostgreSQL FLOAT8 text input.
+///
+/// # Errors
+///
+/// Returns an error when the input has invalid syntax or is outside FLOAT8 range.
+pub fn parse(input: &str) -> Result<f64, FloatInputError> {
     let input = input.trim_matches(|c: char| c.is_ascii_whitespace() || c == '\u{b}');
     let magnitude = input.strip_prefix(['+', '-']).unwrap_or(input);
     if magnitude.eq_ignore_ascii_case("nan") {

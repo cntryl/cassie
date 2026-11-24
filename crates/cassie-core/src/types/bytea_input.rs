@@ -12,7 +12,9 @@ pub enum ByteaInputError {
 }
 
 impl ByteaInputError {
-    pub(crate) const fn sql_state(self) -> &'static str {
+    /// Returns the PostgreSQL SQLSTATE for this input error.
+    #[must_use]
+    pub const fn sql_state(self) -> &'static str {
         match self {
             Self::EscapeSyntax => "22P02",
             Self::HexOdd | Self::HexDigit(_) => "22023",
@@ -37,12 +39,20 @@ impl fmt::Display for ByteaInputError {
 impl std::error::Error for ByteaInputError {}
 
 /// Validate without allocating a decoded buffer or copying the input.
-pub(crate) fn validate(input: &str) -> Result<(), ByteaInputError> {
+///
+/// # Errors
+///
+/// Returns an error when `input` is not valid PostgreSQL BYTEA text input.
+pub fn validate(input: &str) -> Result<(), ByteaInputError> {
     scan(input, || Ok(()), |_| {})
 }
 
 /// Validate before allocating the canonical lower-case hex carrier.
-pub(crate) fn canonical(input: &str) -> Result<String, ByteaInputError> {
+///
+/// # Errors
+///
+/// Returns an error when `input` is not valid PostgreSQL BYTEA text input.
+pub fn canonical(input: &str) -> Result<String, ByteaInputError> {
     let mut length = 0_usize;
     scan(input, || Ok::<_, ByteaInputError>(()), |_| length += 1)?;
     let mut output = String::with_capacity(length.saturating_mul(2).saturating_add(2));
@@ -66,7 +76,12 @@ fn scan<E: From<ByteaInputError>>(
     scan_escape(input, check, emit)
 }
 
-pub(crate) fn scan_escape<E: From<ByteaInputError>>(
+/// Scans BYTEA escape syntax and emits decoded bytes.
+///
+/// # Errors
+///
+/// Returns an error from `check`, or when `input` contains invalid escape syntax.
+pub fn scan_escape<E: From<ByteaInputError>>(
     input: &str,
     mut check: impl FnMut() -> Result<(), E>,
     mut emit: impl FnMut(u8),
@@ -96,7 +111,12 @@ pub(crate) fn scan_escape<E: From<ByteaInputError>>(
     Ok(())
 }
 
-pub(crate) fn scan_hex<E: From<ByteaInputError>>(
+/// Scans BYTEA hexadecimal syntax and emits decoded bytes.
+///
+/// # Errors
+///
+/// Returns an error from `check`, or when `input` contains invalid hex syntax.
+pub fn scan_hex<E: From<ByteaInputError>>(
     input: &str,
     mut check: impl FnMut() -> Result<(), E>,
     mut emit: impl FnMut(u8),
@@ -114,7 +134,12 @@ pub(crate) fn scan_hex<E: From<ByteaInputError>>(
     Ok(())
 }
 
-pub(crate) fn nibble(character: char) -> Result<u8, ByteaInputError> {
+/// Parses one hexadecimal digit.
+///
+/// # Errors
+///
+/// Returns an error when `character` is not an ASCII hexadecimal digit.
+pub fn nibble(character: char) -> Result<u8, ByteaInputError> {
     character
         .to_digit(16)
         .and_then(|digit| u8::try_from(digit).ok())
@@ -128,7 +153,11 @@ fn push_hex_byte(output: &mut String, byte: u8) {
 }
 
 /// Append canonical digits while allowing callers to enforce interruption.
-pub(crate) fn append_hex<E>(
+///
+/// # Errors
+///
+/// Returns an error when `check` rejects the operation.
+pub fn append_hex<E>(
     output: &mut String,
     bytes: &[u8],
     mut check: impl FnMut() -> Result<(), E>,

@@ -13,6 +13,7 @@ workspace = true
 replay-benchmark-observation = []
 
 [dependencies]
+cassie-core = { path = "crates/cassie-core" }
 num-traits = "0.2.19"
 num-bigint = "0.5.1"
 num-integer = "0.1.47"
@@ -274,7 +275,7 @@ debug = "line-tables-only"
 opt-level = 0
 
 [workspace]
-members = ["tests"]
+members = ["crates/cassie-core", "tests"]
 default-members = [".", "tests"]
 resolver = "2"
 

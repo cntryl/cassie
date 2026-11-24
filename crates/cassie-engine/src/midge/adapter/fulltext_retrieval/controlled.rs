@@ -13,8 +13,8 @@ use crate::midge::adapter::column_store::validation as column_validation;
 use crate::midge::adapter::{DocumentRef, Midge};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::search::query::{CompiledQuery, ResolvedQuery};
 use crate::types::DataType;
+use cassie_search::query::{CompiledQuery, ResolvedQuery};
 
 pub(crate) struct ControlledFulltextCandidateSet {
     candidates: PersistedFulltextCandidateSet,

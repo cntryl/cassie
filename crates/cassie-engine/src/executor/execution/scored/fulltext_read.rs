@@ -9,7 +9,7 @@ use crate::executor::scan;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{FulltextIndexOptions, QueryExecutionControls, QueryMemoryReservation};
 use crate::search::analyzer::AnalyzerConfig;
-use crate::search::query::SearchQueryInput;
+use cassie_search::query::SearchQueryInput;
 
 #[path = "fulltext_read/accounting.rs"]
 mod accounting;

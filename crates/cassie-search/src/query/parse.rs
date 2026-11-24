@@ -2,7 +2,6 @@
 
 use super::invalid;
 use super::limits::{MAX_PHRASE_SLOP, MAX_QUERY_BYTES, MAX_QUERY_DEPTH, MAX_QUERY_ITEMS};
-use crate::app::CassieError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Expr {
@@ -28,7 +27,7 @@ impl Expr {
 
     /// Rejects expressions whose matches could not be reached from the
     /// postings of their positive terms.
-    pub(super) fn validate_positive(&self) -> Result<(), CassieError> {
+    pub(super) fn validate_positive(&self) -> Result<(), super::SearchQueryError> {
         match self {
             Self::Word(_) | Self::Phrase { .. } | Self::Prefix(_) | Self::Typo(_) => Ok(()),
             Self::Not(child) => child.validate_positive(),
@@ -53,7 +52,7 @@ impl Expr {
 }
 
 /// Parses `text`. A blank query parses to `None`.
-pub(super) fn parse(text: &str) -> Result<Option<Expr>, CassieError> {
+pub(super) fn parse(text: &str) -> Result<Option<Expr>, super::SearchQueryError> {
     if text.len() > MAX_QUERY_BYTES {
         return Err(invalid(format!(
             "full-text query exceeds {MAX_QUERY_BYTES} bytes"
@@ -124,7 +123,7 @@ impl Parser {
         self.peek().is_none_or(|character| character == ')')
     }
 
-    fn parse_or(&mut self, depth: usize) -> Result<Expr, CassieError> {
+    fn parse_or(&mut self, depth: usize) -> Result<Expr, super::SearchQueryError> {
         let mut alternatives = vec![self.parse_and(depth)?];
         loop {
             self.skip_whitespace();
@@ -144,7 +143,7 @@ impl Parser {
         })
     }
 
-    fn parse_and(&mut self, depth: usize) -> Result<Expr, CassieError> {
+    fn parse_and(&mut self, depth: usize) -> Result<Expr, super::SearchQueryError> {
         let mut items = Vec::new();
         loop {
             self.skip_whitespace();
@@ -170,7 +169,7 @@ impl Parser {
         }
     }
 
-    fn parse_unary(&mut self, depth: usize) -> Result<Expr, CassieError> {
+    fn parse_unary(&mut self, depth: usize) -> Result<Expr, super::SearchQueryError> {
         let attached_next = self.peek_at(1).is_some_and(|next| !next.is_whitespace());
         if self.peek() == Some('-') && attached_next {
             self.position += 1;
@@ -190,7 +189,7 @@ impl Parser {
         self.parse_primary(depth)
     }
 
-    fn parse_negated(&mut self, depth: usize) -> Result<Expr, CassieError> {
+    fn parse_negated(&mut self, depth: usize) -> Result<Expr, super::SearchQueryError> {
         if depth + 1 > MAX_QUERY_DEPTH {
             return Err(invalid(format!(
                 "full-text query nests deeper than {MAX_QUERY_DEPTH} levels"
@@ -205,7 +204,7 @@ impl Parser {
         Ok(Expr::Not(Box::new(self.parse_primary(depth + 1)?)))
     }
 
-    fn parse_primary(&mut self, depth: usize) -> Result<Expr, CassieError> {
+    fn parse_primary(&mut self, depth: usize) -> Result<Expr, super::SearchQueryError> {
         self.skip_whitespace();
         match self.peek() {
             Some('(') => {
@@ -235,7 +234,7 @@ impl Parser {
         }
     }
 
-    fn count_item(&mut self) -> Result<(), CassieError> {
+    fn count_item(&mut self) -> Result<(), super::SearchQueryError> {
         self.items += 1;
         if self.items > MAX_QUERY_ITEMS {
             return Err(invalid(format!(
@@ -245,7 +244,7 @@ impl Parser {
         Ok(())
     }
 
-    fn parse_phrase(&mut self) -> Result<Expr, CassieError> {
+    fn parse_phrase(&mut self) -> Result<Expr, super::SearchQueryError> {
         self.position += 1;
         let mut text = String::new();
         loop {
@@ -289,7 +288,7 @@ impl Parser {
         digits
     }
 
-    fn parse_word(&mut self) -> Result<Expr, CassieError> {
+    fn parse_word(&mut self) -> Result<Expr, super::SearchQueryError> {
         // Each character is kept with whether it was escaped.
         let mut word: Vec<(char, bool)> = Vec::new();
         while let Some(character) = self.peek() {
@@ -311,7 +310,7 @@ impl Parser {
     }
 }
 
-fn parse_slop(digits: &str) -> Result<u32, CassieError> {
+fn parse_slop(digits: &str) -> Result<u32, super::SearchQueryError> {
     digits
         .parse::<u32>()
         .ok()
@@ -324,7 +323,7 @@ fn text_of(word: &[(char, bool)]) -> String {
 }
 
 /// Splits an optional unescaped `*`, `~` or `~1` suffix off a word.
-fn classify_word(word: &[(char, bool)]) -> Result<Expr, CassieError> {
+fn classify_word(word: &[(char, bool)]) -> Result<Expr, super::SearchQueryError> {
     if let Some(((last, false), head)) = word.split_last() {
         if *last == '*' {
             return Ok(Expr::Prefix(text_of(head)));
@@ -531,7 +530,7 @@ mod tests {
         // Assert
         for (query, result) in queries.iter().zip(errors) {
             assert!(
-                matches!(result, Err(CassieError::InvalidParameterValue(_))),
+                matches!(result, Err(super::SearchQueryError::InvalidParameter(_))),
                 "expected an invalid-parameter error for {query:?}"
             );
         }

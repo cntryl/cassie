@@ -66,7 +66,7 @@ fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
     assert_eq!(spec.collection, "bench_documents");
     assert_eq!(spec.text_field, "body");
     assert_eq!(spec.query.text, "alpha");
-    assert_eq!(spec.query.syntax, crate::search::query::SearchSyntax::Terms);
+    assert_eq!(spec.query.syntax, cassie_search::query::SearchSyntax::Terms);
     assert_eq!(spec.score_column, "score");
     assert_eq!(spec.columns.len(), 1);
     // `bench_documents` has no declared `id` field, so the bare `id`

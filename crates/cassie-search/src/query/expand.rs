@@ -1,8 +1,7 @@
 //! Vocabulary expansion of prefix and typo items.
 
 use super::limits::{MAX_EXPANDED_TERMS, MAX_EXPANSIONS_PER_ITEM};
-use super::{invalid, limit_exceeded};
-use crate::app::CassieError;
+use super::{invalid, limit_exceeded, ResolveError};
 
 /// Which index terms a prefix or typo item stands for. Words are already
 /// case- and accent-folded.
@@ -38,6 +37,9 @@ impl TermMatcher {
 /// more than `limit` terms matched for that matcher (so a caller can tell
 /// that the limit was exceeded without the list being truncated silently).
 pub trait Vocabulary {
+    /// The original error returned by this vocabulary implementation.
+    type Error;
+
     /// # Errors
     ///
     /// Returns an error when the vocabulary cannot be read.
@@ -45,7 +47,7 @@ pub trait Vocabulary {
         &self,
         matchers: &[TermMatcher],
         limit: usize,
-    ) -> Result<Vec<Vec<String>>, CassieError>;
+    ) -> Result<Vec<Vec<String>>, Self::Error>;
 }
 
 /// Matches `matchers` against `terms` in one pass; the shared implementation of
@@ -72,35 +74,37 @@ pub fn matching_terms_in<'a>(
 }
 
 /// Expands `matchers` against `vocabulary`, enforcing the expansion limits.
-pub(super) fn expand(
-    vocabulary: &dyn Vocabulary,
+pub(super) fn expand<V: Vocabulary + ?Sized>(
+    vocabulary: &V,
     matchers: &[TermMatcher],
-) -> Result<Vec<Vec<String>>, CassieError> {
+) -> Result<Vec<Vec<String>>, ResolveError<V::Error>> {
     if matchers.is_empty() {
         return Ok(Vec::new());
     }
-    let expanded = vocabulary.matching_terms(matchers, MAX_EXPANSIONS_PER_ITEM)?;
+    let expanded = vocabulary
+        .matching_terms(matchers, MAX_EXPANSIONS_PER_ITEM)
+        .map_err(ResolveError::Vocabulary)?;
     if expanded.len() != matchers.len() {
-        return Err(invalid(
+        return Err(ResolveError::Query(invalid(
             "full-text vocabulary returned a malformed expansion",
-        ));
+        )));
     }
     let mut total = 0usize;
     for (matcher, terms) in matchers.iter().zip(&expanded) {
         if terms.len() > MAX_EXPANSIONS_PER_ITEM {
-            return Err(limit_exceeded(format!(
+            return Err(ResolveError::Query(limit_exceeded(format!(
                 "full-text {} matches more than {MAX_EXPANSIONS_PER_ITEM} index terms \
                  (limit max_expansions_per_item)",
                 matcher.describe()
-            )));
+            ))));
         }
         total = total.saturating_add(terms.len());
     }
     if total > MAX_EXPANDED_TERMS {
-        return Err(limit_exceeded(format!(
+        return Err(ResolveError::Query(limit_exceeded(format!(
             "full-text query expands to {total} index terms, more than {MAX_EXPANDED_TERMS} \
              (limit max_expanded_terms)"
-        )));
+        ))));
     }
     Ok(expanded)
 }

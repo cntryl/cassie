@@ -151,7 +151,7 @@ impl SearchTermStats {
     }
 }
 
-impl crate::search::query::DocumentPositions for SearchTermStats {
+impl cassie_search::query::DocumentPositions for SearchTermStats {
     fn positions(&self, term: &str) -> Option<&[u32]> {
         self.positions.as_ref()?.get(term).map(Vec::as_slice)
     }

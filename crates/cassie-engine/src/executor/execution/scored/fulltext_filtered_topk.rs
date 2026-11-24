@@ -109,7 +109,7 @@ pub(super) fn conjuncts<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
 /// shared residual extraction sees one search conjunct and one residual predicate.
 fn search_first_filter(
     filter: &Expr,
-    search: (&str, &crate::search::query::SearchQueryInput),
+    search: (&str, &cassie_search::query::SearchQueryInput),
     params: &[Value],
 ) -> Option<Expr> {
     let mut parts = Vec::new();

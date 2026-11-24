@@ -6,7 +6,7 @@
 //! that reports the error.
 
 use super::{Expr, FunctionCall, Value};
-use crate::search::query::{SearchQueryInput, SearchSyntax};
+use cassie_search::query::{SearchQueryInput, SearchSyntax};
 
 fn search_syntax_argument(function: &FunctionCall, params: &[Value]) -> Option<SearchSyntax> {
     match function.args.get(2) {

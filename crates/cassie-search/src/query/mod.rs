@@ -12,12 +12,34 @@ pub mod limits;
 mod parse;
 mod resolve;
 
-use crate::app::CassieError;
+use std::fmt::{Display, Formatter};
 
 pub use compile::CompiledQuery;
 pub use eval::DocumentPositions;
 pub use expand::{matching_terms_in, TermMatcher, Vocabulary};
-pub use resolve::ResolvedQuery;
+pub use resolve::{ResolveError, ResolvedQuery};
+
+/// A query compilation or expansion error, independent of the execution engine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchQueryError {
+    /// The query text or syntax argument is invalid.
+    InvalidParameter(String),
+    /// The query exceeded a declared resource limit.
+    ResourceLimit(String),
+}
+
+impl Display for SearchQueryError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidParameter(message) => {
+                write!(formatter, "invalid parameter value: {message}")
+            }
+            Self::ResourceLimit(message) => write!(formatter, "resource limit exceeded: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for SearchQueryError {}
 
 /// How the text argument of `search`, `search_score` and `snippet` is read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -36,7 +58,7 @@ impl SearchSyntax {
     ///
     /// Returns an invalid-parameter error for any value other than `terms` or
     /// `query`.
-    pub fn from_argument(value: &str) -> Result<Self, CassieError> {
+    pub fn from_argument(value: &str) -> Result<Self, SearchQueryError> {
         match value {
             "terms" => Ok(Self::Terms),
             "query" => Ok(Self::Query),
@@ -64,10 +86,10 @@ impl SearchQueryInput {
     }
 }
 
-pub(crate) fn invalid(message: impl Into<String>) -> CassieError {
-    CassieError::InvalidParameterValue(message.into())
+pub(crate) fn invalid(message: impl Into<String>) -> SearchQueryError {
+    SearchQueryError::InvalidParameter(message.into())
 }
 
-pub(crate) fn limit_exceeded(message: impl Into<String>) -> CassieError {
-    CassieError::ResourceLimit(message.into())
+pub(crate) fn limit_exceeded(message: impl Into<String>) -> SearchQueryError {
+    SearchQueryError::ResourceLimit(message.into())
 }

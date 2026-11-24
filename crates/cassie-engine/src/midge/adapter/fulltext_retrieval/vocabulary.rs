@@ -5,7 +5,7 @@ use cntryl_midge::Query;
 use crate::app::CassieError;
 use crate::midge::adapter::{key_encoding, AdapterTransaction};
 use crate::runtime::QueryExecutionControls;
-use crate::search::query::{TermMatcher, Vocabulary};
+use cassie_search::query::{TermMatcher, Vocabulary};
 
 /// The persisted term directory of one full-text index, read inside the
 /// transaction that also reads its postings and document statistics.
@@ -61,6 +61,8 @@ pub(super) fn vocabulary_terms(
 }
 
 impl Vocabulary for TermDirectory<'_> {
+    type Error = CassieError;
+
     fn matching_terms(
         &self,
         matchers: &[TermMatcher],

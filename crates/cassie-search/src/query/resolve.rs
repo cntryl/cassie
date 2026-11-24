@@ -2,7 +2,29 @@
 
 use super::compile::{node_bytes, CompiledQuery, Node, PhraseLeaf};
 use super::expand::{expand, TermMatcher, Vocabulary};
-use crate::app::CassieError;
+use std::fmt::{Display, Formatter};
+
+use super::SearchQueryError;
+
+/// Resolution can fail while parsing query semantics or reading its vocabulary.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ResolveError<E> {
+    /// Query compilation or expansion rejected the query.
+    Query(SearchQueryError),
+    /// The vocabulary returned its original error unchanged.
+    Vocabulary(E),
+}
+
+impl<E: Display> Display for ResolveError<E> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Query(error) => Display::fmt(error, formatter),
+            Self::Vocabulary(error) => Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl<E: std::error::Error + 'static> std::error::Error for ResolveError<E> {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Leaf {
@@ -34,7 +56,10 @@ impl CompiledQuery {
     ///
     /// Returns a program-limit error when an item or the whole query expands
     /// past the declared limits, or the vocabulary's own error.
-    pub fn resolve(&self, vocabulary: &dyn Vocabulary) -> Result<ResolvedQuery, CassieError> {
+    pub fn resolve<V: Vocabulary + ?Sized>(
+        &self,
+        vocabulary: &V,
+    ) -> Result<ResolvedQuery, ResolveError<V::Error>> {
         let Some(root) = &self.root else {
             return Ok(ResolvedQuery {
                 root: None,
@@ -137,5 +162,46 @@ fn collect_positive_terms(node: &ResolvedNode, terms: &mut Vec<String>) {
             }
         }
         ResolvedNode::Not(_) => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyzer::AnalyzerConfig;
+    use crate::query::{SearchQueryInput, SearchSyntax};
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct VocabularyFailure;
+
+    struct FailingVocabulary;
+
+    impl Vocabulary for FailingVocabulary {
+        type Error = VocabularyFailure;
+
+        fn matching_terms(
+            &self,
+            _matchers: &[TermMatcher],
+            _limit: usize,
+        ) -> Result<Vec<Vec<String>>, Self::Error> {
+            Err(VocabularyFailure)
+        }
+    }
+
+    #[test]
+    fn should_preserve_original_vocabulary_error_given_resolution_failure() {
+        // Arrange
+        let input = SearchQueryInput::new("pre*", SearchSyntax::Query);
+        let compiled =
+            CompiledQuery::compile(&input, &AnalyzerConfig::default()).expect("query compiles");
+
+        // Act
+        let result = compiled.resolve(&FailingVocabulary);
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(ResolveError::Vocabulary(VocabularyFailure))
+        ));
     }
 }

@@ -6,7 +6,7 @@ use super::search::{simple_search_score, SearchContext, SearchTermStats};
 use super::search_prepared::query_snippet;
 use super::{AnalyzerConfig, Expr, FunctionCall, QueryError, Value};
 use crate::runtime::QueryExecutionControls;
-use crate::search::query::{SearchQueryInput, SearchSyntax};
+use cassie_search::query::{SearchQueryInput, SearchSyntax};
 
 pub(super) fn evaluate(
     name: &str,
@@ -32,7 +32,9 @@ fn syntax_argument(name: &str, args: &[Value]) -> Result<SearchSyntax, QueryErro
     require_arg_count_range(name, args, 2..=3)?;
     match args.get(2) {
         None => Ok(SearchSyntax::Terms),
-        Some(Value::String(syntax)) => Ok(SearchSyntax::from_argument(syntax)?),
+        Some(Value::String(syntax)) => SearchSyntax::from_argument(syntax)
+            .map_err(crate::app::CassieError::from)
+            .map_err(QueryError::Cassie),
         Some(_) => Err(QueryError::Cassie(
             crate::app::CassieError::InvalidParameterValue(format!(
                 "{name} expects its syntax argument to be 'terms' or 'query'"

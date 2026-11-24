@@ -19,8 +19,8 @@ use super::{
     HybridSelectionDiagnostics, QueryError, QueryExecutionControls, Value,
 };
 use crate::runtime::FilteredVectorWork;
-use crate::search::query::SearchSyntax;
 use crate::sql::ast::{BinaryOp, Expr};
+use cassie_search::query::SearchSyntax;
 
 fn decline(cassie: &Cassie, reason: &str) -> Option<BoundedHybridRows> {
     cassie.runtime.record_vector_filtered_fallback(reason);

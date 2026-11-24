@@ -8,10 +8,28 @@ use std::sync::{Arc, Mutex};
 use super::search::{prepare_query_terms_with_analyzer, SearchContext, SearchTermStats};
 use crate::app::CassieError;
 use crate::search::analyzer::{AnalyzerConfig, TokenOccurrence};
-use crate::search::query::{
-    matching_terms_in, CompiledQuery, DocumentPositions, ResolvedQuery, SearchQueryInput,
-    SearchSyntax, TermMatcher, Vocabulary,
+use cassie_search::query::{
+    matching_terms_in, CompiledQuery, DocumentPositions, ResolveError, ResolvedQuery,
+    SearchQueryError, SearchQueryInput, SearchSyntax, TermMatcher, Vocabulary,
 };
+
+impl From<SearchQueryError> for CassieError {
+    fn from(error: SearchQueryError) -> Self {
+        match error {
+            SearchQueryError::InvalidParameter(message) => Self::InvalidParameterValue(message),
+            SearchQueryError::ResourceLimit(message) => Self::ResourceLimit(message),
+        }
+    }
+}
+
+impl From<ResolveError<CassieError>> for CassieError {
+    fn from(error: ResolveError<CassieError>) -> Self {
+        match error {
+            ResolveError::Query(error) => Self::from(error),
+            ResolveError::Vocabulary(error) => error,
+        }
+    }
+}
 
 const PREPARED_QUERY_CACHE_LIMIT: usize = 64;
 
@@ -39,7 +57,7 @@ impl PreparedSearch {
     pub(crate) fn prepare(
         input: &SearchQueryInput,
         analyzer: &AnalyzerConfig,
-        vocabulary: &dyn Vocabulary,
+        vocabulary: &dyn Vocabulary<Error = CassieError>,
     ) -> Result<Self, CassieError> {
         match input.syntax {
             SearchSyntax::Terms => Ok(Self::Terms(prepare_query_terms_with_analyzer(
@@ -163,11 +181,13 @@ pub(crate) struct ContextVocabulary<'a> {
 }
 
 impl Vocabulary for ContextVocabulary<'_> {
+    type Error = CassieError;
+
     fn matching_terms(
         &self,
         matchers: &[TermMatcher],
         limit: usize,
-    ) -> Result<Vec<Vec<String>>, CassieError> {
+    ) -> Result<Vec<Vec<String>>, Self::Error> {
         let key = crate::sql::ColumnIdentifierPath::reference_field_key(self.field);
         let terms = self
             .context
@@ -183,11 +203,13 @@ impl Vocabulary for ContextVocabulary<'_> {
 struct DocumentVocabulary<'a>(&'a SearchTermStats);
 
 impl Vocabulary for DocumentVocabulary<'_> {
+    type Error = CassieError;
+
     fn matching_terms(
         &self,
         matchers: &[TermMatcher],
         limit: usize,
-    ) -> Result<Vec<Vec<String>>, CassieError> {
+    ) -> Result<Vec<Vec<String>>, Self::Error> {
         Ok(matching_terms_in(
             self.0.term_counts().keys().map(String::as_str),
             matchers,
@@ -244,7 +266,7 @@ impl SearchContext {
     fn resolve_uncached(
         input: &SearchQueryInput,
         analyzer: &AnalyzerConfig,
-        vocabulary: &dyn Vocabulary,
+        vocabulary: &dyn Vocabulary<Error = CassieError>,
     ) -> Result<Arc<ResolvedQuery>, CassieError> {
         Ok(Arc::new(
             CompiledQuery::compile(input, analyzer)?.resolve(vocabulary)?,

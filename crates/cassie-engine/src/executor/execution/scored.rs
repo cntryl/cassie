@@ -1,4 +1,4 @@
-use crate::search::query::{SearchQueryInput, SearchSyntax};
+use cassie_search::query::{SearchQueryInput, SearchSyntax};
 
 use super::{
     batch, expr_key, filter, load_fulltext_index_options, query_cache, scan, virtual_views,

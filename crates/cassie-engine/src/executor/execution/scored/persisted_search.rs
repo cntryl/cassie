@@ -5,7 +5,7 @@ use super::{filter, Cassie, QueryError, QueryExecutionControls};
 use crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet;
 use crate::runtime::QueryMemoryReservation;
 use crate::search::analyzer::AnalyzerConfig;
-use crate::search::query::{CompiledQuery, SearchQueryInput, SearchSyntax};
+use cassie_search::query::{CompiledQuery, SearchQueryInput, SearchSyntax};
 
 pub(super) struct PersistedSearchCandidates {
     pub(super) candidates: PersistedFulltextCandidateSet,
@@ -75,7 +75,9 @@ pub(super) fn load_persisted_search_candidates(
             }
         }
         SearchSyntax::Query => {
-            let compiled = CompiledQuery::compile(input, analyzer)?;
+            let compiled = CompiledQuery::compile(input, analyzer)
+                .map_err(crate::app::CassieError::from)
+                .map_err(QueryError::from)?;
             match cassie.midge.fulltext_candidate_set_for_query_controlled(
                 collection, index_name, &compiled, controls,
             ) {

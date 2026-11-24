@@ -5,8 +5,7 @@
 use super::limits::{MAX_PHRASE_SPAN, MIN_PREFIX_CHARS, MIN_TYPO_CHARS};
 use super::parse::{parse, Expr};
 use super::{invalid, SearchQueryInput, SearchSyntax};
-use crate::app::CassieError;
-use crate::search::analyzer::AnalyzerConfig;
+use crate::analyzer::AnalyzerConfig;
 
 /// An ordered term sequence. `terms` pairs each analyzed term with its offset
 /// from the first term; offsets keep the gaps left by removed stop words.
@@ -53,7 +52,7 @@ impl CompiledQuery {
     pub fn compile(
         input: &SearchQueryInput,
         analyzer: &AnalyzerConfig,
-    ) -> Result<Self, CassieError> {
+    ) -> Result<Self, super::SearchQueryError> {
         debug_assert_eq!(input.syntax, SearchSyntax::Query);
         let Some(expr) = parse(&input.text)? else {
             return Ok(Self { root: None });
@@ -84,7 +83,10 @@ pub(super) fn node_bytes(node: &Node) -> usize {
     }
 }
 
-fn compile_expr(expr: &Expr, analyzer: &AnalyzerConfig) -> Result<Option<Node>, CassieError> {
+fn compile_expr(
+    expr: &Expr,
+    analyzer: &AnalyzerConfig,
+) -> Result<Option<Node>, super::SearchQueryError> {
     match expr {
         Expr::Word(text) => compile_phrase(text, 0, analyzer),
         Expr::Phrase { text, slop } => compile_phrase(text, *slop, analyzer),
@@ -118,7 +120,7 @@ fn compile_expr(expr: &Expr, analyzer: &AnalyzerConfig) -> Result<Option<Node>, 
 fn compile_children(
     children: &[Expr],
     analyzer: &AnalyzerConfig,
-) -> Result<Vec<Node>, CassieError> {
+) -> Result<Vec<Node>, super::SearchQueryError> {
     let mut nodes = Vec::with_capacity(children.len());
     for child in children {
         if let Some(node) = compile_expr(child, analyzer)? {
@@ -132,7 +134,7 @@ fn compile_phrase(
     text: &str,
     slop: u32,
     analyzer: &AnalyzerConfig,
-) -> Result<Option<Node>, CassieError> {
+) -> Result<Option<Node>, super::SearchQueryError> {
     let tokens = analyzer.analyze_positioned(text);
     let (Some((first, _)), Some((last, _))) = (tokens.first(), tokens.last()) else {
         return Ok(None);
@@ -158,7 +160,7 @@ fn fold_single_token(
     analyzer: &AnalyzerConfig,
     minimum: usize,
     kind: &str,
-) -> Result<String, CassieError> {
+) -> Result<String, super::SearchQueryError> {
     let folded = analyzer.fold_query_word(word);
     if analyzer.has_token_boundary(&folded) {
         return Err(invalid(format!(
@@ -177,7 +179,7 @@ fn fold_single_token(
 mod tests {
     use super::*;
 
-    fn compile(text: &str) -> Result<CompiledQuery, CassieError> {
+    fn compile(text: &str) -> Result<CompiledQuery, super::SearchQueryError> {
         CompiledQuery::compile(
             &SearchQueryInput::new(text, SearchSyntax::Query),
             &AnalyzerConfig::default(),
@@ -288,7 +290,7 @@ mod tests {
         // Assert
         assert!(results
             .iter()
-            .all(|result| matches!(result, Err(CassieError::InvalidParameterValue(_)))));
+            .all(|result| matches!(result, Err(super::SearchQueryError::InvalidParameter(_)))));
     }
 
     #[test]
@@ -300,6 +302,9 @@ mod tests {
         let result = compile(&query);
 
         // Assert
-        assert!(matches!(result, Err(CassieError::InvalidParameterValue(_))));
+        assert!(matches!(
+            result,
+            Err(super::SearchQueryError::InvalidParameter(_))
+        ));
     }
 }

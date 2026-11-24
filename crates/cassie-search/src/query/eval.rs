@@ -221,10 +221,9 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::search::analyzer::AnalyzerConfig;
-    use crate::search::query::{
-        CompiledQuery, SearchQueryInput, SearchSyntax, TermMatcher, Vocabulary,
-    };
+    use crate::analyzer::AnalyzerConfig;
+    use crate::query::{CompiledQuery, SearchQueryInput, SearchSyntax, TermMatcher, Vocabulary};
+    use std::convert::Infallible;
 
     struct Document(HashMap<String, Vec<u32>>);
 
@@ -247,12 +246,14 @@ mod tests {
     struct Terms(Vec<&'static str>);
 
     impl Vocabulary for Terms {
+        type Error = Infallible;
+
         fn matching_terms(
             &self,
             matchers: &[TermMatcher],
             limit: usize,
-        ) -> Result<Vec<Vec<String>>, crate::app::CassieError> {
-            Ok(crate::search::query::matching_terms_in(
+        ) -> Result<Vec<Vec<String>>, Self::Error> {
+            Ok(crate::query::matching_terms_in(
                 self.0.iter().copied(),
                 matchers,
                 limit,
@@ -438,7 +439,10 @@ mod tests {
         let result = compiled.resolve(&Terms(vocabulary));
 
         // Assert
-        let Err(crate::app::CassieError::ResourceLimit(message)) = result else {
+        let Err(crate::query::ResolveError::Query(crate::query::SearchQueryError::ResourceLimit(
+            message,
+        ))) = result
+        else {
             panic!("expected a resource limit error");
         };
         assert!(message.contains("max_expansions_per_item"));

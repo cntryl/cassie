@@ -77,7 +77,8 @@ fn resolved_table_privilege(
     }
 }
 
-pub(crate) fn relation_readable(
+#[doc(hidden)]
+pub fn relation_readable(
     catalog: &crate::catalog::Catalog,
     default_database: &str,
     session: &CassieSession,

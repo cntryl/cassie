@@ -201,7 +201,7 @@ impl Midge {
 
         for row in rows {
             if let Some((key, value)) =
-                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema, self.value_hooks())?
+                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema, &self.value_hooks())?
             {
                 tx.put(key, value, None).map_err(CassieError::from)?;
             }
@@ -252,7 +252,7 @@ impl Midge {
                         self.value_hooks().evaluate_scalar_predicate,
                     )?
                 {
-                    let evaluator = scalar_expression_evaluator(&index.name, self.value_hooks());
+                    let evaluator = scalar_expression_evaluator(&index.name, &self.value_hooks());
                     Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
                 } else {
                     None
@@ -267,7 +267,7 @@ impl Midge {
                         .map_err(CassieError::from)?;
                 }
                 if let Some((key, value)) =
-                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema, self.value_hooks())?
+                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema, &self.value_hooks())?
                 {
                     tx.put(key, value, None).map_err(CassieError::from)?;
                 }
@@ -298,7 +298,7 @@ impl Midge {
                     )? {
                 continue;
             }
-            let evaluator = scalar_expression_evaluator(&index.name, self.value_hooks());
+            let evaluator = scalar_expression_evaluator(&index.name, &self.value_hooks());
             let Some(values) =
                 Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
             else {

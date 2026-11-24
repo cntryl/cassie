@@ -117,3 +117,19 @@ fn should_rebind_nested_query_ast_given_runtime_attachment_type_when_syntax_is_p
         expected_syntax
     );
 }
+
+#[test]
+fn should_compare_field_constraints_without_attachment_partial_eq() {
+    // Arrange
+    #[derive(Debug, Clone)]
+    struct DebugOnlyAttachment;
+
+    let constraint = crate::declarations::FieldConstraint::<DebugOnlyAttachment>::new("id");
+    let equivalent = constraint.clone();
+
+    // Act
+    let matches = constraint == equivalent;
+
+    // Assert
+    assert!(matches);
+}

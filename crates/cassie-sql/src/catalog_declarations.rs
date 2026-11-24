@@ -255,7 +255,7 @@ impl IndexMeta {
             crate::column_identifier::ColumnIdentifierPath::stored_field_key(source)
                 == crate::column_identifier::ColumnIdentifierPath::stored_field_key(field)
         });
-        partition_references_field
+        let column_references_field = partition_references_field
             || source_references_field
             || self
                 .normalized_fields()

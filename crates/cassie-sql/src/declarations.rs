@@ -117,7 +117,7 @@ impl NotNullOwnership {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct FieldConstraint<A = ()> {
     /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
@@ -180,6 +180,41 @@ pub struct FieldConstraint<A = ()> {
     pub storage: Option<cassie_core::catalog::column_storage::ColumnStorage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compression: Option<cassie_core::catalog::column_storage::ColumnCompression>,
+}
+
+impl<A: std::fmt::Debug> PartialEq for FieldConstraint<A> {
+    fn eq(&self, other: &Self) -> bool {
+        self.definition_semantics_version == other.definition_semantics_version
+            && self.field == other.field
+            && self.primary_key_name == other.primary_key_name
+            && self.primary_key_ordinal == other.primary_key_ordinal
+            && self.unique_name == other.unique_name
+            && self.unique_ordinal == other.unique_ordinal
+            && self.constraint_index_name == other.constraint_index_name
+            && self.constraint_index_include_fields == other.constraint_index_include_fields
+            && self.constraint_index_options == other.constraint_index_options
+            && self.check_name == other.check_name
+            && self.foreign_key_name == other.foreign_key_name
+            && self.foreign_key_ordinal == other.foreign_key_ordinal
+            && self.foreign_key_on_delete == other.foreign_key_on_delete
+            && self.foreign_key_on_update == other.foreign_key_on_update
+            && self.not_null == other.not_null
+            && self.not_null_ownership == other.not_null_ownership
+            && self.unique == other.unique
+            && self.unique_null_policy == other.unique_null_policy
+            && self.primary_key == other.primary_key
+            && self.default_value == other.default_value
+            && self.default_expression == other.default_expression
+            && self.default_sequence == other.default_sequence
+            && self.default_sequence_owned == other.default_sequence_owned
+            && self.check == other.check
+            && self.references_table == other.references_table
+            && self.references_field == other.references_field
+            && self.identity == other.identity
+            && self.identity_options == other.identity_options
+            && self.storage == other.storage
+            && self.compression == other.compression
+    }
 }
 
 impl<A> FieldConstraint<A> {

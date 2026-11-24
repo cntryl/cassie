@@ -1,5 +1,6 @@
 use super::MapAttachment;
 use crate::ast::*;
+use crate::declarations::{ConstraintCheck, FieldConstraint};
 
 impl MapAttachment for JsonBehavior<()> {
     type Rebound<B> = JsonBehavior<B>;
@@ -308,7 +309,10 @@ impl MapAttachment for SelectItem<()> {
                 function: function.rebind_attachment::<B>(),
                 alias,
             },
-            Self::Expr => SelectItem::<B>::Expr,
+            Self::Expr { expr, alias } => SelectItem::<B>::Expr {
+                expr: expr.rebind_attachment::<B>(),
+                alias,
+            },
             Self::WindowFunction { function, alias } => SelectItem::<B>::WindowFunction {
                 function: function.rebind_attachment::<B>(),
                 alias,
@@ -403,7 +407,9 @@ impl MapAttachment for TableFunctionForm<()> {
         match self {
             Self::Columns(value0) => TableFunctionForm::<B>::Columns(value0),
             Self::JsonTable(value0) => TableFunctionForm::<B>::JsonTable(value0.rebind_attachment::<B>()),
-            Self::GraphTable => TableFunctionForm::<B>::GraphTable,
+            Self::GraphTable(value0) => {
+                TableFunctionForm::<B>::GraphTable(value0.rebind_attachment::<B>())
+            }
             Self::GraphElements(value0) => TableFunctionForm::<B>::GraphElements(value0),
             Self::Typed(value0) => TableFunctionForm::<B>::Typed(value0),
         }

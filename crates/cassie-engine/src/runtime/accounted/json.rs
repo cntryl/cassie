@@ -8,7 +8,7 @@ use cassie_core::request::accounted::json;
 
 use crate::app::CassieError;
 
-pub(crate) use json::{JSON_DECODE_EXPANSION_FACTOR, JSON_MAP_ENTRY_BYTES};
+pub(crate) use json::JSON_MAP_ENTRY_BYTES;
 
 /// Estimates an already-owned JSON value, including unused String and Vec capacity.
 ///
@@ -18,11 +18,6 @@ pub(crate) use json::{JSON_DECODE_EXPANSION_FACTOR, JSON_MAP_ENTRY_BYTES};
 #[doc(hidden)]
 pub fn retained_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
     Ok(json::retained_bytes(value)?)
-}
-
-/// Estimates fresh parser/reconstruction output whose empty maps were never populated.
-pub(crate) fn retained_decoded_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
-    Ok(json::retained_decoded_bytes(value)?)
 }
 
 /// # Errors

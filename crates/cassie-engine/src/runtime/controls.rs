@@ -236,18 +236,6 @@ impl QueryMemoryReservation {
         self.core.belongs_to(&controls.memory)
     }
 
-    /// A narrow bounded owner without a request token, deadline or test scope.
-    pub(crate) fn independent_budget(budget: usize, bytes: usize) -> Result<Self, CassieError> {
-        if bytes > budget {
-            return Err(memory_limit_error(budget, bytes));
-        }
-        Ok(Self {
-            core: RequestMemory::new(budget)
-                .reserve(bytes)
-                .map_err(memory_budget_error)?,
-        })
-    }
-
     #[cfg(test)]
     pub(crate) fn tracker_peak_bytes(&self) -> usize {
         self.core.tracker_peak_bytes()

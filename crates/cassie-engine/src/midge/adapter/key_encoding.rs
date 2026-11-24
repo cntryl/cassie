@@ -830,17 +830,15 @@ fn scalar_index_bound_key(
 }
 
 fn key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
-    encode(family, components, false)
+    cassie_storage::key_codec::encode_key(family, components)
 }
 
 fn encoded_u64_component(value: u64) -> Vec<u8> {
-    let mut encoder = Encoder::with_capacity(9);
-    encoder.encode_u64_into(value);
-    encoder.into_vec()
+    cassie_storage::key_codec::encode_u64_component(value)
 }
 
 fn prefix(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
-    encode(family, components, true)
+    cassie_storage::key_codec::encode_prefix(family, components)
 }
 
 fn scoped_key(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
@@ -910,19 +908,11 @@ fn data_scoped_components(raw: &str) -> Vec<String> {
 }
 
 fn encode(family: &[u8], components: &[&[u8]], trailing_separator: bool) -> Vec<u8> {
-    let mut parts = Vec::with_capacity(3 + components.len());
-    parts.push(ROOT);
-    parts.push(BASELINE);
-    parts.push(family);
-    parts.extend_from_slice(components);
-
-    let capacity = parts.iter().map(|part| part.len()).sum::<usize>() + parts.len();
-    let mut encoder = Encoder::with_capacity(capacity);
-    encoder.encode_composite_into_buf(&parts);
     if trailing_separator {
-        encoder.push_separator();
+        cassie_storage::key_codec::encode_prefix(family, components)
+    } else {
+        cassie_storage::key_codec::encode_key(family, components)
     }
-    encoder.into_vec()
 }
 
 fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(), CassieError> {

@@ -463,7 +463,8 @@ fn reserve_visited_identity<E>(
     memory.try_grow(checked_add_bytes(
         btree_node_bytes::<String, (), E>()?,
         id.len(),
-    )?)
+    )?)?;
+    Ok(())
 }
 
 fn hnsw_cache_entry_bytes<E>(id: &str, node: Option<&HnswGraphNode>) -> Result<usize, HnswSearchError<E>> {

@@ -1,18 +1,6 @@
-use super::RuntimeState;
+pub(crate) use cassie_storage::operation_stats::ColumnBatchScanMetrics;
 
-#[derive(Default)]
-pub(crate) struct ColumnBatchScanMetrics {
-    pub(crate) rows: usize,
-    pub(crate) segments_read: usize,
-    pub(crate) chunks_read: usize,
-    pub(crate) physical_bytes: usize,
-    pub(crate) logical_bytes: usize,
-    pub(crate) predicate_values: usize,
-    pub(crate) candidate_rows: usize,
-    pub(crate) selected_rows: usize,
-    pub(crate) materialized_values: usize,
-    pub(crate) skipped_segments: usize,
-}
+use super::RuntimeState;
 
 impl RuntimeState {
     pub(crate) fn record_column_batch_aggregate_scan(&self, selected_rows: usize) {

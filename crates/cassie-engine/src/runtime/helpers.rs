@@ -1,7 +1,7 @@
 use super::{
     io, observation_is_outlier, recompute_feedback_confidence, CassieError, Duration, Hash, Hasher,
     ParameterShape, PlanCacheKey, RuntimeFeedbackKey, RuntimeFeedbackObservation,
-    RuntimeFeedbackRecord, RuntimeFeedbackState, Serialize, Value, VecDeque, Write,
+    RuntimeFeedbackRecord, RuntimeFeedbackState, Value, VecDeque, Write,
 };
 
 /// Hashes parameter values without materializing JSON serialization buffers.
@@ -184,43 +184,6 @@ pub(super) fn current_time_millis() -> u64 {
         .map_or(0, |duration| {
             u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
         })
-}
-
-pub(crate) fn stable_fingerprint<T: Serialize>(value: &T) -> u64 {
-    let mut writer = StableFingerprintWriter::default();
-    serde_json::to_writer(&mut writer, value).expect("serialize stable fingerprint");
-    writer.finish()
-}
-
-#[derive(Default)]
-struct StableFingerprintWriter {
-    state: u64,
-}
-
-impl StableFingerprintWriter {
-    fn finish(&self) -> u64 {
-        self.state
-    }
-}
-
-impl Write for StableFingerprintWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-        const FNV_PRIME: u64 = 0x0100_0000_01b3;
-
-        if self.state == 0 {
-            self.state = FNV_OFFSET_BASIS;
-        }
-        for byte in buf {
-            self.state ^= u64::from(*byte);
-            self.state = self.state.wrapping_mul(FNV_PRIME);
-        }
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
 }
 
 pub(super) fn touch(order: &mut VecDeque<PlanCacheKey>, key: &PlanCacheKey) {

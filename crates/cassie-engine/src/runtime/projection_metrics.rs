@@ -1,18 +1,6 @@
-use super::RuntimeState;
+use cassie_storage::operation_stats::ProjectionWriteStats;
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ProjectionWriteStats {
-    pub row_puts: u64,
-    pub row_deletes: u64,
-    pub index_puts: u64,
-    pub index_deletes: u64,
-    pub metadata_puts: u64,
-    pub metadata_deletes: u64,
-    pub duplicate_checks: u64,
-    pub batch_flushes: u64,
-    pub rebuild_target_puts: u64,
-    pub activation_metadata_writes: u64,
-}
+use super::RuntimeState;
 
 impl RuntimeState {
     /// # Panics

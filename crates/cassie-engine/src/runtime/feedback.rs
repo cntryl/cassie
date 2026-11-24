@@ -1,4 +1,6 @@
-use super::{stable_fingerprint, Deserialize, Hash, Serialize};
+use super::{
+    stable_fingerprint, Deserialize, RuntimeFeedbackKey, RuntimeFeedbackRecord, Serialize,
+};
 use crate::catalog::IndexMeta;
 use crate::planner::logical::LogicalPlan;
 use crate::sql::ast::{Expr, FunctionCall, OrderExpr, QuerySource, SelectItem, SortDirection};
@@ -7,91 +9,6 @@ use std::collections::BTreeSet;
 pub(crate) const OPERATOR_FEEDBACK_CONFIDENCE_FLOOR_BPS: u16 = 600;
 pub(crate) const OPERATOR_FEEDBACK_MIN_STABLE_SAMPLES: u64 = 3;
 const OPERATOR_FEEDBACK_OUTLIER_RATIO: u64 = 8;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RuntimeFeedbackKey {
-    pub schema_epoch: u64,
-    pub database: Option<String>,
-    #[serde(default)]
-    pub search_path: Vec<String>,
-    pub collection: String,
-    pub operator_family: String,
-    pub relation_set: Vec<String>,
-    pub predicate_shape_hash: u64,
-    pub index_shape_hash: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RuntimeFeedbackRecord {
-    pub executions: u64,
-    pub rows_in_total: u64,
-    pub rows_out_total: u64,
-    pub elapsed_ms_total: u64,
-    pub storage_reads_total: u64,
-    pub storage_writes_total: u64,
-    pub temp_writes_total: u64,
-    pub candidate_count_total: u64,
-    pub result_count_total: u64,
-    pub errors_total: u64,
-    pub last_error_class: Option<String>,
-    pub stable_samples: u64,
-    pub outlier_samples: u64,
-    pub confidence_bps: u16,
-    pub stable_rows_in_total: u64,
-    pub stable_rows_out_total: u64,
-    pub stable_elapsed_ms_total: u64,
-    pub stable_storage_reads_total: u64,
-    pub stable_storage_writes_total: u64,
-    pub stable_temp_writes_total: u64,
-    pub stable_candidate_count_total: u64,
-    pub stable_result_count_total: u64,
-    pub spill_samples: u64,
-    pub memory_pressure_samples: u64,
-    pub first_seen_ms: u64,
-    pub last_seen_ms: u64,
-}
-
-impl RuntimeFeedbackRecord {
-    #[must_use]
-    pub fn stable_average_rows_in(&self) -> u64 {
-        average(self.stable_rows_in_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_rows_out(&self) -> u64 {
-        average(self.stable_rows_out_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_elapsed_ms(&self) -> u64 {
-        average(self.stable_elapsed_ms_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_storage_reads(&self) -> u64 {
-        average(self.stable_storage_reads_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_storage_writes(&self) -> u64 {
-        average(self.stable_storage_writes_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_temp_writes(&self) -> u64 {
-        average(self.stable_temp_writes_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_candidate_count(&self) -> u64 {
-        average(self.stable_candidate_count_total, self.stable_samples)
-    }
-
-    #[must_use]
-    pub fn stable_average_result_count(&self) -> u64 {
-        average(self.stable_result_count_total, self.stable_samples)
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeFeedbackObservation {
@@ -106,44 +23,6 @@ pub struct RuntimeFeedbackObservation {
     pub error_class: Option<String>,
     pub spilled: bool,
     pub memory_pressure: bool,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct RuntimeFeedbackMutation {
-    pub(crate) upserts: Vec<(RuntimeFeedbackKey, RuntimeFeedbackRecord)>,
-    pub(crate) deletes: Vec<RuntimeFeedbackKey>,
-}
-
-impl RuntimeFeedbackMutation {
-    pub(crate) fn upsert(&mut self, key: RuntimeFeedbackKey, record: RuntimeFeedbackRecord) {
-        self.deletes.retain(|deleted| deleted != &key);
-        if let Some((_, existing)) = self
-            .upserts
-            .iter_mut()
-            .find(|(existing_key, _)| existing_key == &key)
-        {
-            *existing = record;
-        } else {
-            self.upserts.push((key, record));
-        }
-    }
-
-    pub(crate) fn delete(&mut self, key: RuntimeFeedbackKey) {
-        self.upserts
-            .retain(|(existing_key, _)| existing_key != &key);
-        if !self.deletes.contains(&key) {
-            self.deletes.push(key);
-        }
-    }
-
-    pub(crate) fn merge(&mut self, other: Self) {
-        for key in other.deletes {
-            self.delete(key);
-        }
-        for (key, record) in other.upserts {
-            self.upsert(key, record);
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -286,17 +165,6 @@ pub(crate) fn observation_is_outlier(
 fn ratio_is_outlier(observed: u64, baseline: u64) -> bool {
     observed > baseline.saturating_mul(OPERATOR_FEEDBACK_OUTLIER_RATIO)
         || observed.saturating_mul(OPERATOR_FEEDBACK_OUTLIER_RATIO) < baseline
-}
-
-fn average(total: u64, samples: u64) -> u64 {
-    if samples == 0 {
-        0
-    } else {
-        total
-            .saturating_add(samples.saturating_sub(1))
-            .checked_div(samples)
-            .unwrap_or(0)
-    }
 }
 
 fn relation_set_shape(source: &QuerySource) -> Vec<String> {

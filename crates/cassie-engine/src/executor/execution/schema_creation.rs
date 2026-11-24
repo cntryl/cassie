@@ -831,12 +831,15 @@ pub(super) fn create_index(
         cassie.catalog.register_index(metadata);
     }
     if logical_table != storage_table {
-        cassie.midge.retain_private_materialized_output(
-            session,
-            &logical_table,
-            &storage_table,
-            controls,
-        )?;
+        if let Some(session) = session {
+            session.retain_private_materialized_output(
+                &cassie.midge,
+                &cassie.default_database,
+                &logical_table,
+                &storage_table,
+                controls,
+            )?;
+        }
     }
     super::schema_command::refresh_table_cardinality_stats(cassie, &storage_table)?;
     Ok(CreationOutcome::created(output))

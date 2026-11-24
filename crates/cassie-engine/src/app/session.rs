@@ -36,7 +36,9 @@ use transaction_snapshot::TransactionReadSnapshot;
 mod statement_batch;
 mod statement_read;
 mod statement_text;
-pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
+pub(crate) use statement_read::{
+    PrivateOutput, PrivateOutputs, SessionReadScope, StatementOverlay,
+};
 
 mod owned_setting;
 #[path = "session/random_state.rs"]
@@ -132,6 +134,7 @@ struct SessionTransactionState {
     catalog_base_version: Option<u64>,
     catalog_views: catalog_overlay::TransactionCatalogViews,
     storage_overlay: Arc<Mutex<StorageOverlay>>,
+    private_outputs: Option<Arc<PrivateOutputs>>,
     session_state: Option<SessionStateSnapshot>,
     /// Settings changed by `SET LOCAL`, restored when the transaction ends.
     local_settings: Vec<String>,
@@ -200,6 +203,7 @@ struct SessionSavepoint {
     catalog_base_version: Option<u64>,
     catalog_views: catalog_overlay::TransactionCatalogViews,
     storage_overlay: StorageOverlay,
+    private_outputs: Option<Arc<PrivateOutputs>>,
     session_state: SessionStateSnapshot,
     unique_keys: BTreeSet<super::UniqueTransactionKey>,
     row_keys: BTreeSet<super::RowTransactionKey>,
@@ -243,6 +247,7 @@ pub(crate) struct StatementMutationBatch {
     base_catalog_overlay: Option<Catalog>,
     base_catalog_base_version: Option<u64>,
     base_storage_overlay: StorageOverlay,
+    base_private_outputs: Option<Arc<PrivateOutputs>>,
 }
 
 #[derive(Debug)]
@@ -356,6 +361,7 @@ impl CassieSession {
                 catalog_base_version: None,
                 catalog_views: catalog_overlay::TransactionCatalogViews::default(),
                 storage_overlay: Arc::new(Mutex::new(StorageOverlay::default())),
+                private_outputs: None,
                 session_state: None,
                 local_settings: Vec::new(),
                 session_writes: setting_writes::SessionWrites::new(),

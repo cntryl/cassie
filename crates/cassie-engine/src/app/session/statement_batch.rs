@@ -41,6 +41,7 @@ impl CassieSession {
             .map(Catalog::detached_transaction_snapshot);
         let catalog_base_version = working_state.catalog_base_version;
         let storage_overlay = working_state.storage_overlay.lock().clone();
+        let private_outputs = working_state.private_outputs.clone();
         let base_conflict_intent_count = conflict_intents.len();
         let session = Self {
             statement_text: self.statement_text.clone(),
@@ -73,6 +74,7 @@ impl CassieSession {
             base_catalog_overlay: catalog_overlay,
             base_catalog_base_version: catalog_base_version,
             base_storage_overlay: storage_overlay,
+            base_private_outputs: private_outputs,
         })
     }
 
@@ -139,6 +141,11 @@ impl CassieSession {
                 None
             },
             storage_overlay: Arc::new(Mutex::new(storage_overlay)),
+            private_outputs: if active {
+                current.private_outputs.clone()
+            } else {
+                None
+            },
             session_state: None,
             local_settings: Vec::new(),
             session_writes: super::setting_writes::SessionWrites::new(),
@@ -194,6 +201,7 @@ impl CassieSession {
         if current_catalog_version != base_catalog_version
             || transaction.catalog_base_version != batch.base_catalog_base_version
             || *transaction.storage_overlay.lock() != batch.base_storage_overlay
+            || !same_private_outputs(&transaction.private_outputs, &batch.base_private_outputs)
         {
             return Err(CassieError::Execution(
                 "session transaction changed while statement was executing".to_string(),
@@ -236,7 +244,19 @@ impl CassieSession {
         transaction.catalog_base_version = batch_transaction.catalog_base_version;
         transaction.catalog_views = batch_transaction.catalog_views.clone();
         *transaction.storage_overlay.lock() = published;
+        transaction.private_outputs = batch_transaction.private_outputs.clone();
         Ok(())
+    }
+}
+
+fn same_private_outputs(
+    left: &Option<Arc<crate::app::PrivateOutputs>>,
+    right: &Option<Arc<crate::app::PrivateOutputs>>,
+) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+        (None, None) => true,
+        _ => false,
     }
 }
 

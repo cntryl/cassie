@@ -104,12 +104,15 @@ pub(super) fn refresh_materialized_view_versioned(
         cassie.catalog.register_index(replacement);
     }
 
-    cassie.midge.retain_private_materialized_output(
-        session,
-        name,
-        &version.output_collection,
-        controls,
-    )?;
+    if let Some(session) = session {
+        session.retain_private_materialized_output(
+            &cassie.midge,
+            &cassie.default_database,
+            name,
+            &version.output_collection,
+            controls,
+        )?;
+    }
     #[cfg(test)]
     tests::cancel_before_activation_if_armed();
 

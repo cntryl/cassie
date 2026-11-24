@@ -71,7 +71,8 @@ impl CassieSession {
             .transpose()?
             .flatten();
         if let (Some(data), Some(source)) = (&mut data, &requirement.single_source) {
-            StatementDataRead::retain_bound_output(data, source);
+            let private_outputs = self.transaction_private_outputs();
+            StatementDataRead::retain_bound_output(data, source, private_outputs.as_ref());
         }
         let header = add(
             size_of::<BoundReadView>() + 2 * size_of::<usize>(),

@@ -40,6 +40,7 @@ impl CassieSession {
             .map(Catalog::detached_transaction_snapshot);
         let catalog_base_version = transaction.catalog_base_version;
         let storage_overlay = transaction.storage_overlay.lock().clone();
+        let private_outputs = transaction.private_outputs.clone();
         let unique_keys = self
             .transaction_unique_waits()
             .map_or_else(BTreeSet::new, |waits| {
@@ -63,6 +64,7 @@ impl CassieSession {
             catalog_base_version,
             catalog_views,
             storage_overlay,
+            private_outputs,
             session_state: self.session_state_snapshot(),
             session_writes,
             unique_keys,
@@ -165,6 +167,7 @@ impl CassieSession {
             .map(Catalog::detached_transaction_snapshot);
         let catalog_base_version = transaction.savepoints[index].catalog_base_version;
         let storage_overlay = transaction.savepoints[index].storage_overlay.clone();
+        let private_outputs = transaction.savepoints[index].private_outputs.clone();
         let session_state = transaction.savepoints[index].session_state.clone();
         transaction.session_writes = transaction.savepoints[index].session_writes.clone();
         let object_mark = transaction.savepoints[index].object_mark;
@@ -178,6 +181,7 @@ impl CassieSession {
         transaction.catalog_base_version = catalog_base_version;
         transaction.catalog_views = transaction.savepoints[index].catalog_views.clone();
         *transaction.storage_overlay.lock() = storage_overlay;
+        transaction.private_outputs = private_outputs;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
         self.retire_schema_context();

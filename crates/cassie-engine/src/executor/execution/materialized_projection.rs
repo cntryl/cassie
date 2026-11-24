@@ -200,9 +200,15 @@ fn create_materialized_relation(
             }
 
             if let Some(output) = metadata.active_output_collection() {
-                cassie
-                    .midge
-                    .retain_private_materialized_output(session, name, output, controls)?;
+                if let Some(session) = session {
+                    session.retain_private_materialized_output(
+                        &cassie.midge,
+                        &cassie.default_database,
+                        name,
+                        output,
+                        controls,
+                    )?;
+                }
             }
             if let Err(error) = cassie.midge.put_projection_metadata(&metadata) {
                 if with_data

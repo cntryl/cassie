@@ -182,9 +182,13 @@ impl CassieSession {
             return Ok(Some(Arc::clone(&owner.data)));
         }
         let overlay = self.capture_statement_overlay_locked(&transaction, controls)?;
-        let storage = transaction.storage_overlay.lock();
-        StatementDataRead::with_materialized_outputs(&owner.data, overlay, &storage, controls)
-            .map(Some)
+        StatementDataRead::with_materialized_outputs(
+            &owner.data,
+            overlay,
+            transaction.private_outputs.as_ref(),
+            controls,
+        )
+        .map(Some)
     }
 
     /// The direct cursor path has already declined native streaming when this

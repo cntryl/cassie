@@ -124,6 +124,16 @@ fn should_keep_committed_data_frozen_across_command_overlays() {
     // Assert
     assert!(Arc::ptr_eq(&first.snapshot, &second.snapshot));
     assert!(Arc::ptr_eq(&second.snapshot, &third.snapshot));
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(!Arc::ptr_eq(
+        first.overlay().expect("first command overlay"),
+        second.overlay().expect("second command overlay")
+    ));
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(!Arc::ptr_eq(
+        first.overlay().expect("first command overlay"),
+        second.overlay().expect("second command overlay")
+    ));
     for owner in [&first, &second, &third] {
         assert_eq!(
             payload(&cassie, &session, owner, "base"),
@@ -559,4 +569,55 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
     );
     assert!(unrelated.expect("unrelated portal fits").is_some());
     assert!(matches!(relevant, Err(CassieError::ResourceLimit(_))));
+}
+
+#[test]
+fn should_restore_session_private_outputs_when_rolling_back_a_savepoint() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE private_output_source (id INT PRIMARY KEY)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO private_output_source VALUES (1)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            &session,
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(&session, "SAVEPOINT before_private_output", vec![])
+        .unwrap();
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE MATERIALIZED VIEW private_output_saved AS \
+             SELECT id FROM private_output_source",
+            vec![],
+        )
+        .unwrap();
+    let retained = session.transaction_private_outputs();
+    session
+        .rollback_to_savepoint("before_private_output")
+        .unwrap();
+    let restored = session.transaction_private_outputs();
+
+    // Assert
+    assert!(retained.is_some());
+    assert!(restored.is_none());
 }

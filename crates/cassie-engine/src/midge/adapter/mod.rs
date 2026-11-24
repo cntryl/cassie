@@ -1067,7 +1067,9 @@ impl Midge {
 
 mod statement_read;
 use statement_read::DataReadTransaction;
-pub(crate) use statement_read::{StatementDataRead, StatementReadScope};
+pub(crate) use statement_read::{
+    NativeStatementReadContext, NativeStatementSnapshot, StatementDataRead, StatementReadScope,
+};
 
 #[cfg(all(test, feature = "replay-benchmark-observation"))]
 pub(crate) use transactions::data_policy_test_observer;

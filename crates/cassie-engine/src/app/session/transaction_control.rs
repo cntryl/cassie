@@ -157,6 +157,7 @@ impl CassieSession {
         transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
+        transaction.private_outputs = None;
         transaction.session_state = Some(session_state);
         transaction.local_settings.clear();
         transaction.session_writes.clear();
@@ -405,6 +406,7 @@ impl CassieSession {
         transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
+        transaction.private_outputs = None;
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         let session_writes = std::mem::take(&mut transaction.session_writes);
@@ -562,6 +564,7 @@ impl CassieSession {
         transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
+        transaction.private_outputs = None;
         transaction.local_settings.clear();
         transaction.session_writes.clear();
         transaction.projection_write = Arc::default();

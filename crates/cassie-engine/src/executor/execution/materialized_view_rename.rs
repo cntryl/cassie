@@ -69,10 +69,7 @@ pub(super) fn rename(
                 .midge
                 .rename_sql_materialized_view_metadata(&statement.name, &metadata)?;
             if let Some(session) = session.filter(|s| s.is_repeatable_read_write()) {
-                session
-                    .transaction_storage_overlay()?
-                    .lock()
-                    .rename_private_materialized_output(&statement.name, new_name);
+                session.rename_private_materialized_output(&statement.name, new_name);
             }
             cassie
                 .catalog

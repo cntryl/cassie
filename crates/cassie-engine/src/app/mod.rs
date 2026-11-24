@@ -79,14 +79,14 @@ pub mod copy_decode;
 #[doc(hidden)]
 pub mod enum_parameters;
 mod error;
-mod session;
 pub mod network_sessions;
-pub mod transport;
+mod session;
 mod session_objects;
 mod session_schema;
 mod session_sequences;
 mod session_settings;
 mod state;
+pub mod transport;
 mod vector_backfill;
 mod vector_write;
 mod write_options;
@@ -112,12 +112,13 @@ pub(crate) use session::{
 };
 #[doc(hidden)]
 pub use session::{BoundReadScope, BoundReadView, SessionTransactionStatus};
+#[doc(hidden)]
+pub use session::{CopyCommandOwner, FailureAuthority, FailureAuthorityIdentity};
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
     MAX_PREPARED_PER_SESSION,
 };
-#[doc(hidden)]
-pub use session::{CopyCommandOwner, FailureAuthority, FailureAuthorityIdentity};
+pub(crate) use session::{PrivateOutput, PrivateOutputs};
 pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
 #[doc(hidden)]
 pub use session_objects::SessionObjectError;

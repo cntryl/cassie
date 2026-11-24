@@ -5,7 +5,8 @@ use super::{
     SessionTransactionState, SessionTransactionStatus, SharedTransactionWrites,
     StagedWriteSnapshot, TransactionRowChange, TransactionWrites,
 };
-use crate::midge::adapter::{Midge, StatementDataRead};
+use crate::executor::retained_memory::add;
+use crate::midge::adapter::{Midge, NativeStatementReadContext, StatementDataRead};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use std::cell::RefCell;
@@ -28,6 +29,24 @@ pub(crate) struct StatementOverlay {
     memory: QueryMemoryReservation,
 }
 
+#[derive(Debug)]
+pub(crate) struct PrivateOutput {
+    pub(crate) name: String,
+    pub(crate) read: Arc<StatementDataRead>,
+    pub(crate) memory: QueryMemoryReservation,
+}
+
+pub(crate) type PrivateOutputs = std::collections::BTreeMap<String, Arc<PrivateOutput>>;
+
+impl PrivateOutput {
+    pub(crate) fn accounted_bytes(&self) -> Result<usize, CassieError> {
+        add(
+            self.memory.bytes(),
+            self.read.private_owner_accounted_bytes()?,
+        )
+    }
+}
+
 impl StatementOverlay {
     pub(crate) fn checkpoint_storage(
         &self,
@@ -46,6 +65,63 @@ impl StatementOverlay {
 }
 
 impl CassieSession {
+    pub(crate) fn retain_private_materialized_output(
+        &self,
+        midge: &Arc<Midge>,
+        default_database: &str,
+        logical: &str,
+        output: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        let repeatable_read_write = transaction.isolation
+            == Some(crate::sql::ast::TransactionIsolation::RepeatableRead)
+            && transaction.repeatable_read.as_ref().map_or_else(
+                || {
+                    transaction.modes.read_only == Some(false)
+                        || transaction
+                            .savepoints
+                            .iter()
+                            .any(|saved| saved.modes.read_only == Some(false))
+                },
+                |owner| owner.history.is_some(),
+            );
+        if transaction.status != SessionTransactionStatus::InTransaction || !repeatable_read_write {
+            return Ok(());
+        }
+        let storage = Arc::clone(&transaction.storage_overlay);
+        let database = self.current_database().unwrap_or(default_database);
+        let context = NativeStatementReadContext::new(
+            None,
+            controls.interruption(),
+            controls.request_memory(),
+        );
+        let storage_guard = storage.lock();
+        let snapshot = midge.capture_private_materialized_snapshot(
+            &storage_guard,
+            database,
+            output,
+            &context,
+        )?;
+        let Some(snapshot) = snapshot else {
+            return Ok(());
+        };
+        let read = StatementDataRead::from_native_snapshot(snapshot, controls)?;
+        let memory = controls.reserve_query_memory(add(
+            size_of::<PrivateOutput>(),
+            add(output.len(), logical.len())?,
+        )?)?;
+        let next = PrivateOutput {
+            name: output.to_owned(),
+            read,
+            memory,
+        };
+        Arc::make_mut(transaction.private_outputs.get_or_insert_with(Arc::default))
+            .insert(logical.to_owned(), Arc::new(next));
+        Ok(())
+    }
+
     pub(crate) fn capture_statement_read(
         &self,
         midge: &Arc<Midge>,

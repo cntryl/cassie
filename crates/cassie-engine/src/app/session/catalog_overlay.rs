@@ -1,6 +1,7 @@
 //! Session-owned catalog changes and admitted immutable read compositions.
 
 use super::{Arc, CassieError, CassieSession, Catalog, Mutex, StorageOverlay};
+use crate::app::PrivateOutputs;
 use crate::catalog::ControlledCatalogSnapshot;
 use crate::runtime::QueryExecutionControls;
 
@@ -204,6 +205,24 @@ impl CassieSession {
 
     pub(crate) fn transaction_storage_overlay_snapshot(&self) -> StorageOverlay {
         self.transaction.lock().storage_overlay.lock().clone()
+    }
+
+    pub(crate) fn transaction_private_outputs(&self) -> Option<Arc<PrivateOutputs>> {
+        self.transaction.lock().private_outputs.clone()
+    }
+
+    pub(crate) fn rename_private_materialized_output(&self, previous: &str, next: &str) {
+        let mut transaction = self.transaction.lock();
+        if let Some(outputs) = transaction
+            .private_outputs
+            .as_mut()
+            .filter(|map| map.contains_key(previous))
+        {
+            let outputs = Arc::make_mut(outputs);
+            if let Some(read) = outputs.remove(previous) {
+                outputs.insert(next.to_owned(), read);
+            }
+        }
     }
 }
 

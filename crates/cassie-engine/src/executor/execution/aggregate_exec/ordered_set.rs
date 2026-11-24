@@ -47,7 +47,7 @@ use crate::executor::retained_memory::{add, value_clone_bytes};
 use crate::executor::semantic::compare_values;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{Expr, FunctionCall, SortDirection};
-use crate::types::array_value::primitive_copy::{copy_primitive_array, PrimitiveCopyProgress};
+use crate::types::primitive_copy::{copy_primitive_array, PrimitiveCopyProgress};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 

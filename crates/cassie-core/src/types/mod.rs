@@ -1,3 +1,21 @@
+pub mod array_bounds;
+pub mod array_value;
+pub mod char_text;
+pub mod composite;
+pub mod domain;
+pub mod enum_type;
+pub mod extended;
+pub mod builtin;
+pub mod integer;
+pub mod integer_bytea;
+pub mod json;
+pub mod numeric;
+pub mod jsonb_format;
+pub mod row;
+pub mod schema;
+pub mod temporal;
+pub mod typed;
+pub mod value;
 pub mod boolean;
 pub mod bytea_input;
 pub mod float_input;
@@ -13,5 +31,20 @@ pub use boolean::BooleanInputError;
 pub use bytea_input::ByteaInputError;
 pub use float_input::FloatInputError;
 pub use object_id::{ObjectIdKind, ObjectIdentifierError};
+pub use array_value::{ArrayDimension, SqlArray};
+pub use row::Row;
+pub use schema::{DataType, FieldSchema, Schema};
 pub use size_input::SizeInputError;
+pub use typed::{TypedKey, TypedValue};
+pub use value::Value;
 pub use vector::Vector;
+pub use composite::{CompositeField, CompositeRef, CompositeType, RecordValue};
+pub use domain::{DomainCheck, DomainDefault, DomainRef, DomainType};
+pub use enum_type::{EnumInputError, EnumMember, EnumRef, EnumType, EnumValue, EnumValuePlacement};
+pub use extended::{ExtendedFamily, ExtendedType, TypeInputError, TypedOperator};
+pub use integer::{IntegerArithmeticError, IntegerInputError, IntegerOperation, IntegerWidth};
+pub use integer_bytea::IntegerByteaError;
+
+#[cfg(test)]
+#[path = "jsonb_numeric_cases.rs"]
+mod jsonb_numeric_cases;

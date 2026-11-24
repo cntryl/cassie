@@ -36,38 +36,46 @@ pub struct BuiltinType {
     pub oid: u32,
     pub name: &'static str,
     pub typlen: i16,
+    pub array_oid: u32,
 }
 
 impl BuiltinType {
-    const fn new(kind: BuiltinKind, oid: u32, name: &'static str, typlen: i16) -> Self {
+    const fn new(
+        kind: BuiltinKind,
+        oid: u32,
+        name: &'static str,
+        typlen: i16,
+        array_oid: u32,
+    ) -> Self {
         Self {
             kind,
             oid,
             name,
             typlen,
+            array_oid,
         }
     }
 }
 
-pub(crate) const BUILTIN_TYPES: &[BuiltinType] = &[
-    BuiltinType::new(BuiltinKind::Unknown, 705, "unknown", -2),
-    BuiltinType::new(BuiltinKind::Bool, 16, "bool", 1),
-    BuiltinType::new(BuiltinKind::Int2, 21, "int2", 2),
-    BuiltinType::new(BuiltinKind::Int4, 23, "int4", 4),
-    BuiltinType::new(BuiltinKind::Int8, 20, "int8", 8),
-    BuiltinType::new(BuiltinKind::Float8, 701, "float8", 8),
-    BuiltinType::new(BuiltinKind::Name, 19, "name", 64),
-    BuiltinType::new(BuiltinKind::Text, 25, "text", -1),
-    BuiltinType::new(BuiltinKind::Bpchar, 1042, "bpchar", -1),
-    BuiltinType::new(BuiltinKind::Varchar, 1043, "varchar", -1),
-    BuiltinType::new(BuiltinKind::Bytea, 17, "bytea", -1),
-    BuiltinType::new(BuiltinKind::Uuid, 2950, "uuid", 16),
-    BuiltinType::new(BuiltinKind::Date, 1082, "date", 4),
-    BuiltinType::new(BuiltinKind::Time, 1083, "time", 8),
-    BuiltinType::new(BuiltinKind::Timestamp, 1114, "timestamp", 8),
-    BuiltinType::new(BuiltinKind::Json, 114, "json", -1),
-    BuiltinType::new(BuiltinKind::Jsonb, 3802, "jsonb", -1),
-    BuiltinType::new(BuiltinKind::JsonPath, 4072, "jsonpath", -1),
+pub const BUILTIN_TYPES: &[BuiltinType] = &[
+    BuiltinType::new(BuiltinKind::Unknown, 705, "unknown", -2, 0),
+    BuiltinType::new(BuiltinKind::Bool, 16, "bool", 1, 1000),
+    BuiltinType::new(BuiltinKind::Int2, 21, "int2", 2, 1005),
+    BuiltinType::new(BuiltinKind::Int4, 23, "int4", 4, 1007),
+    BuiltinType::new(BuiltinKind::Int8, 20, "int8", 8, 1016),
+    BuiltinType::new(BuiltinKind::Float8, 701, "float8", 8, 1022),
+    BuiltinType::new(BuiltinKind::Name, 19, "name", 64, 1003),
+    BuiltinType::new(BuiltinKind::Text, 25, "text", -1, 1009),
+    BuiltinType::new(BuiltinKind::Bpchar, 1042, "bpchar", -1, 1014),
+    BuiltinType::new(BuiltinKind::Varchar, 1043, "varchar", -1, 1015),
+    BuiltinType::new(BuiltinKind::Bytea, 17, "bytea", -1, 1001),
+    BuiltinType::new(BuiltinKind::Uuid, 2950, "uuid", 16, 2951),
+    BuiltinType::new(BuiltinKind::Date, 1082, "date", 4, 1182),
+    BuiltinType::new(BuiltinKind::Time, 1083, "time", 8, 1183),
+    BuiltinType::new(BuiltinKind::Timestamp, 1114, "timestamp", 8, 1115),
+    BuiltinType::new(BuiltinKind::Json, 114, "json", -1, 199),
+    BuiltinType::new(BuiltinKind::Jsonb, 3802, "jsonb", -1, 3807),
+    BuiltinType::new(BuiltinKind::JsonPath, 4072, "jsonpath", -1, 4073),
     object_id_type(ObjectIdKind::Oid),
     object_id_type(ObjectIdKind::RegProc),
     object_id_type(ObjectIdKind::RegProcedure),
@@ -112,11 +120,55 @@ const fn extended_type(kind: super::extended::ExtendedType) -> BuiltinType {
         kind.type_oid(),
         kind.typname(),
         kind.typlen(),
+        extended_array_oid(kind),
     )
 }
 
 const fn object_id_type(kind: ObjectIdKind) -> BuiltinType {
-    BuiltinType::new(BuiltinKind::ObjectId(kind), kind.type_oid(), kind.name(), 4)
+    BuiltinType::new(
+        BuiltinKind::ObjectId(kind),
+        kind.type_oid(),
+        kind.name(),
+        4,
+        object_id_array_oid(kind),
+    )
+}
+
+const fn extended_array_oid(kind: super::extended::ExtendedType) -> u32 {
+    use super::extended::ExtendedType;
+    match kind.base() {
+        ExtendedType::Real => 1021,
+        ExtendedType::Numeric(_) => 1231,
+        ExtendedType::Inet => 1041,
+        ExtendedType::Cidr => 651,
+        ExtendedType::Macaddr => 1040,
+        ExtendedType::Macaddr8 => 775,
+        ExtendedType::PgLsn => 3221,
+        ExtendedType::Bit { .. } => 1561,
+        ExtendedType::VarBit { .. } => 1563,
+        ExtendedType::TimeTz { .. } => 1270,
+        ExtendedType::TimestampTz { .. } => 1185,
+        ExtendedType::Interval { .. } => 1187,
+        ExtendedType::Date | ExtendedType::Time { .. } | ExtendedType::Timestamp { .. } => 0,
+    }
+}
+
+const fn object_id_array_oid(kind: ObjectIdKind) -> u32 {
+    use ObjectIdKind as Kind;
+    match kind {
+        Kind::Oid => 1028,
+        Kind::RegProc => 1008,
+        Kind::RegProcedure => 2207,
+        Kind::RegOper => 2208,
+        Kind::RegOperator => 2209,
+        Kind::RegClass => 2210,
+        Kind::RegType => 2211,
+        Kind::RegConfig => 3735,
+        Kind::RegDictionary => 3770,
+        Kind::RegNamespace => 4090,
+        Kind::RegRole => 4097,
+        Kind::RegCollation => 4192,
+    }
 }
 
 #[doc(hidden)]
@@ -124,9 +176,17 @@ pub fn builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     BUILTIN_TYPES.iter().find(|metadata| metadata.oid == oid)
 }
 
+/// Returns the PostgreSQL array OID for a selected built-in element type.
+#[must_use]
+pub fn builtin_array_oid(element_oid: u32) -> Option<u32> {
+    builtin_for_oid(element_oid)
+        .map(|metadata| metadata.array_oid)
+        .filter(|oid| *oid != 0)
+}
+
 /// The type a declared parameter OID binds as. An extended family whose
 /// operators are incomplete keeps its parameters on the numeric adapter path.
-pub(crate) fn parameter_builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
+pub fn parameter_builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     builtin_for_oid(oid).filter(|metadata| match metadata.kind {
         BuiltinKind::Unknown => false,
         BuiltinKind::Extended(kind) => kind.binds_parameters(),
@@ -171,7 +231,7 @@ impl BuiltinKind {
 }
 
 /// The current container adapter is explicit; every scalar must resolve metadata.
-pub(crate) enum TypeMetadata<'a> {
+pub enum TypeMetadata<'a> {
     Scalar(&'static BuiltinType),
     Vector,
     Array(&'a DataType),
@@ -181,7 +241,8 @@ pub(crate) enum TypeMetadata<'a> {
     Enum(&'a super::EnumRef),
 }
 
-pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
+#[doc(hidden)]
+pub fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
     let kind = match data_type {
         DataType::Null => BuiltinKind::Unknown,
         DataType::Boolean => BuiltinKind::Bool,
@@ -211,4 +272,32 @@ pub(crate) fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
         DataType::Domain(descriptor) => return type_metadata(&descriptor.base),
     };
     TypeMetadata::Scalar(kind.metadata())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{DataType, ExtendedType, ObjectIdKind};
+
+    #[test]
+    fn should_preserve_postgres_array_oids_for_shared_element_types() {
+        // Arrange
+        let cases = [
+            (DataType::Boolean, 1000),
+            (DataType::SmallInt, 1005),
+            (DataType::Int, 1007),
+            (DataType::BigInt, 1016),
+            (DataType::Text, 1009),
+            (DataType::Uuid, 2951),
+            (DataType::Date, 1182),
+            (DataType::Extended(ExtendedType::Numeric(None)), 1231),
+            (DataType::ObjectId(ObjectIdKind::RegType), 2211),
+        ];
+
+        // Act
+        let actual = cases.map(|(element, _)| DataType::Array(Box::new(element)).type_oid());
+
+        // Assert
+        let expected = cases.map(|(_, array_oid)| i64::from(array_oid));
+        assert_eq!(actual, expected);
+    }
 }

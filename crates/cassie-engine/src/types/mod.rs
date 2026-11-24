@@ -1,53 +1,34 @@
+//! Engine-side adapters and compatibility exports for shared value types.
+
+pub use cassie_core::types::{
+    array_bounds, array_value, boolean, builtin, bytea_input, char_text, composite, domain,
+    enum_type, float_input, float_text, integer, integer_bytea, json, jsonb_format, name,
+    numeric, object_id, row, row_identity,
+    schema, temporal, typed, uuid_text, value, vector, ArrayDimension, BooleanInputError,
+    ByteaInputError, CompositeField, CompositeRef, CompositeType, DataType, DomainCheck,
+    DomainDefault, DomainRef, DomainType, EnumInputError, EnumMember, EnumRef, EnumType,
+    EnumValue, EnumValuePlacement, FieldSchema, FloatInputError, IntegerArithmeticError,
+    IntegerByteaError, IntegerInputError, IntegerOperation, IntegerWidth, ObjectIdKind, ObjectIdentifierError,
+    RecordValue, Row, Schema, SizeInputError, SqlArray, TypedKey, TypedValue, Value, Vector,
+};
+
 #[doc(hidden)]
 pub mod array;
-pub mod array_bounds;
-pub mod array_value;
-#[doc(hidden)]
-pub use cassie_core::types::{boolean, bytea_input};
-#[doc(hidden)]
-pub mod builtin;
-pub mod char_text;
-pub mod composite;
-pub mod domain;
-pub mod enum_type;
-pub mod extended;
-#[doc(hidden)]
-pub use cassie_core::types::{float_input, float_text};
 pub mod graph;
-#[doc(hidden)]
-pub mod integer;
-pub(crate) mod integer_bytea;
-#[doc(hidden)]
-pub mod json;
+pub mod extended;
 #[doc(hidden)]
 pub mod jsonb;
 pub(crate) mod lanes;
-#[doc(hidden)]
-pub use cassie_core::types::{name, uuid_text};
-pub mod numeric;
-pub use cassie_core::types::{object_id, row_identity, vector};
-pub mod row;
-pub mod schema;
 pub(crate) mod semantic;
-pub mod temporal;
-pub mod typed;
-pub mod value;
-
-pub use array_value::{ArrayDimension, SqlArray};
-pub use cassie_core::types::{
-    BooleanInputError, ByteaInputError, FloatInputError, ObjectIdKind, ObjectIdentifierError,
-    SizeInputError, Vector,
-};
-pub use composite::{CompositeField, CompositeRef, CompositeType, RecordValue};
-pub use domain::{DomainCheck, DomainDefault, DomainRef, DomainType};
-pub use enum_type::{EnumInputError, EnumMember, EnumRef, EnumType, EnumValue, EnumValuePlacement};
-pub use integer::{IntegerOperation, IntegerWidth};
-pub use integer_bytea::IntegerByteaError;
-pub use row::Row;
-pub use schema::{DataType, FieldSchema, Schema};
-pub use value::Value;
-
 pub(crate) mod semantic_index;
+pub(crate) mod numeric_validation;
+#[doc(hidden)]
+pub mod context;
+#[doc(hidden)]
+pub use context::parameter_from_text_with_controls as temporal_parameter_from_text_with_controls;
 
+#[path = "primitive_copy.rs"]
+pub(crate) mod primitive_copy;
 #[cfg(test)]
-mod jsonb_numeric_cases;
+#[path = "array_value/primitive_copy_tests.rs"]
+mod primitive_copy_tests;

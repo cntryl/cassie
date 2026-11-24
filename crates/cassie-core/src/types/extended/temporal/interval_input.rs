@@ -217,7 +217,11 @@ pub fn parse_interval(
     })
 }
 
-pub(crate) fn parse_interval_with_check<E>(
+/// Parses an interval while invoking `check` at scan boundaries.
+///
+/// # Errors
+/// Returns a type-input error for malformed intervals or a value from `check`.
+pub fn parse_interval_with_check<E>(
     input: &str,
     range: i32,
     style: IntervalStyle,

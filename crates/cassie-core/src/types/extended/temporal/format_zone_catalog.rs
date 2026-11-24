@@ -27,15 +27,15 @@
 use super::super::zone::AbbreviationSet;
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ZoneRule {
+pub enum ZoneRule {
     Fixed(i32),
     Dynamic(&'static str),
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ZoneAbbreviation {
-    pub(crate) name: &'static str,
-    pub(crate) rule: ZoneRule,
+pub struct ZoneAbbreviation {
+    pub name: &'static str,
+    pub rule: ZoneRule,
 }
 
 pub(super) fn find(chars: &[char], set: AbbreviationSet) -> Option<(ZoneAbbreviation, usize)> {

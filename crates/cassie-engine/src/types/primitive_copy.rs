@@ -47,7 +47,7 @@ pub(crate) fn copy_primitive_array(
         ));
     }
     controls.check_interruption()?;
-    for value in &array.elements {
+    for value in array.elements() {
         controls.check_interruption()?;
         observe(PrimitiveCopyProgress::Eligibility);
         controls.check_interruption()?;
@@ -59,8 +59,8 @@ pub(crate) fn copy_primitive_array(
         }
     }
     let bytes = add(
-        mul(array.dimensions.len(), size_of::<ArrayDimension>())?,
-        mul(array.elements.len(), size_of::<Value>())?,
+        mul(array.dimensions().len(), size_of::<ArrayDimension>())?,
+        mul(array.elements().len(), size_of::<Value>())?,
     )?;
     let mut pending = PendingArray {
         dimensions: Vec::new(),
@@ -69,26 +69,26 @@ pub(crate) fn copy_primitive_array(
     };
     pending
         .dimensions
-        .try_reserve_exact(array.dimensions.len())
+        .try_reserve_exact(array.dimensions().len())
         .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
     pending
         .elements
-        .try_reserve_exact(array.elements.len())
+        .try_reserve_exact(array.elements().len())
         .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
-    if pending.dimensions.capacity() > array.dimensions.len()
-        || pending.elements.capacity() > array.elements.len()
+    if pending.dimensions.capacity() > array.dimensions().len()
+        || pending.elements.capacity() > array.elements().len()
     {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted SQL Array capacity".into(),
         ));
     }
-    for dimension in &array.dimensions {
+    for dimension in array.dimensions() {
         controls.check_interruption()?;
         pending.dimensions.push(*dimension);
         observe(PrimitiveCopyProgress::Dimension);
         controls.check_interruption()?;
     }
-    for element in &array.elements {
+    for element in array.elements() {
         controls.check_interruption()?;
         pending.elements.push(match element {
             Value::Null => Value::Null,

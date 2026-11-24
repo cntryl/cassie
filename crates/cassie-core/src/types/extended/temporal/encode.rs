@@ -117,7 +117,7 @@ pub fn format_timestamptz(value: i64, session: &TemporalSession) -> String {
 /// JSON timestamps use ISO calendar spelling and explicit timezone minutes.
 /// SQL TIMETZ output deliberately retains its established short-offset rule.
 #[must_use]
-pub(crate) fn format_json_timestamp(
+pub fn format_json_timestamp(
     value: i64,
     session: &TemporalSession,
     with_timezone: bool,

@@ -749,9 +749,10 @@ pub fn exp(value: &Numeric) -> Result<Numeric, TypeInputError> {
 #[path = "numeric_power.rs"]
 mod power_impl;
 pub use power_impl::power;
-pub(crate) use power_impl::{
-    power_with_check, preflight_workspace_bytes as power_preflight_workspace_bytes,
-    workspace_bytes as power_workspace_bytes, PowerError,
+pub use power_impl::{power_with_check, PowerError};
+pub use power_impl::{
+    preflight_workspace_bytes as power_preflight_workspace_bytes,
+    workspace_bytes as power_workspace_bytes,
 };
 
 /// `factorial(bigint)`.

@@ -26,7 +26,7 @@ pub(crate) fn validate_with_controls(
         return Ok(());
     }
     if numeric_input_law(target) {
-        use crate::types::extended::numeric_validation::{validate, ValidationError};
+        use crate::types::numeric_validation::{validate, ValidationError};
         return match validate(input, controls) {
             Ok(()) => Ok(()),
             Err(ValidationError::Interrupted(error)) => Err(error),
@@ -133,7 +133,7 @@ pub(crate) fn rejects_cast_with_controls(
         return Ok(false);
     }
     if numeric_input_law(data_type) {
-        use crate::types::extended::numeric_validation::{validate, ValidationError};
+        use crate::types::numeric_validation::{validate, ValidationError};
         return match validate(input, controls) {
             Ok(()) => Ok(false),
             Err(ValidationError::Syntax | ValidationError::Range) => Ok(true),

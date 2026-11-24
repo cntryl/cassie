@@ -55,7 +55,7 @@ fn coerce(
         Value::String(text) => controls.map_or_else(
             || kind.parse_text_in(text, session).map_err(type_error),
             |controls| {
-                kind.parse_text_in_with_controls(text, session, controls)
+                crate::types::context::parse_text_with_controls(kind, text, session, controls)
                     .map_err(QueryError::from)
             },
         ),

@@ -13,8 +13,6 @@ pub mod binary_timestamp;
 
 #[path = "temporal/calendar.rs"]
 pub mod calendar;
-#[path = "temporal/controlled_input.rs"]
-pub(crate) mod controlled_input;
 #[path = "temporal/decode.rs"]
 pub mod decode;
 #[path = "temporal/encode.rs"]

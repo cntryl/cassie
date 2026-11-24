@@ -485,7 +485,7 @@ fn should_reject_string_array_source_from_another_tracker() {
 #[test]
 fn should_cancel_primitive_array_during_second_alias_copy() {
     // Arrange
-    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    use crate::types::primitive_copy::copy_primitive_array;
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
@@ -561,7 +561,7 @@ fn should_reject_forged_nonprimitive_array_before_alias_publication() {
 #[test]
 fn should_require_row_admission_for_empty_primitive_array() {
     // Arrange
-    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    use crate::types::primitive_copy::copy_primitive_array;
     let controls = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
             query_memory_budget_bytes: 0,
@@ -593,7 +593,7 @@ fn should_require_row_admission_for_empty_primitive_array() {
 #[test]
 fn should_reject_primitive_array_result_from_another_row_tracker() {
     // Arrange
-    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    use crate::types::primitive_copy::copy_primitive_array;
     let first =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let second =

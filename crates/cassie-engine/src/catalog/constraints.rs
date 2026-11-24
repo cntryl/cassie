@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+pub use cassie_core::catalog::declarations::{IdentityGeneration, UniqueNullPolicy};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -92,13 +93,6 @@ impl NotNullOwnership {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum UniqueNullPolicy {
-    #[default]
-    Distinct,
-    NotDistinct,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldConstraint {
@@ -174,24 +168,6 @@ pub struct FieldConstraint {
     pub compression: Option<crate::catalog::ColumnCompression>,
 }
 
-/// How an identity column treats explicit values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum IdentityGeneration {
-    Always,
-    ByDefault,
-}
-
-impl IdentityGeneration {
-    /// `information_schema.columns.identity_generation`.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Always => "ALWAYS",
-            Self::ByDefault => "BY DEFAULT",
-        }
-    }
-}
 
 impl FieldConstraint {
     pub fn new(field: impl Into<String>) -> Self {

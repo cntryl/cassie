@@ -50,7 +50,7 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub(crate) const fn is_json(&self) -> bool {
+    pub const fn is_json(&self) -> bool {
         matches!(self, Self::Json | Self::Jsonb)
     }
 
@@ -117,7 +117,7 @@ impl DataType {
                 };
                 u32::try_from(element)
                     .ok()
-                    .and_then(crate::catalog::builtin_identity::builtin_array_oid)
+                    .and_then(super::builtin::builtin_array_oid)
                     .map_or_else(|| OID_ARRAY_BASE + element % 10000, i64::from)
             }
         }

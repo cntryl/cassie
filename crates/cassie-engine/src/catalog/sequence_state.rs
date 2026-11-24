@@ -7,23 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::DataType;
-
-/// Option clauses from `CREATE SEQUENCE`, `ALTER SEQUENCE` or an identity
-/// column. `None` keeps the current (or default) value.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct SequenceOptions {
-    pub data_type: Option<DataType>,
-    pub increment: Option<i64>,
-    /// `Some(None)` is `NO MINVALUE`.
-    pub min_value: Option<Option<i64>>,
-    /// `Some(None)` is `NO MAXVALUE`.
-    pub max_value: Option<Option<i64>>,
-    pub start: Option<i64>,
-    /// `Some(None)` is `RESTART` without a value.
-    pub restart: Option<Option<i64>>,
-    pub cache: Option<i64>,
-    pub cycle: Option<bool>,
-}
+pub use cassie_core::catalog::declarations::SequenceOptions;
 
 /// A sequence failure with PostgreSQL's SQLSTATE and message.
 #[derive(Debug, Clone, PartialEq, Eq)]

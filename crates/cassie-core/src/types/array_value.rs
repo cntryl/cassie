@@ -9,13 +9,6 @@ use serde_json::Value as JsonValue;
 use super::DataType;
 use super::Value;
 
-#[cfg(test)]
-#[path = "array_value/primitive_copy_tests.rs"]
-mod primitive_copy_tests;
-
-#[path = "array_value/primitive_copy.rs"]
-pub(crate) mod primitive_copy;
-
 const STORAGE_KEY: &str = "$cassie_array_v1";
 const STORAGE_VERSION: u64 = 1;
 
@@ -36,7 +29,11 @@ pub struct SqlArray {
 }
 
 impl SqlArray {
-    pub(crate) fn from_constructor_values(
+    /// Builds an array from SQL constructor elements and their nesting shape.
+    ///
+    /// # Errors
+    /// Returns an error for non-rectangular or unsupported nested values.
+    pub fn from_constructor_values(
         values: Vec<Value>,
         nested: bool,
     ) -> Result<Self, String> {
@@ -474,7 +471,7 @@ pub fn format_text_in(
                             enum_label(element_type, value)?
                         }
                         Value::Json(value) if *element_type == DataType::Jsonb => {
-                            crate::types::jsonb::format(value).ok()?
+                            crate::types::jsonb_format::format(value).ok()?
                         }
                         Value::Json(value) => value.to_string(),
                         Value::Array(_) => return None,
@@ -669,7 +666,7 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
         | Type::Varchar { .. }
         | Type::JsonPath => value.as_str().map(|text| Value::String(text.to_owned())),
         Type::Enum(descriptor) => {
-            let document = super::array::elements::enum_element(descriptor, value)?;
+            let document = enum_element(descriptor, value)?;
             return crate::types::EnumValue::storage_member_id(&document)
                 .and_then(|member_id| crate::types::EnumValue::new(descriptor.clone(), member_id))
                 .map(|enum_value| Value::Typed(crate::types::typed::TypedValue::Enum(enum_value)))
@@ -690,6 +687,29 @@ fn scalar_from_json(value: &JsonValue, data_type: &DataType) -> Result<Value, St
             data_type.type_name()
         )
     })
+}
+
+fn enum_element(
+    descriptor: &super::EnumType,
+    value: &JsonValue,
+) -> Result<JsonValue, String> {
+    use super::{EnumRef, EnumValue};
+
+    if let Some(member_id) = EnumValue::storage_member_id(value) {
+        return descriptor
+            .member(member_id)
+            .map(|_| value.clone())
+            .ok_or_else(|| format!("unknown member id {member_id} for enum {}", descriptor.name));
+    }
+    let JsonValue::String(label) = value else {
+        return Err(format!(
+            "enum array element expects a label of {}",
+            descriptor.name
+        ));
+    };
+    EnumValue::parse_label(&EnumRef::new(descriptor.clone()), label)
+        .map(|parsed| parsed.to_storage_json())
+        .map_err(|error| error.message())
 }
 
 fn nested_json(

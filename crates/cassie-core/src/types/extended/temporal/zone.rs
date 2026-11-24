@@ -279,7 +279,7 @@ impl Zone {
     }
 
     /// Resolves the most recent matching historical abbreviation, then future history.
-    pub(crate) fn abbreviation_offset_with_checks<E>(
+    pub fn abbreviation_offset_with_checks<E>(
         &self,
         abbreviation: &str,
         utc_micros: i64,

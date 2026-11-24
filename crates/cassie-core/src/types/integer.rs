@@ -27,11 +27,11 @@ pub enum IntegerOperation {
 }
 
 impl IntegerOperation {
-    pub(crate) const fn is_shift(self) -> bool {
+    pub const fn is_shift(self) -> bool {
         matches!(self, Self::Shl | Self::Shr)
     }
 
-    pub(crate) const fn symbol(self) -> &'static str {
+    pub const fn symbol(self) -> &'static str {
         match self {
             Self::Add => "+",
             Self::Sub => "-",
@@ -56,12 +56,12 @@ impl IntegerWidth {
         }
     }
 
-    pub(crate) fn contains(self, value: i64) -> bool {
+    pub fn contains(self, value: i64) -> bool {
         let (min, max) = self.bounds();
         (min..=max).contains(&value)
     }
 
-    pub(crate) const fn data_type(self) -> DataType {
+    pub const fn data_type(self) -> DataType {
         match self {
             Self::I16 => DataType::SmallInt,
             Self::I32 => DataType::Int,
@@ -69,7 +69,7 @@ impl IntegerWidth {
         }
     }
 
-    pub(crate) const fn from_data_type(data_type: &DataType) -> Option<Self> {
+    pub const fn from_data_type(data_type: &DataType) -> Option<Self> {
         match data_type {
             DataType::SmallInt => Some(Self::I16),
             DataType::Int => Some(Self::I32),
@@ -78,7 +78,7 @@ impl IntegerWidth {
         }
     }
 
-    pub(crate) const fn range_message(self) -> &'static str {
+    pub const fn range_message(self) -> &'static str {
         match self {
             Self::I16 => "smallint out of range",
             Self::I32 => "integer out of range",
@@ -86,7 +86,7 @@ impl IntegerWidth {
         }
     }
 
-    pub(crate) const fn syntax_message(self) -> &'static str {
+    pub const fn syntax_message(self) -> &'static str {
         match self {
             Self::I16 => "invalid input syntax for type smallint",
             Self::I32 => "invalid input syntax for type integer",
@@ -101,6 +101,10 @@ pub enum IntegerInputError {
     Range,
 }
 
+/// Parses an integer using the selected PostgreSQL width.
+///
+/// # Errors
+/// Returns `Syntax` for invalid text and `Range` for out-of-range values.
 pub fn parse(input: &str, width: IntegerWidth) -> Result<i64, IntegerInputError> {
     let input = input
         .trim_matches(|character: char| character.is_ascii_whitespace() || character == '\u{b}');
@@ -178,12 +182,16 @@ fn digit(byte: u8, radix: u64) -> Option<u64> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum IntegerArithmeticError {
+pub enum IntegerArithmeticError {
     Range,
     DivisionByZero,
 }
 
-pub(crate) fn arithmetic(
+/// Applies checked integer arithmetic with PostgreSQL width and shift rules.
+///
+/// # Errors
+/// Returns `Range` for overflow and `DivisionByZero` for division by zero.
+pub fn arithmetic(
     width: IntegerWidth,
     operation: IntegerOperation,
     left: i64,
@@ -221,7 +229,11 @@ pub(crate) fn arithmetic(
 #[path = "integer_tests.rs"]
 mod tests;
 
-pub(crate) fn negate(width: IntegerWidth, value: i64) -> Result<i64, IntegerArithmeticError> {
+/// Negates one value within its signed integer width.
+///
+/// # Errors
+/// Returns `Range` when the negated value is outside the selected width.
+pub fn negate(width: IntegerWidth, value: i64) -> Result<i64, IntegerArithmeticError> {
     if !width.contains(value) {
         return Err(IntegerArithmeticError::Range);
     }

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::derive_scoped_name;
+pub use cassie_core::catalog::declarations::CollectionStorageMode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionMeta {
@@ -40,41 +41,6 @@ impl CollectionMeta {
     #[must_use]
     pub fn has_supported_storage_version(&self) -> bool {
         self.storage_version == SUPPORTED_COLLECTION_STORAGE_VERSION
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum CollectionStorageMode {
-    #[default]
-    RowStore,
-    ColumnIndexed,
-    ColumnStore,
-}
-
-impl CollectionStorageMode {
-    #[must_use]
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::RowStore => "row-store",
-            Self::ColumnIndexed => "column-indexed",
-            Self::ColumnStore => "column-store",
-        }
-    }
-
-    #[must_use]
-    pub fn parse_option(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "row_store" | "row-store" => Some(Self::RowStore),
-            "column_indexed" | "column-indexed" => Some(Self::ColumnIndexed),
-            "column_store" | "column-store" => Some(Self::ColumnStore),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn uses_column_store_storage(self) -> bool {
-        matches!(self, Self::ColumnStore)
     }
 }
 

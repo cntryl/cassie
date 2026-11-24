@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::catalog::{derive_scoped_name, name_matches};
 use crate::types::DataType;
+pub use cassie_core::catalog::declarations::SequencePersistence;
 
 pub use super::sequence_state::{
     SequenceCursor, SequenceError, SequenceOptions, SequenceParameters,
@@ -17,27 +18,6 @@ use super::Catalog;
 pub struct SequenceOwner {
     pub table: String,
     pub column: String,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum SequencePersistence {
-    #[default]
-    Permanent,
-    Unlogged,
-    Temporary,
-}
-
-impl SequencePersistence {
-    /// `pg_class.relpersistence`.
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::Permanent => "p",
-            Self::Unlogged => "u",
-            Self::Temporary => "t",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -269,49 +249,10 @@ pub fn serial_sequence_name(table: &str, field: &str) -> String {
     derive_scoped_name(table, |local| format!("{local}_{field}_seq"))
 }
 
-#[must_use]
-pub fn canonical_nextval_expression(sequence: &str) -> String {
-    format!("nextval('{sequence}'::regclass)")
-}
+pub use cassie_core::catalog::sequence_default::{
+    canonical_nextval_expression, parse_nextval_default_expression,
+};
 
-#[must_use]
-pub fn parse_nextval_default_expression(raw: &str) -> Option<String> {
-    let raw = raw.trim();
-    let lower = raw.to_ascii_lowercase();
-    let inner = lower.strip_prefix("nextval(")?;
-    if !inner.ends_with(')') {
-        return None;
-    }
-
-    let original_inner = &raw["nextval(".len()..raw.len().saturating_sub(1)];
-    let mut value = original_inner.trim();
-    if let Some((candidate, cast)) = value.split_once("::") {
-        if !cast.trim().eq_ignore_ascii_case("regclass") {
-            return None;
-        }
-        value = candidate.trim();
-    }
-
-    if value.starts_with('\'') && value.ends_with('\'') && value.len() >= 2 {
-        return Some(value[1..value.len() - 1].replace("''", "'"));
-    }
-    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
-        return Some(value[1..value.len() - 1].replace("\"\"", "\""));
-    }
-    if is_identifier(value) {
-        return Some(value.to_string());
-    }
-    None
-}
-
-fn is_identifier(raw: &str) -> bool {
-    let mut chars = raw.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    (first.is_ascii_alphabetic() || first == '_')
-        && chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
-}
 
 #[cfg(test)]
 mod tests {

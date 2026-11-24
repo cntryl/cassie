@@ -20,7 +20,7 @@ mod template;
 #[path = "format_zone.rs"]
 mod zone;
 use super::zone::AbbreviationSet;
-pub(crate) use catalog::{ZoneAbbreviation, ZoneRule};
+pub use catalog::{ZoneAbbreviation, ZoneRule};
 use checked::{literal_is_whitespace_with_check, push_str_with_check};
 use template::Node;
 
@@ -139,7 +139,7 @@ pub(crate) fn to_char_with_hour(
     }
 }
 
-pub(crate) fn to_char_with_hour_checked<E>(
+pub fn to_char_with_hour_checked<E>(
     moment: &Moment,
     template: &str,
     zone_name: &str,
@@ -178,7 +178,7 @@ pub(crate) fn to_char_with_hour_checked<E>(
     Ok(out)
 }
 
-pub(crate) fn workspace_bytes(
+pub fn workspace_bytes(
     template_bytes: usize,
     input_bytes: usize,
     renders: bool,
@@ -463,7 +463,8 @@ pub(crate) fn parse_with_precision(
     }
 }
 
-pub(crate) enum ParseExecutionError<E> {
+/// Distinguishes invalid temporal input from a caller control-check failure.
+pub enum ParseExecutionError<E> {
     Input(TypeInputError),
     Check(E),
 }
@@ -474,7 +475,7 @@ impl<E> From<TypeInputError> for ParseExecutionError<E> {
     }
 }
 
-pub(crate) fn parse_with_precision_checked<E>(
+pub fn parse_with_precision_checked<E>(
     input: &str,
     template: &str,
     abbreviations: AbbreviationSet,

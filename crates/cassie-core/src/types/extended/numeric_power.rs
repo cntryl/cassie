@@ -24,7 +24,7 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
     }
 }
 
-pub(crate) enum PowerError<E> {
+pub enum PowerError<E> {
     TypeInput(TypeInputError),
     Interruption(E),
 }
@@ -35,7 +35,12 @@ impl<E> From<TypeInputError> for PowerError<E> {
     }
 }
 
-pub(crate) fn power_with_check<E>(
+/// Computes exact numeric exponentiation while checking caller interruption.
+///
+/// # Errors
+/// Returns a type-input error for invalid numeric results or an interruption
+/// value supplied by the caller's check function.
+pub fn power_with_check<E>(
     base: &Numeric,
     exponent: &Numeric,
     check: &mut impl FnMut() -> Result<(), E>,
@@ -396,7 +401,7 @@ fn integer_workspace_fits(mantissa: &BigInt, exponent: i32) -> bool {
         <= limit
 }
 
-pub(crate) fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
+pub fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
     const SMALL_WORKSPACE_BYTES: usize = 256;
     if base.is_zero()
         || exponent.is_zero()
@@ -475,7 +480,7 @@ pub(crate) fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usiz
 }
 
 /// Bounds the temporary decimal-estimation allocations needed to size a power workspace.
-pub(crate) fn preflight_workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
+pub fn preflight_workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
     fn value_bytes(value: &Numeric) -> Option<usize> {
         match value {
             Numeric::Finite { mantissa, scale } => {

@@ -15,13 +15,17 @@ pub fn canonical_char_text(value: &str) -> &str {
 /// Allocation-free character-counted typmod plan. Input and assignment only
 /// discard excess ASCII spaces; explicit casts may discard any excess text.
 #[derive(Debug)]
-pub(crate) struct CharacterPlan {
-    pub(crate) prefix_bytes: usize,
-    pub(crate) padding: usize,
-    pub(crate) output_bytes: usize,
+pub struct CharacterPlan {
+    pub prefix_bytes: usize,
+    pub padding: usize,
+    pub output_bytes: usize,
 }
 
-pub(crate) fn conversion_plan(
+/// Computes truncation and padding needed for a declared character width.
+///
+/// # Errors
+/// Returns PostgreSQL's character width error for invalid length or excess text.
+pub fn conversion_plan(
     text: &str,
     width: Option<u32>,
     padded: bool,

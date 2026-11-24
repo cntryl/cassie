@@ -129,7 +129,7 @@ pub fn default_field_text(
                 .join(",")
         ),
         Value::Json(document) if *data_type == DataType::Jsonb => {
-            crate::types::jsonb::format(document).unwrap_or_else(|_| document.to_string())
+            crate::types::jsonb_format::format(document).unwrap_or_else(|_| document.to_string())
         }
         Value::Json(document) => document.to_string(),
         Value::Array(array) => match data_type {

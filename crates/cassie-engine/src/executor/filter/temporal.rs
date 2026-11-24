@@ -313,7 +313,12 @@ pub(super) fn cast(
                 kind.cast_from_in(&source, session)
                     .map_err(crate::app::CassieError::TypeInput)
             },
-            |controls| kind.cast_from_in_with_controls(&source, session, controls),
+            |controls| crate::types::context::cast_from_with_controls(
+                kind,
+                &source,
+                session,
+                controls,
+            ),
         );
         return Some(cast.map(ScalarValue::Typed).map_err(QueryError::from));
     }

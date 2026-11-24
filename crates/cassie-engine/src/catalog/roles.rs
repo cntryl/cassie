@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+pub use cassie_core::catalog::declarations::RoleObjectPrivilege;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RoleMeta {
@@ -12,17 +13,6 @@ pub struct RoleMeta {
     /// Stable identity allocated at creation; zero for the bootstrap admin.
     #[serde(default)]
     pub object_id: u64,
-}
-
-/// Object-level privilege carried by a direct v0.2.0 role grant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RoleObjectPrivilege {
-    Usage,
-    Select,
-    Insert,
-    Update,
-    Delete,
 }
 
 /// Stable target identity for the finite schema/table grant profile.

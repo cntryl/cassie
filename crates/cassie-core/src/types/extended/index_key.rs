@@ -85,7 +85,7 @@ fn carrier_text(value: &serde_json::Value) -> Option<String> {
 
 /// The index carrier of a stored or probed `numeric` value.
 #[must_use]
-pub(crate) fn numeric_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
+pub fn numeric_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
     let parsed = numeric::parse_text(&carrier_text(value)?).ok()?;
     Some(serde_json::Value::String(numeric_key_text(
         &parsed.order_key(),
@@ -97,7 +97,7 @@ pub(crate) fn numeric_index_carrier(value: &serde_json::Value) -> Option<serde_j
 /// when its shortest text has at most 15 significant digits, which every
 /// decimal of that length round-trips through.
 #[must_use]
-pub(crate) fn numeric_probe_is_lossless(value: &serde_json::Value) -> bool {
+pub fn numeric_probe_is_lossless(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::String(_) => true,
         serde_json::Value::Number(number) if number.is_i64() || number.is_u64() => true,
@@ -117,7 +117,7 @@ pub(crate) fn numeric_probe_is_lossless(value: &serde_json::Value) -> bool {
 
 /// The index carrier of a stored `real` value, which is exactly its `f32`.
 #[must_use]
-pub(crate) fn real_stored_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
+pub fn real_stored_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
     let float = match value {
         serde_json::Value::String(text) => f64::from(real::parse_text(text).ok()?),
         serde_json::Value::Number(number) => f64::from(real::from_f64(number.as_f64()?, "").ok()?),
@@ -128,7 +128,7 @@ pub(crate) fn real_stored_index_carrier(value: &serde_json::Value) -> Option<ser
 
 /// The index carrier of a `real` probe, which SQL compares as a double.
 #[must_use]
-pub(crate) fn real_probe_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
+pub fn real_probe_index_carrier(value: &serde_json::Value) -> Option<serde_json::Value> {
     let float = match value {
         serde_json::Value::String(text) => f64::from(real::parse_text(text).ok()?),
         serde_json::Value::Number(number) => number.as_f64()?,

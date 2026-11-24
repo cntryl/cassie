@@ -19,7 +19,7 @@ use zone_resolution::{
 
 #[path = "time_input.rs"]
 mod time_input;
-pub(crate) use time_input::decode_time_only_with_check;
+pub use time_input::decode_time_only_with_check;
 pub use time_input::{decode_time_only, DecodedTime};
 
 const YEAR: u32 = 1 << 2;
@@ -104,7 +104,11 @@ pub fn decode_datetime(input: &str, session: &TemporalSession) -> Result<Decoded
     })
 }
 
-pub(crate) fn decode_datetime_with_check<E>(
+/// Decodes date or timestamp fields while invoking `check` at scan boundaries.
+///
+/// # Errors
+/// Returns a decoding error for invalid text or a value produced by `check`.
+pub fn decode_datetime_with_check<E>(
     input: &str,
     session: &TemporalSession,
     check: &mut impl FnMut() -> Result<(), E>,

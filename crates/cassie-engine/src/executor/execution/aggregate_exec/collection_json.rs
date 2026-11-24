@@ -7,7 +7,7 @@ use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::FunctionCall;
 use crate::sql::functions::CollectionAggregate;
-use crate::types::array_value::primitive_copy::{
+use crate::types::primitive_copy::{
     copy_primitive_array, OwnedPrimitiveArray, PrimitiveCopyProgress,
 };
 use crate::types::{DataType, Value};

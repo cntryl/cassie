@@ -1,21 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::Value;
+pub use cassie_core::catalog::declarations::IndexKind;
 
 #[cfg(test)]
 #[path = "indexes_identity_tests.rs"]
 mod identity_tests;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum IndexKind {
-    Scalar,
-    FullText,
-    Vector,
-    Hybrid,
-    Column,
-    TimeSeries,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReservationIdentity<'a> {

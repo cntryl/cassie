@@ -35,7 +35,7 @@ pub mod retention;
 pub mod roles;
 pub mod rollups;
 pub mod schemas;
-pub mod scope;
+pub use cassie_core::catalog::scope;
 pub mod sequence_state;
 pub mod sequences;
 pub mod user_type_resolution;

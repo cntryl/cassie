@@ -29,7 +29,11 @@ pub fn decode_time_only(
     })
 }
 
-pub(crate) fn decode_time_only_with_check<E>(
+/// Decodes time fields while invoking `check` at scan boundaries.
+///
+/// # Errors
+/// Returns a decoding error for invalid text or a value produced by `check`.
+pub fn decode_time_only_with_check<E>(
     input: &str,
     session: &TemporalSession,
     check: &mut impl FnMut() -> Result<(), E>,

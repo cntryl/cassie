@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use crate::app::CassieError;
+#[cfg(test)]
 use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Value};
+#[cfg(test)]
 use uuid::Uuid;
 
 pub(crate) use cassie_storage::row_blob::{
@@ -14,12 +16,17 @@ pub(crate) use cassie_storage::row_blob::{
 };
 
 mod compact;
+#[cfg(test)]
 mod composite;
+#[cfg(test)]
 mod domain;
+#[cfg(test)]
 mod encoding;
+#[cfg(test)]
 mod enum_value;
 mod vector_field;
 
+#[cfg(test)]
 use self::compact::{decode_directory_value, expected_type_tag};
 pub(crate) use compact::{
     CompactScalar, decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
@@ -31,12 +38,29 @@ pub(crate) fn encode_row(
     schema: &RowSchema,
     payload: &serde_json::Value,
 ) -> Result<Vec<u8>, CassieError> {
-    cassie_storage::row_blob::encode_row(schema, payload, encoding::encode_value).map_err(|error| {
+    cassie_storage::row_blob::encode_row(schema, payload).map_err(|error| {
         match error {
             RowBlobEncodeError::Layout(error) => CassieError::from(error),
-            RowBlobEncodeError::FieldValue(error) => error,
+            RowBlobEncodeError::FieldValue(error) => map_row_value_error(error),
         }
     })
+}
+
+fn map_row_value_error(error: cassie_storage::row_blob::RowBlobValueError) -> CassieError {
+    match error {
+        cassie_storage::row_blob::RowBlobValueError::InvalidValue(message) => {
+            CassieError::InvalidVector(message)
+        }
+        cassie_storage::row_blob::RowBlobValueError::InvalidEncoding(message) => {
+            CassieError::Parse(message)
+        }
+        cassie_storage::row_blob::RowBlobValueError::Unsupported(message) => {
+            CassieError::Unsupported(message)
+        }
+        cassie_storage::row_blob::RowBlobValueError::TypeInput { sqlstate, message } => {
+            CassieError::from(crate::app::DiagnosticError::new(sqlstate, message))
+        }
+    }
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
@@ -85,44 +109,16 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
     filter_value: &serde_json::Value,
     include_historical_aliases: bool,
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    let directory = RowDirectory::parse(row)?;
-    let filter_field = crate::sql::ColumnIdentifierPath::parse(filter_field).map_or_else(
-        |_| filter_field.to_ascii_lowercase(),
-        |field| field.field_lookup_key(),
-    );
-    let mut object = serde_json::Map::new();
-    let mut matched_filter = false;
-    let mut saw_filter = false;
-    let active_field_names = active_field_names(schema);
-
-    for field in &schema.fields {
-        let include_names = included_field_names(
-            field,
-            Some(projection),
-            include_historical_aliases,
-            &active_field_names,
-        );
-        let is_filter_field = field_matches_name(
-            field,
-            &filter_field,
-            include_historical_aliases,
-            &active_field_names,
-        );
-        if !include_names.is_empty() || is_filter_field {
-            let Some(value) = directory.decode(field)? else {
-                continue;
-            };
-            if is_filter_field {
-                saw_filter = true;
-                matched_filter = value_matches_filter(&value, filter_value);
-            }
-            for name in include_names {
-                object.insert(name, value.clone());
-            }
-        }
-    }
-
-    Ok((saw_filter && matched_filter).then_some(serde_json::Value::Object(object)))
+    cassie_storage::row_blob::decode_projected_row_matching(
+        schema,
+        row,
+        projection,
+        filter_field,
+        filter_value,
+        include_historical_aliases,
+        decode_engine_json,
+    )
+    .map_err(map_row_decode_error)
 }
 
 fn decode_row_with_projection(
@@ -131,32 +127,62 @@ fn decode_row_with_projection(
     projection: Option<&HashSet<String>>,
     include_historical_aliases: bool,
 ) -> Result<serde_json::Value, CassieError> {
-    let directory = RowDirectory::parse(row)?;
-    let mut object = serde_json::Map::new();
-    let active_field_names = active_field_names(schema);
-
-    for field in &schema.fields {
-        let include_names = included_field_names(
-            field,
-            projection,
-            include_historical_aliases,
-            &active_field_names,
-        );
-        if !include_names.is_empty() {
-            let Some(value) = directory.decode(field)? else {
-                continue;
-            };
-            for name in include_names {
-                object.insert(name, value.clone());
-            }
+    let decoded = if let Some(projection) = projection {
+        if include_historical_aliases {
+            cassie_storage::row_blob::decode_projected_row_with_aliases(
+                schema,
+                row,
+                projection,
+                decode_engine_json,
+            )
+        } else {
+            cassie_storage::row_blob::decode_projected_row(
+                schema,
+                row,
+                projection,
+                decode_engine_json,
+            )
         }
+    } else {
+        cassie_storage::row_blob::decode_row(schema, row, decode_engine_json)
     }
+    .map_err(map_row_decode_error)?;
 
-    Ok(serde_json::Value::Object(object))
+    Ok(decoded)
 }
 
+pub(crate) fn decode_engine_json(bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
+    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+    match crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        bytes,
+        controls.as_ref(),
+    ) {
+        Ok(parsed) => Ok(parsed.get().clone()),
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Controlled(error)) => {
+            Err(error)
+        }
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) => {
+            let detail = crate::runtime::accounted::json_arena::syntax_error(bytes);
+            Err(CassieError::Parse(format!("invalid JSON in row blob: {detail}")))
+        }
+    }
+}
+
+fn map_row_decode_error(error: cassie_storage::row_blob::RowBlobDecodeError<CassieError>) -> CassieError {
+    match error {
+        cassie_storage::row_blob::RowBlobDecodeError::Codec(error) => error.into(),
+        cassie_storage::row_blob::RowBlobDecodeError::Json(error) => error,
+        cassie_storage::row_blob::RowBlobDecodeError::DataCorruption {
+            sqlstate,
+            message,
+        } => CassieError::from(crate::app::DiagnosticError::new(sqlstate, message)),
+    }
+}
+
+#[cfg(test)]
 struct RowDirectory<'a>(RowBlobRecord<'a>);
 
+#[cfg(test)]
 impl<'a> RowDirectory<'a> {
     fn parse(row: &'a [u8]) -> Result<Self, CassieError> {
         RowBlobRecord::parse(row)
@@ -199,10 +225,12 @@ impl<'a> RowDirectory<'a> {
     }
 }
 
+#[cfg(test)]
 fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {
     value == filter_value
 }
 
+#[cfg(test)]
 fn included_field_names(
     field: &RowFieldMeta,
     projection: Option<&HashSet<String>>,
@@ -235,6 +263,7 @@ fn included_field_names(
     names
 }
 
+#[cfg(test)]
 fn field_matches_name(
     field: &RowFieldMeta,
     requested_key: &str,
@@ -252,6 +281,7 @@ fn field_matches_name(
             && !active_field_names.contains(requested_key))
 }
 
+#[cfg(test)]
 fn active_field_names(schema: &RowSchema) -> HashSet<String> {
     schema
         .fields
@@ -261,6 +291,7 @@ fn active_field_names(schema: &RowSchema) -> HashSet<String> {
         .collect()
 }
 
+#[cfg(test)]
 fn decode_value(
     type_tag: u8,
     cursor: &mut Cursor<'_>,
@@ -365,6 +396,7 @@ fn decode_value(
     }
 }
 
+#[cfg(test)]
 fn decode_json_value(
     cursor: &mut Cursor<'_>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
@@ -386,6 +418,7 @@ fn decode_json_value(
     }
 }
 
+#[cfg(test)]
 fn decode_array(
     cursor: &mut Cursor<'_>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
@@ -446,6 +479,7 @@ fn decode_array(
     Ok(array.to_storage_json())
 }
 
+#[cfg(test)]
 fn decode_array_extended(cursor: &mut Cursor<'_>) -> Result<Value, CassieError> {
     let bytes = cursor.read_len_prefixed()?;
     let (oid, payload) = bytes
@@ -458,6 +492,7 @@ fn decode_array_extended(cursor: &mut Cursor<'_>) -> Result<Value, CassieError> 
         .map_err(CassieError::Parse)
 }
 
+#[cfg(test)]
 fn value_from_decoded_tag(type_tag: u8, value: serde_json::Value) -> Result<Value, CassieError> {
     match type_tag {
         TYPE_BOOL => value.as_bool().map(Value::Bool),
@@ -486,6 +521,7 @@ fn value_from_decoded_tag(type_tag: u8, value: serde_json::Value) -> Result<Valu
     .ok_or_else(|| CassieError::Parse(format!("invalid array element for type tag {type_tag}")))
 }
 
+#[cfg(test)]
 fn write_varint(mut value: u64, out: &mut Vec<u8>) {
     while value >= 0x80 {
         let byte = u8::try_from(value & 0x7f).expect("masked to 7 bits");

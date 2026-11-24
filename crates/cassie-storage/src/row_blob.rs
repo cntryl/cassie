@@ -243,7 +243,28 @@ pub enum RowBlobEncodeError<E> {
     FieldValue(E),
 }
 
-pub fn encode_row<E>(
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RowBlobValueError {
+    #[error("{0}")]
+    InvalidValue(String),
+    #[error("{0}")]
+    InvalidEncoding(String),
+    #[error("{0}")]
+    Unsupported(String),
+    #[error("{message}")]
+    TypeInput { sqlstate: &'static str, message: String },
+}
+
+mod encode;
+
+pub fn encode_row(
+    schema: &RowSchema,
+    document: &serde_json::Value,
+) -> Result<Vec<u8>, RowBlobEncodeError<RowBlobValueError>> {
+    encode_row_with(schema, document, encode::encode_value)
+}
+
+pub fn encode_row_with<E>(
     schema: &RowSchema,
     document: &serde_json::Value,
     mut encode_value: impl FnMut(&DataType, &serde_json::Value) -> Result<(u8, Vec<u8>), E>,
@@ -534,3 +555,16 @@ impl<'a> Cursor<'a> {
 fn invalid(message: impl Into<String>) -> StorageCodecError {
     StorageCodecError::InvalidEncoding(message.into())
 }
+
+mod decode;
+pub use decode::{
+    CompactScalar, PackedVector, RowBlobDecodeError, VectorColumn, VectorRowParts,
+    decode_compact_field_value, decode_compact_scalar, decode_projected_row,
+    decode_projected_row_matching, decode_projected_row_with_aliases, decode_row,
+    encode_compact_sql_null, split_vector_row,
+};
+pub use encode::encode_compact_value;
+
+#[cfg(test)]
+#[path = "row_blob_tests.rs"]
+mod tests;

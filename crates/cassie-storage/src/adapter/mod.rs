@@ -28,12 +28,11 @@ use crate::catalog::{
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::row_blob::{
-    decode_projected_row, decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
+    RowSchema,
 };
 use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
-use crate::column_batch_format_v1;
 pub use crate::column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod commit_source;
@@ -60,11 +59,7 @@ pub use transactions::{
 
 #[doc(hidden)]
 pub use crate::column_batch_format_v1::{
-    column_chunk_codec_for_test, decode_column_batch_manifest_for_test,
-    decode_column_chunk_for_test, decode_row_id_chunk_for_test,
-    decode_selected_column_chunk_for_test, encode_column_batch_manifest_for_test,
-    encode_column_chunk_for_test, encode_for_column_chunk_for_test,
-    encode_plain_column_chunk_for_test, encode_row_id_chunk_for_test,
+    decode_column_batch_manifest_for_test, encode_column_batch_manifest_for_test,
 };
 pub use core::{Midge, StorageValueHooks};
 pub use repair::set_projection_report_deletion_failure_point;

@@ -117,6 +117,12 @@ impl From<cassie_core::request::accounted::AccountingError> for StorageError {
     }
 }
 
+impl From<crate::row_blob::RowSchemaError> for StorageError {
+    fn from(error: crate::row_blob::RowSchemaError) -> Self {
+        Self::Unsupported(error.to_string())
+    }
+}
+
 impl From<cassie_sql::definition_guard::DefinitionError> for StorageError {
     fn from(error: cassie_sql::definition_guard::DefinitionError) -> Self {
         match error {

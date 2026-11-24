@@ -394,7 +394,7 @@ fn decode_vector<E>(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, RowBlo
     let bytes = cursor.read_len_prefixed()?; let Some((header, components)) = bytes.split_first_chunk::<4>() else { return Err(invalid("invalid vector field in row blob").into()); };
     let dimensions = usize::try_from(u32::from_be_bytes(*header)).map_err(|_| invalid("invalid vector dimension in row blob"))?;
     if dimensions.checked_mul(4) != Some(components.len()) { return Err(invalid("invalid vector length in row blob").into()); }
-    let mut values = Vec::with_capacity(dimensions);
+    let mut values: Vec<serde_json::Value> = Vec::with_capacity(dimensions);
     for chunk in components.as_chunks::<4>().0 { let value = f32::from_be_bytes(*chunk); let number = serde_json::Number::from_f64(f64::from(value)).ok_or_else(|| invalid("invalid vector numeric value in row blob"))?; values.push(number.into()); }
     Ok(values.into())
 }

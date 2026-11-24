@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use cassie_core::catalog::projection::{
     MaterializedProjectionState, ProjectionFreshness, ProjectionHashMeta, ProjectionIntegrityReportMeta,
     ProjectionKind, ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
-    ProjectionVerificationState, ProjectionVersionMeta, ProjectionVersionState,
+    ProjectionVersionMeta, ProjectionVersionState,
 };
 
 pub use cassie_core::catalog::declarations::IndexKind;

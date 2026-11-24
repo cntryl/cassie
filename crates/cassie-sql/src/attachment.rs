@@ -1,7 +1,5 @@
 //! Typed structural conversion between syntax-only and engine AST attachments.
 
-use crate::ast::*;
-
 /// Rebinds every nested AST node while preserving syntax fields and metadata.
 pub trait MapAttachment {
     type Rebound<B>;

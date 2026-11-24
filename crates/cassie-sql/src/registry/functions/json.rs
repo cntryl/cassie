@@ -3,7 +3,8 @@ use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
 /// Whether a call uses one of the built-in SQL/JSON object array constructors.
 #[must_use]
-pub(crate) fn is_standard_object(name: &str) -> bool {
+#[doc(hidden)]
+pub fn is_standard_object(name: &str) -> bool {
     let (schema, function) = name
         .rsplit_once('.')
         .map_or((None, name), |(schema, function)| (Some(schema), function));

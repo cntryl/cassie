@@ -4,11 +4,11 @@ pub(crate) use cassie_core::catalog::{
     CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchChunkMeta,
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum, ColumnBatchRow,
     ColumnBatchSegmentMeta, CompositeTypeMeta, DomainTypeMeta, EnumTypeMeta,
-    FieldCardinalityStats, FieldHeavyHitter, FieldHistogramBucket, IndexCardinalityStats,
+    FieldCardinalityStats, FieldHeavyHitter, FieldHistogramBucket,
     NamespaceMeta, ObjectCommentAddress, ObjectCommentMeta, OperationalAssignmentMeta,
     ProjectionComparisonReportMeta, ProjectionFreshness, ProjectionHashAlgorithmMeta,
     ProjectionHashCoverageMeta, ProjectionHashMeta, ProjectionKind, ProjectionVerificationState,
-    PropertyGraphMeta, RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, SequenceCursor,
+    PropertyGraphMeta, RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta,
     SequenceMeta, SequenceOwner, COMPOSITE_TYPE_FORMAT_VERSION, DOMAIN_TYPE_FORMAT_VERSION,
     ENUM_TYPE_FORMAT_VERSION,
 };
@@ -19,7 +19,7 @@ pub(crate) use cassie_core::catalog::projection_reports::{
 pub(crate) use cassie_core::catalog::scope::{
     canonical_relation_name, canonical_schema_name, is_system_schema, local_name, name_matches,
     parse_name, relation_belongs_to_database, relation_database_name, schema_database_name,
-    DatabaseMeta, ParsedName, RelationId, DEFAULT_SCHEMA,
+    DatabaseMeta, ParsedName, DEFAULT_SCHEMA,
 };
 pub(crate) use cassie_core::catalog::{graph_schema, object_identity};
 pub(crate) use cassie_sql::catalog_declarations::{IndexKind, IndexMeta, ProjectionMeta};
@@ -39,10 +39,6 @@ pub(crate) mod composite_alter {
 
 pub(crate) mod enum_reconcile {
     pub(crate) use cassie_sql::type_publication::EnumPropagation;
-}
-
-pub(crate) mod indexes {
-    pub(crate) use cassie_sql::catalog_declarations::ReservationIdentity;
 }
 
 #[cfg(test)]

@@ -11,13 +11,20 @@ use crate::types::DataType;
 const COPY_NULL: &str = "\\N";
 
 #[derive(Clone, Copy)]
-pub(crate) struct CopyCsvOptions<'a> {
-    pub(crate) delimiter: char,
-    pub(crate) quote: char,
-    pub(crate) escape: char,
-    pub(crate) null_marker: &'a str,
-    pub(crate) force_null: &'a [usize],
-    pub(crate) force_not_null: &'a [usize],
+#[doc(hidden)]
+pub struct CopyCsvOptions<'a> {
+    #[doc(hidden)]
+    pub delimiter: char,
+    #[doc(hidden)]
+    pub quote: char,
+    #[doc(hidden)]
+    pub escape: char,
+    #[doc(hidden)]
+    pub null_marker: &'a str,
+    #[doc(hidden)]
+    pub force_null: &'a [usize],
+    #[doc(hidden)]
+    pub force_not_null: &'a [usize],
 }
 
 #[derive(Clone, Copy)]

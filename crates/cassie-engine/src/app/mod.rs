@@ -128,8 +128,11 @@ pub(crate) use auth::AuthenticatedPrincipal;
 pub use auth::{NetworkPrincipal, NetworkRole};
 mod auth_rate_limit;
 mod bulk_ingest;
+pub(crate) use bulk_ingest::CopyIngestOptions;
 #[doc(hidden)]
-pub(crate) use bulk_ingest::{copy_columns, CopyCsvOptions, CopyIngestOptions};
+pub use bulk_ingest::{copy_columns, CopyCsvOptions};
+#[doc(hidden)]
+pub use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
 #[doc(hidden)]
 pub use bulk_ingest::{CopyColumn, CopyIngestResult, CopySkippedRow};
 mod consistency;

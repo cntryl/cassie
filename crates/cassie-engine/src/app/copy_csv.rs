@@ -3,9 +3,6 @@
 use super::{CassieError, CopyCsvOptions};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-type ParsedCsvRows = Vec<Vec<Option<String>>>;
-type ParsedCsvPayload = (ParsedCsvRows, QueryMemoryReservation);
-
 #[cfg(test)]
 #[path = "copy_csv_tests.rs"]
 mod tests;
@@ -36,12 +33,13 @@ fn is_quote_or_escape(character: char, options: CopyCsvOptions<'_>) -> bool {
     character == options.quote || character == options.escape
 }
 
-pub(crate) fn parse_csv_payload(
+#[doc(hidden)]
+pub fn parse_csv_payload(
     payload: &[u8],
     options: CopyCsvOptions<'_>,
     empty_unquoted_is_null: bool,
     controls: &QueryExecutionControls,
-) -> Result<ParsedCsvPayload, CassieError> {
+) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
     super::copy_decode::validate_payload_utf8(payload, controls)?;
     let mut memory = controls.reserve_query_memory(0)?;
     let mut row_memory = controls.reserve_query_memory(0)?;

@@ -7,7 +7,8 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tools"))
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(REPO_ROOT / "tools"))
 from test_inventory import cargo_test_roots, clean_name, is_test_inventory_file, render_planned_tests
 
 

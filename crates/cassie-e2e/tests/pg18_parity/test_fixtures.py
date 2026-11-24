@@ -7,7 +7,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4] / "tools"))
 from pg18_parity.run import run_cells
 
 

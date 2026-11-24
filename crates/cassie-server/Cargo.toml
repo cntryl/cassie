@@ -1,0 +1,57 @@
+[package]
+name = "cassie"
+version = "0.1.0"
+edition = "2021"
+publish = false
+autotests = false
+license-file = "../../LICENSE"
+
+[lints]
+workspace = true
+
+[features]
+replay-benchmark-observation = []
+
+[dependencies]
+cassie-core = { path = "../cassie-core" }
+cassie-search = { path = "../cassie-search" }
+cassie-vector = { path = "../cassie-vector" }
+num-traits = "0.2.19"
+num-bigint = "0.5.1"
+num-integer = "0.1.47"
+bytes = "1.12"
+chrono = "0.4"
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1.54", features = ["full"] }
+tokio-rustls = "0.26"
+rustls = "0.23"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
+parking_lot = { version = "0.13", features = ["arc_lock"] }
+thiserror = "2.0"
+uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
+cntryl-midge = "0.5.3"
+lz4_flex = "0.14"
+cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+hyper = { version = "1.12", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
+argon2 = "0.6"
+getrandom = "0.4"
+sha2 = "0.11"
+md-5 = "0.11"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
+jiff-tzdb = "1.0.0"
+url = "2.5"
+regex-automata = "0.4.18"
+regex-syntax = "0.8.11"
+fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
+sql-json-path = "0.2.0"
+
+[dev-dependencies]
+cntryl-stress = "0.5.1"
+rcgen = "0.14"
+tokio-postgres = "0.7"

@@ -3,7 +3,7 @@
 Workstation-only machinery that produces real semantic embeddings for the opt-in
 `tier5_embedding_workloads` benchmark. Nothing here runs in CI or `cargo test`. No corpus
 text and no vectors are committed or redistributed: the committed
-[`tests/corpus/embeddings/manifest.json`](../../tests/corpus/embeddings/manifest.json) holds
+[`crates/cassie-e2e/tests/corpus/embeddings/manifest.json`](../../crates/cassie-e2e/tests/corpus/embeddings/manifest.json) holds
 the recipe, pins, query splits and checksums, and every contributor regenerates the files
 under `target/embeddings/` (git-ignored).
 

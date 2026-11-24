@@ -13,16 +13,18 @@ import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
 
 
 class CancellationTests(unittest.TestCase):
     def should_record_cli_cancellation_as_unavailable_and_retire_reference(self):
         # Arrange
-        folder = pathlib.Path(tempfile.mkdtemp(prefix="pg18-cli-", dir=ROOT / "target")) / "run"
+        folder = pathlib.Path(tempfile.mkdtemp(prefix="pg18-cli-", dir=REPO_ROOT / "target")) / "run"
         with socket.socket() as unavailable_cassie, (folder.parent / "runner.log").open("wb") as log:
             unavailable_cassie.bind(("127.0.0.1", 0))
             unavailable_cassie.listen(1)  # Hold startup unanswered until cancellation.
             env = os.environ.copy()
+            env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(REPO_ROOT), env.get("PYTHONPATH", "")]))
             env["PG18_CANCEL_TEST_DSN"] = f"host=127.0.0.1 port={unavailable_cassie.getsockname()[1]} user=root dbname=postgres sslmode=disable"
             runner = subprocess.Popen(
                 [sys.executable, "-m", "tools.pg18_parity.run", "--reference-bin-dir",
@@ -59,7 +61,7 @@ class CancellationTests(unittest.TestCase):
 
     def should_stop_owned_reference_when_the_runner_receives_sigterm(self):
         # Arrange
-        folder = pathlib.Path(tempfile.mkdtemp(prefix="pg18-cancel-", dir=ROOT / "target")) / "ref"
+        folder = pathlib.Path(tempfile.mkdtemp(prefix="pg18-cancel-", dir=REPO_ROOT / "target")) / "ref"
         script = """import json,pathlib,time
 from tools.pg18_parity.libpq import Libpq
 from tools.pg18_parity.reference import reference
@@ -69,7 +71,9 @@ with reference('/opt/homebrew/opt/postgresql@18/bin',manifest,pathlib.Path(PATH)
  time.sleep(60)
 """.replace("PATH", repr(str(folder)))
         with (folder.parent / "runner.log").open("wb") as log:
-            runner = subprocess.Popen([sys.executable, "-c", script], cwd=ROOT,
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(REPO_ROOT), env.get("PYTHONPATH", "")]))
+            runner = subprocess.Popen([sys.executable, "-c", script], cwd=ROOT, env=env,
                                       stdout=subprocess.PIPE, stderr=log)
             reference_pid = None
             try:

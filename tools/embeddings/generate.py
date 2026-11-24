@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the #1365 embedding workload files (workstation only; never run in CI).
 
-Reads the committed manifest (tests/corpus/embeddings/manifest.json) for the corpus
+Reads the committed manifest (crates/cassie-e2e/tests/corpus/embeddings/manifest.json) for the corpus
 revision, models, preprocessing and set sizes, downloads the BEIR CQADupStack parquet
 files into target/embeddings/cache, selects documents deterministically, embeds them with
 the pinned model revisions, L2-normalizes, writes little-endian float32 rows plus id files
@@ -23,7 +23,7 @@ import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "target" / "embeddings"
-MANIFEST = REPO / "tests" / "corpus" / "embeddings" / "manifest.json"
+MANIFEST = REPO / "crates" / "cassie-e2e" / "tests" / "corpus" / "embeddings" / "manifest.json"
 
 
 def sha256_file(path):

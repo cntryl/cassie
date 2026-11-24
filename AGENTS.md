@@ -16,23 +16,23 @@ cargo fmt --all -- --check
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/sql/` | Parser, AST, binder |
-| `src/planner/` | Logical plan, optimizer, physical plan |
-| `src/executor/` | Scan, filter, projection, sort, aggregate, batch exec |
-| `src/midge/` | Storage adapter wrapping `cntryl-midge` |
-| `src/catalog/` | Schema, roles, indexes, constraints, views, functions |
-| `src/pgwire/` | PostgreSQL wire protocol server (port 5432) |
-| `src/rest/` | HTTP REST API (port 8080) |
-| `src/embeddings/` | Providers: openai, ollama, tei, voyage, cohere, local |
+| `crates/cassie-server/src/sql/` | Parser, AST, binder |
+| `crates/cassie-server/src/planner/` | Logical plan, optimizer, physical plan |
+| `crates/cassie-server/src/executor/` | Scan, filter, projection, sort, aggregate, batch exec |
+| `crates/cassie-server/src/midge/` | Storage adapter wrapping `cntryl-midge` |
+| `crates/cassie-server/src/catalog/` | Schema, roles, indexes, constraints, views, functions |
+| `crates/cassie-server/src/pgwire/` | PostgreSQL wire protocol server (port 5432) |
+| `crates/cassie-server/src/rest/` | HTTP REST API (port 8080) |
+| `crates/cassie-server/src/embeddings/` | Providers: openai, ollama, tei, voyage, cohere, local |
 | `crates/cassie-core/` | Shared scalar input, formatting, and identity types |
 | `crates/cassie-search/` | Lexical analysis, tokenization, BM25, in-memory inverted index |
 | `crates/cassie-vector/` | Distance metrics, normalization, brute force, IVFFlat, vector index types |
-| `src/vector/` | HNSW, vector text input, and vector compatibility exports |
-| `src/search/` | Full-text query evaluation and lexical compatibility exports |
-| `src/types/` | Value types, schema, row encoding |
-| `src/hybrid/` | Hybrid text+vector scoring |
-| `tests/` | Subsystem integration suites plus a shared fixture library in `tests/support/` |
-| `benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
+| `crates/cassie-server/src/vector/` | HNSW, vector text input, and vector compatibility exports |
+| `crates/cassie-server/src/search/` | Full-text query evaluation and lexical compatibility exports |
+| `crates/cassie-server/src/types/` | Value types, schema, row encoding |
+| `crates/cassie-server/src/hybrid/` | Hybrid text+vector scoring |
+| `crates/cassie-e2e/tests/` | Subsystem integration suites plus a shared fixture library in `crates/cassie-e2e/tests/support/` |
+| `crates/cassie-e2e/benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
 
 ## File Organization
 
@@ -74,8 +74,8 @@ find src crates tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | so
 
 ```sh
 # specific split integration tests
-cargo test --locked --test sql_queries integration_sql_joins:: -- --nocapture
-cargo test --locked --test executor executor_parallel:: -- --nocapture
+cargo test --locked -p cassie-e2e --test sql_queries integration_sql_joins:: -- --nocapture
+cargo test --locked -p cassie-e2e --test executor executor_parallel:: -- --nocapture
 
 # single unit test
 cargo test --locked should_reuse_cached_plan_arc
@@ -88,7 +88,7 @@ cntryl-tools validate-tests -f <path>
 
 ## Configuration
 
-All config via `CASSIE_*` env vars (see `src/config.rs`):
+All config via `CASSIE_*` env vars (see `crates/cassie-server/src/config.rs`):
 
 | Variable | Default | Notes |
 |----------|---------|-------|
@@ -118,13 +118,13 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 Tiered benchmark suite using criterion. Run specific tiers:
 
 ```sh
-cargo bench --locked --bench tier1_hotpath_row_codec
-cargo bench --locked --bench tier2_subsystem_sql_planning
-cargo bench --locked --bench tier3_system_query
-cargo bench --locked --bench tier4_integration_pgwire
+cargo bench --locked -p cassie-e2e --bench tier1_hotpath_row_codec
+cargo bench --locked -p cassie-e2e --bench tier2_subsystem_sql_planning
+cargo bench --locked -p cassie-e2e --bench tier3_system_query
+cargo bench --locked -p cassie-e2e --bench tier4_integration_pgwire
 ```
 
-Tier config overridable via `BENCH_TIER*` env vars (see `benches/support/criterion_config.rs`).
+Tier config overridable via `BENCH_TIER*` env vars (see `crates/cassie-e2e/benches/support/criterion_config.rs`).
 
 ## Containers
 

@@ -5,7 +5,7 @@ import pathlib
 import sys
 import unittest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4] / "tools"))
 from pg18_parity.comparison import compare, qualify
 from pg18_parity.inventory import catalog_entries, fields
 

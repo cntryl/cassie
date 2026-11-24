@@ -4,7 +4,6 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
-| `tests/Cargo.toml` | fixture_data | 235 | 0 | — | keep | `tests/Cargo.toml` |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
 | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
@@ -657,8 +656,8 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/parser_types/types/typed_parameter_canonicalization.rs` | test_module | 76 | 1 | parser_types | keep | `tests/parser_types/types/typed_parameter_canonicalization.rs` |
 | `tests/parser_types/types/typed_value_consistency.rs` | test_module | 199 | 4 | parser_types | keep | `tests/parser_types/types/typed_value_consistency.rs` |
 | `tests/parser_types.rs` | cargo_target | 93 | 0 | parser_types | keep | `tests/parser_types.rs` |
-| `tests/pg18_parity/test_cancellation.py` | parity_harness | 104 | 2 | — | keep | `tests/pg18_parity/test_cancellation.py` |
-| `tests/pg18_parity/test_column_names.py` | parity_harness | 55 | 1 | — | keep | `tests/pg18_parity/test_column_names.py` |
+| `tests/pg18_parity/test_cancellation.py` | parity_harness | 108 | 2 | — | keep | `tests/pg18_parity/test_cancellation.py` |
+| `tests/pg18_parity/test_column_names.py` | parity_harness | 56 | 1 | — | keep | `tests/pg18_parity/test_column_names.py` |
 | `tests/pg18_parity/test_comparison.py` | parity_harness | 107 | 6 | — | keep | `tests/pg18_parity/test_comparison.py` |
 | `tests/pg18_parity/test_fixtures.py` | parity_harness | 122 | 5 | — | keep | `tests/pg18_parity/test_fixtures.py` |
 | `tests/pg18_parity/test_wire.py` | parity_harness | 66 | 2 | — | keep | `tests/pg18_parity/test_wire.py` |
@@ -1862,7 +1861,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/wire_queries.rs` | shared_support | 166 | 0 | cassie_test_support, catalog_security, pgwire_core, sql_queries | keep | `tests/support/wire_queries.rs` |
 | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | test_module | 115 | 1 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals/types/temporal/semantics.rs` |
 | `tests/temporal_predicate_literals.rs` | cargo_target | 4 | 0 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals.rs` |
-| `tests/test_inventory/test_names.py` | test_module | 147 | 6 | — | keep | `tests/test_inventory/test_names.py` |
+| `tests/test_inventory/test_names.py` | test_module | 148 | 6 | — | keep | `tests/test_inventory/test_names.py` |
 | `tests/time_series_float_partitions/partitions/semantics.rs` | test_module | 126 | 1 | time_series_float_partitions | keep | `tests/time_series_float_partitions/partitions/semantics.rs` |
 | `tests/time_series_float_partitions.rs` | cargo_target | 4 | 0 | time_series_float_partitions | keep | `tests/time_series_float_partitions.rs` |
 | `tests/vector_embeddings/embeddings/embedding_local.rs` | test_module | 111 | 5 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_local.rs` |

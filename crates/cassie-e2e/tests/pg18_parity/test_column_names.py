@@ -7,7 +7,8 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tools"))
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(REPO_ROOT / "tools"))
 from pg18_parity.libpq import Libpq
 from pg18_parity.reference import reference
 
@@ -20,7 +21,7 @@ class ColumnNameTests(unittest.TestCase):
     def should_preserve_sql_ascii_column_bytes_in_simple_and_extended_descriptors(self):
         # Arrange
         lib = Libpq(LIB)
-        parent = ROOT / "target/pg18-names"
+        parent = REPO_ROOT / "target/pg18-names"
         parent.mkdir(parents=True, exist_ok=True)
         output = pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=parent)) / "ref"
         raw = b'CREATE VIEW encoding_name AS SELECT 1 AS "\xff", 2 AS "\\xff"'

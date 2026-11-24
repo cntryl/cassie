@@ -4,7 +4,7 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1914 |
+| Files under `tests/` | 1913 |
 | Rust files | 1870 |
 | Rust test declarations | 11560 |
 | Python test declarations | 22 |

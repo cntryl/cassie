@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4] / "tools"))
 from pg18_parity.comparison import compare
 from pg18_parity.libpq import Libpq
 from pg18_parity.reference import reference, verify_artifact

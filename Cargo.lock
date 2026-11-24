@@ -297,7 +297,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cassie-integration-tests"
+name = "cassie-e2e"
 version = "0.1.0"
 dependencies = [
  "argon2",
@@ -347,6 +347,7 @@ version = "0.2.0"
 dependencies = [
  "rust-stemmers",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

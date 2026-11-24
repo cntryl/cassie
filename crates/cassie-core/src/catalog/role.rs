@@ -110,7 +110,7 @@ mod tests {
     use super::{normalize_role_name, RoleGrantTarget, RoleMeta};
 
     #[test]
-    fn should_preserve_role_grant_encoding_and_normalization() {
+    fn should_preserve_normalized_role_grant_encoding() {
         // Arrange
         let role = RoleMeta::new(" Analyst ", true, false, None);
 

@@ -37,8 +37,7 @@ mod statement_batch;
 mod statement_read;
 mod statement_text;
 pub(crate) use statement_read::{
-    PrivateOutput, PrivateOutputs, SessionReadScope, StatementDataRead, StatementOverlay,
-    StatementReadScope,
+    PrivateOutputs, SessionReadScope, StatementDataRead, StatementReadScope,
 };
 
 mod owned_setting;

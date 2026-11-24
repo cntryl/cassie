@@ -36,6 +36,7 @@ pub struct Cell {
 }
 
 impl Cell {
+    #[cfg(test)]
     pub(crate) fn parse(
         source: &str,
         identity: Identity,
@@ -44,6 +45,7 @@ impl Cell {
         Self::parse_observing(source, identity, controls, || {})
     }
 
+    #[cfg(test)]
     fn parse_observing(
         source: &str,
         identity: Identity,
@@ -153,10 +155,12 @@ impl Cell {
         self.memory.belongs_to(controls)
     }
 
+    #[cfg(test)]
     fn try_clone(&self, controls: &QueryExecutionControls) -> Result<Self, CellError> {
         self.try_clone_observing(controls, || {})
     }
 
+    #[cfg(test)]
     fn try_clone_observing(
         &self,
         controls: &QueryExecutionControls,

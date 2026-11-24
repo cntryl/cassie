@@ -7,10 +7,10 @@ use crate::app::CassieError;
 use crate::types::DataType;
 
 #[cfg(test)]
-use super::{decode_value, write_varint};
+use super::{decode_value, write_varint, Cursor};
 #[cfg(any(test, feature = "transport-test-hooks"))]
 use super::{
-    Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
+    TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
     TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
     TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
@@ -21,49 +21,6 @@ pub(crate) fn encode_compact_value(
 ) -> Result<Vec<u8>, CassieError> {
     cassie_storage::row_blob::encode_compact_value(data_type, value)
         .map_err(super::map_row_value_error)
-}
-
-/// Decodes one stored field value against its declared type.
-///
-/// SQL NULL is tagged `TYPE_NULL`; for JSON columns it decodes to `None`, since
-/// JSON `null` has its own tag. Any other tag must be the one the declared type
-/// writes, so a flipped tag byte cannot decode as a plausible wrong-type value.
-pub(crate) fn decode_compact_field_value(
-    data_type: &DataType,
-    bytes: &[u8],
-) -> Result<Option<serde_json::Value>, CassieError> {
-    cassie_storage::row_blob::decode_compact_field_value(
-        data_type,
-        bytes,
-        super::decode_engine_json,
-    )
-    .map_err(super::map_row_decode_error)
-}
-
-/// One stored field value read without building a JSON value for the
-/// fixed-width and text types the vector reader keeps in native lanes.
-pub(crate) use cassie_storage::row_blob::CompactScalar;
-
-/// Decodes one stored field value like [`decode_compact_field_value`], but
-/// keeps integers, floats, Booleans and text out of JSON.
-///
-/// The tag check, the integer width check and the rejection of a non-finite
-/// float are the ones `decode_compact_field_value` applies.
-///
-/// # Errors
-///
-/// Returns a parse error when the bytes do not decode as the declared type.
-pub(crate) fn decode_compact_scalar<'a>(
-    data_type: &DataType,
-    bytes: &'a [u8],
-) -> Result<CompactScalar<'a>, CassieError> {
-    cassie_storage::row_blob::decode_compact_scalar(data_type, bytes, super::decode_engine_json)
-        .map_err(super::map_row_decode_error)
-}
-
-/// The compact encoding of an explicit SQL NULL, valid for every column type.
-pub(crate) fn encode_compact_sql_null() -> Vec<u8> {
-    cassie_storage::row_blob::encode_compact_sql_null()
 }
 
 #[cfg(test)]

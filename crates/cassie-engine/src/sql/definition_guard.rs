@@ -7,7 +7,7 @@ use crate::catalog::{
 };
 
 use cassie_sql::definition_guard as syntax;
-pub(crate) use syntax::{is_legacy, null_safe_default};
+pub(crate) use syntax::null_safe_default;
 
 impl From<syntax::DefinitionError> for CassieError {
     fn from(error: syntax::DefinitionError) -> Self {
@@ -18,16 +18,8 @@ impl From<syntax::DefinitionError> for CassieError {
     }
 }
 
-pub(crate) fn version(version: u32) -> Result<(), CassieError> {
-    Ok(syntax::version(version)?)
-}
-
 pub(crate) fn expression(expr: &Expr) -> Result<(), CassieError> {
     Ok(syntax::expression(expr)?)
-}
-
-pub(crate) fn expression_sql(sql: &str) -> Result<(), CassieError> {
-    Ok(syntax::expression_sql(sql)?)
 }
 
 pub(crate) fn query_sql(sql: &str) -> Result<(), CassieError> {

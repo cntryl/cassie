@@ -122,7 +122,7 @@ mod tests {
     use super::{output_collection_name, RollupDefinition, RollupMeta};
 
     #[test]
-    fn should_preserve_rollup_expression_and_output_name_encoding() {
+    fn should_preserve_rollup_catalog_encoding() {
         // Arrange
         let rollup = RollupMeta::new(RollupDefinition {
             name: "Hourly".to_owned(),

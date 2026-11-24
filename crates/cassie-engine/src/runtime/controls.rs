@@ -236,16 +236,6 @@ impl QueryMemoryReservation {
         self.core.belongs_to(&controls.memory)
     }
 
-    #[cfg(test)]
-    pub(crate) fn tracker_peak_bytes(&self) -> usize {
-        self.core.tracker_peak_bytes()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn tracker_used_bytes(&self) -> usize {
-        self.core.tracker_used_bytes()
-    }
-
     /// Creates a separate narrow lease against the same query tracker.
     /// # Errors
     ///

@@ -31,7 +31,7 @@ fn should_wake_late_subscriber_after_cancellation() {
 }
 
 #[test]
-fn should_transfer_and_release_memory_lease_without_changing_tracker_identity() {
+fn should_transfer_memory_lease_with_same_tracker() {
     // Arrange
     let request = RequestMemory::new(10);
     let first = request.reserve(4).expect("first lease");
@@ -50,7 +50,7 @@ fn should_transfer_and_release_memory_lease_without_changing_tracker_identity() 
 }
 
 #[test]
-fn should_share_budget_atomically_between_sibling_reservations_and_track_peak() {
+fn should_account_sibling_reservations_against_shared_budget() {
     // Arrange
     let request = RequestMemory::new(7);
     let first = request.reserve(5).expect("five bytes");
@@ -82,8 +82,11 @@ fn should_prioritize_cancellation_over_an_expired_deadline() {
     cancellation.cancel();
     let interruption = Interruption::new(Some(Instant::now()), &cancellation);
 
-    // Act / Assert
-    assert_eq!(interruption.check(), Err(InterruptionError::Canceled));
+    // Act
+    let result = interruption.check();
+
+    // Assert
+    assert_eq!(result, Err(InterruptionError::Canceled));
 }
 
 #[test]
@@ -92,11 +95,11 @@ fn should_report_an_expired_absolute_deadline() {
     let cancellation = RequestCancellation::new();
     let interruption = Interruption::new(Some(Instant::now()), &cancellation);
 
-    // Act / Assert
-    assert_eq!(
-        interruption.check(),
-        Err(InterruptionError::DeadlineExceeded)
-    );
+    // Act
+    let result = interruption.check();
+
+    // Assert
+    assert_eq!(result, Err(InterruptionError::DeadlineExceeded));
 }
 
 #[test]

@@ -31,8 +31,6 @@ pub(crate) use fulltext::{
     fulltext_term_postings_block_key, fulltext_term_postings_prefix, fulltext_term_record_key,
     fulltext_term_records_prefix,
 };
-#[cfg(test)]
-pub(super) use graph::legacy_graph_sample_keys;
 pub(super) use graph::{
     database_identity_key, legacy_graph_prefixes, property_graph_key, property_graph_prefix,
 };

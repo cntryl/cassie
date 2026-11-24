@@ -259,21 +259,6 @@ fn document_values(fixture: &Fixture, table: &str, fields: &[&str]) -> Vec<(Stri
     rows
 }
 
-fn lanes_by_row(batches: &[ColumnVectorBatch], fields: usize) -> Vec<(String, Vec<Value>)> {
-    let mut rows = Vec::new();
-    for batch in batches {
-        let columns = batch.lanes.iter().map(lane_values).collect::<Vec<_>>();
-        assert_eq!(columns.len(), fields);
-        for (row, id) in batch.ids.iter().enumerate() {
-            rows.push((
-                id.clone(),
-                columns.iter().map(|column| column[row].clone()).collect(),
-            ));
-        }
-    }
-    rows
-}
-
 fn typed_fixture() -> Fixture {
     let fixture = fixture();
     fixture.table(

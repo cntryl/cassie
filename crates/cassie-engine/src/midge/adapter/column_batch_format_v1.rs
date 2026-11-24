@@ -2,11 +2,12 @@
 
 use crate::app::CassieError;
 
-pub(crate) use cassie_storage::column_batch_format_v1::{
-    Codec, DecodedChunk, DecodedNumericChunk, EncodedChunk, LogicalType, NumericValues,
-};
+pub(crate) use cassie_storage::column_batch_format_v1::{DecodedChunk, EncodedChunk, LogicalType};
 
-pub(crate) use cassie_storage::column_batch_format_v1::DecodedBooleanChunk;
+#[cfg(test)]
+pub(crate) use cassie_storage::column_batch_format_v1::{
+    Codec, DecodedBooleanChunk, DecodedNumericChunk, NumericValues,
+};
 
 pub(crate) fn encode_column_chunk(
     logical_type: LogicalType,
@@ -44,6 +45,7 @@ pub(crate) fn decode_row_ids(bytes: &[u8]) -> Result<Vec<String>, CassieError> {
     cassie_storage::column_batch_format_v1::decode_row_ids(bytes).map_err(CassieError::from)
 }
 
+#[cfg(test)]
 pub(crate) fn decode_numeric_column_chunk(
     bytes: &[u8],
     expected_rows: usize,
@@ -52,6 +54,7 @@ pub(crate) fn decode_numeric_column_chunk(
         .map_err(CassieError::from)
 }
 
+#[cfg(test)]
 pub(crate) fn decode_boolean_column_chunk(
     bytes: &[u8],
     expected_rows: usize,
@@ -60,10 +63,8 @@ pub(crate) fn decode_boolean_column_chunk(
         .map_err(CassieError::from)
 }
 
-pub(crate) use cassie_storage::column_batch_format_v1::{
-    checksum_hex, decode_manifest, encode_manifest, has_current_header, summary_checksum,
-    MANIFEST_FORMAT_VERSION, MANIFEST_SUMMARY_VERSION,
-};
+#[cfg(test)]
+pub(crate) use cassie_storage::column_batch_format_v1::checksum_hex;
 
 #[doc(hidden)]
 pub fn encode_column_chunk_for_test(

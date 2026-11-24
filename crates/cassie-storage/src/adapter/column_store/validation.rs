@@ -125,18 +125,26 @@ pub(crate) fn decode_field(
         }
         Err(other) => return Err(other),
     };
-    let decoded =
-        crate::row_blob::decode_compact_field_value(&field.data_type, &expanded, hooks.decode_json)
-            .map_err(CassieError::from);
-    match decoded {
-        Err(
-            CassieError::Parse(detail)
-            | CassieError::Codec(crate::StorageCodecError::InvalidEncoding(detail)),
-        ) => Err(corrupt_row(
+    crate::row_blob::decode_compact_field_value(&field.data_type, &expanded, hooks.decode_json)
+        .map_err(CassieError::from)
+        .map_err(|error| field_decode_error(relation, id, field, error))
+}
+
+/// Maps malformed stored field data to a contextual `XX001` diagnostic while
+/// preserving query-control and other operational errors.
+pub(crate) fn field_decode_error(
+    relation: &str,
+    id: &str,
+    field: &RowFieldMeta,
+    error: CassieError,
+) -> CassieError {
+    match error {
+        CassieError::Parse(detail)
+        | CassieError::Codec(crate::StorageCodecError::InvalidEncoding(detail)) => corrupt_row(
             relation,
             id,
             &format!("field '{}' does not decode: {detail}", field.name),
-        )),
+        ),
         other => other,
     }
 }

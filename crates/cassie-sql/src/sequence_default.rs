@@ -57,7 +57,7 @@ mod tests {
     use super::{canonical_nextval_expression, parse_nextval_default_expression};
 
     #[test]
-    fn should_parse_and_canonicalize_sequence_default_expressions() {
+    fn should_canonicalize_sequence_default_expressions() {
         // Arrange
         let expressions = [
             (

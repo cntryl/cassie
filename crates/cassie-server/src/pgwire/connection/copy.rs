@@ -34,9 +34,6 @@ mod output;
 mod payload_owner;
 #[path = "copy/request.rs"]
 mod request;
-#[cfg(test)]
-#[path = "copy/validation.rs"]
-mod validation;
 
 #[cfg(test)]
 #[path = "copy/binding_accounting_test_hooks.rs"]

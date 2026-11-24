@@ -70,7 +70,7 @@ fn should_decode_minimum_width_array_elements_without_rejecting_valid_counts() {
 }
 
 #[test]
-fn should_reject_impossible_stored_array_count_before_allocating() {
+fn should_reject_impossible_stored_array_dimension_count_before_allocating() {
     // Arrange
     let path = data_dir("row_blob_array_count");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -117,7 +117,7 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
         cassie
             .midge
             .raw_put(StorageFamily::Data, &key, &blob)
-            .expect("inject corrupt array count");
+            .expect("inject corrupt array dimension count");
 
         // Act
         let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -127,11 +127,11 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
         // Assert
         assert!(
             matches!(
-                decoded,
+                &decoded,
                 Ok(Err(StorageError::Codec(error)))
-                    if error.to_string().contains("array count exceeds remaining payload in row blob")
+                    if error.to_string().contains("array dimension count exceeds remaining payload in row blob")
             ),
-            "invalid stored count must return a codec error without panicking"
+            "invalid stored dimension count must return a codec error: {decoded:?}"
         );
     });
     let _ = std::fs::remove_dir_all(path);

@@ -1,5 +1,6 @@
-pub(crate) use cassie_storage::row_blob::{PackedVector, VectorColumn};
+pub(crate) use cassie_storage::row_blob::VectorColumn;
 
+#[cfg(test)]
 pub(crate) fn split_vector_row<'a>(
     schema: &super::RowSchema,
     column: &VectorColumn,

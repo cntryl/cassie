@@ -24,9 +24,11 @@ fn should_register_two_float8_regression_aggregate_signatures() {
         ("regr_avgy", FunctionId::RegrAvgy),
     ];
 
-    // Act / Assert
     for (name, expected) in identities {
+        // Act
         let registered = function(name).expect("registered regression aggregate");
+
+        // Assert
         assert!(registered.is_aggregate);
         assert_eq!(registered.id, expected);
         assert_eq!(registered.arity, FunctionArity::Exact(2));
@@ -63,9 +65,11 @@ fn should_register_named_statistical_aggregate_input_signatures() {
         ("stddev", FunctionId::Stddev),
     ];
 
-    // Act / Assert
     for (name, expected) in identities {
+        // Act
         let registered = function(name).expect("registered statistical aggregate");
+
+        // Assert
         assert!(registered.is_aggregate);
         assert_eq!(registered.id, expected);
         assert!(crate::sql::functions::statistical::is_statistical_function(

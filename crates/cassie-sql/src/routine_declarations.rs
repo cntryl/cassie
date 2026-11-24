@@ -140,7 +140,7 @@ mod tests {
     use cassie_core::types::Schema;
 
     #[test]
-    fn should_preserve_view_definition_legacy_and_versioned_encoding() {
+    fn should_preserve_view_definition_encoding_across_versions() {
         // Arrange
         let mut view = ViewMeta::new(
             "public.active",

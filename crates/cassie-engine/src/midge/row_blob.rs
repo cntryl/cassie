@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::HashSet;
 
 use crate::app::CassieError;
@@ -6,13 +7,14 @@ use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Valu
 #[cfg(test)]
 use uuid::Uuid;
 
-pub(crate) use cassie_storage::row_blob::{
-    field_bit, FORMAT_VERSION, MAGIC, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
-    TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING,
-    TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
-};
-pub(crate) use cassie_storage::row_blob::{
-    Cursor, RowBlobEncodeError, RowBlobField, RowBlobRecord, RowFieldMeta, RowSchema,
+#[cfg(any(test, feature = "transport-test-hooks"))]
+use cassie_storage::row_blob::{field_bit, Cursor, RowFieldMeta, FORMAT_VERSION, MAGIC, TYPE_JSON};
+pub(crate) use cassie_storage::row_blob::{RowBlobEncodeError, RowSchema};
+#[cfg(test)]
+use cassie_storage::row_blob::{
+    RowBlobField, RowBlobRecord, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
+    TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_NULL, TYPE_STRING, TYPE_TIME,
+    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 
 mod compact;
@@ -30,11 +32,10 @@ mod vector_field;
 use self::compact::decode_directory_value;
 #[cfg(any(test, feature = "transport-test-hooks"))]
 use self::compact::expected_type_tag;
-pub(crate) use compact::{
-    decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
-    encode_compact_value, CompactScalar,
-};
-pub(crate) use vector_field::{split_vector_row, PackedVector, VectorColumn};
+pub(crate) use compact::encode_compact_value;
+#[cfg(test)]
+pub(crate) use vector_field::split_vector_row;
+pub(crate) use vector_field::VectorColumn;
 
 pub(crate) fn encode_row(
     schema: &RowSchema,
@@ -64,23 +65,18 @@ fn map_row_value_error(error: cassie_storage::row_blob::RowBlobValueError) -> Ca
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
-    decode_row_with_projection(schema, row, None, false)
+    cassie_storage::row_blob::decode_row(schema, row, decode_engine_json)
+        .map_err(map_row_decode_error)
 }
 
+#[cfg(test)]
 pub(crate) fn decode_projected_row(
     schema: &RowSchema,
     row: &[u8],
     projection: &HashSet<String>,
 ) -> Result<serde_json::Value, CassieError> {
-    decode_row_with_projection(schema, row, Some(projection), false)
-}
-
-pub(crate) fn decode_projected_row_with_aliases(
-    schema: &RowSchema,
-    row: &[u8],
-    projection: &HashSet<String>,
-) -> Result<serde_json::Value, CassieError> {
-    decode_row_with_projection(schema, row, Some(projection), true)
+    cassie_storage::row_blob::decode_projected_row(schema, row, projection, decode_engine_json)
+        .map_err(map_row_decode_error)
 }
 
 #[cfg(test)]
@@ -91,64 +87,16 @@ pub(crate) fn decode_projected_row_matching(
     filter_field: &str,
     filter_value: &serde_json::Value,
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    decode_projected_row_matching_with_aliases(
-        schema,
-        row,
-        projection,
-        filter_field,
-        filter_value,
-        false,
-    )
-}
-
-pub(crate) fn decode_projected_row_matching_with_aliases(
-    schema: &RowSchema,
-    row: &[u8],
-    projection: &HashSet<String>,
-    filter_field: &str,
-    filter_value: &serde_json::Value,
-    include_historical_aliases: bool,
-) -> Result<Option<serde_json::Value>, CassieError> {
     cassie_storage::row_blob::decode_projected_row_matching(
         schema,
         row,
         projection,
         filter_field,
         filter_value,
-        include_historical_aliases,
+        false,
         decode_engine_json,
     )
     .map_err(map_row_decode_error)
-}
-
-fn decode_row_with_projection(
-    schema: &RowSchema,
-    row: &[u8],
-    projection: Option<&HashSet<String>>,
-    include_historical_aliases: bool,
-) -> Result<serde_json::Value, CassieError> {
-    let decoded = if let Some(projection) = projection {
-        if include_historical_aliases {
-            cassie_storage::row_blob::decode_projected_row_with_aliases(
-                schema,
-                row,
-                projection,
-                decode_engine_json,
-            )
-        } else {
-            cassie_storage::row_blob::decode_projected_row(
-                schema,
-                row,
-                projection,
-                decode_engine_json,
-            )
-        }
-    } else {
-        cassie_storage::row_blob::decode_row(schema, row, decode_engine_json)
-    }
-    .map_err(map_row_decode_error)?;
-
-    Ok(decoded)
 }
 
 pub(crate) fn decode_engine_json(bytes: &[u8]) -> Result<serde_json::Value, CassieError> {

@@ -19,7 +19,7 @@ impl ScalarExpressionEvaluator for Evaluator {
 }
 
 #[test]
-fn should_preserve_typed_expression_values_and_null_uniqueness_policy() {
+fn should_apply_null_uniqueness_to_typed_expression_values() {
     // Arrange
     let expressions = ["integer".to_owned(), "null".to_owned()];
     let row = [("n".to_owned(), Value::Int64(7))];

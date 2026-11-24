@@ -1,6 +1,7 @@
 //! Explicit rejection policy for PostgreSQL server filesystem helpers.
 
-pub(crate) use cassie_sql::registry::functions::is_server_file_helper;
+#[cfg(test)]
+use cassie_sql::registry::functions::is_server_file_helper;
 
 pub(crate) fn rejection() -> crate::CassieError {
     crate::CassieError::Unsupported("PostgreSQL server filesystem access is not supported".into())

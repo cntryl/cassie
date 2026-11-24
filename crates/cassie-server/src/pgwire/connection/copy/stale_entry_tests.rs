@@ -163,7 +163,6 @@ struct EntryFixture {
     cassie: Cassie,
     session: crate::app::CassieSession,
     request: request::CopyRequest,
-    statement: Box<crate::sql::ast::CopyStatement>,
     binding: Box<super::CopyFromBinding>,
 }
 
@@ -198,14 +197,13 @@ impl EntryFixture {
             .expect("COPY request");
         let bound =
             bind_copy_from_stdin(&cassie, &session, request, cancellation).expect("bind COPY");
-        let BoundCopyRequest::From(request, statement, binding) = bound else {
+        let BoundCopyRequest::From(request, _statement, binding) = bound else {
             panic!("COPY FROM binding")
         };
         Self {
             cassie,
             session,
             request,
-            statement,
             binding,
         }
     }

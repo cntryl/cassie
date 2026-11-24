@@ -5,7 +5,7 @@
 //! same JSON-to-`Value` conversion the row path uses, one value per cell.
 
 use crate::adapter::column_store::compression::expand_column_field;
-use crate::adapter::column_store::validation::corrupt_row;
+use crate::adapter::column_store::validation::{corrupt_row, field_decode_error};
 use crate::adapter::CassieError;
 use crate::adapter::StorageValueHooks;
 use crate::row_blob::{decode_compact_scalar, CompactScalar, RowFieldMeta};
@@ -242,21 +242,7 @@ pub(crate) fn decode_into_lane(
     };
     let cell = decode_compact_scalar(&field.data_type, &expanded, hooks.decode_json)
         .map_err(CassieError::from)
-        .map_err(|error| match error {
-            CassieError::Parse(detail) => corrupt_row(
-                relation,
-                id,
-                &format!("field '{}' does not decode: {detail}", field.name),
-            ),
-            other => other,
-        })?;
+        .map_err(|error| field_decode_error(relation, id, field, error))?;
     lane.push_cell(cell, &field.data_type, hooks)
-        .map_err(|error| match error {
-            CassieError::Parse(detail) => corrupt_row(
-                relation,
-                id,
-                &format!("field '{}' does not decode: {detail}", field.name),
-            ),
-            other => other,
-        })
+        .map_err(|error| field_decode_error(relation, id, field, error))
 }

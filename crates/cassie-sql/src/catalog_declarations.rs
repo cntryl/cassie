@@ -592,7 +592,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn should_preserve_index_metadata_legacy_and_versioned_encoding() {
+    fn should_preserve_index_metadata_encoding_across_versions() {
         // Arrange
         let mut index = IndexMeta {
             definition_semantics_version: 0,
@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn should_preserve_projection_metadata_and_materialized_definition_encoding() {
+    fn should_preserve_projection_catalog_metadata_encoding() {
         // Arrange
         let projection = ProjectionMeta::new("public.events", 3);
         let materialized = ProjectionMeta::materialized(MaterializedProjectionSpec {

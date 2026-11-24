@@ -1,7 +1,7 @@
 use super::storage_metadata::{CollectionMeta, CollectionStorageMode, ColumnBatchNumericSum};
 
 #[test]
-fn should_preserve_storage_catalog_default_and_skip_semantics() {
+fn should_preserve_storage_catalog_serialization() {
     // Arrange
     let collection = CollectionMeta::new("public.events", Some("events".to_owned()));
 

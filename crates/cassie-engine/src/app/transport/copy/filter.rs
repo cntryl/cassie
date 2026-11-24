@@ -33,25 +33,6 @@ fn reserve_filter_rows(
     crate::runtime::owned_memory::try_reserve_vec(count, &base)
 }
 
-#[cfg(test)]
-pub(super) fn filter_rows(
-    cassie: &Cassie,
-    session: &CassieSession,
-    statement: &CopyStatement,
-    rows: Vec<Vec<Option<String>>>,
-    predicate: &str,
-    controls: &QueryExecutionControls,
-) -> Result<CopyRowsWithMemory, CopyWhereError> {
-    filter_rows_for_operation(
-        cassie,
-        session,
-        statement,
-        rows,
-        predicate,
-        (controls, None),
-    )
-}
-
 pub(super) fn filter_rows_for_operation(
     cassie: &Cassie,
     session: &CassieSession,

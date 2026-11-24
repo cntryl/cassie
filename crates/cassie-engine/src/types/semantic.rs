@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_core_and_engine_semantic_ordering_aligned_for_portable_values() {
+    fn should_match_core_ordering_for_portable_values() {
         // Arrange
         let values = [
             Value::Null,
@@ -167,9 +167,10 @@ mod tests {
             )),
         ];
 
-        // Act / Assert
+        // Act
         for left in &values {
             for right in &values {
+                // Assert
                 assert_eq!(
                     compare_values(left, right),
                     SemanticKey::single(left).cmp(&SemanticKey::single(right)),

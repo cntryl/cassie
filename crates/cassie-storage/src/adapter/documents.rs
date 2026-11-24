@@ -92,7 +92,7 @@ impl Midge {
         let value_hooks = self.value_hooks();
         Self::validate_document(&schema, payload, &value_hooks)?;
         let encoded = encode_row(&row_schema, payload)?;
-        let context = self.document_write_batch_context(
+        let context = self.document_write_batch_context::<()>(
             &collection,
             &DocumentWriteBatchOptions::sync(self.write_options_sync()),
         )?;

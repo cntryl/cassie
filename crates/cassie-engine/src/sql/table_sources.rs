@@ -2,9 +2,8 @@
 
 pub(crate) use cassie_sql::registry::table_sources::{
     is_generated, is_graph_table, is_json_table, is_query_column, is_series, is_unnest,
-    json_element_columns, json_element_source, json_member_name, physical_name, populate_base_type,
+    json_element_columns, json_element_source, json_member_name, physical_name,
     record_declared_columns, record_output_columns, record_source, JsonElementSource, RecordSource,
-    GRAPH_TABLE_FUNCTION,
 };
 
 use crate::app::CassieError;

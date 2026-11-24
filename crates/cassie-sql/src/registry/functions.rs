@@ -432,7 +432,7 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn should_keep_registered_names_unique_and_parser_ids_stable() {
+    fn should_preserve_function_registry_identity() {
         // Arrange
         let mut names = HashSet::new();
 

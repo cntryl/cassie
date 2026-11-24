@@ -898,6 +898,7 @@ impl std::fmt::Display for RetryableStorageError {
 
 impl CassieError {
     /// Returns the typed kind of a retryable storage error.
+    #[cfg(test)]
     pub(crate) fn storage_retry_kind(&self) -> Option<StorageRetryKind> {
         let Self::StorageRetryable(error) = self else {
             return None;

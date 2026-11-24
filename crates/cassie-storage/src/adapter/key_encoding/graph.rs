@@ -47,8 +47,3 @@ pub fn legacy_graph_sample_keys_for_diagnostics() -> [Vec<u8>; 2] {
         key(LEGACY_FAMILY_GRAPH_ADJACENCY, &[b"7", b"M"]),
     ]
 }
-
-#[cfg(test)]
-pub(crate) fn legacy_graph_sample_keys() -> [Vec<u8>; 2] {
-    legacy_graph_sample_keys_for_diagnostics()
-}

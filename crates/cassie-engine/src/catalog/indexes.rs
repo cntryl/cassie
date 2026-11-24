@@ -14,11 +14,13 @@ pub use cassie_sql::catalog_declarations::{
 
 /// Engine error and catalog identity operations kept outside the SQL crate.
 pub(crate) trait EngineIndexMetaExt {
+    #[cfg(test)]
     fn reservation_identity(&self) -> Result<ReservationIdentity<'_>, crate::app::CassieError>;
     fn unique_violation(&self, collection: &str) -> crate::app::CassieError;
 }
 
 impl EngineIndexMetaExt for IndexMeta {
+    #[cfg(test)]
     fn reservation_identity(&self) -> Result<ReservationIdentity<'_>, crate::app::CassieError> {
         self.reservation_identity_details()
             .map_err(crate::app::CassieError::Parse)

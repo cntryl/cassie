@@ -16,10 +16,6 @@ impl WhereText {
         })
     }
 
-    pub(super) fn name(&self) -> &str {
-        &self.text
-    }
-
     pub(super) fn as_str(&self) -> &str {
         &self.text
     }

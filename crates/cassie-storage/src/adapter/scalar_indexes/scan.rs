@@ -2,7 +2,7 @@ use cntryl_midge::Query;
 
 use crate::catalog::IndexMeta;
 use cassie_core::request::accounted::AccountedVec;
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::StorageRequestContext;
 
 use super::codec::{covering_fields_retained_bytes, decode_covering_fields};
 use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
@@ -13,7 +13,7 @@ impl Midge {
         &self,
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<AccountedVec<ScalarIndexScanHit>, CassieError> {
         let mut hits = AccountedVec::try_new(controls)?;
         self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
@@ -30,7 +30,7 @@ impl Midge {
         &self,
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         mut visit: impl FnMut( crate::adapter::DocumentRef) -> Result<bool, E>,
     ) -> Result<(), E> {
         self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
@@ -48,7 +48,7 @@ impl Midge {
         &self,
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         mut visit: impl FnMut(&IndexMeta, &[u8], &[u8]) -> Result<bool, E>,
     ) -> Result<(), E> {
         check_controls(controls)?;
@@ -164,7 +164,7 @@ fn scalar_index_hit_variable_bytes(key: &[u8], raw_value: &[u8]) -> Result<usize
     })
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }

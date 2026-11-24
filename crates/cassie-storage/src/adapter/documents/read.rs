@@ -10,7 +10,7 @@ use std::time::Duration;
 struct RowBlobScanRequest<'a> {
     collection: &'a str,
     row_schema: &'a RowSchema,
-    tx: &'acrate::adapter::AdapterTransaction,
+    tx: &'a crate::adapter::AdapterTransaction,
     batch_size: usize,
     projection: Option<&'a std::collections::HashSet<String>>,
     filter: Option<&'a RowFilter>,
@@ -40,8 +40,8 @@ impl Midge {
         Self::load_data_epoch_from_tx(&tx)
     }
 
-    pub(incrate::adapter) fn load_data_epoch_from_tx(
-        tx: & crate::adapter::AdapterTransaction,
+    pub(in crate::adapter) fn load_data_epoch_from_tx(
+        tx: &crate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
             return Ok(0);
@@ -74,7 +74,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_data_epoch_in_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let next = match tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? {
             Some(raw) => {
@@ -92,7 +92,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_collection_generation_in_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<u64, CassieError> {
         let key = Self::collection_generation_key(collection);
@@ -277,20 +277,31 @@ impl Midge {
 
                 let decode_started = Instant::now();
                 let payload = match (projection, filter) {
-                    (Some(projection), Some(filter)) => decode_projected_row_matching_with_aliases(
+                    (Some(projection), Some(filter)) => crate::adapter::decode_projected_row_matching_with_aliases_and_hooks(
                         row_schema,
                         &raw_value,
                         projection,
                         &filter.field,
                         &filter.value,
                         include_historical_aliases,
+                        &self.value_hooks(),
                     )?,
                     (Some(projection), None) => Some(if include_historical_aliases {
-                        decode_projected_row_with_aliases(row_schema, &raw_value, projection)?
+                        crate::adapter::decode_projected_row_with_aliases_and_hooks(
+                            row_schema,
+                            &raw_value,
+                            projection,
+                            &self.value_hooks(),
+                        )?
                     } else {
-                        decode_projected_row(row_schema, &raw_value, projection)?
+                        crate::adapter::decode_projected_row_with_hooks(
+                            row_schema,
+                            &raw_value,
+                            projection,
+                            &self.value_hooks(),
+                        )?
                     }),
-                    (None, _) => Some(decode_row(row_schema, &raw_value)?),
+                    (None, _) => Some(super::super::decode_row_with_hooks(row_schema, &raw_value, &self.value_hooks())?),
                 };
                 row_decode += decode_started.elapsed();
                 let Some(payload) = payload else {

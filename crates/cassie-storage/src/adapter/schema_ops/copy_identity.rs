@@ -4,7 +4,7 @@ use std::io::{self, Read};
 
 use super::{CassieError, Midge};
 use crate::adapter::{StorageOverlay, TransactionMode};
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::StorageRequestContext;
 
 #[cfg(test)]
 #[path = "copy_identity_tests.rs"]
@@ -13,7 +13,7 @@ mod tests;
 struct CheckingReader<'a> {
     input: &'a [u8],
     position: usize,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 impl Read for CheckingReader<'_> {
@@ -41,7 +41,7 @@ struct Identity {
 
 pub(super) fn decode_identity(
     raw: &[u8],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<Option<u64>, CassieError> {
     controls.check_interruption()?;
     let _memory = controls.reserve_query_memory(
@@ -66,7 +66,7 @@ impl Midge {
         &self,
         name: &str,
         overlay: &StorageOverlay,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<u64>, CassieError> {
         controls.check_interruption()?;
         let canonical = self.canonical_collection_name(name);

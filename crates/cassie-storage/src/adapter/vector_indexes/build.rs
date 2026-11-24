@@ -13,7 +13,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub(incrate::adapter) fn prepare_vector_index_sidecars(
+    pub(in crate::adapter) fn prepare_vector_index_sidecars(
         &self,
         mut metadata: crate::embeddings::VectorIndexRecord,
     ) -> Result<VectorIndexRecord, CassieError> {

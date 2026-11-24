@@ -10,7 +10,7 @@ use super::{
     MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,
 };
 use crate::adapter::column_store::validation as column_validation;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 const CONTROLLED_PAGE_ENTRIES: usize = 128;
 
@@ -75,7 +75,7 @@ impl Midge {
         partition_key: Option<&str>,
         lower_bucket_seconds: Option<i64>,
         upper_bucket_seconds: Option<i64>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledTimeSeriesIndexScanOutcome, CassieError> {
         let index = self.resolved_time_series_index(index)?;
         if !Self::time_series_index_supports_storage(&index) {
@@ -145,11 +145,11 @@ impl Midge {
 
     fn load_controlled_integrity(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledIntegrityOutcome, CassieError> {
         check_controls(controls)?;
         let mut memory = controls.reserve_query_memory(0)?;
@@ -242,7 +242,7 @@ impl Midge {
         index: &IndexMeta,
         hits: &[TimeSeriesIndexScanHit],
         fields: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledTimeSeriesDocumentScanOutcome, CassieError> {
         let index = self.resolved_time_series_index(index)?;
         let collection = &index.collection;
@@ -281,7 +281,7 @@ impl Midge {
                     .saturating_add(hit.id.len())
                     .saturating_add(size_of::<DocumentRef>()),
             )?;
-            let full_payload = decode_row(&row_schema, &raw)?;
+            let full_payload = super::super::decode_row_with_hooks(&row_schema, &raw, tx.value_hooks())?;
             let Some(expected_entry) =
                 Self::time_series_index_entry(&index, &hit.id, &full_payload)?
             else {
@@ -294,7 +294,12 @@ impl Midge {
                     DANGLING_BUCKET_MEMBERSHIP,
                 ));
             }
-            let payload = decode_projected_row(&row_schema, &raw, &projection)?;
+            let payload = super::super::decode_projected_row_with_hooks(
+                &row_schema,
+                &raw,
+                &projection,
+                tx.value_hooks(),
+            )?;
             documents.try_reserve_exact(1).map_err(|error| {
                 CassieError::ResourceLimit(format!(
                     "unable to retain controlled time-series row: {error}"
@@ -315,7 +320,7 @@ impl Midge {
         index: &IndexMeta,
         hits: &[TimeSeriesIndexScanHit],
         fields: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledTimeSeriesDocumentScanOutcome, CassieError> {
         let collection = &index.collection;
         let row_schema = self.row_schema(collection)?;
@@ -455,9 +460,9 @@ fn requested_counts_match(
 
 fn load_controlled_hits(
     midge: &Midge,
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     request: &ControlledIndexRequest<'_>,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<ControlledHits, CassieError> {
     let data_prefix = Midge::time_series_index_data_prefix(request.relation_id, request.index_id);
     let mut memory = controls.reserve_query_memory(0)?;
@@ -529,8 +534,8 @@ fn controlled_hit_query(request: &ControlledIndexRequest<'_>, start_key: Option<
 
 fn controlled_scan_pages(
     midge: &Midge,
-    tx: & crate::adapter::AdapterTransaction,
-    controls: &QueryExecutionControls,
+    tx: &crate::adapter::AdapterTransaction,
+    controls: &StorageRequestContext<'_>,
     mut query_for_page: impl FnMut(Option<Vec<u8>>) -> Query,
     mut visit: impl FnMut(&[u8], &[u8]) -> Result<(), CassieError>,
 ) -> Result<(), CassieError> {
@@ -560,7 +565,7 @@ fn controlled_scan_pages(
     }
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
@@ -572,7 +577,7 @@ fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> 
 
 fn check_controlled_entry(
     midge: &Midge,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(), CassieError> {
     check_controls(controls)?;
     midge.record_query_scan_entry();

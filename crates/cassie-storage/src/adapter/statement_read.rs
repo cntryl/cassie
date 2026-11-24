@@ -7,6 +7,7 @@ use cassie_core::request::{
 use std::cell::RefCell;
 use std::mem::size_of;
 use std::sync::Arc;
+use std::time::Instant;
 
 mod materialized_outputs;
 
@@ -25,6 +26,7 @@ pub struct StorageRequestContext<'a> {
     snapshot: Option<&'a NativeStatementSnapshot>,
     interruption: Interruption<'a>,
     memory: &'a RequestMemory,
+    scan_control: Option<&'a super::QueryScanControlScope>,
 }
 
 impl<'a> StorageRequestContext<'a> {
@@ -37,7 +39,22 @@ impl<'a> StorageRequestContext<'a> {
             snapshot,
             interruption,
             memory,
+            scan_control: None,
         }
+    }
+
+    #[must_use]
+    pub const fn with_scan_control(
+        mut self,
+        scan_control: Option<&'a super::QueryScanControlScope>,
+    ) -> Self {
+        self.scan_control = scan_control;
+        self
+    }
+
+    pub(super) fn should_cancel_controlled_query_scan(&self) -> bool {
+        self.scan_control
+            .is_some_and(super::QueryScanControlScope::should_cancel)
     }
 
     #[must_use]
@@ -50,6 +67,31 @@ impl<'a> StorageRequestContext<'a> {
         self.memory
     }
 
+    #[must_use]
+    pub const fn deadline(&self) -> Option<Instant> {
+        self.interruption.deadline()
+    }
+
+    #[must_use]
+    pub fn is_canceled(&self) -> bool {
+        self.interruption.cancellation().is_canceled()
+    }
+
+    #[must_use]
+    pub fn is_timed_out(&self) -> bool {
+        self.deadline().is_some_and(|deadline| Instant::now() >= deadline)
+    }
+
+    #[must_use]
+    pub fn current_query_memory_bytes(&self) -> usize {
+        self.memory.current_bytes()
+    }
+
+    #[must_use]
+    pub fn query_memory_budget_bytes(&self) -> usize {
+        self.memory.budget()
+    }
+
     pub fn check_interruption(&self) -> Result<(), CassieError> {
         self.interruption.check().map_err(|error| match error {
             InterruptionError::Canceled => CassieError::QueryCanceled,
@@ -59,6 +101,10 @@ impl<'a> StorageRequestContext<'a> {
 
     pub fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
         self.memory.reserve(bytes).map_err(native_memory_limit_error)
+    }
+
+    pub fn reserve_query_memory(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
+        self.reserve(bytes)
     }
 
     pub fn grow(

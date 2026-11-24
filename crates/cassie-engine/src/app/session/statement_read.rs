@@ -110,11 +110,7 @@ impl StatementDataRead {
         overlay: Option<Arc<StatementOverlay>>,
         current_catalog: bool,
     ) -> Result<Arc<Self>, CassieError> {
-        let context = StorageRequestContext::new(
-            None,
-            controls.interruption(),
-            controls.request_memory(),
-        );
+        let context = controls.storage_request();
         let snapshot = NativeStatementSnapshot::capture(midge, database, &context, current_catalog)?;
         let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
@@ -134,7 +130,8 @@ impl StatementDataRead {
             Some(&retained.snapshot),
             controls.interruption(),
             controls.request_memory(),
-        );
+        )
+        .with_scan_control(controls.query_scan_control_scope());
         context.check_interruption()?;
         let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         Ok(Arc::new(Self {
@@ -321,11 +318,7 @@ impl CassieSession {
         }
         let storage = Arc::clone(&transaction.storage_overlay);
         let database = self.current_database().unwrap_or(default_database);
-        let context = StorageRequestContext::new(
-            None,
-            controls.interruption(),
-            controls.request_memory(),
-        );
+        let context = controls.storage_request();
         let storage_guard = storage.lock();
         let snapshot = midge.capture_private_materialized_snapshot(
             &storage_guard,

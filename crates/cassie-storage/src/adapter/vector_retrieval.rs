@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use super::super::key_encoding;
 use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord};
 use cassie_core::request::accounted::AccountedVec;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 #[path = "vector_retrieval/accounting.rs"]
 mod accounting;
@@ -109,12 +109,12 @@ impl PersistedIvfFlatCandidateBatch {
 
 struct ControlledIvfReadContext<'a> {
     midge: &'a Midge,
-    tx: &'acrate::adapter::AdapterTransaction,
+    tx: &'a crate::adapter::AdapterTransaction,
     collection: &'a str,
     field: &'a str,
     relation_id: u64,
     field_id: u32,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 struct ControlledIvfMemberships {
@@ -132,11 +132,11 @@ struct ControlledHnswHeader {
 
 fn load_controlled_hnsw_header(
     midge: &Midge,
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     collection: &str,
     relation_id: u64,
     field_id: u32,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<Option<ControlledHnswHeader>, CassieError> {
     let Some(raw) = tx
         .get(&Midge::vector_index_state_key(relation_id, field_id))
@@ -464,7 +464,7 @@ impl Midge {
         &self,
         collection: &str,
         field: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<PersistedIvfFlatTrainingSnapshot>, CassieError> {
         check_ann_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -620,7 +620,7 @@ impl Midge {
         field: &str,
         training: &crate::embeddings::IvfFlatTrainingState,
         probed_lists: &BTreeSet<usize>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<PersistedIvfFlatCandidateBatch, CassieError> {
         check_ann_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -768,7 +768,7 @@ impl Midge {
         query: &[f32],
         metadata: &crate::embeddings::VectorIndexMetadata,
         limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<PersistedHnswCandidateBatch>, CassieError> {
         check_ann_controls(controls)?;
         let options = metadata
@@ -867,7 +867,7 @@ impl Midge {
                     "controlled HNSW candidate accounting overflow".to_owned(),
                 )
             })?;
-        let mut candidate_memory = crate::runtime::QueryMemoryReservation::from_core(candidate_memory);
+        let mut candidate_memory = crate::adapter::QueryMemoryReservation::from_core(candidate_memory);
         if candidate_bytes > candidate_memory.bytes() {
             candidate_memory.try_grow(candidate_bytes - candidate_memory.bytes())?;
         } else {
@@ -915,7 +915,7 @@ impl Midge {
     }
 
     pub(super) fn write_hnsw_source_summary_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,
@@ -932,7 +932,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_source_summary_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,
@@ -953,7 +953,7 @@ impl Midge {
     }
 }
 
-fn check_ann_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_ann_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
@@ -965,7 +965,7 @@ fn check_ann_controls(controls: &QueryExecutionControls) -> Result<(), CassieErr
 
 fn record_controlled_ann_read(
     midge: &Midge,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(), CassieError> {
     check_ann_controls(controls)?;
     midge.record_query_scan_entry();

@@ -113,10 +113,16 @@ impl Midge {
         let mut attempt = 1;
         loop {
             match self.update_sequence(name, &mut update) {
-                Err(error @ CassieError::StorageRetryable(_))
+                Err(error)
                     if attempt < MAX_ATTEMPTS
-                        && error.storage_retry_kind()
-                            != Some( crate::adapter::StorageRetryKind::Fenced) =>
+                        && matches!(
+                            error.storage_retry_kind(),
+                            Some(
+                                crate::adapter::StorageRetryKind::WriteConflict
+                                    | crate::adapter::StorageRetryKind::WriteStall
+                                    | crate::adapter::StorageRetryKind::Unavailable
+                            )
+                        ) =>
                 {
                     attempt += 1;
                 }

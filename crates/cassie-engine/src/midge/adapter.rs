@@ -1,6 +1,8 @@
 //! Engine compatibility facade for the storage-owned Midge adapter.
 
 pub use cassie_storage::adapter::*;
+pub use cassie_storage::adapter::{canonical_field_value, index_key_field_value};
+pub use cassie_storage::adapter::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRequest};
 pub(crate) use crate::app::{StatementDataRead, StatementReadScope};
 
 pub mod column_batch_format_v1;
@@ -21,6 +23,17 @@ pub(crate) mod statement_read {
     mod tests;
 }
 
+#[cfg(test)]
+pub(crate) mod query_scan_control {
+    pub use cassie_storage::adapter::{
+        current_query_scan_control_scope, query_scan_control_test_guard,
+        set_query_scan_cancellation_after_entries, should_cancel_controlled_query_scan,
+    };
+
+    #[path = "adapter/query_scan_control_tests.rs"]
+    mod tests;
+}
+
 impl From<cassie_storage::StorageError> for crate::app::CassieError {
     fn from(error: cassie_storage::StorageError) -> Self {
         use cassie_storage::StorageError;
@@ -31,6 +44,7 @@ impl From<cassie_storage::StorageError> for crate::app::CassieError {
             StorageError::Parse(message) => Self::Parse(message),
             StorageError::Execution(message) => Self::Execution(message),
             StorageError::InvalidQuery(message) => Self::InvalidQuery(message),
+            StorageError::InvalidParameterValue(message) => Self::InvalidParameterValue(message),
             StorageError::Unsupported(message) => Self::Unsupported(message),
             StorageError::InvalidVector(message) => Self::InvalidVector(message),
             StorageError::ResourceLimit(message) => Self::ResourceLimit(message),
@@ -71,6 +85,25 @@ impl From<cassie_storage::StorageError> for crate::app::CassieError {
             StorageError::Transaction { kind, message } => Self::Transaction {
                 kind: kind.into(),
                 message,
+            },
+            StorageError::Diagnostic {
+                sql_state,
+                message,
+                detail,
+                hint,
+            } => {
+                let mut diagnostic = crate::app::DiagnosticError::new(sql_state, message);
+                if let Some(detail) = detail {
+                    diagnostic = diagnostic.with_detail(detail);
+                }
+                if let Some(hint) = hint {
+                    diagnostic = diagnostic.with_hint(hint);
+                }
+                Self::from(diagnostic)
+            }
+            StorageError::EngineCallback(error) => match error.downcast::<crate::app::CassieError>() {
+                Ok(error) => *error,
+                Err(error) => Self::Execution(error.to_string()),
             },
         }
     }
@@ -141,5 +174,81 @@ impl From<cassie_storage::adapter::error::StorageRetryKind> for crate::app::Stor
             cassie_storage::adapter::error::StorageRetryKind::Fenced => Self::Fenced,
             cassie_storage::adapter::error::StorageRetryKind::Unavailable => Self::Unavailable,
         }
+    }
+}
+
+impl crate::runtime::QueryExecutionControls {
+    pub(crate) fn storage_request(
+        &self,
+    ) -> cassie_storage::adapter::StorageRequestContext<'_> {
+        cassie_storage::adapter::StorageRequestContext::new(
+            None,
+            self.interruption(),
+            self.request_memory(),
+        )
+        .with_scan_control(self.query_scan_control_scope())
+    }
+}
+
+pub(crate) fn engine_storage_value_hooks() -> cassie_storage::adapter::StorageValueHooks {
+    cassie_storage::adapter::StorageValueHooks::new(
+        decode_storage_json,
+        decode_storage_typed_value,
+        validate_storage_graph_fields,
+        crate::midge::scalar_expression::evaluate_stored_expression,
+        crate::midge::scalar_expression::evaluate_stored_predicate,
+    )
+}
+
+fn decode_storage_json(bytes: &[u8]) -> Result<serde_json::Value, cassie_storage::StorageError> {
+    crate::midge::row_blob::decode_engine_json(bytes).map_err(|error| match error {
+        crate::app::CassieError::Parse(message) => cassie_storage::StorageError::Parse(message),
+        crate::app::CassieError::ResourceLimit(message) => {
+            cassie_storage::StorageError::ResourceLimit(message)
+        }
+        crate::app::CassieError::QueryCanceled => cassie_storage::StorageError::QueryCanceled,
+        crate::app::CassieError::DeadlineExceeded => {
+            cassie_storage::StorageError::DeadlineExceeded
+        }
+        other => engine_callback_error(other),
+    })
+}
+
+
+fn decode_storage_typed_value(
+    value: &serde_json::Value,
+    data_type: &cassie_core::types::DataType,
+) -> Result<cassie_core::types::Value, cassie_storage::StorageError> {
+    crate::executor::scan::try_json_to_typed_value(value, data_type).map_err(engine_callback_error)
+}
+
+fn validate_storage_graph_fields(
+    schema: &cassie_core::types::Schema,
+    document: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), cassie_storage::StorageError> {
+    crate::executor::filter::graph_validation::validate_stored_fields(schema, document)
+        .map_err(engine_callback_error)
+}
+
+fn engine_callback_error(error: crate::app::CassieError) -> cassie_storage::StorageError {
+    cassie_storage::StorageError::EngineCallback(Box::new(error))
+}
+
+#[cfg(test)]
+mod error_roundtrip_tests {
+    use crate::app::CassieError;
+    use cassie_storage::StorageError;
+
+    #[test]
+    fn should_restore_the_original_engine_error_from_a_storage_callback() {
+        // Arrange
+        let original = CassieError::Parse("bad stored JSON".to_owned());
+        let callback_error = StorageError::EngineCallback(Box::new(original));
+
+        // Act
+        let restored = CassieError::from(callback_error);
+
+        // Assert
+        assert!(matches!(restored, CassieError::Parse(message) if message == "bad stored JSON"));
     }
 }

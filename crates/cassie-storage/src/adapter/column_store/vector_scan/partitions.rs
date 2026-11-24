@@ -12,7 +12,7 @@ use super::{
     ColumnVectorScan, Midge,
 };
 use crate::adapter::DataReadTransaction;
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::StorageRequestContext;
 
 impl ColumnVectorScan {
     fn for_range(&self, range: ColumnIdRange) -> Self {
@@ -46,7 +46,7 @@ impl ColumnPartitionReader<'_> {
         &mut self,
         midge: &Midge,
         max_rows: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<ColumnVectorBatch>, CassieError> {
         self.scan.next_batch(midge, self.tx, max_rows, controls)
     }
@@ -66,7 +66,7 @@ impl ColumnVectorReader {
     /// Returns storage errors, resource-limit errors and cancellation errors.
     pub(crate) fn split_by_segments(
         &mut self,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         check_controls(controls)?;
         if self.scan.ranges != [ColumnIdRange::default()] {

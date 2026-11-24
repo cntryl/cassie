@@ -20,7 +20,7 @@ use crate::adapter::column_store::validation::{
 };
 use crate::adapter::{Midge, RowTraversal};
 use crate::row_blob::RowFieldMeta;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use bytes::Bytes;
 use std::cmp::Ordering;
 
@@ -62,7 +62,7 @@ pub(super) struct MergeInput<'a, 'tx> {
     pub fields: &'a [RowFieldMeta],
     pub markers: &'a [Marker],
     pub traversal: RowTraversal,
-    pub controls: &'a QueryExecutionControls,
+    pub controls: &'a StorageRequestContext<'a>,
     pub streams: &'a mut [FieldStream<'tx>],
     pub builders: &'a mut [LaneBuilder],
     pub memory: &'a mut QueryMemoryReservation,
@@ -154,7 +154,7 @@ pub(super) fn merge_batch(input: MergeInput<'_, '_>) -> Result<(), CassieError> 
 struct ValueContext<'a> {
     midge: &'a Midge,
     relation: &'a str,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 fn take_value(
@@ -192,7 +192,7 @@ crate::adapter::streaming_scans::decode_expansion_factor(&field.data_type),
     memory.try_grow(field_bytes)?;
     counters.record_decode();
     vector.record_value_decoded();
-    decode_into_lane(builder, relation, &marker.id, field, raw)?;
+    decode_into_lane(builder, relation, &marker.id, field, raw, midge.value_hooks())?;
     counters.record_retained(field_bytes);
     check_controls(controls)
 }

@@ -7,7 +7,7 @@ use crate::adapter::streaming_scans::provisional_controlled_document_bytes;
 use crate::adapter::AccountedDocument;
 use crate::row_blob::{RowFieldMeta, RowSchema};
 use cassie_core::request::accounted::Accounted;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::DataType;
 
 use super::{
@@ -51,7 +51,7 @@ impl Midge {
     pub(crate) fn open_controlled_ordered_row_cursor(
         &self,
         request: OrderedRowScanRequest<'_>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledOrderedRowCursor, CassieError> {
         check_controls(controls)?;
         // Loading catalog/schema descriptors remains the documented planning scope. The
@@ -130,7 +130,7 @@ impl ControlledOrderedRowCursor {
     pub(crate) fn next_accounted_document(
         &mut self,
         midge: &Midge,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<AccountedDocument>, CassieError> {
         check_controls(controls)?;
         if self.remaining == 0 {
@@ -165,10 +165,24 @@ impl ControlledOrderedRowCursor {
             AccountedDocument::try_build_fresh_decode_optional(controls, retained, || {
                 let payload = match self.projection.as_ref() {
                     Some(fields) if self.include_historical_aliases => {
-                        decode_projected_row_with_aliases(&self.row_schema, &raw, fields)?
+                        crate::adapter::decode_projected_row_with_aliases_and_hooks(
+                            &self.row_schema,
+                            &raw,
+                            fields,
+                            self.tx.value_hooks(),
+                        )?
                     }
-                    Some(fields) => decode_projected_row(&self.row_schema, &raw, fields)?,
-                    None => decode_row(&self.row_schema, &raw)?,
+                    Some(fields) => crate::adapter::decode_projected_row_with_hooks(
+                        &self.row_schema,
+                        &raw,
+                        fields,
+                        self.tx.value_hooks(),
+                    )?,
+                    None => crate::adapter::decode_row_with_hooks(
+                        &self.row_schema,
+                        &raw,
+                        self.tx.value_hooks(),
+                    )?,
                 };
                 Ok(Some(DocumentRef { id, payload }))
             })?;
@@ -199,10 +213,10 @@ impl OrderedSource {
 
     fn fill(
         &mut self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         midge: &Midge,
         reverse: bool,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         while self.next.is_none() && !self.exhausted {
             check_controls(controls)?;
@@ -262,7 +276,7 @@ impl OrderedSource {
             };
             check_controls(controls)?;
             midge.record_query_scan_entry();
-            ifcrate::adapter::query_scan_control::should_cancel_controlled_query_scan(
+            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(
                 controls,
             ) {
                 return Err(CassieError::QueryCanceled);
@@ -332,7 +346,7 @@ fn data_type_heap_bytes(data_type: &DataType) -> Result<usize, CassieError> {
     }
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }

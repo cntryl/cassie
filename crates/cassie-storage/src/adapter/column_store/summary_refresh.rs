@@ -119,7 +119,7 @@ impl Midge {
     }
 
     fn build_segment_records(
-        tx: & crate::adapter::DataReadTransaction,
+        tx: &crate::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
         range: (Option<&str>, Option<&str>),
@@ -172,7 +172,7 @@ impl Midge {
     }
 
     fn build_record(
-        tx: & crate::adapter::DataReadTransaction,
+        tx: &crate::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
         start: String,

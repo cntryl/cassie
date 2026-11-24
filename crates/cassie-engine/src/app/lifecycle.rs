@@ -104,6 +104,7 @@ impl Cassie {
             limits,
             ..
         } = runtime_config;
+        midge.install_value_hooks(crate::midge::adapter::engine_storage_value_hooks())?;
         midge.configure_repeatable_history_budget(
             limits.repeatable_read_history_memory_budget_bytes,
         )?;

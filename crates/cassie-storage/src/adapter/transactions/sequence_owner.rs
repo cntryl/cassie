@@ -3,8 +3,8 @@
 use super::{
     Arc, CassieError, ExpectedStorageValue, Midge, Mutex, StorageOverlay, ACTIVE_STORAGE_SCOPE,
 };
-use crate::catalog::{SequenceCursor, SequenceMeta};
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use cassie_core::catalog::sequence::{SequenceCursor, SequenceMeta};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
 
@@ -30,12 +30,30 @@ pub(crate) struct SequenceForkLease {
     pairs: Mutex<BTreeMap<(u64, u64), QueryMemoryReservation>>,
 }
 
+/// Fully decoded sequence metadata to publish after an engine catalog update.
+#[doc(hidden)]
+pub struct PreparedSequenceCursorMetadata {
+    entries: Vec<(SequenceMeta, QueryMemoryReservation)>,
+    directory_memory: Option<QueryMemoryReservation>,
+}
+
+impl PreparedSequenceCursorMetadata {
+    pub fn into_parts(
+        self,
+    ) -> (
+        Vec<(SequenceMeta, QueryMemoryReservation)>,
+        Option<QueryMemoryReservation>,
+    ) {
+        (self.entries, self.directory_memory)
+    }
+}
+
 impl SequenceForkLease {
     fn protect(
         &self,
         state: &mut CursorState,
         key: (u64, u64),
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         let mut pairs = self.pairs.lock();
         if pairs.contains_key(&key) {
@@ -48,7 +66,7 @@ impl SequenceForkLease {
         let _request = controls.reserve_query_memory(bytes)?;
         if state.admission.is_none() {
             state.admission = Some(QueryMemoryReservation::independent_budget(
-                controls.query_memory_budget_bytes,
+                controls.query_memory_budget_bytes(),
                 0,
             )?);
         }
@@ -112,7 +130,7 @@ pub(crate) enum SequenceTarget {
     Native,
 }
 
-fn controls() -> Result<QueryExecutionControls, CassieError> {
+fn controls() -> Result<StorageRequestContext, CassieError> {
     super::super::publication::PublicationControlScope::current_query_controls()
         .ok_or_else(|| CassieError::Unsupported("staged sequence requires query controls".into()))
 }
@@ -120,7 +138,7 @@ fn controls() -> Result<QueryExecutionControls, CassieError> {
 struct CheckingReader<'a> {
     bytes: &'a [u8],
     position: usize,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 
 impl Read for CheckingReader<'_> {
@@ -141,7 +159,7 @@ impl Read for CheckingReader<'_> {
 
 fn decode(
     raw: &[u8],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(SequenceMeta, QueryMemoryReservation), CassieError> {
     controls.check_interruption()?;
     let memory = controls.reserve_query_memory(
@@ -166,7 +184,7 @@ fn decode(
 
 struct Counter<'a> {
     position: usize,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 impl Write for Counter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -188,7 +206,7 @@ impl Write for Counter<'_> {
 struct CheckingWriter<'a> {
     output: &'a mut Vec<u8>,
     position: usize,
-    controls: &'a QueryExecutionControls,
+    controls: &'a StorageRequestContext<'a>,
 }
 impl Write for CheckingWriter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -218,7 +236,7 @@ impl Write for CheckingWriter<'_> {
 fn write_json_string(
     writer: &mut impl Write,
     value: &str,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> io::Result<()> {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     writer.write_all(b"\"")?;
@@ -264,7 +282,7 @@ fn write_json_string(
 fn encode_sequence_metadata(
     writer: &mut impl Write,
     metadata: &SequenceMeta,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(), CassieError> {
     use crate::catalog::SequencePersistence;
     use cassie_core::types::DataType;
@@ -334,7 +352,7 @@ fn encode_sequence_metadata(
 
 fn encode_metadata(
     metadata: &SequenceMeta,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(Vec<u8>, QueryMemoryReservation), CassieError> {
     let mut counter = Counter {
         position: 0,
@@ -343,7 +361,7 @@ fn encode_metadata(
     encode_sequence_metadata(&mut counter, metadata, controls)?;
     let base = controls.reserve_query_memory(0)?;
     let (mut encoded, memory) =
-        crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
+        cassie_core::request::accounted::allocation::try_reserve_vec(counter.position, &base)?;
     {
         let mut writer = CheckingWriter {
             output: &mut encoded,
@@ -383,7 +401,7 @@ impl SequenceOwner {
             let _request = controls.reserve_query_memory(CURSOR_BYTES)?;
             if state.admission.is_none() {
                 state.admission = Some(QueryMemoryReservation::independent_budget(
-                    controls.query_memory_budget_bytes,
+                    controls.query_memory_budget_bytes(),
                     0,
                 )?);
             }
@@ -494,7 +512,7 @@ impl Midge {
         )?;
         if state.admission.is_none() {
             state.admission = Some(QueryMemoryReservation::independent_budget(
-                controls.query_memory_budget_bytes,
+                controls.query_memory_budget_bytes(),
                 0,
             )?);
         }
@@ -660,7 +678,7 @@ impl Midge {
 impl StorageOverlay {
     pub(crate) fn attach_sequence_fork_lease(
         &mut self,
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
     ) -> Result<(), CassieError> {
         let owner = Arc::clone(&self.sequence_cursors);
         let fork = Arc::new(SequenceForkLease {
@@ -677,7 +695,7 @@ impl StorageOverlay {
             controls.and_then(|controls| {
                 let base = controls.reserve_query_memory(0)?;
                 let (mut keys, _memory) =
-                    crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+                    cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
                 keys.extend(state.cursors.keys().copied());
                 for key in keys {
                     fork.protect(&mut state, key, controls)?;
@@ -694,7 +712,7 @@ impl StorageOverlay {
     pub(crate) fn inherit_sequence_fork_lease(
         &mut self,
         parent: &StorageOverlay,
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
     ) -> Result<(), CassieError> {
         let Some(fork) = &parent.sequence_fork else {
             self.sequence_fork = None;
@@ -707,7 +725,7 @@ impl StorageOverlay {
             })?;
             let base = controls.reserve_query_memory(0)?;
             let (mut keys, _memory) =
-                crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+                cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
             keys.extend(state.cursors.keys().copied());
             for key in keys {
                 fork.protect(&mut state, key, controls)?;
@@ -728,7 +746,7 @@ impl StorageOverlay {
         &self,
         metadata: SequenceMeta,
         epoch: u64,
-        _controls: &QueryExecutionControls,
+        _controls: &StorageRequestContext<'_>,
     ) -> Result<(i64, SequenceMeta), CassieError> {
         self.sequence_cursors
             .advance(metadata, epoch, self.sequence_fork.as_deref(), |sequence| {
@@ -744,7 +762,7 @@ impl StorageOverlay {
     pub(crate) fn prune_sequence_cursors_with<'a>(
         &'a self,
         protected: impl Iterator<Item = &'a StorageOverlay>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         // A fork cannot enumerate identities added to the parent after the
         // fork was captured. Only the transaction's owning overlay may prune.
@@ -757,7 +775,7 @@ impl StorageOverlay {
         }
         let base = controls.reserve_query_memory(0)?;
         let (mut live, _memory) =
-            crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
         let prefix = super::super::key_encoding::sequence_prefix();
         for overlay in std::iter::once(self).chain(protected) {
             for (index, (key, change)) in overlay.changes.iter().enumerate() {
@@ -797,12 +815,12 @@ impl StorageOverlay {
 
     pub(super) fn merge_sequence_cursors(
         &mut self,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(Vec<QueryMemoryReservation>, QueryMemoryReservation), CassieError> {
         let state = self.sequence_cursors.state.lock();
         let base = controls.reserve_query_memory(0)?;
         let (mut leases, directory) =
-            crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
         if state.cursors.is_empty() {
             return Ok((leases, directory));
         }
@@ -834,7 +852,7 @@ impl StorageOverlay {
                 };
                 encode_sequence_metadata(&mut counter, &metadata, controls)?;
                 let (mut encoded, memory) =
-                    crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
+                    cassie_core::request::accounted::allocation::try_reserve_vec(counter.position, &base)?;
                 {
                     let mut writer = CheckingWriter {
                         output: &mut encoded,
@@ -863,7 +881,7 @@ impl StorageOverlay {
     /// Object identities of every sequence this transaction stages itself.
     pub(crate) fn staged_sequence_object_ids(
         &self,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Vec<u64>, CassieError> {
         let prefix = super::super::key_encoding::sequence_prefix();
         let mut identities = Vec::new();
@@ -883,18 +901,21 @@ impl StorageOverlay {
         Ok(identities)
     }
 
-    pub(crate) fn apply_sequence_cursors_to_catalog(
+    #[doc(hidden)]
+    pub fn prepare_sequence_cursor_metadata(
         &self,
-        catalog: &crate::catalog::Catalog,
-        controls: &QueryExecutionControls,
-    ) -> Result<(), CassieError> {
+        controls: &StorageRequestContext<'_>,
+    ) -> Result<PreparedSequenceCursorMetadata, CassieError> {
         let state = self.sequence_cursors.state.lock();
         if state.cursors.is_empty() {
-            return Ok(());
+            return Ok(PreparedSequenceCursorMetadata {
+                entries: Vec::new(),
+                directory_memory: None,
+            });
         }
         let base = controls.reserve_query_memory(0)?;
-        let (mut prepared, _directory) =
-            crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+        let (mut prepared, directory_memory) =
+            cassie_core::request::accounted::allocation::try_reserve_vec(state.cursors.len(), &base)?;
         let prefix = super::super::key_encoding::sequence_prefix();
         for (index, (key, change)) in self.changes.iter().enumerate() {
             if index % 128 == 0 {
@@ -921,11 +942,11 @@ impl StorageOverlay {
             }
         }
         controls.check_interruption()?;
-        // All fallible decode and admission work completes before touching the stage.
-        for (metadata, _scratch) in prepared {
-            catalog.register_sequence(metadata);
-        }
-        Ok(())
+        // All fallible decode and admission work completes before Engine mutates its catalog.
+        Ok(PreparedSequenceCursorMetadata {
+            entries: prepared,
+            directory_memory: Some(directory_memory),
+        })
     }
 }
 

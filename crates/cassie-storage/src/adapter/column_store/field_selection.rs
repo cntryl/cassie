@@ -105,7 +105,7 @@ implcrate::adapter::Midge {
     /// Returns `XX001` when a required field key is absent or does not decode.
     pub(crate) fn read_counted_column_store_field(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         row: ColumnRowRef<'_>,
         field: &RowFieldMeta,
     ) -> Result<Option<serde_json::Value>,crate::adapter::CassieError> {

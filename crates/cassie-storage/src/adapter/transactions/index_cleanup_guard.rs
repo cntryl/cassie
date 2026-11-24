@@ -5,8 +5,8 @@ use crate::catalog::IndexMeta;
 use crate::adapter::schema_cleanup::{
     guard_decode, PendingSchemaCleanup, PendingSchemaCleanupAction,
 };
-use crate::runtime::owned_memory::try_reserve_vec;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use cassie_core::request::accounted::allocation::try_reserve_vec;
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 struct IndexEntry<'a> {
     metadata: guard_decode::Decoded<IndexMeta>,
@@ -41,7 +41,7 @@ impl<'a> IndexCleanupCommitGuard<'a> {
 
     pub(crate) fn capture(
         overlay: &'a StorageOverlay,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Self, CassieError> {
         let index_prefix = super::super::key_encoding::index_prefix();
         let cleanup_prefix = super::super::key_encoding::schema_cleanup_prefix();
@@ -126,7 +126,7 @@ impl<'a> IndexCleanupCommitGuard<'a> {
     pub(crate) fn gate_names(
         &self,
         existing: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<IndexCleanupGateNames, CassieError> {
         let names = existing
             .iter()
@@ -185,7 +185,7 @@ impl<'a> IndexCleanupCommitGuard<'a> {
     pub(crate) fn validate(
         &self,
         midge: &Midge,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         for entry in &self.indexes {
             controls.check_interruption()?;
@@ -265,7 +265,7 @@ impl<'a> IndexCleanupCommitGuard<'a> {
     }
 }
 
-fn copy_name(name: &str, controls: &QueryExecutionControls) -> Result<String, CassieError> {
+fn copy_name(name: &str, controls: &StorageRequestContext<'_>) -> Result<String, CassieError> {
     let mut output = String::new();
     output.try_reserve_exact(name.len()).map_err(|error| {
         CassieError::ResourceLimit(format!("index source allocation failed: {error}"))
@@ -293,7 +293,7 @@ fn count_staged_targets(
     overlay: &StorageOverlay,
     index_prefix: &[u8],
     cleanup_prefix: &[u8],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(usize, usize, usize), CassieError> {
     let mut index_count = 0_usize;
     let mut marker_count = 0_usize;
@@ -317,7 +317,7 @@ fn count_staged_targets(
 fn missing_index_source(
     indexes: &[IndexEntry<'_>],
     key: &[u8],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<MissingIndexSource, CassieError> {
     let mut found: Option<(&str, &[u8])> = None;
     for entry in indexes {

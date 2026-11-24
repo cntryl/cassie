@@ -12,7 +12,7 @@ use crate::runtime::column_batch_metrics::ColumnBatchScanMetrics;
 
 use super::{
     check_column_batch_controls, CassieError, ColumnBatchMetadata, ColumnBatchScanFallbackReason,
-    ColumnBatchScanFilters, Midge, PreparedColumnBatchScan, QueryExecutionControls,
+    ColumnBatchScanFilters, Midge, PreparedColumnBatchScan, StorageRequestContext,
     QueryMemoryReservation,
 };
 
@@ -71,7 +71,7 @@ impl Midge {
         &self,
         collection: &str,
         fields: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<EncodedSourceDecision, CassieError> {
         check_column_batch_controls(self, controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -137,7 +137,7 @@ impl Midge {
         index: &crate::catalog::IndexMeta,
         wanted: &BTreeSet<String>,
         metadata: &Arc<Accounted<ColumnBatchMetadata>>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<EncodedSourceDecision, CassieError> {
         let memory = controls.reserve_query_memory(mul(
             metadata.get().segments.len(),
@@ -223,7 +223,7 @@ fn source_retained_bytes(
     store: &Midge,
     metadata: &ColumnBatchMetadata,
     wanted: &BTreeSet<String>,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<Option<usize>, CassieError> {
     let mut bytes = mul(metadata.segments.len(), size_of::<EncodedSegment>())?;
     for segment in &metadata.segments {

@@ -187,7 +187,7 @@ impl Midge {
         self.prepare_index_publication(&metadata)
     }
 
-    pub(incrate::adapter) fn prepare_index_metadata(
+    pub(in crate::adapter) fn prepare_index_metadata(
         &self,
         metadata: &IndexMeta,
     ) -> Result<IndexMeta, CassieError> {

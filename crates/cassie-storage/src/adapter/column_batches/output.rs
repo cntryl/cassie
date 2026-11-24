@@ -1,7 +1,7 @@
 use std::mem::size_of;
 
 use super::{CassieError, ColumnBatchRow, DocumentRef};
-use crate::runtime::QueryMemoryReservation;
+use crate::adapter::QueryMemoryReservation;
 use cassie_core::types::row_identity::is_row_identity_column;
 
 const OBJECT_ENTRY_OVERHEAD: usize = 4 * size_of::<usize>();

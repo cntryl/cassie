@@ -122,8 +122,8 @@ impl Midge {
     pub(crate) fn checkpoint_rows_for_statement(
         &self,
         database: &str,
-        controls: &crate::runtime::QueryExecutionControls,
-    ) -> Result<Vec<(ProjectionCheckpoint, crate::runtime::QueryMemoryReservation)>, CassieError>
+        controls: &crate::adapter::StorageRequestContext<'_>,
+    ) -> Result<Vec<(ProjectionCheckpoint, crate::adapter::QueryMemoryReservation)>, CassieError>
     {
         controls.check_interruption()?;
         let tx = self.begin_database_readonly_tx(database)?;
@@ -208,12 +208,12 @@ impl Midge {
     }
 
     fn append_checkpoint_row(
-        output: &mut Vec<(ProjectionCheckpoint, crate::runtime::QueryMemoryReservation)>,
+        output: &mut Vec<(ProjectionCheckpoint, crate::adapter::QueryMemoryReservation)>,
         collections: &[String],
         database: &str,
         key: &[u8],
         value: &[u8],
-        controls: &crate::runtime::QueryExecutionControls,
+        controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         controls.check_interruption()?;
         let bytes = value
@@ -248,7 +248,7 @@ impl Midge {
         }
         output
             .try_reserve(1)
-            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+            .map_err(cassie_core::request::accounted::allocation::allocation_error)?;
         output.push((entry, memory));
         Ok(())
     }
@@ -496,11 +496,10 @@ impl Midge {
             .map_err(CassieError::from)?
             .is_some()
         {
-            return Err(crate::app::DiagnosticError::new(
+            return Err(CassieError::diagnostic(
                 "42P07",
                 "materialized-view destination already exists",
-            )
-            .into());
+            ));
         }
         tx.delete(Self::projection_key(&previous))
             .map_err(CassieError::from)?;
@@ -516,7 +515,7 @@ mod checkpoint_snapshot_tests {
     use super::Midge;
     use crate::adapter::CassieError;
     use crate::config::CassieRuntimeLimits;
-    use crate::runtime::QueryExecutionControls;
+    use crate::adapter::StorageRequestContext;
     use cassie_core::types::Schema;
     use std::time::Instant;
 

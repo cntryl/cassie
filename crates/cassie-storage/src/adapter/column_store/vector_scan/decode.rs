@@ -7,6 +7,7 @@
 use crate::adapter::CassieError;
 use crate::adapter::column_store::compression::expand_column_field;
 use crate::adapter::column_store::validation::corrupt_row;
+use crate::adapter::StorageValueHooks;
 use crate::row_blob::{decode_compact_scalar, CompactScalar, RowFieldMeta};
 use cassie_core::types::lanes::{LaneValidity, RawLanes};
 use cassie_core::types::{DataType, Value};
@@ -146,6 +147,7 @@ impl LaneBuilder {
         &mut self,
         cell: CompactScalar<'_>,
         data_type: &DataType,
+        hooks: &StorageValueHooks,
     ) -> Result<(), CassieError> {
         match (&mut *self, cell) {
             (_, CompactScalar::Null) | (Self::Values(_), CompactScalar::Generic(None)) => {
@@ -168,9 +170,7 @@ impl LaneBuilder {
                 valid.push(true);
             }
             (Self::Values(values), CompactScalar::Generic(Some(json))) => {
-                values.push(crate::executor::scan::try_json_to_typed_value(
-                    &json, data_type,
-                )?);
+                values.push((hooks.decode_typed_value)(&json, data_type)?);
             }
             _ => {
                 return Err(CassieError::Parse(
@@ -227,6 +227,7 @@ pub(crate) fn decode_into_lane(
     id: &str,
     field: &RowFieldMeta,
     raw: &[u8],
+    hooks: &StorageValueHooks,
 ) -> Result<(), CassieError> {
     let expanded = match expand_column_field(raw) {
         Ok(expanded) => expanded,
@@ -239,7 +240,9 @@ pub(crate) fn decode_into_lane(
         }
         Err(other) => return Err(other),
     };
-    let cell = decode_compact_scalar(&field.data_type, &expanded).map_err(|error| match error {
+    let cell = decode_compact_scalar(&field.data_type, &expanded, hooks.decode_json)
+        .map_err(CassieError::from)
+        .map_err(|error| match error {
         CassieError::Parse(detail) => corrupt_row(
             relation,
             id,
@@ -247,7 +250,7 @@ pub(crate) fn decode_into_lane(
         ),
         other => other,
     })?;
-    lane.push_cell(cell, &field.data_type)
+    lane.push_cell(cell, &field.data_type, hooks)
         .map_err(|error| match error {
             CassieError::Parse(detail) => corrupt_row(
                 relation,

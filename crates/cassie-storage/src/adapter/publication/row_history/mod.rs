@@ -6,10 +6,10 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use super::{AdapterCommitError, CassieError, DatabasePublication};
-use crate::runtime::owned_memory::{grow_vec, try_reserve_vec};
-use crate::runtime::QueryMemoryReservation;
+use cassie_core::request::accounted::allocation::{grow_vec, try_reserve_vec};
+use crate::adapter::QueryMemoryReservation;
 
-pub(incrate::adapter) struct RowHistory {
+pub(in crate::adapter) struct RowHistory {
     state: Mutex<HistoryState>,
 }
 
@@ -39,12 +39,12 @@ struct OwnedKey {
     _memory: QueryMemoryReservation,
 }
 
-pub(incrate::adapter) struct MutationKeys {
+pub(in crate::adapter) struct MutationKeys {
     values: Vec<OwnedKey>,
     memory: QueryMemoryReservation,
 }
 
-pub(incrate::adapter) struct PreparedKey {
+pub(in crate::adapter) struct PreparedKey {
     key: OwnedKey,
     index: usize,
 }
@@ -65,7 +65,7 @@ impl std::fmt::Debug for RetainedRowHistory {
 }
 
 impl RowHistory {
-    pub(incrate::adapter) fn new(budget: usize) -> Self {
+    pub(in crate::adapter) fn new(budget: usize) -> Self {
         Self {
             state: Mutex::new(HistoryState {
                 sequence: 0,
@@ -80,7 +80,7 @@ impl RowHistory {
         }
     }
 
-    pub(incrate::adapter) fn key_log(&self) -> Result<MutationKeys, CassieError> {
+    pub(in crate::adapter) fn key_log(&self) -> Result<MutationKeys, CassieError> {
         let mut state = self.state.lock();
         state.admit_header()?;
         Ok(MutationKeys {
@@ -93,7 +93,7 @@ impl RowHistory {
         })
     }
 
-    pub(incrate::adapter) fn register(
+    pub(in crate::adapter) fn register(
         publication: &Arc<DatabasePublication>,
     ) -> Result<Arc<RetainedRowHistory>, CassieError> {
         let mut state = publication.row_history.state.lock();
@@ -131,7 +131,7 @@ impl RowHistory {
         Ok(owner)
     }
 
-    pub(incrate::adapter) fn publish(
+    pub(in crate::adapter) fn publish(
         &self,
         mut keys: MutationKeys,
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
@@ -220,11 +220,11 @@ impl HistoryState {
 
 impl MutationKeys {
     #[cfg(test)]
-    pub(incrate::adapter) fn has_keys(&self) -> bool {
+    pub(in crate::adapter) fn has_keys(&self) -> bool {
         !self.values.is_empty()
     }
 
-    pub(incrate::adapter) fn prepare(
+    pub(in crate::adapter) fn prepare(
         &mut self,
         key: &[u8],
     ) -> Result<Option<PreparedKey>, CassieError> {
@@ -246,7 +246,7 @@ impl MutationKeys {
         }))
     }
 
-    pub(incrate::adapter) fn install(&mut self, key: Option<PreparedKey>) {
+    pub(in crate::adapter) fn install(&mut self, key: Option<PreparedKey>) {
         if let Some(key) = key {
             self.values.insert(key.index, key.key);
         }
@@ -259,7 +259,7 @@ impl RetainedRowHistory {
         midge: &crate::midge::Midge,
         database: &str,
         row: (&str, u64, &str),
-        controls: &crate::runtime::QueryExecutionControls,
+        controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         let (collection, relation_id, id) = row;
         let (keys, _memory) =crate::adapter::transactions::admitted_row_keys(
@@ -276,7 +276,7 @@ impl RetainedRowHistory {
     pub(crate) fn check_keys<'a>(
         &self,
         keys: impl IntoIterator<Item = &'a [u8]>,
-        controls: &crate::runtime::QueryExecutionControls,
+        controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         self.publication
             .with_operation(controls, || self.check_keys_locked(keys))

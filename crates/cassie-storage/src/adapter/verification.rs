@@ -557,7 +557,7 @@ impl Midge {
     }
 
     pub(crate) fn write_document_hash_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         row_id: &str,
         row_schema: &RowSchema,
@@ -569,7 +569,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_document_hash_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         row_id: &str,
     ) -> Result<(), CassieError> {

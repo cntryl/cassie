@@ -12,7 +12,7 @@ use super::{
 };
 use crate::row_blob::{split_vector_row, PackedVector, VectorColumn};
 use cassie_core::request::accounted::json;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 /// One row read for vector ranking, with the reservation that covers what it retains.
 pub(crate) struct AccountedVectorRow {
@@ -39,7 +39,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         column: &VectorColumn,
         with_payload: bool,
     ) -> Result<Vec<AccountedVectorRow>, CassieError> {
@@ -54,7 +54,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         result_limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         column: &VectorColumn,
         with_payload: bool,
         rows: &mut Vec<AccountedVectorRow>,
@@ -122,7 +122,7 @@ impl MidgeRowCursor {
 }
 
 fn build_vector_row(
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
     schema: &crate::row_blob::RowSchema,
     column: &VectorColumn,
     id: String,

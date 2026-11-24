@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use crate::catalog::{ColumnBatchMetadata, ColumnBatchRow, IndexKind, IndexMeta};
 use crate::adapter::ColumnBatchSummaryDecision;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 use super::{
     collect_scan, column_batch_summaries, column_index_segment_size, column_values,
@@ -20,7 +20,7 @@ enum ValidationDepth {
 struct SegmentValidationOptions<'a> {
     depth: ValidationDepth,
     current_generation: u64,
-    controls: Option<&'a QueryExecutionControls>,
+    controls: Option<&'a StorageRequestContext<'a>>,
 }
 
 pub(crate) struct ControlledColumnBatchMetadata {
@@ -61,7 +61,7 @@ impl Midge {
         collection: &str,
         index: &IndexMeta,
         requested_fields: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledColumnBatchSummaryDecision, CassieError> {
         self.validate_column_batch_index_controlled(
             collection,
@@ -91,7 +91,7 @@ impl Midge {
         collection: &str,
         index: &IndexMeta,
         requested_fields: &[String],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledColumnBatchSummaryDecision, CassieError> {
         self.validate_column_batch_index_controlled(
             collection,
@@ -228,7 +228,7 @@ impl Midge {
         index: &IndexMeta,
         requested_fields: &[String],
         depth: ValidationDepth,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ControlledColumnBatchSummaryDecision, CassieError> {
         check_controls(controls)?;
         let collection = self.canonical_collection_name(collection);
@@ -352,7 +352,7 @@ impl Midge {
     }
 
     fn validate_column_batch_keys(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         metadata: &ColumnBatchMetadata,
         relation_id: u64,
         index_id: u64,
@@ -375,7 +375,7 @@ impl Midge {
 
     fn validate_column_batch_segments(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         metadata: &ColumnBatchMetadata,
@@ -482,7 +482,7 @@ fn controlled_fallback(
     ControlledColumnBatchSummaryDecision::Fallback(reason)
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }

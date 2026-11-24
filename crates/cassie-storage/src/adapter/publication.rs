@@ -460,12 +460,15 @@ impl Midge {
         })
     }
 
-    pub(crate) fn with_database_publication<T>(
+    pub(crate) fn with_database_publication<T, E>(
         &self,
         database: &str,
         controls: &QueryExecutionControls,
-        operation: impl FnOnce() -> Result<T, CassieError>,
-    ) -> Result<T, CassieError> {
+        operation: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<CassieError>,
+    {
         let family = self.database_family(database)?;
         let gate = self.publication.family(family.id());
         gate.with_operation(controls, operation)

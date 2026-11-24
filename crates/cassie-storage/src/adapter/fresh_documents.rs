@@ -49,7 +49,8 @@ impl Midge {
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
-            Self::validate_document(&schema, &payload)?;
+            let value_hooks = self.value_hooks();
+            Self::validate_document(&schema, &payload, &value_hooks)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             super::row_id::reject_nul_row_id(&id)?;
             let row_blob = encode_row(&row_schema, &payload)?;

@@ -4,7 +4,7 @@ use std::mem::size_of;
 use crate::adapter::CassieError;
 use crate::row_blob::RowSchema;
 use cassie_core::request::accounted::json;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::DataType;
 
 use super::DocumentRef;
@@ -20,7 +20,7 @@ pub(crate) struct AccountedDocument {
 
 impl AccountedDocument {
     pub(crate) fn try_build(
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         retained_bytes: usize,
         build: impl FnOnce() -> Result<DocumentRef, CassieError>,
     ) -> Result<Self, CassieError> {
@@ -30,7 +30,7 @@ impl AccountedDocument {
     }
 
     pub(super) fn try_build_optional(
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         retained_bytes: usize,
         build: impl FnOnce() -> Result<Option<DocumentRef>, CassieError>,
     ) -> Result<Option<Self>, CassieError> {
@@ -50,7 +50,7 @@ impl AccountedDocument {
     }
 
     pub(crate) fn try_build_fresh_decode_optional(
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         retained_bytes: usize,
         build: impl FnOnce() -> Result<Option<DocumentRef>, CassieError>,
     ) -> Result<Option<Self>, CassieError> {
@@ -244,7 +244,7 @@ fn decoded_field_name_count(
     current_name.saturating_add(aliases)
 }
 
-pub(incrate::adapter) fn decode_expansion_factor(data_type: &DataType) -> usize {
+pub(in crate::adapter) fn decode_expansion_factor(data_type: &DataType) -> usize {
     match data_type {
         DataType::Array(inner) => {
             let inner_factor = decode_expansion_factor(inner);

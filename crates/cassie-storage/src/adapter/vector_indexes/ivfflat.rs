@@ -297,7 +297,7 @@ fn persisted_manifest_matches(
 }
 
 pub(super) fn load_ivfflat_manifest(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     field_id: u32,
     manifest: PersistedIvfManifest,

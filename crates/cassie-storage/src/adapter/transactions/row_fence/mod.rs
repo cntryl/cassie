@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use super::{AdapterTransaction, CassieError, Midge, TransactionMode};
 use crate::adapter::TransactionErrorKind;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 pub(crate) struct RetainedRowFence {
     // Native transaction inputs retire before their engine and admission owner.
@@ -28,7 +28,7 @@ impl RetainedRowFence {
     pub(crate) fn capture(
         midge: &Arc<Midge>,
         database: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Box<Self>, CassieError> {
         controls.check_interruption()?;
         let bytes = size_of::<Self>()
@@ -51,7 +51,7 @@ impl RetainedRowFence {
     pub(crate) fn validate_rows<'a>(
         self: Box<Self>,
         rows: impl IntoIterator<Item = Result<(&'a str, u64, &'a str), CassieError>>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(), CassieError> {
         self.validate_rows_observed(rows, controls, || {})
     }
@@ -59,7 +59,7 @@ impl RetainedRowFence {
     fn validate_rows_observed<'a>(
         mut self: Box<Self>,
         rows: impl IntoIterator<Item = Result<(&'a str, u64, &'a str), CassieError>>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         mut retained: impl FnMut(),
     ) -> Result<(), CassieError> {
         controls.check_interruption()?;
@@ -101,7 +101,7 @@ impl RetainedRowFence {
         &mut self,
         row: (&str, u64, &str),
         fresh: &AdapterTransaction,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         inputs: &mut QueryMemoryReservation,
     ) -> Result<(), CassieError> {
         let (collection, relation_id, id) = row;
@@ -148,13 +148,13 @@ impl RetainedRowFence {
     }
 }
 
-pub(incrate::adapter) fn admitted_row_keys(
+pub(in crate::adapter) fn admitted_row_keys(
     midge: &Midge,
     database: &str,
     collection: &str,
     relation_id: u64,
     id: &str,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<([Vec<u8>; 3], QueryMemoryReservation), CassieError> {
     if relation_id == 0 {
         return Err(CassieError::Unsupported(

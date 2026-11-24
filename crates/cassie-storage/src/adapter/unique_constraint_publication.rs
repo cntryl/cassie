@@ -96,7 +96,7 @@ impl Midge {
                     && !previous.iter().any(|existing| {
                         cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&existing.field)
                             == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&constraint.field)
-                            && crate::catalog::enforces_single_column_uniqueness(
+                            &&crate::catalog::enforces_single_column_uniqueness(
                                 existing, &previous,
                             )
                     })

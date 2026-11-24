@@ -2,17 +2,17 @@
 use std::io::{self, Read};
 
 use crate::adapter::CassieError;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
-pub(incrate::adapter) struct Decoded<T> {
-    pub(incrate::adapter) value: T,
+pub(in crate::adapter) struct Decoded<T> {
+    pub(in crate::adapter) value: T,
     _memory: Option<QueryMemoryReservation>,
 }
 
 struct CheckingReader<'a> {
     bytes: &'a [u8],
     position: usize,
-    controls: Option<&'a QueryExecutionControls>,
+    controls: Option<&'a StorageRequestContext<'a>>,
 }
 
 impl Read for CheckingReader<'_> {
@@ -35,9 +35,9 @@ impl Read for CheckingReader<'_> {
     }
 }
 
-pub(incrate::adapter) fn decode<T: serde::de::DeserializeOwned>(
+pub(in crate::adapter) fn decode<T: serde::de::DeserializeOwned>(
     raw: &[u8],
-    controls: Option<&QueryExecutionControls>,
+    controls: Option<&StorageRequestContext<'_>>,
     label: &str,
 ) -> Result<Decoded<T>, CassieError> {
     let memory = controls
@@ -67,10 +67,10 @@ pub(incrate::adapter) fn decode<T: serde::de::DeserializeOwned>(
     })
 }
 
-pub(incrate::adapter) fn names_match(
+pub(in crate::adapter) fn names_match(
     stored: &str,
     requested: &str,
-    controls: Option<&QueryExecutionControls>,
+    controls: Option<&StorageRequestContext<'_>>,
 ) -> Result<bool, CassieError> {
     if let Some(controls) = controls {
         crate::catalog::name_matches_controlled(stored, requested, controls)

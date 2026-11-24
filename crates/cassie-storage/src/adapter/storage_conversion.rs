@@ -160,7 +160,7 @@ impl Midge {
     }
 
     fn rewrite_rows_to_columns(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         charge: RewriteCharge<'_>,
@@ -188,7 +188,7 @@ impl Midge {
                 // A row key shadows a legacy document key with the same id.
                 let first = seen.insert(id.clone());
                 if first {
-                    let payload = decode_row(row_schema, &raw)?;
+                    let payload = crate::adapter::decode_row_with_hooks(row_schema, &raw, tx.value_hooks())?;
                     Self::write_column_store_document_to_tx(
                         tx, collection, &id, &payload, row_schema,
                     )?;
@@ -202,7 +202,7 @@ impl Midge {
 
     fn rewrite_columns_to_rows(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,

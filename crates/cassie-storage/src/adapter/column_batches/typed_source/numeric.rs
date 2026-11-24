@@ -13,7 +13,7 @@ pub(super) struct Loaded {
     pub(super) boolean: Option<Vec<Option<bool>>>,
 }
 pub(super) fn load(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

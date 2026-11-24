@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredRuntimeFeedbackRecord {
-    key: crate::runtime::RuntimeFeedbackKey,
-    record: crate::runtime::RuntimeFeedbackRecord,
+    key: crate::runtime_feedback::RuntimeFeedbackKey,
+    record: crate::runtime_feedback::RuntimeFeedbackRecord,
 }
 
 impl Midge {
@@ -15,8 +15,8 @@ impl Midge {
         &self,
     ) -> Result<
         Vec<(
-            crate::runtime::RuntimeFeedbackKey,
-            crate::runtime::RuntimeFeedbackRecord,
+            crate::runtime_feedback::RuntimeFeedbackKey,
+            crate::runtime_feedback::RuntimeFeedbackRecord,
         )>,
         CassieError,
     > {
@@ -36,7 +36,7 @@ impl Midge {
 
     pub(crate) fn apply_runtime_feedback_mutation(
         &self,
-        mutation: &crate::runtime::RuntimeFeedbackMutation,
+        mutation: &crate::runtime_feedback::RuntimeFeedbackMutation,
     ) -> Result<(), CassieError> {
         check_operator_feedback_persistence_failure_point()?;
         if mutation.upserts.is_empty() && mutation.deletes.is_empty() {
@@ -68,8 +68,8 @@ impl Midge {
     pub fn replace_runtime_feedback_records(
         &self,
         records: &[(
-            crate::runtime::RuntimeFeedbackKey,
-            crate::runtime::RuntimeFeedbackRecord,
+            crate::runtime_feedback::RuntimeFeedbackKey,
+            crate::runtime_feedback::RuntimeFeedbackRecord,
         )],
     ) -> Result<(), CassieError> {
         let existing =

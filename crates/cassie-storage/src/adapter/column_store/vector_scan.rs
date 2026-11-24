@@ -28,7 +28,7 @@ use super::{CassieError, Midge, Query, RowSchema};
 use crate::adapter::ColumnFieldSelection;
 use crate::adapter::{key_encoding, DataReadTransaction, RowTraversal};
 use crate::row_blob::RowFieldMeta;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::lanes::{LaneValidity, RawLanes};
 use decode::{LaneBuilder, LaneKind};
 use merge::{merge_batch, FieldStream, MergeInput};
@@ -37,7 +37,7 @@ use std::mem::size_of;
 /// Rows per vector batch (owner decision D8).
 pub(crate) const COLUMN_VECTOR_BATCH_ROWS: usize = 1024;
 
-pub(super) fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+pub(super) fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
@@ -175,12 +175,12 @@ impl ColumnVectorScan {
     ///
     /// Returns `XX001` for corrupt column data, a resource-limit error when the
     /// query budget cannot hold the batch, and cancellation errors.
-    pub(incrate::adapter) fn next_batch(
+    pub(in crate::adapter) fn next_batch(
         &mut self,
         midge: &Midge,
         tx: &DataReadTransaction,
         max_rows: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<ColumnVectorBatch>, CassieError> {
         loop {
             check_controls(controls)?;
@@ -201,7 +201,7 @@ impl ColumnVectorScan {
         midge: &Midge,
         tx: &DataReadTransaction,
         want: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<ColumnVectorBatch>, CassieError> {
         let mut memory = controls.reserve_query_memory(0)?;
         let (markers, full) = self.read_markers(midge, tx, want, controls, &mut memory)?;
@@ -267,7 +267,7 @@ impl ColumnVectorScan {
         midge: &Midge,
         tx: &DataReadTransaction,
         want: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         memory: &mut QueryMemoryReservation,
     ) -> Result<(Vec<Marker>, bool), CassieError> {
         let range = &self.ranges[self.range_pos];
@@ -290,7 +290,7 @@ impl ColumnVectorScan {
             let (key, value) = entry.map_err(CassieError::from)?;
             seen += 1;
             midge.record_query_scan_entry();
-            ifcrate::adapter::query_scan_control::should_cancel_controlled_query_scan(
+            if crate::adapter::query_scan_control::should_cancel_controlled_query_scan(
                 controls,
             ) {
                 return Err(CassieError::QueryCanceled);
@@ -317,7 +317,7 @@ impl ColumnVectorScan {
         &self,
         tx: &'tx DataReadTransaction,
         bound: Option<&str>,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         memory: &mut QueryMemoryReservation,
     ) -> Result<Vec<FieldStream<'tx>>, CassieError> {
         let range = &self.ranges[self.range_pos];
@@ -370,9 +370,9 @@ impl ColumnVectorReader {
     pub(crate) fn set_pruning(
         &mut self,
         midge: &Midge,
-        filter: & crate::adapter::ColumnBatchScanFilter,
+        filter: &crate::adapter::ColumnBatchScanFilter,
         staged: &[&str],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) {
         if !midge.column_pruning_enabled() {
             return;
@@ -400,7 +400,7 @@ impl ColumnVectorReader {
         &mut self,
         midge: &Midge,
         max_rows: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<ColumnVectorBatch>, CassieError> {
         self.scan.next_batch(midge, &self.tx, max_rows, controls)
     }

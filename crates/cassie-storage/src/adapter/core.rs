@@ -10,6 +10,78 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use cassie_core::types::{DataType, Schema, Value};
+
+use super::StorageError;
+
+/// Engine policy callbacks required by concrete Midge operations.
+#[derive(Clone, Copy)]
+#[doc(hidden)]
+pub struct StorageValueHooks {
+    pub(crate) decode_json: fn(&[u8]) -> Result<serde_json::Value, StorageError>,
+    pub(crate) decode_typed_value:
+        fn(&serde_json::Value, &DataType) -> Result<Value, StorageError>,
+    pub(crate) validate_graph_fields:
+        fn(&Schema, &serde_json::Map<String, serde_json::Value>) -> Result<(), StorageError>,
+    pub(crate) evaluate_scalar_expression:
+        fn(&str, &str, &[(String, Value)]) -> Result<Value, StorageError>,
+    pub(crate) evaluate_scalar_predicate:
+        fn(&str, &str, Vec<(String, Value)>) -> Result<bool, StorageError>,
+}
+
+impl Default for StorageValueHooks {
+    fn default() -> Self {
+        Self {
+            decode_json: |bytes| {
+                serde_json::from_slice(bytes)
+                    .map_err(|error| StorageError::Parse(error.to_string()))
+            },
+            decode_typed_value: |_, _| {
+                Err(StorageError::Unsupported(
+                    "typed JSON decoding requires engine policy hooks".to_owned(),
+                ))
+            },
+            validate_graph_fields: |_, _| {
+                Err(StorageError::Unsupported(
+                    "graph validation requires engine policy hooks".to_owned(),
+                ))
+            },
+            evaluate_scalar_expression: |_, _, _| {
+                Err(StorageError::Unsupported(
+                    "scalar index evaluation requires engine policy hooks".to_owned(),
+                ))
+            },
+            evaluate_scalar_predicate: |_, _, _| {
+                Err(StorageError::Unsupported(
+                    "scalar predicate evaluation requires engine policy hooks".to_owned(),
+                ))
+            },
+        }
+    }
+}
+
+impl StorageValueHooks {
+    #[doc(hidden)]
+    pub const fn new(
+        decode_json: fn(&[u8]) -> Result<serde_json::Value, StorageError>,
+        decode_typed_value: fn(&serde_json::Value, &DataType) -> Result<Value, StorageError>,
+        validate_graph_fields: fn(
+            &Schema,
+            &serde_json::Map<String, serde_json::Value>,
+        ) -> Result<(), StorageError>,
+        evaluate_scalar_expression: fn(&str, &str, &[(String, Value)]) -> Result<Value, StorageError>,
+        evaluate_scalar_predicate: fn(&str, &str, Vec<(String, Value)>) -> Result<bool, StorageError>,
+    ) -> Self {
+        Self {
+            decode_json,
+            decode_typed_value,
+            validate_graph_fields,
+            evaluate_scalar_expression,
+            evaluate_scalar_predicate,
+        }
+    }
+}
+
 #[path = "storage_compatibility.rs"]
 mod storage_compatibility;
 
@@ -35,6 +107,7 @@ pub struct Midge {
     pub(super) fulltext_maintenance_metrics: super::fulltext_retrieval::FulltextMaintenanceMetrics,
     pub(super) vector_index_maintenance_metrics:
         super::vector_indexes::VectorIndexMaintenanceMetrics,
+    value_hooks: OnceLock<StorageValueHooks>,
 }
 
 impl Drop for Midge {
@@ -42,6 +115,27 @@ impl Drop for Midge {
         if let Err(error) = self.engine.shutdown(Duration::from_secs(5)) {
             tracing::warn!(%error, "Midge graceful shutdown did not complete");
         }
+    }
+}
+
+#[cfg(test)]
+mod value_hook_tests {
+    use super::StorageValueHooks;
+    use crate::adapter::StorageError;
+    use cassie_core::types::Schema;
+
+    #[test]
+    fn should_reject_graph_validation_without_engine_policy_hooks() {
+        // Arrange
+        let hooks = StorageValueHooks::default();
+        let schema = Schema { fields: Vec::new() };
+        let document = serde_json::Map::new();
+
+        // Act
+        let result = (hooks.validate_graph_fields)(&schema, &document);
+
+        // Assert
+        assert!(matches!(result, Err(StorageError::Unsupported(_))));
     }
 }
 
@@ -148,7 +242,19 @@ impl Midge {
                 super::fulltext_retrieval::FulltextMaintenanceMetrics::default(),
             vector_index_maintenance_metrics:
                 super::vector_indexes::VectorIndexMaintenanceMetrics::default(),
+            value_hooks: OnceLock::new(),
         })
+    }
+
+    #[doc(hidden)]
+    pub fn install_value_hooks(&self, hooks: StorageValueHooks) -> Result<(), CassieError> {
+        self.value_hooks
+            .set(hooks)
+            .map_err(|_| CassieError::Execution("storage value hooks already installed".into()))
+    }
+
+    pub(crate) fn value_hooks(&self) -> StorageValueHooks {
+        self.value_hooks.get().copied().unwrap_or_default()
     }
 
     #[cfg(test)]
@@ -550,13 +656,16 @@ impl Midge {
         })
     }
 
-    pub(crate) fn with_transaction_write_gates<T>(
+    pub(crate) fn with_transaction_write_gates<T, E>(
         &self,
         collections: &[String],
         referential: bool,
-        controls: &crate::runtime::QueryExecutionControls,
-        operation: impl FnOnce() -> Result<T, CassieError>,
-    ) -> Result<T, CassieError> {
+        controls: &crate::adapter::StorageRequestContext<'_>,
+        operation: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<CassieError>,
+    {
         super::collection_gates::with_controls(
             self,
             collections,
@@ -691,7 +800,7 @@ mod tests {
             .expect("schema transaction");
         assert_eq!(
             schema_tx
-                .get(& crate::adapter::key_encoding::layout_marker_key())
+                .get(&crate::adapter::key_encoding::layout_marker_key())
                 .expect("read layout marker"),
             Some(
 crate::adapter::key_encoding::LAYOUT_MARKER_VALUE

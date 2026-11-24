@@ -1,8 +1,8 @@
-use super::{CassieError, Midge, QueryExecutionControls};
+use super::{CassieError, Midge, StorageRequestContext};
 
 pub(super) fn check_column_batch_controls(
     midge: &Midge,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);

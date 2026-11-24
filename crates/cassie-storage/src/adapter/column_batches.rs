@@ -32,7 +32,7 @@ use crate::column_batch_format_v1::{
     decode_manifest, encode_manifest, summary_checksum, MANIFEST_FORMAT_VERSION,
     MANIFEST_SUMMARY_VERSION,
 };
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use cassie_core::types::row_identity::is_row_identity_column;
 use cassie_core::types::DataType;
 
@@ -56,7 +56,7 @@ pub(crate) struct ControlledColumnBatchScanRequest<'a> {
     pub filter: Option<&'a RowFilter>,
     pub segment_filter: Option<&'a ColumnBatchScanFilter>,
     pub limit: Option<usize>,
-    pub controls: &'a QueryExecutionControls,
+    pub controls: &'a StorageRequestContext<'a>,
 }
 
 struct ColumnBatchScanRequest<'a> {
@@ -66,7 +66,7 @@ struct ColumnBatchScanRequest<'a> {
     filter: Option<&'a RowFilter>,
     segment_filter: Option<&'a ColumnBatchScanFilter>,
     limit: Option<usize>,
-    controls: Option<&'a QueryExecutionControls>,
+    controls: Option<&'a StorageRequestContext<'a>>,
 }
 
 #[derive(Clone, Copy)]
@@ -98,7 +98,7 @@ struct ColumnBatchScanState {
 
 impl ColumnBatchScanState {
     fn new(
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
         query_memory: Option<QueryMemoryReservation>,
     ) -> Result<Self, CassieError> {
         let query_memory = match (controls, query_memory) {
@@ -186,7 +186,7 @@ impl Midge {
         fields: &[String],
         filter: Option<&ColumnBatchScanFilter>,
         specs: &[ColumnBatchAggregateSpec],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<ColumnBatchAggregateDecision, CassieError> {
         let collection = self.canonical_collection_name(collection);
         if self.column_batch_aggregate_uses_json_fields(&collection, fields, specs, filter)? {
@@ -560,7 +560,7 @@ impl Midge {
         fields: &[String],
         limit: Option<usize>,
         filters: ColumnBatchScanFilters<'_>,
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
     ) -> Result<PreparedColumnBatchScan, CassieError> {
         let Some(index) = self.covering_column_index(collection, fields)? else {
             return Ok(PreparedColumnBatchScan::Fallback(
@@ -692,7 +692,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_keys_with_prefix(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -859,7 +859,7 @@ fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<S
 }
 
 fn load_column_batch_segment(
-    data_tx: & crate::adapter::AdapterTransaction,
+    data_tx: &crate::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {

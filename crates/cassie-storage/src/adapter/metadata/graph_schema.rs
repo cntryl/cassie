@@ -1,7 +1,6 @@
 //! Atomic publication of the reserved `cassie_graph` schema (#1268).
 use super::composite_types::validate_composite_type;
 use super::{key_encoding, CassieError, Midge};
-use crate::app::DiagnosticError;
 use crate::catalog::graph_schema::{build_graph_types, graph_schema_namespace};
 use crate::catalog::{CompositeTypeMeta, NamespaceMeta};
 use cassie_core::types::graph_identity::GRAPH_SCHEMA_OWNER;
@@ -27,14 +26,13 @@ impl Midge {
         tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
         let namespace_key = Self::namespace_key(&canonical);
         if tx.get(&namespace_key).map_err(CassieError::from)?.is_some() {
-            return Err(DiagnosticError::new(
+            return Err(CassieError::diagnostic(
                 "42710",
                 format!(
                     "schema \"{}\" already exists",
                     cassie_core::types::graph_identity::GRAPH_SCHEMA
                 ),
-            )
-            .into());
+            ));
         }
         let mut namespace = NamespaceMeta::new(&canonical, None);
         namespace.object_id = self.allocate_object_id()?;

@@ -5,8 +5,8 @@ use std::time::Duration;
 use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
 
 use super::{CassieError, Midge, PublicationControlScope};
-use crate::runtime::owned_memory::try_reserve_vec;
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use cassie_core::request::accounted::allocation::try_reserve_vec;
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 struct Directory<T> {
     values: Vec<T>,
@@ -19,13 +19,16 @@ enum WaitBoundary {
     Collection,
 }
 
-pub(super) fn with_controls<T>(
+pub(super) fn with_controls<T, E>(
     midge: &Midge,
     collections: &[String],
     referential: Option<&ReentrantMutex<()>>,
-    controls: &QueryExecutionControls,
-    operation: impl FnOnce() -> Result<T, CassieError>,
-) -> Result<T, CassieError> {
+    controls: &StorageRequestContext<'_>,
+    operation: impl FnOnce() -> Result<T, E>,
+) -> Result<T, E>
+where
+    E: From<CassieError>,
+{
     PublicationControlScope::check_interruption(controls)?;
     let names = admitted_names(collections, controls)?;
     let (values, memory) = try_reserve_vec(names.values.len(), &names.memory)?;
@@ -51,7 +54,7 @@ pub(super) fn with_controls<T>(
 
 fn admitted_names(
     collections: &[String],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<Directory<String>, CassieError> {
     let bytes = collections.iter().try_fold(0_usize, |bytes, name| {
         bytes
@@ -73,7 +76,7 @@ fn admitted_names(
 
 fn lock<'a>(
     gate: &'a ReentrantMutex<()>,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
     boundary: WaitBoundary,
 ) -> Result<ReentrantMutexGuard<'a, ()>, CassieError> {
     loop {

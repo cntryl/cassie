@@ -251,7 +251,8 @@ impl Midge {
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
-            Self::validate_document(&schema, &payload)?;
+            let value_hooks = self.value_hooks();
+            Self::validate_document(&schema, &payload, &value_hooks)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             super::row_id::reject_nul_row_id(&id)?;
             let row_blob = encode_row(&row_schema, &payload)?;
@@ -282,7 +283,7 @@ impl Midge {
     }
 
     pub(crate) fn sync_time_series_indexes_for_document(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
@@ -331,7 +332,7 @@ impl Midge {
     }
 
     fn update_time_series_metadata_in_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         index: &IndexMeta,
         old_entry: Option<&TimeSeriesIndexEntry>,
         new_entry: Option<&TimeSeriesIndexEntry>,
@@ -389,7 +390,7 @@ impl Midge {
     }
 
     fn adjust_time_series_bucket_count_in_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,
         index_id: u64,
         bucket: &BucketIdentity,
@@ -620,7 +621,7 @@ impl Midge {
 
     fn load_time_series_integrity(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,
@@ -735,7 +736,7 @@ impl Midge {
                     DANGLING_BUCKET_MEMBERSHIP,
                 ));
             };
-            let full_payload = decode_row(&row_schema, &raw)?;
+            let full_payload = super::decode_row_with_hooks(&row_schema, &raw, &self.value_hooks())?;
             let Some(expected_entry) =
                 Self::time_series_index_entry(&index, &hit.id, &full_payload)?
             else {
@@ -748,7 +749,12 @@ impl Midge {
                     DANGLING_BUCKET_MEMBERSHIP,
                 ));
             }
-            let payload = decode_projected_row(&row_schema, &raw, &projection)?;
+            let payload = super::decode_projected_row_with_hooks(
+                &row_schema,
+                &raw,
+                &projection,
+                &self.value_hooks(),
+            )?;
             documents.push(DocumentRef {
                 id: hit.id.clone(),
                 payload,

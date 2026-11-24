@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::adapter::CassieError;
 use crate::embeddings::{HnswGraphNode, VectorIndexMetadata};
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 pub(super) fn validate_manifest(
     manifest: &super::super::codec::PersistedHnswManifest,
@@ -34,7 +34,7 @@ const DECODE_EXPANSION_FACTOR: usize = 32;
 pub(super) fn decode_node(
     raw: &[u8],
     id: &str,
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<(HnswGraphNode, QueryMemoryReservation), CassieError> {
     let bytes = raw
         .len()

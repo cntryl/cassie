@@ -255,7 +255,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_index_state_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -353,7 +353,7 @@ impl Midge {
     }
 
     fn write_vector_index_manifest_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -407,7 +407,7 @@ impl Midge {
 
     pub(super) fn stamp_vector_index_states_generation_in_tx(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         built_generation: u64,
     ) -> Result<(), CassieError> {
@@ -608,7 +608,7 @@ impl Midge {
     }
 
     pub(super) fn write_normalized_vector_records(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
@@ -626,7 +626,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_with_prefix(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -646,7 +646,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_for_document(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         id: &str,
         fields: &[String],
@@ -855,7 +855,7 @@ impl Midge {
 }
 
 fn load_hnsw_manifest(
-    tx: & crate::adapter::AdapterTransaction,
+    tx: &crate::adapter::AdapterTransaction,
     relation_id: u64,
     field_id: u32,
     manifest: PersistedHnswManifest,

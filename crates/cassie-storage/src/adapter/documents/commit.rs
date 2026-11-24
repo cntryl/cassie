@@ -13,7 +13,7 @@ impl Midge {
     /// durable debt when the maintenance failpoint is armed.
     fn maintain_fulltext_indexes_in_tx(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         indexes: &[crate::catalog::IndexMeta],
         generation: u64,
@@ -67,7 +67,7 @@ impl Midge {
 
     fn stamp_vector_generations_in_tx(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         generation: u64,
         writes: Option<&Vec<VectorFieldWrites>>,
@@ -222,7 +222,7 @@ const WRITE_STALL_BACKOFF_STEP: Duration = Duration::from_millis(2);
 /// writer now owns the lease epoch, and retrying in-process cannot regain it and
 /// risks acting as a stale leader. Unknown commit outcomes are terminal and
 /// require reconciliation after recovery before the caller considers a retry.
-pub(incrate::adapter) fn document_write_retry_delay(
+pub(in crate::adapter) fn document_write_retry_delay(
     error: &CassieError,
     attempts: u8,
 ) -> Option<Duration> {

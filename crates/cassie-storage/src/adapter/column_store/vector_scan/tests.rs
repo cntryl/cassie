@@ -52,7 +52,7 @@ impl Fixture {
         table: &str,
         fields: &[&str],
         traversal: RowTraversal,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Vec<ColumnVectorBatch>, CassieError> {
         let requested = fields.iter().map(|field| Some(*field)).collect::<Vec<_>>();
         let mut reader = self

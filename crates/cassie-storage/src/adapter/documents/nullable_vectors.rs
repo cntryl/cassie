@@ -1,7 +1,7 @@
 //! Nullable vector shape rules at the direct Midge boundary.
 
 use super::Midge;
-use crate::adapter::CassieError;
+use crate::adapter::{CassieError, StorageValueHooks};
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
 fn vector_schema(nullable: bool) -> Schema {
@@ -14,6 +14,10 @@ fn vector_schema(nullable: bool) -> Schema {
     }
 }
 
+fn validate(schema: &Schema, payload: &serde_json::Value) -> Result<(), CassieError> {
+    Midge::validate_document(schema, payload, &StorageValueHooks::default())
+}
+
 #[test]
 fn should_allow_nullable_vector_sql_null_documents() {
     // Arrange
@@ -21,7 +25,7 @@ fn should_allow_nullable_vector_sql_null_documents() {
     let payload = serde_json::json!({"v": null});
 
     // Act
-    let result = Midge::validate_document(&schema, &payload);
+    let result = validate(&schema, &payload);
 
     // Assert
     result.expect("nullable vector retains SQL NULL");
@@ -34,7 +38,7 @@ fn should_reject_nonnullable_vector_sql_null_documents() {
     let payload = serde_json::json!({"v": null});
 
     // Act
-    let result = Midge::validate_document(&schema, &payload);
+    let result = validate(&schema, &payload);
 
     // Assert
     assert!(matches!(result, Err(CassieError::InvalidVector(_))));
@@ -53,7 +57,7 @@ fn should_preserve_nonnull_vector_document_shape_checks() {
     let results = [false, true].map(|nullable| {
         values
             .each_ref()
-            .map(|payload| Midge::validate_document(&vector_schema(nullable), payload))
+            .map(|payload| validate(&vector_schema(nullable), payload))
     });
 
     // Assert

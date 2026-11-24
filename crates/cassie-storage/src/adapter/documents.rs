@@ -162,7 +162,7 @@ impl Midge {
         let Some(payload) = payload else {
             return Ok(None);
         };
-        let payload = decode_row(&row_schema, &payload)?;
+        let payload = super::decode_row_with_hooks(&row_schema, &payload, &self.value_hooks())?;
 
         Ok(Some(DocumentRef {
             id: id.to_string(),
@@ -189,7 +189,7 @@ impl Midge {
         id: Option<String>,
         payload: serde_json::Value,
         options: &DocumentWriteBatchOptions,
-    ) -> Result<(String, crate::runtime::ProjectionWriteStats, i64), CassieError> {
+    ) -> Result<(String, crate::operation_stats::ProjectionWriteStats, i64), CassieError> {
         let storage_collection = self.canonical_collection_name(collection);
         let doc_id = id.unwrap_or_else(|| Uuid::now_v7().to_string());
         let mut options = options.clone();
@@ -210,7 +210,7 @@ impl Midge {
         collection: &str,
         id: &str,
         options: &DocumentWriteBatchOptions,
-    ) -> Result<(bool, crate::runtime::ProjectionWriteStats, i64), CassieError> {
+    ) -> Result<(bool, crate::operation_stats::ProjectionWriteStats, i64), CassieError> {
         let collection = self.canonical_collection_name(collection);
         let report = self.apply_document_write_batch_with_options(
             &collection,
@@ -346,8 +346,13 @@ impl Midge {
                     options,
                     schema_override,
                 )?;
-                let prepared =
-                    Self::prepare_document_writes(collection, operations.clone(), &context)?;
+                let value_hooks = self.value_hooks();
+                let prepared = Self::prepare_document_writes(
+                    collection,
+                    operations.clone(),
+                    &context,
+                    &value_hooks,
+                )?;
                 prepared_writes.push((collection.clone(), context, prepared));
             }
 
@@ -402,7 +407,7 @@ impl Midge {
 
     fn apply_prepared_document_write_batches(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         prepared_writes: Vec<(String, DocumentWriteBatchContext, Vec<PreparedWrite>)>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<PreparedDocumentWriteBatches, CassieError> {
@@ -438,7 +443,7 @@ impl Midge {
     }
 
     fn apply_storage_overlay_to_transaction(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         overlay: &super::StorageOverlay,
     ) -> Result<(), CassieError> {
         for (key, change) in &overlay.changes {
@@ -458,7 +463,7 @@ impl Midge {
 
     fn apply_prepared_collection_writes(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared_collection: Vec<PreparedWrite>,
@@ -595,13 +600,14 @@ impl Midge {
         collection: &str,
         operations: Vec<DocumentWriteOp>,
         context: &DocumentWriteBatchContext,
+        value_hooks: &super::StorageValueHooks,
     ) -> Result<Vec<PreparedWrite>, CassieError> {
         let mut prepared = Vec::with_capacity(operations.len());
         for operation in operations {
             match operation {
                 DocumentWriteOp::Put { id, payload } => {
                     super::row_id::reject_nul_row_id(&id)?;
-                    Self::validate_document(&context.schema, &payload)?;
+                    Self::validate_document(&context.schema, &payload, value_hooks)?;
                     let row_blob = encode_row(&context.row_schema, &payload)?;
                     let normalized_records = context
                         .vector_indexes
@@ -642,7 +648,7 @@ impl Midge {
     }
 
     fn apply_prepared_document_write(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
@@ -678,7 +684,7 @@ impl Midge {
     }
 
     fn existing_document_state_for_prepared_write(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,
@@ -714,7 +720,9 @@ impl Midge {
         let legacy_raw = tx.get(&legacy_key).map_err(CassieError::from)?;
         let payload = if context.needs_existing_payload {
             match (row_raw.as_ref(), legacy_raw.as_ref()) {
-                (Some(raw), _) | (None, Some(raw)) => Some(decode_row(&context.row_schema, raw)?),
+                (Some(raw), _) | (None, Some(raw)) => Some(
+                    super::decode_row_with_hooks(&context.row_schema, raw, tx.value_hooks())?,
+                ),
                 (None, None) => None,
             }
         } else {
@@ -728,7 +736,7 @@ impl Midge {
     }
 
     fn apply_prepared_put(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         mut prepared: PreparedWrite,
@@ -836,7 +844,7 @@ impl Midge {
     }
 
     fn apply_prepared_delete(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &PreparedWrite,
@@ -899,7 +907,7 @@ impl Midge {
     }
 
     fn sync_secondary_indexes_for_write(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         context: &DocumentWriteBatchContext,
         id: &str,
         previous: Option<&serde_json::Value>,
@@ -930,6 +938,7 @@ impl Midge {
     pub(super) fn validate_document(
         schema: &Schema,
         payload: &serde_json::Value,
+        value_hooks: &super::StorageValueHooks,
     ) -> Result<(), CassieError> {
         let map = payload
             .as_object()
@@ -968,7 +977,23 @@ impl Midge {
                 }
             }
         }
-        crate::executor::filter::graph_validation::validate_stored_fields(schema, map)
+        let needs_graph_validation = schema.fields.iter().any(|field| {
+            map.get(&field.name)
+                .is_some_and(|value| !value.is_null())
+                && data_type_contains_composite(&field.data_type)
+        });
+        if needs_graph_validation {
+            (value_hooks.validate_graph_fields)(schema, map)?;
+        }
+        Ok(())
+    }
+}
+
+fn data_type_contains_composite(data_type: &DataType) -> bool {
+    match data_type {
+        DataType::Composite(_) => true,
+        DataType::Array(inner) => data_type_contains_composite(inner),
+        _ => false,
     }
 }
 

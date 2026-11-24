@@ -2,7 +2,7 @@ use super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
     DocumentRef, HashSet, Midge, OrderedRowScanRequest, Query, RowDecode,
 };
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 mod accounted_page;
 mod column_store;
@@ -101,7 +101,7 @@ impl MidgeRowCursor {
     pub(crate) fn next_accounted_document(
         &mut self,
         midge: &Midge,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<AccountedDocument>, CassieError> {
         let mut documents = self.next_accounted_documents(midge, 1, controls)?;
         Ok(documents.pop())
@@ -111,7 +111,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Vec<DocumentRef>, CassieError> {
         let page = self.next_accounted_documents(midge, limit, controls)?;
         Ok(page
@@ -124,7 +124,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         max_rows: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<AccountedDocumentPage, CassieError> {
         check_controls(controls)?;
         let fetch_rows = max_rows.saturating_add(1);
@@ -140,7 +140,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Vec<AccountedDocument>, CassieError> {
         check_controls(controls)?;
         if limit == 0 {
@@ -171,7 +171,7 @@ impl MidgeRowCursor {
         &mut self,
         midge: &Midge,
         result_limit: usize,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         documents: &mut Vec<AccountedDocument>,
     ) -> Result<(), CassieError> {
         check_controls(controls)?;
@@ -252,16 +252,22 @@ impl MidgeRowCursor {
                     }
                     let payload = match self.projection.as_ref() {
                         Some(projection) if self.include_historical_aliases => {
-                            decode_projected_row_with_aliases(
+                            crate::adapter::decode_projected_row_with_aliases_and_hooks(
                                 &self.row_schema,
                                 &raw_value,
                                 projection,
+                                self.tx.value_hooks(),
                             )?
                         }
                         Some(projection) => {
-                            decode_projected_row(&self.row_schema, &raw_value, projection)?
+                            crate::adapter::decode_projected_row_with_hooks(
+                                &self.row_schema,
+                                &raw_value,
+                                projection,
+                                self.tx.value_hooks(),
+                            )?
                         }
-                        None => decode_row(&self.row_schema, &raw_value)?,
+                        None => super::decode_row_with_hooks(&self.row_schema, &raw_value, self.tx.value_hooks())?,
                     };
                     Ok(Some(DocumentRef { id, payload }))
                 },
@@ -286,7 +292,7 @@ fn push_accounted_document(
     Ok(())
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }
@@ -348,7 +354,7 @@ impl Midge {
         &self,
         collection: &str,
         decode: RowDecode,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         visit: F,
     ) -> Result<usize, E>
     where
@@ -369,7 +375,7 @@ impl Midge {
         collection: &str,
         decode: RowDecode,
         traversal: RowTraversal,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         mut visit: F,
     ) -> Result<usize, E>
     where

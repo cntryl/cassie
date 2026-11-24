@@ -24,7 +24,7 @@ pub(super) fn normalized_generation_is_current(
 impl Midge {
     /// Reads the generation of the last full normalized-vector publication.
     pub(super) fn normalized_generation_floor(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
     ) -> Result<Option<u64>, CassieError> {

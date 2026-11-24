@@ -39,7 +39,7 @@ impl DocumentWriteBatchOptions {
     /// Stages the caller's extra Data writes in the batch transaction.
     pub(super) fn stage_additional_data_writes(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
     ) -> Result<(),crate::adapter::CassieError> {
         for (key, value) in &self.additional_data_writes {
             if let Some(value) = value {

@@ -17,10 +17,10 @@ pub(crate) const CORRUPTION_SQLSTATE: &str = "XX001";
 
 /// Builds the `XX001` error for a corrupt column-store row.
 pub(crate) fn corrupt_row(relation: &str, id: &str, detail: &str) -> CassieError {
-    CassieError::from(crate::app::DiagnosticError::new(
+    CassieError::diagnostic(
         CORRUPTION_SQLSTATE,
         format!("column table '{relation}' row '{id}' is corrupt: {detail}"),
-    ))
+    )
 }
 
 /// Encodes the live-marker value: the row's schema version (`u32`) followed by
@@ -139,7 +139,7 @@ impl Midge {
     /// Reads from the caller's transaction so markers and fields share a snapshot.
     pub(crate) fn validate_column_store_field_markers(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         check: impl FnMut() -> Result<(), CassieError>,
@@ -159,7 +159,7 @@ impl Midge {
     /// is read and by `cassie verify`.
     pub(crate) fn validate_selected_column_store_field_markers(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         selection: &super::field_selection::ColumnFieldSelection,
@@ -174,9 +174,9 @@ impl Midge {
         )
     }
 
-    pub(incrate::adapter) fn validate_field_markers<'a>(
+    pub(in crate::adapter) fn validate_field_markers<'a>(
         &self,
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         fields: impl Iterator<Item = &'a RowFieldMeta>,
@@ -228,7 +228,7 @@ impl Midge {
     ///
     /// Returns `XX001` when a required field key is absent or does not decode.
     pub(crate) fn read_column_store_field(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -258,7 +258,7 @@ impl Midge {
     ///
     /// Returns `XX001` for an orphan field key and storage errors otherwise.
     pub(crate) fn reject_orphan_column_store_fields(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         relation: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -313,7 +313,7 @@ impl Midge {
 
     /// Collects the live rows and the schema version each was written at.
     fn verify_column_markers(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         violations: &mut Vec<String>,
@@ -339,7 +339,7 @@ impl Midge {
 
     /// Reads every field of every live row, recording each `XX001` failure.
     fn verify_column_values(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         live: &std::collections::BTreeMap<String, u32>,
@@ -368,7 +368,7 @@ impl Midge {
 
     /// Records every field key whose row has no live marker.
     fn verify_column_orphans(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         live: &std::collections::BTreeMap<String, u32>,
@@ -398,7 +398,7 @@ impl Midge {
 
     /// Records a row blob or legacy document key, which column tables never own.
     fn verify_no_row_store_keys(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         violations: &mut Vec<String>,

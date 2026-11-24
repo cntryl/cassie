@@ -20,7 +20,7 @@ impl Midge {
     }
 
     /// Only the private DDL overlay loses the name; published readers retain it.
-    pub(incrate::adapter) fn unlink_transactional_collection_name(
+    pub(in crate::adapter) fn unlink_transactional_collection_name(
         &self,
         name: &str,
     ) -> Result<(), CassieError> {
@@ -37,7 +37,7 @@ impl Midge {
     /// working. A new table created under the same name must not inherit that
     /// descriptor (and relation identity), or the pending cleanup would later
     /// delete the new table. The caller owns the collection's write gate.
-    pub(incrate::adapter) fn release_name_of_pending_dropped_collection(
+    pub(in crate::adapter) fn release_name_of_pending_dropped_collection(
         &self,
         name: &str,
     ) -> Result<(), CassieError> {
@@ -149,7 +149,7 @@ impl Midge {
         Ok(relation_id)
     }
 
-    pub(incrate::adapter) fn delete_collection_data(
+    pub(in crate::adapter) fn delete_collection_data(
         &self,
         name: &str,
         relation_id: u64,
@@ -157,7 +157,7 @@ impl Midge {
         self.delete_collection_data_parts(name, Some(relation_id), true)
     }
 
-    pub(incrate::adapter) fn delete_retired_collection_data(
+    pub(in crate::adapter) fn delete_retired_collection_data(
         &self,
         name: &str,
         relation_id: u64,

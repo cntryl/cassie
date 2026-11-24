@@ -444,7 +444,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
         let overlay = parent.lock();
         let mut state = overlay.sequence_cursors.state.lock();
         state.admission = Some(
-            crate::runtime::QueryMemoryReservation::independent_budget(CURSOR_BYTES, CURSOR_BYTES)
+            crate::adapter::QueryMemoryReservation::independent_budget(CURSOR_BYTES, CURSOR_BYTES)
                 .expect("exact owner budget"),
         );
     }

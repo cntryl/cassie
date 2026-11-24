@@ -194,5 +194,5 @@ pub struct ColumnBatchScanOutcome {
     pub selected_rows: usize,
     pub materialized_values: usize,
     pub skipped_segments: usize,
-    pub(crate) query_memory: Option<crate::runtime::QueryMemoryReservation>,
+    pub(crate) query_memory: Option<crate::adapter::QueryMemoryReservation>,
 }

@@ -183,7 +183,7 @@ impl Midge {
 
     /// Writes the row schema, projection and cardinality records that are not stored yet.
     fn save_missing_collection_state(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         name: &str,
         row_schema: &RowSchema,
     ) -> Result<(), CassieError> {
@@ -333,7 +333,7 @@ impl Midge {
     }
 
     fn save_initial_indexes_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         name: &str,
         relation_id: u64,
         indexes: &[IndexMeta],
@@ -370,7 +370,7 @@ impl Midge {
     }
 
     fn write_initial_index_metadata(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         index_key: &[u8],
         relation_id: u64,
         mut index: IndexMeta,
@@ -555,7 +555,7 @@ impl Midge {
 
     fn validate_initial_sequences_absent(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         let mut sequence_names = std::collections::HashSet::new();
@@ -578,7 +578,7 @@ impl Midge {
 
     fn save_initial_sequences_to_tx(
         &self,
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         for sequence in sequences {
@@ -596,7 +596,7 @@ impl Midge {
     }
 
     fn storage_relation_exists_case_insensitively(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<bool, CassieError> {
         let collections = Self::load_collections(tx)?;
@@ -655,7 +655,7 @@ impl Midge {
     }
 
     pub(crate) fn load_collection_metadata_from_tx(
-        tx: & crate::adapter::AdapterTransaction,
+        tx: &crate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<Option<CollectionMeta>, CassieError> {
         let Some(raw) = tx
@@ -671,7 +671,7 @@ impl Midge {
     }
 
     pub(crate) fn save_collection_metadata_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
         let value =
@@ -682,7 +682,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_collection_metadata_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<(), CassieError> {
         tx.delete(Self::collection_metadata_key(name))
@@ -691,7 +691,7 @@ impl Midge {
     }
 
     pub(crate) fn rename_collection_metadata_to_tx(
-        tx: &mutcrate::adapter::AdapterTransaction,
+        tx: &mut crate::adapter::AdapterTransaction,
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {

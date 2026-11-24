@@ -2,7 +2,7 @@
 
 use super::{Arc, CassieError, ExpectedStorageValue, StorageMutation, StorageOverlay};
 use cassie_core::request::accounted::retained::{add, mul};
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 use std::collections::BTreeMap;
 use std::mem::size_of;
 
@@ -44,10 +44,10 @@ impl CheckpointStorageSnapshot {
     }
 }
 
-fn copy_bytes(bytes: &[u8], controls: &QueryExecutionControls) -> Result<Vec<u8>, CassieError> {
+fn copy_bytes(bytes: &[u8], controls: &StorageRequestContext<'_>) -> Result<Vec<u8>, CassieError> {
     let mut copy = Vec::new();
     copy.try_reserve_exact(bytes.len())
-        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        .map_err(cassie_core::request::accounted::allocation::allocation_error)?;
     if copy.capacity() > bytes.len() {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted COPY snapshot capacity".into(),
@@ -63,7 +63,7 @@ fn copy_bytes(bytes: &[u8], controls: &QueryExecutionControls) -> Result<Vec<u8>
 fn bytes_equal(
     left: &[u8],
     right: &[u8],
-    controls: &QueryExecutionControls,
+    controls: &StorageRequestContext<'_>,
 ) -> Result<bool, CassieError> {
     if left.len() != right.len() {
         return Ok(false);
@@ -80,7 +80,7 @@ fn bytes_equal(
 impl StorageOverlay {
     pub(crate) fn copy_checkpoint_snapshot(
         &self,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<Arc<CheckpointStorageSnapshot>>, CassieError> {
         let projection_prefix = super::super::Midge::projection_prefix();
         let collections_key = super::super::Midge::collections_key();
@@ -123,7 +123,7 @@ impl StorageOverlay {
 
     pub(crate) fn copy_snapshot(
         &self,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Arc<CopyStorageSnapshot>, CassieError> {
         let mut bytes = add(
             size_of::<CopyStorageSnapshot>() + 2 * size_of::<usize>(),
@@ -186,7 +186,7 @@ impl CopyStorageSnapshot {
     pub(crate) fn matches(
         &self,
         other: &StorageOverlay,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<bool, CassieError> {
         if !Arc::ptr_eq(&self.overlay.sequence_cursors, &other.sequence_cursors)
             || self.overlay.changes.len() != other.changes.len()

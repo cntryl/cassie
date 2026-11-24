@@ -70,7 +70,7 @@ impl Midge {
         self.require_storage_layout_version(V050_COLUMNAR_LAYOUT_VERSION)
     }
 
-    pub(incrate::adapter) fn require_constraint_definitions(
+    pub(in crate::adapter) fn require_constraint_definitions(
         &self,
         constraints: &[crate::catalog::FieldConstraint],
     ) -> Result<(), CassieError> {
@@ -84,7 +84,7 @@ impl Midge {
         Ok(())
     }
 
-    pub(incrate::adapter) fn require_projection_definition(
+    pub(in crate::adapter) fn require_projection_definition(
         &self,
         metadata: &crate::catalog::ProjectionMeta,
     ) -> Result<(), CassieError> {

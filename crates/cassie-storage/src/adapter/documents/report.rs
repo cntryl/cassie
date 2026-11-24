@@ -151,7 +151,7 @@ pub(crate) struct DocumentWriteBatchReport {
     pub ids: Vec<String>,
     pub changed_ids: Vec<String>,
     pub row_delta: i64,
-    pub stats: crate::runtime::ProjectionWriteStats,
+    pub stats: crate::operation_stats::ProjectionWriteStats,
     pub data_epoch: Option<u64>,
     pub(crate) rollup_changes: RollupSourceChangeReport,
 }

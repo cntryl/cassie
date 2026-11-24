@@ -58,6 +58,7 @@ pub(crate) use index_cleanup_guard::IndexCleanupCommitGuard;
 mod mutation_error;
 #[path = "transactions/sequence_owner.rs"]
 pub(super) mod sequence_owner;
+pub use sequence_owner::PreparedSequenceCursorMetadata;
 use mutation_error::AdapterMutationError;
 
 #[path = "transactions/row_fence/mod.rs"]
@@ -134,12 +135,12 @@ impl StorageOverlay {
 
     pub(crate) fn with_sequence_cursors(
         mut self,
-        controls: &crate::runtime::QueryExecutionControls,
+        controls: &crate::adapter::StorageRequestContext<'_>,
     ) -> Result<
         (
             Self,
-            Vec<crate::runtime::QueryMemoryReservation>,
-            crate::runtime::QueryMemoryReservation,
+            Vec<crate::adapter::QueryMemoryReservation>,
+            crate::adapter::QueryMemoryReservation,
         ),
         CassieError,
     > {
@@ -204,10 +205,14 @@ pub(crate) struct AdapterTransaction {
     local_changes: BTreeMap<Vec<u8>, StorageMutation>,
     publication: Option<Arc<DatabasePublication>>,
     row_keys: Option<super::publication::MutationKeys>,
+    value_hooks: super::StorageValueHooks,
 }
 
 impl AdapterTransaction {
-    pub(super) fn raw(inner: cntryl_midge::Transaction) -> Self {
+    pub(super) fn raw(
+        inner: cntryl_midge::Transaction,
+        value_hooks: super::StorageValueHooks,
+    ) -> Self {
         Self {
             inner: Some(inner),
             overlay: None,
@@ -216,6 +221,7 @@ impl AdapterTransaction {
             local_changes: BTreeMap::new(),
             publication: None,
             row_keys: None,
+            value_hooks,
         }
     }
 
@@ -224,6 +230,7 @@ impl AdapterTransaction {
         overlay: Arc<Mutex<StorageOverlay>>,
         stage_writes: bool,
         suppress_commit: bool,
+        value_hooks: super::StorageValueHooks,
     ) -> Self {
         Self {
             inner: Some(inner),
@@ -233,7 +240,12 @@ impl AdapterTransaction {
             local_changes: BTreeMap::new(),
             publication: None,
             row_keys: None,
+            value_hooks,
         }
+    }
+
+    pub(crate) fn value_hooks(&self) -> &super::StorageValueHooks {
+        &self.value_hooks
     }
 
     fn inner(&self) -> &cntryl_midge::Transaction {
@@ -504,7 +516,7 @@ impl Midge {
             .engine
             .begin_tx(family_id, TransactionMode::ReadOnly)
             .map_err(CassieError::from)?;
-        let mut transaction = AdapterTransaction::raw(inner);
+        let mut transaction = AdapterTransaction::raw(inner, self.value_hooks());
         transaction.publication = Some(self.publication.family(family_id));
         Ok(transaction)
     }
@@ -522,7 +534,7 @@ impl Midge {
             return self
                 .engine
                 .begin_tx(family_id, mode)
-                .map(AdapterTransaction::raw)
+                .map(|inner| AdapterTransaction::raw(inner, self.value_hooks()))
                 .map_err(CassieError::from);
         };
         let is_database_family = self
@@ -542,7 +554,7 @@ impl Midge {
             return self
                 .engine
                 .begin_tx(family_id, mode)
-                .map(AdapterTransaction::raw)
+                .map(|inner| AdapterTransaction::raw(inner, self.value_hooks()))
                 .map_err(CassieError::from);
         }
 
@@ -552,7 +564,7 @@ impl Midge {
             return self
                 .engine
                 .begin_tx(family_id, mode)
-                .map(AdapterTransaction::raw)
+                .map(|inner| AdapterTransaction::raw(inner, self.value_hooks()))
                 .map_err(CassieError::from);
         }
 
@@ -577,6 +589,7 @@ impl Midge {
             scope.overlay,
             scope.stage_writes,
             seed_overlay && !scope.stage_writes,
+            self.value_hooks(),
         ))
     }
 
@@ -608,7 +621,7 @@ impl Midge {
             .engine
             .begin_tx(family_id, mode)
             .map_err(CassieError::from)?;
-        let mut transaction = AdapterTransaction::raw(inner);
+        let mut transaction = AdapterTransaction::raw(inner, self.value_hooks());
         transaction.publication = Some(self.publication.family(family_id));
         Ok(transaction)
     }
@@ -951,7 +964,7 @@ impl Midge {
         }
         self.publication.ensure_recovered()?;
         self.transaction(family, TransactionMode::ReadOnly)
-            .map(AdapterTransaction::raw)
+            .map(|inner| AdapterTransaction::raw(inner, self.value_hooks()))
             .map(super::DataReadTransaction::fresh)
     }
 

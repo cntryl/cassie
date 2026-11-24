@@ -7,7 +7,7 @@ use crate::adapter::column_store::column_payload_logical_len;
 use crate::adapter::column_store::validation::{
     decode_field, decode_marker, field_is_required, missing_field,
 };
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::StorageRequestContext;
 
 impl MidgeRowCursor {
     pub(super) fn decode_column_store_document(
@@ -15,7 +15,7 @@ impl MidgeRowCursor {
         midge: &Midge,
         raw_key: &[u8],
         raw_marker: &[u8],
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<AccountedDocument>, CassieError> {
         check_controls(controls)?;
         // A marker contains no field payload. Account the row and output names first, then

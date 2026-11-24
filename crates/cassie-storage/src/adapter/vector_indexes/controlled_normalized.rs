@@ -5,14 +5,14 @@ use super::{
     decode_normalized_vector, normalized_generation_is_current, CassieError, Midge,
     NormalizedVectorRecord, Query,
 };
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 impl Midge {
     pub(crate) fn list_normalized_vectors_controlled(
         &self,
         collection: &str,
         field: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<(Vec<NormalizedVectorRecord>, QueryMemoryReservation), CassieError> {
         check_controls(controls)?;
         let requested_collection = collection;
@@ -85,7 +85,7 @@ impl Midge {
         collection: &str,
         field: &str,
         id: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Option<(NormalizedVectorRecord, QueryMemoryReservation)>, CassieError> {
         check_controls(controls)?;
         let requested_collection = collection;
@@ -125,7 +125,7 @@ impl Midge {
     }
 }
 
-fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
     if controls.is_canceled() {
         return Err(CassieError::QueryCanceled);
     }

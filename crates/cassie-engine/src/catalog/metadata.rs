@@ -487,7 +487,7 @@ impl Catalog {
             .or_else(|| {
                 let projection = self.get_materialized_projection(collection)?;
                 let materialized = projection.materialized?;
-                crate::catalog::is_sql_materialized_view(materialized).then(|| {
+                crate::catalog::is_sql_materialized_view(&materialized).then(|| {
                     view_schema_to_collection_schema(
                         &projection.collection,
                         &materialized.output_schema,

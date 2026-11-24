@@ -19,9 +19,9 @@ pub mod sequence;
 pub mod storage_metadata;
 
 pub use column_storage::{ColumnCompression, ColumnStorage, ColumnStorageSetting};
-pub use composite_type::{data_type_depends_on, CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
+pub use composite_type::{data_type_depends_on, CompositeTypeMeta, TypeAlterError, COMPOSITE_TYPE_FORMAT_VERSION};
 pub use domain_type::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
-pub use enum_type::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
+pub use enum_type::{AddValuePlan, EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
 pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use projection::{

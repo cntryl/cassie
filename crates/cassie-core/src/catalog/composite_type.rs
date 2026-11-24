@@ -32,6 +32,19 @@ pub struct CompositeTypeMeta {
     pub dropped_positions: Vec<usize>,
 }
 
+/// A rejected `ALTER TYPE` transition with its PostgreSQL error class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeAlterError {
+    pub sqlstate: &'static str,
+    pub message: String,
+}
+
+impl TypeAlterError {
+    fn new(sqlstate: &'static str, message: String) -> Self {
+        Self { sqlstate, message }
+    }
+}
+
 impl CompositeTypeMeta {
     /// The immutable descriptor values of this type carry.
     #[must_use]
@@ -73,6 +86,100 @@ impl CompositeTypeMeta {
     #[must_use]
     pub fn local_name(&self) -> String {
         local_name(&self.name)
+    }
+
+    fn attribute_index(&self, name: &str) -> Option<usize> {
+        self.fields.iter().position(|field| field.name == name)
+    }
+
+    fn require_attribute(&self, name: &str) -> Result<usize, TypeAlterError> {
+        self.attribute_index(name).ok_or_else(|| {
+            TypeAlterError::new(
+                "42703",
+                format!("column \"{name}\" of relation \"{}\" does not exist", self.local_name()),
+            )
+        })
+    }
+
+    fn reject_duplicate(&self, name: &str) -> Result<(), TypeAlterError> {
+        if self.fields.iter().any(|field| field.name == name) {
+            return Err(TypeAlterError::new(
+                "42701",
+                format!("column \"{name}\" of relation \"{}\" already exists", self.local_name()),
+            ));
+        }
+        Ok(())
+    }
+
+    /// # Errors
+    /// `42701` when the attribute exists, `42P16` when the type would contain itself.
+    pub fn with_added_attribute(
+        &self,
+        name: &str,
+        data_type: DataType,
+    ) -> Result<Self, TypeAlterError> {
+        self.reject_duplicate(name)?;
+        self.reject_self_reference(&data_type)?;
+        let mut next = self.clone();
+        next.fields.push(CompositeField { name: name.to_owned(), data_type });
+        next.revision += 1;
+        Ok(next)
+    }
+
+    /// # Errors
+    /// `42703` when the attribute does not exist.
+    pub fn with_dropped_attribute(&self, name: &str) -> Result<Self, TypeAlterError> {
+        let index = self.require_attribute(name)?;
+        let slot = self.descriptor().physical_positions()[index];
+        let mut next = self.clone();
+        next.fields.remove(index);
+        next.dropped_positions.push(slot);
+        next.dropped_positions.sort_unstable();
+        next.revision += 1;
+        Ok(next)
+    }
+
+    /// # Errors
+    /// `42703` when `from` is missing, `42701` when `to` exists.
+    pub fn with_renamed_attribute(&self, from: &str, to: &str) -> Result<Self, TypeAlterError> {
+        let index = self.require_attribute(from)?;
+        self.reject_duplicate(to)?;
+        let mut next = self.clone();
+        to.clone_into(&mut next.fields[index].name);
+        next.revision += 1;
+        Ok(next)
+    }
+
+    /// # Errors
+    /// `42703` when the attribute is missing, `42P16` for a self-reference.
+    pub fn with_retyped_attribute(
+        &self,
+        name: &str,
+        data_type: DataType,
+    ) -> Result<Self, TypeAlterError> {
+        let index = self.require_attribute(name)?;
+        self.reject_self_reference(&data_type)?;
+        let mut next = self.clone();
+        next.fields[index].data_type = data_type;
+        next.revision += 1;
+        Ok(next)
+    }
+
+    pub fn with_name(&self, canonical: String) -> Self {
+        let mut next = self.clone();
+        next.name = canonical;
+        next.revision += 1;
+        next
+    }
+
+    fn reject_self_reference(&self, data_type: &DataType) -> Result<(), TypeAlterError> {
+        if data_type_depends_on(data_type, self.type_oid()) {
+            return Err(TypeAlterError::new(
+                "42P16",
+                format!("composite type {} cannot be made a member of itself", self.local_name()),
+            ));
+        }
+        Ok(())
     }
 }
 

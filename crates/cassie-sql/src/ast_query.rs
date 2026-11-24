@@ -265,7 +265,7 @@ impl<A> SelectItem<A> {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct FunctionCall<A = ()> {
     pub name: String,
@@ -276,6 +276,18 @@ pub struct FunctionCall<A = ()> {
     pub filter: Option<Box<Expr<A>>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub order_by: Vec<OrderExpr<A>>,
+}
+
+impl<A> Default for FunctionCall<A> {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            args: Vec::new(),
+            quantifier: AggregateQuantifier::default(),
+            filter: None,
+            order_by: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

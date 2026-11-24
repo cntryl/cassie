@@ -1,10 +1,10 @@
-use crate::sql::SubqueryExprWidthError;
 //! Records each sublink's output type and checks its width after binding.
 //!
 //! Expression typing has no catalog access, so a scalar subquery's type is
 //! inferred here, with the enclosing scope's fields visible to a correlated
 //! body, and kept on the node. PostgreSQL rejects a sublink of the wrong
 //! width while analysing the statement (SQLSTATE 42601), before any row runs.
+use crate::sql::SubqueryExprWidthError;
 use super::inference::{
     append_source_qualifiers, infer_cte_schema, infer_select_schema_with_outer,
     infer_source_schema_with_outer,

@@ -6,7 +6,7 @@
 pub use cassie_sql::ast::*;
 
 pub use super::subquery_outcome::{SubqueryExprWidthError, SubqueryRows};
-pub use super::SubqueryOutcome;
+pub(crate) use super::SubqueryOutcome;
 
 pub type AlterTableOperation = cassie_sql::ast::AlterTableOperation<SubqueryOutcome>;
 pub type AlterTableStatement = cassie_sql::ast::AlterTableStatement<SubqueryOutcome>;

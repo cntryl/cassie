@@ -1,5 +1,6 @@
 pub use cassie_core::catalog::domain_type::{same_stored_relation, DomainTypeMeta, DOMAIN_TYPE_FORMAT_VERSION};
-use super::{name_matches, Catalog};
+use super::{canonical_relation_name, local_name, name_matches, parse_name, relation_database_name, Catalog, ParsedName};
+use crate::types::DataType;
 
 impl Catalog {
     pub fn register_domain_type(&self, metadata: DomainTypeMeta) {

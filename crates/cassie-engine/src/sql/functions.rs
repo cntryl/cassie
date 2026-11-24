@@ -7,7 +7,6 @@ mod inputs;
 mod numeric_identity;
 mod percentile_identity;
 pub(crate) mod primitive_casts;
-mod return_types;
 mod table;
 mod unsupported_server_control;
 mod unsupported_server_files;

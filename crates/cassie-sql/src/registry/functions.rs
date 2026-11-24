@@ -293,6 +293,36 @@ pub enum FunctionReturnType {
     Unknown,
 }
 
+impl FunctionReturnType {
+    /// Returns the fixed scalar type, if this return policy does not depend on arguments.
+    #[must_use]
+    pub fn fixed_type(self) -> Option<crate::types::DataType> {
+        use crate::types::DataType;
+        Some(match self {
+            Self::Json => DataType::Json,
+            Self::Jsonb => DataType::Jsonb,
+            Self::Bytea => DataType::Bytea,
+            Self::Float => DataType::Float,
+            Self::Text => DataType::Text,
+            Self::TextArray => DataType::Array(Box::new(DataType::Text)),
+            Self::IntArray => DataType::Array(Box::new(DataType::Int)),
+            Self::Name => DataType::Name,
+            Self::Int => DataType::Int,
+            Self::BigInt => DataType::BigInt,
+            Self::Boolean => DataType::Boolean,
+            Self::Timestamp => DataType::Timestamp,
+            Self::ObjectId(kind) => DataType::ObjectId(kind),
+            Self::NameArray => DataType::Array(Box::new(DataType::Name)),
+            Self::FirstNonNullArgument
+            | Self::FirstComparedArgument
+            | Self::NumericArgument
+            | Self::SumArgument
+            | Self::Math
+            | Self::Unknown => return None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionArity {
     Exact(usize),

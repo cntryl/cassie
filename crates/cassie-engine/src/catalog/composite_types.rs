@@ -1,5 +1,5 @@
 pub use cassie_core::catalog::composite_type::{data_type_depends_on, CompositeTypeMeta, COMPOSITE_TYPE_FORMAT_VERSION};
-use super::{name_matches, Catalog};
+use super::{canonical_relation_name, local_name, name_matches, parse_name, relation_database_name, Catalog, ParsedName};
 impl Catalog {
     pub fn register_composite_type(&self, metadata: CompositeTypeMeta) {
         self.composite_types

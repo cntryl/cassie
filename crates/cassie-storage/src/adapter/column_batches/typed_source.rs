@@ -122,12 +122,8 @@ impl Midge {
         {
             return Ok(EncodedSourceDecision::TransportBudget);
         }
-        match metadata_memory.try_grow(metadata_overhead) {
-            Ok(()) => {}
-            Err(_) => {
-                return Ok(EncodedSourceDecision::TransportBudget)
-            }
-            Err(error) => return Err(error.into()),
+        if metadata_memory.try_grow(metadata_overhead).is_err() {
+            return Ok(EncodedSourceDecision::TransportBudget);
         }
         let metadata = Arc::new(Accounted::from_admitted(plan.metadata, metadata_memory));
         self.load_encoded_source(&collection, &plan.index, &plan.wanted, &metadata, controls)

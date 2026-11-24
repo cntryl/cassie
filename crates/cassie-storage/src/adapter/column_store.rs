@@ -346,7 +346,7 @@ impl Midge {
         for index in initial.indexes.unwrap_or(&[]) {
             cassie_sql::definition_guard::index(
                 index.definition_semantics_version,
-                if index.expressions.is_empty() { &index.fields } else { &index.expressions },
+                &index.expressions,
                 index.predicate.as_deref(),
             )?;
             self.require_definition_version(index.definition_semantics_version)?;
@@ -380,7 +380,7 @@ impl Midge {
             }
             cassie_sql::definition_guard::index(
                 index.definition_semantics_version,
-                if index.expressions.is_empty() { &index.fields } else { &index.expressions },
+                &index.expressions,
                 index.predicate.as_deref(),
             )?;
             let index_key = Self::index_key(name, &index.name);

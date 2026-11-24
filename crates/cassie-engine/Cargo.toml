@@ -29,7 +29,6 @@ serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] 
 parking_lot = { version = "0.13", features = ["arc_lock"] }
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.5.3"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 tracing = "0.1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
@@ -48,4 +47,5 @@ sql-json-path = "0.2.0"
 
 [dev-dependencies]
 cassie-storage = { path = "../cassie-storage", features = ["storage-test-hooks"] }
+cntryl-midge = "0.5.3"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

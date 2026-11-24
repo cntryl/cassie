@@ -1,10 +1,9 @@
 use super::super::Midge;
-use crate::app::{CassieError, StorageRetryKind};
-use crate::config::CassieRuntimeLimits;
-use crate::adapter::PublicationControlScope;
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::{CassieError, StorageRetryKind};
+use crate::adapter::request_test_support::TestRequest;
+use crate::adapter::NativePublicationControlScope;
 use std::sync::{mpsc, Arc};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[test]
 fn should_exclude_native_family_creation_until_schema_publication_retires() {
@@ -21,11 +20,8 @@ fn should_exclude_native_family_creation_until_schema_publication_retires() {
         let worker = midge
             .with_schema_publication(|| {
                 let worker = std::thread::spawn(move || {
-                    let controls = QueryExecutionControls::from_limits(
-                        &CassieRuntimeLimits::default(),
-                        Instant::now(),
-                    );
-                    let _request = PublicationControlScope::enter(Some(&controls));
+                    let controls = TestRequest::default();
+                    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
                     let _wait = Midge::observe_next_publication_wait_for_test(move || {
                         waiting_tx
                             .send(())
@@ -51,7 +47,7 @@ fn should_exclude_native_family_creation_until_schema_publication_retires() {
         // Assert
         if quarantine {
             assert!(
-                matches!(outcome, Err(CassieError::Storage(message)) if message.contains("storage recovery required"))
+                matches!(outcome, Err(CassieError::RecoveryRequired(message)) if message.contains("storage recovery required"))
             );
             assert!(midge
                 .engine
@@ -78,14 +74,9 @@ fn should_retire_an_unpublished_staged_family_after_request_cancellation() {
         let staged = midge
             .stage_database_family("canceled-stage")
             .expect("owned unpublished family");
-        let cancellation = crate::runtime::QueryCancellationHandle::new();
-        let controls = QueryExecutionControls::with_cancellation(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-            cancellation.clone(),
-        );
-        let _request = PublicationControlScope::enter(Some(&controls));
-        cancellation.cancel();
+        let controls = TestRequest::default();
+        let _request = NativePublicationControlScope::enter(Some(&controls.context()));
+        controls.cancel();
         if quarantine {
             midge.latch_storage_recovery_required_for_test();
         }
@@ -100,7 +91,7 @@ fn should_retire_an_unpublished_staged_family_after_request_cancellation() {
         // Assert
         if quarantine {
             assert!(
-                matches!(result, Err(CassieError::Storage(message)) if message.contains("storage recovery required"))
+                matches!(result, Err(CassieError::RecoveryRequired(message)) if message.contains("storage recovery required"))
             );
             assert!(remains, "unknown outcomes remain quarantined");
         } else {
@@ -214,11 +205,8 @@ fn should_recheck_family_after_waiting_for_schema_publication() {
     let (worker, existing) = midge
         .with_schema_publication(|| {
             let worker = std::thread::spawn(move || {
-                let controls = QueryExecutionControls::from_limits(
-                    &CassieRuntimeLimits::default(),
-                    Instant::now(),
-                );
-                let _request = PublicationControlScope::enter(Some(&controls));
+                let controls = TestRequest::default();
+                let _request = NativePublicationControlScope::enter(Some(&controls.context()));
                 let _observer = Midge::observe_next_publication_wait_for_test(move || {
                     waiting_tx.send(()).expect("creator reached schema gate");
                 });

@@ -39,6 +39,14 @@ impl TestRequest {
         }
     }
 
+    pub(super) fn with_cancellation(cancellation: RequestCancellation) -> Self {
+        Self { cancellation, ..Self::default() }
+    }
+
+    pub(super) fn cancel(&self) {
+        self.cancellation.cancel();
+    }
+
     pub(super) fn context(&self) -> StorageRequestContext<'_> {
         StorageRequestContext::new(
             None,

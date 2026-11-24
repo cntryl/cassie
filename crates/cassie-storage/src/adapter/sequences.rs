@@ -198,7 +198,7 @@ impl Midge {
 #[cfg(test)]
 mod retry_tests {
     use super::Midge;
-    use crate::app::{CassieError, RetryableStorageError, StorageRetryKind};
+    use crate::adapter::{CassieError, RetryableStorageError, StorageRetryKind};
     use crate::catalog::SequenceMeta;
     use cassie_core::types::DataType;
 
@@ -282,7 +282,8 @@ mod retry_tests {
 
         // Assert
         assert!(
-            matches!(result, Err(CassieError::Storage(message)) if message.contains("simulated unknown"))
+            matches!(result, Err(CassieError::Native(cntryl_midge::MidgeError::OutcomeUnknown(message)))
+                if message.contains("simulated unknown"))
         );
         assert_eq!(attempts, 1);
         assert_eq!(midge.get_sequence("sequence_retry").expect("read"), before);

@@ -5,8 +5,9 @@ use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use super::*;
-use crate::config::CassieRuntimeLimits;
-use crate::runtime::QueryCancellationHandle;
+use crate::adapter::request_test_support::TestRequest;
+use cassie_core::request::RequestCancellation;
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
 type PublicationCallback = Box<dyn FnOnce(PublicationBoundary)>;
 
@@ -46,12 +47,8 @@ pub(super) fn next_confirmation(callback: impl FnOnce() + 'static) -> impl Drop 
     Restore(NEXT_CONFIRMATION.with(|slot| slot.replace(Some(Box::new(callback)))))
 }
 
-fn controls(cancellation: QueryCancellationHandle) -> QueryExecutionControls {
-    QueryExecutionControls::with_cancellation(
-        &CassieRuntimeLimits::default(),
-        Instant::now(),
-        cancellation,
-    )
+fn controls(cancellation: RequestCancellation) -> TestRequest {
+    TestRequest::with_cancellation(cancellation)
 }
 
 #[test]
@@ -81,7 +78,7 @@ fn should_block_new_native_publication_after_an_unknown_outcome() {
         ))
     ));
     let error = CassieError::from(blocked.expect_err("recovery required"));
-    assert_eq!(error.descriptor().sql_state, "58030");
+    assert!(matches!(error, CassieError::RecoveryRequired(_)));
     assert!(error.to_string().contains("not submitted"));
     assert!(error.storage_retry_kind().is_none());
     assert_eq!(submitted.get(), 0);
@@ -123,7 +120,7 @@ fn should_latch_recovery_required_before_releasing_the_original_gate() {
         submitted.set(true);
         Ok(())
     });
-    let captured = second.with_operation(&controls(QueryCancellationHandle::new()), || {
+    let captured = second.with_operation(&TestRequest::default(), || {
         submitted.set(true);
         Ok(())
     });
@@ -132,7 +129,7 @@ fn should_latch_recovery_required_before_releasing_the_original_gate() {
 
     // Assert
     assert!(matches!(blocked, Err(AdapterCommitError::RecoveryRequired)));
-    assert!(matches!(captured, Err(CassieError::Storage(_))));
+    assert!(matches!(captured, Err(CassieError::RecoveryRequired(_))));
     assert!(matches!(original, Err(AdapterCommitError::Native(_))));
     assert!(!submitted.get());
 }
@@ -196,7 +193,7 @@ fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
     let gate = coordinator.family(1);
     let held = gate.mutex.lock();
     let worker_gate = Arc::clone(&gate);
-    let cancellation = QueryCancellationHandle::new();
+    let cancellation = RequestCancellation::new();
     let controls = controls(cancellation.clone());
     let (waiting_tx, waiting_rx) = mpsc::channel();
     let (resume_tx, resume_rx) = mpsc::channel();
@@ -205,7 +202,7 @@ fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
         let submitted = Cell::new(false);
         let mut waiting = Some((waiting_tx, resume_rx));
         let result = worker_gate.publish_with_observer(
-            Some(&controls),
+            Some(&controls.context()),
             || {
                 submitted.set(true);
                 Ok(())
@@ -249,18 +246,18 @@ fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
 fn should_use_the_current_publication_request_instead_of_a_capture_request() {
     // Arrange
     let coordinator = PublicationCoordinator::default();
-    let cancellation = QueryCancellationHandle::new();
+    let cancellation = RequestCancellation::new();
     let first = controls(cancellation.clone());
     let gate = {
-        let _capture_scope = PublicationControlScope::enter(Some(&first));
+        let _capture_scope = NativePublicationControlScope::enter(Some(&first.context()));
         coordinator.family(1)
     };
     cancellation.cancel();
-    let current = controls(QueryCancellationHandle::new());
+    let current = TestRequest::default();
     let submitted = Cell::new(false);
 
     // Act
-    let _commit_scope = PublicationControlScope::enter(Some(&current));
+    let _commit_scope = NativePublicationControlScope::enter(Some(&current.context()));
     let result = gate.publish_current(|| {
         submitted.set(true);
         Ok(())
@@ -279,14 +276,14 @@ fn should_preserve_the_outer_rest_deadline_inside_sql_scopes() {
     let deadline = Instant::now()
         .checked_sub(Duration::from_secs(1))
         .expect("past deadline");
-    let query = controls(QueryCancellationHandle::new());
+    let query = TestRequest::default();
 
     // Act
     let blocked = {
         let _rest =
-            PublicationControlScope::enter_for_rest(&QueryCancellationHandle::new(), deadline);
-        let _sql = PublicationControlScope::enter(Some(&query));
-        let _nested = PublicationControlScope::for_request(&CassieRuntimeLimits::default(), None);
+            NativePublicationControlScope::enter_for_rest(&RequestCancellation::new(), deadline);
+        let _sql = NativePublicationControlScope::enter(Some(&query.context()));
+        let _nested = NativePublicationControlScope::enter(None);
         gate.publish_current(|| {
             submitted.set(true);
             Ok(())
@@ -307,17 +304,17 @@ fn should_preserve_the_outer_rest_deadline_inside_sql_scopes() {
 fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
     // Arrange
     let gate = PublicationCoordinator::default().family(1);
-    let cancellation = QueryCancellationHandle::new();
-    let query = controls(QueryCancellationHandle::new());
+    let cancellation = RequestCancellation::new();
+    let query = TestRequest::default();
     let deadline = Instant::now()
         .checked_add(Duration::from_secs(5))
         .expect("hang guard");
     let submitted = Cell::new(false);
-    let _rest = PublicationControlScope::enter_for_rest(&cancellation, deadline);
+    let _rest = NativePublicationControlScope::enter_for_rest(&cancellation, deadline);
     cancellation.cancel();
 
     // Act
-    let blocked = gate.with_operation(&query, || {
+    let blocked = gate.with_operation(&query.context(), || {
         submitted.set(true);
         Ok(())
     });
@@ -330,46 +327,43 @@ fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
 #[test]
 fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
     // Arrange
-    let cassie = crate::app::Cassie::new_in_memory_with_config(
-        crate::config::CassieRuntimeConfig::default(),
-    )
-    .expect("memory fixture");
-    cassie.startup().expect("startup");
-    let session = cassie.create_session("tester", None);
-    for sql in [
-        "CREATE TABLE fenced_rows (value INT)",
-        "CREATE TABLE competing_rows (value INT)",
-    ] {
-        cassie
-            .execute_sql(&session, sql, Vec::new())
+    let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory fixture"));
+    midge.ensure_families_ready().expect("families");
+    for table in ["fenced_rows", "competing_rows"] {
+        midge
+            .create_collection(
+                table,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "value".to_owned(),
+                        data_type: DataType::Int,
+                        nullable: true,
+                    }],
+                },
+            )
             .expect("table");
     }
-    cassie
-        .midge
+    midge
         .put_document(
             "fenced_rows",
             Some("one".to_owned()),
             serde_json::json!({"value": 1}),
         )
         .expect("seed");
-    let identity = cassie
-        .catalog
-        .collection_storage_id("fenced_rows")
-        .expect("relation identity");
-    let origin = controls(QueryCancellationHandle::new());
+    let identity = midge.row_schema("fenced_rows").expect("row schema").relation_id;
+    let origin = TestRequest::default();
     let fence =
-crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
+crate::adapter::RetainedRowFence::capture(&midge, "postgres", &origin.context())
             .expect("old row fence");
-    let request = controls(QueryCancellationHandle::new());
+    let request = TestRequest::default();
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let (waiting_tx, waiting_rx) = mpsc::channel();
-    let other = Arc::clone(&cassie.midge);
+    let other = Arc::clone(&midge);
     let other_events = Arc::clone(&events);
 
     // Act
-    let worker = cassie
-        .midge
-        .with_database_publication("postgres", &request, || {
+    let worker = midge
+        .with_database_publication("postgres", &request.context(), || {
             let worker = std::thread::spawn(move || {
                 NEXT_PUBLICATION.with(|slot| {
                     *slot.borrow_mut() = Some(Box::new(move |boundary| {
@@ -377,8 +371,8 @@ crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
                         waiting_tx.send(()).expect("native commit is waiting");
                     }));
                 });
-                let current = controls(QueryCancellationHandle::new());
-                let _scope = PublicationControlScope::enter(Some(&current));
+                let current = TestRequest::default();
+                let _scope = NativePublicationControlScope::enter(Some(&current.context()));
                 other
                     .put_document(
                         "competing_rows",
@@ -391,15 +385,15 @@ crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
             waiting_rx
                 .recv_timeout(Duration::from_secs(5))
                 .expect("actual competing commit reached held database gate");
-            fence.validate_rows([Ok(("fenced_rows", identity, "one"))], &request)?;
+            fence.validate_rows([Ok(("fenced_rows", identity, "one"))], &request.context())?;
             events.lock().expect("events").push("validated");
-            cassie.midge.put_document(
+            midge.put_document(
                 "fenced_rows",
                 Some("one".to_owned()),
                 serde_json::json!({"value": 3}),
             )?;
             events.lock().expect("events").push("published");
-            Ok(worker)
+            Ok::<_, CassieError>(worker)
         })
         .expect("complete protected publication window");
     worker.join().expect("competing publisher");
@@ -410,8 +404,7 @@ crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
         ["validated", "published", "competing"]
     );
     assert_eq!(
-        cassie
-            .midge
+        midge
             .get_document("fenced_rows", "one")
             .expect("own row")
             .expect("row")
@@ -419,8 +412,7 @@ crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
         3
     );
     assert_eq!(
-        cassie
-            .midge
+        midge
             .get_document("competing_rows", "two")
             .expect("other row")
             .expect("row")
@@ -444,13 +436,13 @@ fn should_capture_matching_validation_views_while_a_publisher_waits() {
         .expect("seed");
     seed.commit(midge.write_options_sync())
         .expect("seed commit");
-    let request = controls(QueryCancellationHandle::new());
+    let request = TestRequest::default();
     let other = Arc::clone(&midge);
     let (waiting_tx, waiting_rx) = mpsc::channel();
 
     // Act
     let (mut fence, read, worker) = midge
-        .with_database_publication("postgres", &request, || {
+        .with_database_publication("postgres", &request.context(), || {
             let fence = midge.begin_raw_database_adapter_tx(
                 "postgres",
                 cntryl_midge::TransactionMode::ReadWrite,
@@ -462,8 +454,8 @@ fn should_capture_matching_validation_views_while_a_publisher_waits() {
                         waiting_tx.send(()).expect("writer reached capture gate");
                     }));
                 });
-                let request = controls(QueryCancellationHandle::new());
-                let _scope = PublicationControlScope::enter(Some(&request));
+                let request = TestRequest::default();
+                let _scope = NativePublicationControlScope::enter(Some(&request.context()));
                 let mut writer = other
                     .begin_raw_database_adapter_tx(
                         "postgres",
@@ -481,7 +473,7 @@ fn should_capture_matching_validation_views_while_a_publisher_waits() {
                 .recv_timeout(Duration::from_secs(5))
                 .expect("commit boundary");
             let read = midge.begin_database_readonly_tx("postgres")?;
-            Ok((fence, read, worker))
+            Ok::<_, CassieError>((fence, read, worker))
         })
         .expect("paired capture");
     worker.join().expect("publisher");

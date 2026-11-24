@@ -779,6 +779,6 @@ mod tests {
 #[path = "databases/publication_tests.rs"]
 mod publication_tests;
 
-#[cfg(test)]
-#[path = "databases/create_retry_tests.rs"]
-mod create_retry_tests;
+#[cfg(feature = "storage-test-hooks")]
+#[path = "databases/create_retry_test_hooks.rs"]
+pub mod create_retry_test_hooks;

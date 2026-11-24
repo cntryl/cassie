@@ -384,6 +384,8 @@ pub(crate) use database_catalog_rewrite::{
 };
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
+#[cfg(feature = "storage-test-hooks")]
+pub use databases::create_retry_test_hooks;
 pub(crate) mod documents;
 #[cfg(all(
     feature = "replay-benchmark-observation",

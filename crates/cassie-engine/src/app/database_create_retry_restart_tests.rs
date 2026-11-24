@@ -1,9 +1,11 @@
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::{create_retry_test_hooks as hooks, CreateRetryAmbiguity, CreateRetrySeed};
+use crate::midge::adapter::create_retry_test_hooks as hooks;
 use crate::types::Value;
 use std::path::Path;
 use uuid::Uuid;
+
+use hooks::{CreateRetryAmbiguity, CreateRetrySeed};
 
 const DATABASE: &str = "retry_db";
 

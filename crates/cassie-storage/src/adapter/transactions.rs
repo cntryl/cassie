@@ -64,7 +64,7 @@ pub use copy_snapshot::{
 
 #[path = "transactions/index_cleanup_guard.rs"]
 mod index_cleanup_guard;
-pub use index_cleanup_guard::IndexCleanupCommitGuard;
+pub use index_cleanup_guard::{IndexCleanupCommitGuard, IndexCleanupGateNames};
 
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;

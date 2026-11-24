@@ -28,7 +28,7 @@ use crate::catalog::{
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::row_blob::{
-    RowSchema,
+    encode_row, RowSchema,
 };
 use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;

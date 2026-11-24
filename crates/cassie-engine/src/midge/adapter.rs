@@ -7,7 +7,11 @@ pub(crate) use crate::app::{StatementDataRead, StatementReadScope};
 
 pub mod column_batch_format_v1;
 pub use column_batch_format_v1::{
-    decode_column_batch_manifest_for_test, encode_column_batch_manifest_for_test,
+    column_chunk_codec_for_test, decode_column_batch_manifest_for_test,
+    decode_column_chunk_for_test, decode_row_id_chunk_for_test,
+    decode_selected_column_chunk_for_test, encode_column_batch_manifest_for_test,
+    encode_column_chunk_for_test, encode_for_column_chunk_for_test,
+    encode_plain_column_chunk_for_test, encode_row_id_chunk_for_test,
 };
 
 #[cfg(test)]

@@ -35,7 +35,8 @@ pub fn parse_value(
     Ok(Accounted::from_admitted(value, reservation))
 }
 
-pub(crate) fn parse_value_in_reserved_memory(
+#[doc(hidden)]
+pub fn parse_value_in_reserved_memory(
     input: &[u8],
     controls: &QueryExecutionControls,
 ) -> Result<serde_json::Value, ValueParseError> {

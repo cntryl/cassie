@@ -359,12 +359,6 @@ impl From<std::io::Error> for StorageError {
     }
 }
 
-impl From<cassie_core::request::accounted::AccountingError> for StorageError {
-    fn from(error: cassie_core::request::accounted::AccountingError) -> Self {
-        Self::ResourceLimit(error.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::StorageError;

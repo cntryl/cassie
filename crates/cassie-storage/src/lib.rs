@@ -14,6 +14,7 @@ pub mod key_codec;
 pub mod row_blob;
 pub use adapter::error::StorageError;
 mod catalog;
+pub(crate) use cassie_vector::{self as vector, types as embeddings};
 
 mod scalar_index;
 pub use scalar_index::{

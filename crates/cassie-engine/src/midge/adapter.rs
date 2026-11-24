@@ -3,6 +3,11 @@
 pub use cassie_storage::adapter::*;
 pub(crate) use crate::app::{StatementDataRead, StatementReadScope};
 
+pub mod column_batch_format_v1;
+pub use column_batch_format_v1::{
+    decode_column_batch_manifest_for_test, encode_column_batch_manifest_for_test,
+};
+
 #[cfg(test)]
 pub(crate) mod statement_read {
     #[path = "adapter/statement_read/tests.rs"]

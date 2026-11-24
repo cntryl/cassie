@@ -8,7 +8,9 @@ use getrandom::fill;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::app::{AuthenticatedPrincipal, Cassie, CassieError, CassieSession};
+use crate::app::{
+    AuthenticatedPrincipal, Cassie, CassieError, CassieSession, NetworkPrincipal,
+};
 use crate::catalog::{normalize_role_name, RoleMeta};
 use crate::midge::StorageFamily;
 
@@ -52,19 +54,35 @@ pub fn login(
     user: &str,
     password: Option<&str>,
     peer_ip: IpAddr,
-) -> Result<(String, AuthenticatedPrincipal), CassieError> {
-    let principal = cassie.authenticate_network_principal(user, password, None, peer_ip)?;
+) -> Result<(String, NetworkPrincipal), CassieError> {
+    let principal = cassie.authenticate_network_principal_full(user, password, None, peer_ip)?;
     let token = issue(cassie, &principal.role)?;
-    Ok((token, principal))
+    Ok((token, NetworkPrincipal::from(principal)))
 }
 
-pub fn issue(cassie: &Cassie, role: &RoleMeta) -> Result<String, CassieError> {
+pub(super) fn issue(cassie: &Cassie, role: &RoleMeta) -> Result<String, CassieError> {
     issue_with_limits_impl(cassie, role, MAX_SESSIONS, SESSION_TTL_SECONDS)
 }
 
 #[cfg(any(test, feature = "transport-test-hooks"))]
 #[doc(hidden)]
-pub fn issue_with_limits(
+pub fn issue_for_test(
+    cassie: &Cassie,
+    user: &str,
+    max_sessions: usize,
+    ttl_seconds: u64,
+) -> Result<String, CassieError> {
+    let role = cassie
+        .lookup_role(user)?
+        .or_else(|| {
+            (normalize_role_name(user) == normalize_role_name(&cassie.auth_user))
+                .then(|| RoleMeta::bootstrap_admin(&cassie.auth_user, None))
+        })
+        .ok_or(CassieError::Unauthorized)?;
+    issue_with_limits_impl(cassie, &role, max_sessions, ttl_seconds)
+}
+
+fn issue_with_limits(
     cassie: &Cassie,
     role: &RoleMeta,
     max_sessions: usize,
@@ -180,7 +198,7 @@ fn issue_transaction(
 pub fn authenticate(
     cassie: &Cassie,
     token: &str,
-) -> Result<AuthenticatedPrincipal, CassieError> {
+) -> Result<NetworkPrincipal, CassieError> {
     let key = session_key(token);
     let Some(value) = cassie.midge.raw_get(StorageFamily::Schema, &key)? else {
         return Err(CassieError::Unauthorized);
@@ -199,7 +217,7 @@ pub fn authenticate(
         Err(error) => return Err(error),
     };
     let session = CassieSession::authenticated(role.name.clone(), None, role.is_admin);
-    Ok(AuthenticatedPrincipal { session, role })
+    Ok(NetworkPrincipal::from(AuthenticatedPrincipal { session, role }))
 }
 
 pub fn revoke(cassie: &Cassie, token: &str) -> Result<(), CassieError> {

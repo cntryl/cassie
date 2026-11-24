@@ -17,10 +17,37 @@ thread_local! {
 }
 
 #[derive(Debug)]
+pub(crate) struct AuthenticatedPrincipal {
+    pub(crate) session: CassieSession,
+    pub(crate) role: RoleMeta,
+}
+
+/// Authentication data safe to return to a network adapter.
+#[derive(Debug)]
 #[doc(hidden)]
-pub struct AuthenticatedPrincipal {
+pub struct NetworkPrincipal {
     pub session: CassieSession,
-    pub role: RoleMeta,
+    pub role: NetworkRole,
+}
+
+/// Public role facts required by network adapters, without credential material.
+#[derive(Debug)]
+#[doc(hidden)]
+pub struct NetworkRole {
+    pub name: String,
+    pub is_admin: bool,
+}
+
+impl From<AuthenticatedPrincipal> for NetworkPrincipal {
+    fn from(principal: AuthenticatedPrincipal) -> Self {
+        Self {
+            session: principal.session,
+            role: NetworkRole {
+                name: principal.role.name,
+                is_admin: principal.role.is_admin,
+            },
+        }
+    }
 }
 
 pub(super) fn hash_password(password: &str) -> Result<String, CassieError> {
@@ -182,7 +209,18 @@ impl Cassie {
         )
     }
 
-    pub(crate) fn authenticate_network_principal(
+    pub fn authenticate_network_principal(
+        &self,
+        user: &str,
+        password: Option<&str>,
+        database: Option<String>,
+        peer_ip: IpAddr,
+    ) -> Result<NetworkPrincipal, CassieError> {
+        self.authenticate_network_principal_full(user, password, database, peer_ip)
+            .map(NetworkPrincipal::from)
+    }
+
+    pub(crate) fn authenticate_network_principal_full(
         &self,
         user: &str,
         password: Option<&str>,
@@ -347,6 +385,33 @@ mod tests {
 
         // Assert
         assert!(error.to_string().contains("REST TLS is required"));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_return_credential_free_network_principal() {
+        // Arrange
+        let config = crate::config::CassieRuntimeConfig {
+            password: TEST_PASSWORD.to_string(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
+        let (cassie, path) = cassie_with_config("network-principal", config);
+
+        // Act
+        let principal = cassie
+            .authenticate_network_principal(
+                "root",
+                Some(TEST_PASSWORD),
+                None,
+                "127.0.0.1".parse().expect("peer address"),
+            )
+            .expect("authenticate network principal");
+
+        // Assert
+        assert_eq!(principal.role.name, "root");
+        assert!(principal.role.is_admin);
+        assert_eq!(principal.session.user, "root");
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }

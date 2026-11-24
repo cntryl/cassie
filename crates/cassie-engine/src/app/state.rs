@@ -13,6 +13,16 @@ pub struct CassieRuntimeConfigState {
     pub rest_listen: String,
 }
 
+/// Passive REST TLS deployment settings for the HTTP adapter.
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct RestTlsOptions<'a> {
+    pub certificate_path: Option<&'a str>,
+    pub private_key_path: Option<&'a str>,
+    pub external_https: bool,
+    pub allow_insecure_non_loopback: bool,
+}
+
 #[derive(Clone)]
 pub struct Cassie {
     pub midge: Arc<Midge>,
@@ -83,5 +93,17 @@ impl Cassie {
     #[must_use]
     pub fn rest_secure_transport(&self, direct_tls: bool) -> bool {
         direct_tls || self.rest_external_https
+    }
+
+    /// Returns passive REST TLS settings without loading key material.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn rest_tls_options(&self) -> RestTlsOptions<'_> {
+        RestTlsOptions {
+            certificate_path: self.rest_tls_cert_file.as_deref(),
+            private_key_path: self.rest_tls_key_file.as_deref(),
+            external_https: self.rest_external_https,
+            allow_insecure_non_loopback: self.allow_insecure_non_loopback_listen,
+        }
     }
 }

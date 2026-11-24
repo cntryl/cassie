@@ -120,11 +120,12 @@ pub(crate) use session_objects::parameter_type_display as prepared_parameter_typ
 pub use session_objects::SessionObjectError;
 #[doc(hidden)]
 pub use session_settings::{all as all_session_settings, SettingKind, SettingSpec};
-pub use state::{Cassie, CassieRuntimeConfigState};
+pub use state::{Cassie, CassieRuntimeConfigState, RestTlsOptions};
 
 mod auth;
+pub(crate) use auth::AuthenticatedPrincipal;
 #[doc(hidden)]
-pub use auth::AuthenticatedPrincipal;
+pub use auth::{NetworkPrincipal, NetworkRole};
 mod auth_rate_limit;
 mod bulk_ingest;
 #[doc(hidden)]

@@ -20,25 +20,37 @@ thread_local! {
     static COLLECTION_FLUSH_FAMILY: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
 }
 
-#[cfg(test)]
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
 thread_local! {
     static INJECT_NATIVE_COMMIT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static INJECT_NATIVE_ABORT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-#[cfg(test)]
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
 pub(crate) fn inject_native_commit_unknown_after_success() {
     INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.set(true));
 }
 
-#[cfg(test)]
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
 pub(crate) fn inject_native_commit_unknown_before_commit() {
     INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.set(true));
 }
 
-#[cfg(all(test, feature = "replay-benchmark-observation"))]
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
 #[path = "transactions/data_policy_test_observer.rs"]
-pub(crate) mod data_policy_test_observer;
+pub mod data_policy_test_observer;
 
 #[path = "transactions/native_commit.rs"]
 mod native_commit;
@@ -421,13 +433,19 @@ impl AdapterTransaction {
         if let Some(publication) = self.publication {
             if let Some(keys) = self.row_keys {
                 publication.publish_rows_current(keys, || {
-                    #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                    #[cfg(all(
+                        feature = "replay-benchmark-observation",
+                        any(test, feature = "storage-test-hooks")
+                    ))]
                     {
                         data_policy_test_observer::observe_data_submission(options, || {
                             commit_native_transaction(inner, options)
                         })
                     }
-                    #[cfg(not(all(test, feature = "replay-benchmark-observation")))]
+                    #[cfg(not(all(
+                        feature = "replay-benchmark-observation",
+                        any(test, feature = "storage-test-hooks")
+                    )))]
                     {
                         commit_native_transaction(inner, options)
                     }

@@ -385,7 +385,10 @@ pub(crate) use database_catalog_rewrite::{
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
-#[cfg(test)]
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
 pub(crate) use transactions::{
     inject_native_commit_unknown_after_success, inject_native_commit_unknown_before_commit,
 };
@@ -1090,5 +1093,16 @@ pub use statement_read::{
 };
 pub use cassie_core::request::RequestMemoryReservation as QueryMemoryReservation;
 
-#[cfg(all(test, feature = "replay-benchmark-observation"))]
-pub(crate) use transactions::data_policy_test_observer;
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
+pub use transactions::data_policy_test_observer;
+#[cfg(all(
+    feature = "replay-benchmark-observation",
+    any(test, feature = "storage-test-hooks")
+))]
+pub use transactions::data_policy_test_observer::{
+    arm_existing_unknown_on_next_data_submission, clear_existing_unknown_on_next_data_submission,
+    install_data_submission_observer, DataSubmission,
+};

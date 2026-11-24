@@ -6,6 +6,7 @@ publish = false
 
 [features]
 replay-benchmark-observation = []
+storage-test-hooks = []
 
 [dependencies]
 cassie-core = { path = "../cassie-core" }

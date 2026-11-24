@@ -1,9 +1,7 @@
 use std::path::PathBuf;
-use std::time::Instant;
 
-use crate::config::CassieRuntimeLimits;
+use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::{query_scan_control_test_guard, RowDecode, StorageFamily};
-use crate::runtime::QueryExecutionControls;
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
 use super::{Midge, OrderedRowBound, OrderedRowScanRequest};
@@ -102,12 +100,12 @@ impl Fixture {
                     reverse,
                     limit: Some(limit),
                 },
-                &controls,
+                &controls.context(),
             )
             .expect("controlled ordered cursor");
         let mut documents = Vec::new();
         while let Some(document) = cursor
-            .next_accounted_document(self.midge(), &controls)
+            .next_accounted_document(self.midge(), &controls.context())
             .expect("ordered document")
         {
             documents.push(document);
@@ -139,15 +137,8 @@ impl Drop for Fixture {
     }
 }
 
-fn controls() -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_timeout_ms: 0,
-            query_memory_budget_bytes: 1024 * 1024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    )
+fn controls() -> TestRequest {
+    TestRequest::without_deadline(1024 * 1024)
 }
 
 #[test]
@@ -262,11 +253,11 @@ fn should_keep_ordered_pages_on_the_open_read_snapshot() {
                 reverse: false,
                 limit: Some(3),
             },
-            &controls,
+            &controls.context(),
         )
         .expect("snapshot cursor");
     let first = cursor
-        .next_accounted_document(fixture.midge(), &controls)
+        .next_accounted_document(fixture.midge(), &controls.context())
         .expect("first page")
         .expect("first row");
     assert_eq!(first.id(), "a");
@@ -281,11 +272,11 @@ fn should_keep_ordered_pages_on_the_open_read_snapshot() {
 
     // Act
     let second = cursor
-        .next_accounted_document(fixture.midge(), &controls)
+        .next_accounted_document(fixture.midge(), &controls.context())
         .expect("second page")
         .expect("legacy row");
     let third = cursor
-        .next_accounted_document(fixture.midge(), &controls)
+        .next_accounted_document(fixture.midge(), &controls.context())
         .expect("third page")
         .expect("snapshot row");
 
@@ -294,7 +285,7 @@ fn should_keep_ordered_pages_on_the_open_read_snapshot() {
     assert_eq!(third.id(), "c");
     assert_eq!(third.document().payload["value"], "snapshot-c");
     assert!(cursor
-        .next_accounted_document(fixture.midge(), &controls)
+        .next_accounted_document(fixture.midge(), &controls.context())
         .expect("bounded cursor")
         .is_none());
     drop((first, second, third));

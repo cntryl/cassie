@@ -1,11 +1,11 @@
 use std::time::Instant;
 
 use crate::catalog::collections::{CollectionMeta, CollectionStorageMode};
-use crate::config::CassieRuntimeLimits;
+use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::{query_scan_control_test_guard, StorageFamily};
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
-use super::{CassieError, Midge, QueryExecutionControls, RowDecode};
+use super::{CassieError, Midge, RowDecode};
 
 mod row_store;
 
@@ -68,13 +68,7 @@ fn should_reserve_sparse_column_store_json_before_decoding_a_compact_field() {
             &compact,
         )
         .expect("invalid JSON decode canary");
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: 16 * 1_024,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
+    let controls = TestRequest::with_budget(16 * 1_024);
     let mut cursor = midge
         .open_row_cursor(collection, RowDecode::Full)
         .expect("open cursor")
@@ -82,7 +76,7 @@ fn should_reserve_sparse_column_store_json_before_decoding_a_compact_field() {
     let before = midge.query_scan_entries_for_diagnostics();
 
     // Act
-    let result = cursor.next_accounted_document(&midge, &controls);
+    let result = cursor.next_accounted_document(&midge, &controls.context());
 
     // Assert
     assert!(
@@ -145,11 +139,7 @@ fn should_apply_configured_column_store_deadline_before_decode() {
             &[u8::MAX],
         )
         .expect("decode canary");
-    let limits = CassieRuntimeLimits {
-        query_timeout_ms: 0,
-        ..CassieRuntimeLimits::default()
-    };
-    let mut controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let mut controls = TestRequest::without_deadline(10 * 1024 * 1024);
     assert!(controls.deadline.is_none());
     let mut cursor = midge
         .open_row_cursor(collection, RowDecode::Full)
@@ -159,23 +149,23 @@ fn should_apply_configured_column_store_deadline_before_decode() {
     let before = midge.query_scan_entries_for_diagnostics();
 
     // Act
-    let expired_scan = cursor.next_accounted_document(&midge, &controls);
+    let expired_scan = cursor.next_accounted_document(&midge, &controls.context());
     let expired_field = cursor.decode_column_store_document(
         &midge,
         &second_key,
         &schema.schema_version.to_be_bytes(),
-        &controls,
+        &controls.context(),
     );
     controls.deadline = None;
     let first = cursor
-        .next_accounted_document(&midge, &controls)
+        .next_accounted_document(&midge, &controls.context())
         .expect("timeout zero scan")
         .expect("first document");
     let decoded_canary = cursor.decode_column_store_document(
         &midge,
         &second_key,
         &schema.schema_version.to_be_bytes(),
-        &controls,
+        &controls.context(),
     );
 
     // Assert
@@ -187,7 +177,10 @@ fn should_apply_configured_column_store_deadline_before_decode() {
         first.document().payload,
         serde_json::json!({"payload": "first"})
     );
-    assert!(decoded_canary.is_err_and(|error| error.sql_state() == "XX001"));
+    assert!(matches!(
+        decoded_canary,
+        Err(CassieError::Diagnostic { sql_state: "XX001", .. })
+    ));
     drop(first);
     drop(cursor);
     assert_eq!(controls.current_query_memory_bytes(), 0);

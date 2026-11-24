@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use cassie_core::request::accounted::retained::{add, mul};
 use cassie_core::request::accounted::Accounted;
-use crate::runtime::column_batch_metrics::ColumnBatchScanMetrics;
+use crate::operation_stats::ColumnBatchScanMetrics;
 
 use super::{
     check_column_batch_controls, CassieError, ColumnBatchMetadata, ColumnBatchScanFallbackReason,

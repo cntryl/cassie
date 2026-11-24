@@ -2,13 +2,13 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::config::CassieRuntimeLimits;
+use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries, StorageFamily,
 };
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
-use super::{CassieError, Midge, QueryExecutionControls, RowDecode};
+use super::{CassieError, Midge, RowDecode};
 
 const COLLECTION: &str = "bounded_row_source";
 const BUDGET: usize = 4 * 1_024;
@@ -88,7 +88,7 @@ impl Fixture {
         let before = self.midge().query_scan_entries_for_diagnostics();
         let scanned = self
             .midge()
-            .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls, |document| {
+            .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls.context(), |document| {
                 assert_eq!(document.id, "a");
                 assert_eq!(
                     document.payload,
@@ -113,15 +113,8 @@ impl Drop for Fixture {
     }
 }
 
-fn controls() -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_timeout_ms: 0,
-            query_memory_budget_bytes: BUDGET,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    )
+fn controls() -> TestRequest {
+    TestRequest::without_deadline(BUDGET)
 }
 
 #[test]
@@ -139,7 +132,7 @@ fn should_reserve_a_bounded_row_store_source_before_its_first_decode() {
     let result = fixture.midge().scan_rows_until::<CassieError, _>(
         COLLECTION,
         RowDecode::Full,
-        &controls,
+        &controls.context(),
         |_document| {
             visits.set(visits.get() + 1);
             Ok(false)
@@ -175,7 +168,7 @@ fn should_cancel_a_bounded_row_store_source_before_its_first_decode() {
     let result = fixture.midge().scan_rows_until::<CassieError, _>(
         COLLECTION,
         RowDecode::Full,
-        &controls,
+        &controls.context(),
         |_document| {
             visits.set(visits.get() + 1);
             Ok(false)
@@ -212,7 +205,7 @@ fn should_expire_a_bounded_row_store_source_before_its_first_read() {
     let result = fixture.midge().scan_rows_until::<CassieError, _>(
         COLLECTION,
         RowDecode::Full,
-        &controls,
+        &controls.context(),
         |_document| {
             visits.set(visits.get() + 1);
             Ok(false)
@@ -271,7 +264,7 @@ fn should_preserve_bounded_modern_row_precedence_over_legacy_rows() {
     // Act
     let scanned = fixture
         .midge()
-        .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls, |document| {
+        .scan_rows_until::<CassieError, _>(COLLECTION, RowDecode::Full, &controls.context(), |document| {
             rows.push((document.id, document.payload));
             Ok(true)
         })

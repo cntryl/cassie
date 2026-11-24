@@ -1,7 +1,6 @@
 use std::mem::size_of;
-use std::time::Instant;
 
-use crate::config::CassieRuntimeLimits;
+use crate::adapter::request_test_support::TestRequest;
 use crate::embeddings::{
     DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
@@ -9,7 +8,7 @@ use crate::adapter::query_scan_control_test_guard;
 use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::hnsw::HnswCandidate;
 
-use super::{Midge, QueryExecutionControls};
+use super::{Midge};
 
 #[test]
 fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
@@ -53,15 +52,8 @@ fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
     let metadata_bytes = super::accounting::vector_state_bytes(state_raw.len())
         .expect("state bound")
         + super::accounting::source_summary_bytes(summary_raw.len()).expect("summary bound");
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: metadata_bytes
-                + 2 * 3 * size_of::<f32>()
-                + "entry".len()
-                + 240,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
+    let controls = TestRequest::with_budget(
+        metadata_bytes + 2 * 3 * size_of::<f32>() + "entry".len() + 240,
     );
     let before_reads = midge.query_scan_entries_for_diagnostics();
 
@@ -72,7 +64,7 @@ fn should_reject_hnsw_node_decode_memory_before_a_later_corrupt_neighbor() {
         &[1.0, 0.0, 0.0],
         &index.metadata,
         1,
-        &controls,
+        &controls.context(),
     );
     let error = result.err().expect("node decode must reject the query");
     let reads = midge.query_scan_entries_for_diagnostics() - before_reads;
@@ -126,7 +118,7 @@ fn should_reserve_the_retained_hnsw_candidate_capacity_after_truncating_top_k() 
         .expect("stored index definition")
         .expect("HNSW index");
     let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        TestRequest::default();
 
     // Act
     let batch = midge
@@ -136,7 +128,7 @@ fn should_reserve_the_retained_hnsw_candidate_capacity_after_truncating_top_k() 
             &[1.0, 0.0, 0.0],
             &index.metadata,
             1,
-            &controls,
+            &controls.context(),
         )
         .expect("controlled HNSW search")
         .expect("candidate batch");
@@ -230,16 +222,11 @@ crate::adapter::StorageFamily::Data,
             &canary,
         )
         .expect("persist corrupt later candidate");
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: minimum_live_bytes - 1,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
+    let controls = TestRequest::with_budget(minimum_live_bytes - 1);
     let tx = midge
         .begin_data_readonly_tx_for(collection)
         .expect("candidate read transaction");
+    let request = controls.context();
     let context = super::ControlledIvfReadContext {
         midge: &midge,
         tx: &tx,
@@ -247,7 +234,7 @@ crate::adapter::StorageFamily::Data,
         field,
         relation_id,
         field_id,
-        controls: &controls,
+        controls: &request,
     };
 
     // Act
@@ -383,11 +370,11 @@ fn should_keep_decoded_ivfflat_manifest_capacities_reserved_until_drop() {
         .raw_put( crate::adapter::StorageFamily::Data, &key, &raw)
         .expect("persist IVF manifest");
     let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        TestRequest::default();
 
     // Act
     let snapshot = midge
-        .get_ivfflat_training_manifest_controlled("controlled_ivf", "embedding", &controls)
+        .get_ivfflat_training_manifest_controlled("controlled_ivf", "embedding", &controls.context())
         .expect("controlled manifest read")
         .expect("IVF manifest");
     let training = &snapshot.training;
@@ -435,16 +422,11 @@ fn should_reserve_complete_sparse_ivfflat_membership_state() {
         .expect("persist valid membership");
     // A sparse BTree leaf holds eleven String slots, in addition to the ID Vec and both copies.
     let minimum_live_bytes = 11 * size_of::<String>() + size_of::<String>() + 2 * id.len();
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: minimum_live_bytes - 1,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
+    let controls = TestRequest::with_budget(minimum_live_bytes - 1);
     let tx = midge
         .begin_data_readonly_tx_for("controlled_ivf")
         .expect("membership read transaction");
+    let request = controls.context();
     let context = super::ControlledIvfReadContext {
         midge: &midge,
         tx: &tx,
@@ -452,7 +434,7 @@ fn should_reserve_complete_sparse_ivfflat_membership_state() {
         field: "embedding",
         relation_id,
         field_id,
-        controls: &controls,
+        controls: &request,
     };
     let training = crate::embeddings::IvfFlatTrainingState {
         version: crate::vector::ivfflat::TRAINING_VERSION,
@@ -536,13 +518,7 @@ crate::adapter::StorageFamily::Data,
             b"{",
         )
         .expect("persist later corrupt summary canary");
-    let controls = QueryExecutionControls::from_limits(
-        &CassieRuntimeLimits {
-            query_memory_budget_bytes: minimum_live_bytes - 1,
-            ..CassieRuntimeLimits::default()
-        },
-        Instant::now(),
-    );
+    let controls = TestRequest::with_budget(minimum_live_bytes - 1);
     let tx = midge
         .begin_data_readonly_tx_for("controlled_ivf")
         .expect("header read transaction");
@@ -554,7 +530,7 @@ crate::adapter::StorageFamily::Data,
         "controlled_ivf",
         relation_id,
         field_id,
-        &controls,
+        &controls.context(),
     );
     let error = result.err().expect("header decode must reject the query");
     let remaining_bytes = controls.current_query_memory_bytes();

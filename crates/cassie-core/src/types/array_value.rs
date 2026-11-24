@@ -75,6 +75,22 @@ impl SqlArray {
         })
     }
 
+    /// Reassembles the copied backing buffers of an existing array.
+    ///
+    /// The caller preserves its source dimensions and element count. This keeps
+    /// the exact shape of arrays read from older serialized data.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn from_copied_parts(
+        dimensions: Vec<ArrayDimension>,
+        elements: Vec<Value>,
+    ) -> Self {
+        Self {
+            dimensions,
+            elements,
+        }
+    }
+
     /// Construct a one-dimensional array with PostgreSQL's default lower bound.
     ///
     /// # Errors

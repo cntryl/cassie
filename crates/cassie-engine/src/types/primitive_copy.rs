@@ -107,10 +107,7 @@ pub(crate) fn copy_primitive_array(
         memory,
     } = pending;
     Ok(Some(OwnedPrimitiveArray {
-        value: SqlArray {
-            dimensions,
-            elements,
-        },
+        value: SqlArray::from_copied_parts(dimensions, elements),
         memory,
     }))
 }

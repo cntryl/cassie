@@ -95,4 +95,3 @@ const fn is_temporal(kind: ExtendedType) -> bool {
             | ExtendedType::Interval { .. }
     )
 }
-

@@ -4,14 +4,25 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+replay-benchmark-observation = []
+
 [dependencies]
 cassie-core = { path = "../cassie-core" }
+cassie-search = { path = "../cassie-search" }
 cassie-sql = { path = "../cassie-sql" }
+bytes = "1.12"
 cntryl-midge = "0.5.3"
 cntryl-lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+lz4_flex = "0.14"
+parking_lot = { version = "0.13", features = ["arc_lock"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+serde_json = { version = "1.0", features = ["arbitrary_precision", "raw_value"] }
+sha2 = "0.11"
 thiserror = "2.0"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+tokio = { version = "1.54", features = ["sync"] }
+uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
 
 [lints]
 workspace = true

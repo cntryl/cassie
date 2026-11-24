@@ -234,7 +234,6 @@ dependencies = [
  "getrandom 0.4.3",
  "jiff",
  "jiff-tzdb",
- "lz4_flex",
  "md-5",
  "num-bigint 0.5.1",
  "num-integer",
@@ -286,13 +285,21 @@ dependencies = [
 name = "cassie-storage"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "cassie-core",
+ "cassie-search",
  "cassie-sql",
  "cntryl-lexkey",
  "cntryl-midge",
+ "lz4_flex",
+ "parking_lot 0.13.0",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
+ "time",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

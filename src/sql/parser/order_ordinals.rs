@@ -17,9 +17,21 @@ pub(super) fn resolve_order_ordinals(
         .map(|item| {
             let Expr::IntegerLiteral(position) = item.expr else {
                 if let Expr::Column(name) = &item.expr {
+                    let reference = crate::sql::ColumnIdentifierPath::parse(name).ok();
+                    if reference
+                        .as_ref()
+                        .is_some_and(crate::sql::ColumnIdentifierPath::is_qualified)
+                    {
+                        return Ok(item);
+                    }
                     let matches = projection
                         .iter()
-                        .filter(|output| output.output_name().eq_ignore_ascii_case(name))
+                        .filter(|output| {
+                            reference.as_ref().map_or_else(
+                                || output.output_name().eq_ignore_ascii_case(name),
+                                |reference| reference.matches_field_name(&output.output_name()),
+                            )
+                        })
                         .count();
                     if matches > 1 {
                         return Err(SqlError::diagnostic(

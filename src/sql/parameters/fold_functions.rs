@@ -35,13 +35,7 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        if let Some(summary) = self.graph_function(function, frame)? {
-            return Ok(summary);
-        }
-        if let Some(summary) = self.generated_function(function, frame)? {
-            return Ok(summary);
-        }
-        if let Some(summary) = self.array_function_output(function, frame)? {
+        if let Some(summary) = self.early_function_summary(function, frame)? {
             return Ok(summary);
         }
         if let Some(oid) = fixed_result_oid(&function.name) {
@@ -136,6 +130,23 @@ impl Fold<'_, '_> {
         self.apply_input_signature(function, metadata, frame)
     }
 
+    fn early_function_summary(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if let Some(summary) = self.graph_function(function, frame)? {
+            return Ok(Some(summary));
+        }
+        if let Some(summary) = self.generated_function(function, frame)? {
+            return Ok(Some(summary));
+        }
+        if let Some(summary) = self.array_function_output(function, frame)? {
+            return Ok(Some(summary));
+        }
+        self.contextual_array_function_output(function, frame)
+    }
+
     fn validate_distinct_function_order(
         &mut self,
         function: &ast::FunctionCall,
@@ -162,6 +173,49 @@ impl Fold<'_, '_> {
             .map_or_else(Summary::unqualified, |kind| Summary::known(oid(&kind)))
     }
 
+    fn contextual_array_function_output(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if !function.name.eq_ignore_ascii_case("coalesce") {
+            return Ok(None);
+        }
+        let nested_candidate = self.summaries.values[frame.start..]
+            .iter()
+            .find(|summary| {
+                summary.qualified
+                    && crate::sql::binder::parameter_data_type_for_oid(summary.oid)
+                        .is_some_and(|data_type| matches!(data_type, DataType::Array(_)))
+            })
+            .map(|summary| summary.oid);
+        let candidate = nested_candidate.or_else(|| {
+            self.frames.values.iter().rev().find_map(|parent| {
+                let super::Node::Expr(ast::Expr::Binary { left, right, .. }) = parent.node else {
+                    return None;
+                };
+                self.known_operand_oid(left, frame.context)
+                    .or_else(|| self.known_operand_oid(right, frame.context))
+                    .filter(|oid| {
+                        crate::sql::binder::parameter_data_type_for_oid(*oid)
+                            .is_some_and(|data_type| matches!(data_type, DataType::Array(_)))
+                    })
+            })
+        });
+        let Some(candidate) = candidate else {
+            return Ok(None);
+        };
+        for summary in &mut self.summaries.values[frame.start..] {
+            self.occurrences.coerce(summary, candidate, true)?;
+            if summary.oid != candidate {
+                return Ok(None);
+            }
+        }
+        let mut result = Summary::known(candidate);
+        result.qualified = true;
+        Ok(Some(result))
+    }
+
     fn type_function_summary(
         &mut self,
         function: &ast::FunctionCall,
@@ -173,6 +227,7 @@ impl Fold<'_, '_> {
         if let ast::Expr::StringLiteral(input) = &function.args[0] {
             self.validate_type_function_literal(input, &cast.data_type)?;
         }
+
         let source = self.summaries.values[frame.start].oid;
         // Unknown constants invoke type coercion; unresolved parameters still
         // participate in native overload selection.
@@ -828,12 +883,14 @@ impl Fold<'_, '_> {
                     .unqualify_since(frame.occurrence_start, self.controls)?;
                 return Ok(Summary::unqualified());
             }
+            let qualified = result.qualified && summary.qualified;
             let Some(next) = common(result, *summary) else {
                 self.occurrences
                     .unqualify_since(frame.occurrence_start, self.controls)?;
                 return Ok(Summary::unqualified());
             };
             result = Summary::known(next);
+            result.qualified |= qualified;
         }
         if result.oid == 705 || result.oid == 0 {
             result = Summary::known(25);

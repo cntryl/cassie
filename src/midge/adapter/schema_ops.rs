@@ -432,6 +432,19 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        self.alter_collection_rename_column_with_views(collection, current_name, next_name, &[])
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the atomic schema/view publication or subsequent data rename fails.
+    pub fn alter_collection_rename_column_with_views(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+        views: &[crate::catalog::ViewMeta],
+    ) -> Result<(), CassieError> {
         let collection_storage = self.canonical_collection_name(collection);
         let collection = collection_storage.as_str();
         let write_gate = self.collection_write_gate(collection);
@@ -501,6 +514,18 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
 
+        for view in views {
+            crate::sql::definition_guard::view(view)?;
+            self.require_definition_version(view.definition_semantics_version)?;
+            let canonical = self.canonical_collection_name(&view.name);
+            tx.put(
+                Self::view_key(&canonical),
+                serde_json::to_vec(view).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        super::check_view_rename_publication_failure_point()?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_field_rename_failure_point()?;
@@ -558,7 +583,7 @@ impl Midge {
                 None,
             )
             .map_err(CassieError::from)?;
-
+        super::check_view_rename_publication_failure_point()?;
         schema_tx
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;

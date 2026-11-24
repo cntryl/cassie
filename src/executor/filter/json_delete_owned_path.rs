@@ -279,9 +279,7 @@ fn parse_observing(
     controls.check_interruption()?;
     if let Some((length, body)) = dimension::body(input, controls, &mut observe)? {
         return match parse_flat_observing(body, controls, &mut observe) {
-            Ok(Some(path)) if path.values.is_empty() || path.values.len() == length => {
-                Ok(Some(path))
-            }
+            Ok(Some(path)) if path.values.len() == length => Ok(Some(path)),
             Ok(_) | Err(QueryError::Cassie(CassieError::ArrayInput(_))) => Ok(None),
             Err(error) => Err(error),
         };

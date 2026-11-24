@@ -431,7 +431,7 @@ fn should_preserve_nested_view_function_scope_during_exists_rebinding() {
 }
 
 #[test]
-fn should_preserve_view_scope_for_scalar_derived_and_having_phases() {
+fn should_preserve_view_scope_across_scalar_derived_having_phases() {
     // Arrange
     let fixture = sql_fixture(
         "view-function-phase-scope",
@@ -470,6 +470,7 @@ impl Drop for ViewFunctionDirectory {
 fn should_preserve_view_function_resolution_after_restart() {
     // Arrange
     crate::support_sql::use_local_storage();
+    assert_eq!(std::env::var("CASSIE_STORAGE_MODE").as_deref(), Ok("local"));
     let directory = ViewFunctionDirectory(crate::support_sql::data_dir("view-function-restart"));
     {
         let cassie = Cassie::new_with_data_dir(&directory.0).expect("create initial Cassie");
@@ -481,7 +482,7 @@ fn should_preserve_view_function_resolution_after_restart() {
             "CREATE FUNCTION restart_selected.same_name() RETURNS INT AS '31'",
             "CREATE FUNCTION restart_caller.same_name() RETURNS INT AS '32'",
             "SET search_path = restart_selected, public",
-            "CREATE VIEW restart_context_view AS SELECT same_name() AS result",
+            "CREATE VIEW public.restart_context_view AS SELECT same_name() AS result",
         ] {
             cassie
                 .execute_sql(&session, sql, vec![])

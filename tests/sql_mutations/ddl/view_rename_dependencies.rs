@@ -2,9 +2,16 @@
 //! table or the column. `ALTER COLUMN TYPE` under a view is refused with 0A000
 //! as PostgreSQL does.
 
+use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 use cassie::types::Value;
 
-use crate::support_sql_fixture::{sql_fixture, SqlFixture};
+struct ViewRenamePublicationFailureGuard;
+
+impl Drop for ViewRenamePublicationFailureGuard {
+    fn drop(&mut self) {
+        cassie::midge::adapter::set_view_rename_publication_failure_point(false);
+    }
+}
 
 fn base(label: &str, view: &str) -> SqlFixture {
     sql_fixture(
@@ -162,7 +169,7 @@ fn should_rewrite_a_schema_qualified_table_reference() {
     let rows = view_rows(&fixture);
 
     // Assert
-    assert!(renamed.is_ok());
+    assert!(renamed.is_ok(), "{renamed:?}");
     assert_eq!(rows, vec![vec![Value::Int64(1)]]);
 }
 
@@ -505,4 +512,273 @@ fn should_rewrite_a_table_reference_in_a_cte() {
     // Assert
     assert!(renamed.is_ok());
     assert_eq!(rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
+}
+
+#[test]
+fn should_publish_cross_schema_view_rewrite_with_table_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rename-table-cross-schema-view",
+        &[
+            "CREATE SCHEMA rename_source",
+            "CREATE SCHEMA rename_view",
+            "CREATE TABLE rename_source.rename_before (n INT)",
+            "INSERT INTO rename_source.rename_before VALUES (17)",
+            "CREATE VIEW rename_view.rename_result AS \
+             SELECT n FROM rename_source.rename_before",
+        ],
+    );
+
+    // Act
+    let renamed = fixture.execute("ALTER TABLE rename_source.rename_before RENAME TO rename_after");
+    let rows = fixture.rows("SELECT n FROM rename_view.rename_result");
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("rename_view.rename_result")
+        .expect("view metadata");
+
+    // Assert
+    assert!(renamed.is_ok());
+    assert_eq!(rows, vec![vec![Value::Int64(17)]]);
+    assert!(stored.query.contains("rename_after"));
+    assert!(!stored.query.contains("rename_before"));
+}
+
+#[test]
+fn should_publish_cross_schema_view_rewrite_with_column_rename() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rename-column-cross-schema-view",
+        &[
+            "CREATE SCHEMA rename_source",
+            "CREATE SCHEMA rename_view",
+            "CREATE TABLE rename_source.rename_values (n INT)",
+            "INSERT INTO rename_source.rename_values VALUES (23)",
+            "CREATE VIEW rename_view.rename_result AS \
+             SELECT n FROM rename_source.rename_values",
+        ],
+    );
+
+    // Act
+    let renamed =
+        fixture.execute("ALTER TABLE rename_source.rename_values RENAME COLUMN n TO renamed_n");
+    let rows = fixture.rows("SELECT n FROM rename_view.rename_result");
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("rename_view.rename_result")
+        .expect("view metadata");
+
+    // Assert
+    assert!(renamed.is_ok());
+    assert_eq!(rows, vec![vec![Value::Int64(23)]]);
+    assert!(stored.query.contains("renamed_n"));
+}
+
+#[test]
+fn should_restore_renamed_relation_view_state_after_local_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path = crate::support_sql::data_dir("table-rename-dependent-view-restart");
+    let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("create initial Cassie");
+    cassie.startup().expect("start initial Cassie");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE restart_before (n INT)",
+        "INSERT INTO restart_before VALUES (29)",
+        "CREATE VIEW restart_view AS SELECT n FROM restart_before",
+        "ALTER TABLE restart_before RENAME TO restart_after",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .unwrap_or_else(|error| panic!("execute {sql}: {error}"));
+    }
+    cassie.shutdown();
+    drop(session);
+    drop(cassie);
+
+    // Act
+    let reopened = cassie::app::Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    reopened.startup().expect("recover rename publication");
+    let reopened_session = reopened.create_session("tester", None);
+    let rows = reopened
+        .execute_sql(&reopened_session, "SELECT n FROM restart_view", vec![])
+        .expect("read rewritten view after restart")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Int64(29)]]);
+    reopened.shutdown();
+}
+
+#[test]
+fn should_not_partially_publish_table_or_view_for_target_collision() {
+    // Arrange
+    let fixture = base(
+        "rename-table-target-collision",
+        "CREATE VIEW rv AS SELECT id, n FROM rt",
+    );
+
+    // Act
+    let failure = fixture.error("ALTER TABLE rt RENAME TO ot");
+    let old_rows = view_rows(&fixture);
+    let new_visible = fixture.execute("SELECT id, n FROM rt");
+
+    // Assert
+    assert_eq!(failure.sql_state(), "42P07");
+    assert_eq!(old_rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
+    assert!(new_visible.is_ok(), "the source table remains published");
+    assert!(fixture.cassie.catalog.get_view("rv").is_some());
+}
+
+#[test]
+fn should_not_publish_table_or_view_at_an_injected_table_rename_boundary() {
+    // Arrange
+    let fixture = base(
+        "rename-table-view-publication-failure",
+        "CREATE VIEW rv AS SELECT id, n FROM rt",
+    );
+    cassie::midge::adapter::set_view_rename_publication_failure_point(true);
+    let _guard = ViewRenamePublicationFailureGuard;
+
+    // Act
+    let failed = fixture.error("ALTER TABLE rt RENAME TO rt2");
+    let source_rows = fixture.rows("SELECT id, n FROM rt");
+    let view_rows = view_rows(&fixture);
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("rv")
+        .expect("view metadata")
+        .query;
+
+    // Assert
+    assert_eq!(failed.sql_state(), "22000");
+    assert_eq!(source_rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
+    assert_eq!(view_rows, vec![vec![Value::Int64(1), Value::Int64(5)]]);
+    assert!(stored.contains("rt"));
+    assert!(!stored.contains("rt2"));
+}
+
+#[test]
+fn should_not_publish_column_or_view_at_an_injected_column_rename_boundary() {
+    // Arrange
+    let fixture = base(
+        "rename-column-view-publication-failure",
+        "CREATE VIEW rv AS SELECT n FROM rt",
+    );
+    cassie::midge::adapter::set_view_rename_publication_failure_point(true);
+    let _guard = ViewRenamePublicationFailureGuard;
+
+    // Act
+    let failed = fixture.error("ALTER TABLE rt RENAME COLUMN n TO m");
+    let source_rows = fixture.rows("SELECT n FROM rt");
+    let view_rows = view_rows(&fixture);
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("rv")
+        .expect("view metadata")
+        .query;
+
+    // Assert
+    assert_eq!(failed.sql_state(), "22000");
+    assert_eq!(source_rows, vec![vec![Value::Int64(5)]]);
+    assert_eq!(view_rows, vec![vec![Value::Int64(5)]]);
+    assert!(stored.contains('n'));
+    assert!(!stored.contains('m'));
+}
+
+#[test]
+fn should_rewrite_a_view_when_a_table_moves_schema() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rename-table-set-schema-view",
+        &[
+            "CREATE SCHEMA move_source",
+            "CREATE SCHEMA move_target",
+            "CREATE TABLE move_source.before_move (n INT)",
+            "INSERT INTO move_source.before_move VALUES (31)",
+            "CREATE VIEW external_move_view AS SELECT n FROM move_source.before_move",
+        ],
+    );
+
+    // Act
+    let moved = fixture.execute("ALTER TABLE move_source.before_move SET SCHEMA move_target");
+    let rows = fixture.rows("SELECT n FROM external_move_view");
+    let stored = fixture
+        .cassie
+        .catalog
+        .get_view("external_move_view")
+        .expect("view metadata")
+        .query;
+
+    // Assert
+    assert!(moved.is_ok(), "{moved:?}");
+    assert_eq!(rows, vec![vec![Value::Int64(31)]]);
+    assert!(stored.contains("move_target.before_move"));
+    assert!(!stored.contains("move_source.before_move"));
+}
+
+#[test]
+fn should_recover_transactional_table_rename_view_rollback_after_restart() {
+    // Arrange
+    crate::support_sql::use_local_storage();
+    let path =
+        crate::support_sql::data_dir("table-rename-dependent-view-transaction-rollback-restart");
+    let cassie = cassie::app::Cassie::new_with_data_dir(&path).expect("create initial Cassie");
+    cassie.startup().expect("start initial Cassie");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE restart_source (n INT)",
+        "INSERT INTO restart_source VALUES (37)",
+        "CREATE VIEW restart_rollback_view AS SELECT n FROM restart_source",
+        "BEGIN",
+        "ALTER TABLE restart_source RENAME TO restart_destination",
+        "ROLLBACK",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .unwrap_or_else(|error| panic!("execute {sql}: {error}"));
+    }
+    cassie.shutdown();
+    drop(session);
+    drop(cassie);
+
+    // Act
+    let reopened = cassie::app::Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    reopened.startup().expect("recover transactional rollback");
+    let reopened_session = reopened.create_session("tester", None);
+    let source_rows = reopened
+        .execute_sql(&reopened_session, "SELECT n FROM restart_source", vec![])
+        .expect("read source after restart")
+        .rows()
+        .to_vec();
+    let view_rows = reopened
+        .execute_sql(
+            &reopened_session,
+            "SELECT n FROM restart_rollback_view",
+            vec![],
+        )
+        .expect("read view after restart")
+        .rows()
+        .to_vec();
+    let destination_exists = reopened
+        .execute_sql(
+            &reopened_session,
+            "SELECT n FROM restart_destination",
+            vec![],
+        )
+        .is_err();
+
+    // Assert
+    assert_eq!(source_rows, vec![vec![Value::Int64(37)]]);
+    assert_eq!(view_rows, vec![vec![Value::Int64(37)]]);
+    assert!(
+        destination_exists,
+        "the rolled-back destination stayed unpublished"
+    );
+    reopened.shutdown();
 }

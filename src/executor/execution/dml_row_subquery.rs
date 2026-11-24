@@ -16,6 +16,108 @@ use crate::sql::ast::{QueryStatement, RowSubqueryAssignment, SelectItem, SelectS
 mod owner;
 pub(super) use owner::OwnedAssignmentValues;
 
+pub(super) enum PreparedRowSubquery {
+    Correlated(RowSubqueryAssignment),
+    Uncorrelated {
+        columns: Vec<String>,
+        values: Vec<Value>,
+    },
+}
+
+pub(super) fn prepare_row_subqueries(
+    scope: &ExecutionScope<'_>,
+    assignments: &[RowSubqueryAssignment],
+    outer_qualifiers: &HashSet<String>,
+) -> Result<Vec<PreparedRowSubquery>, QueryError> {
+    assignments
+        .iter()
+        .map(|assignment| {
+            let QueryStatement::Select(select) = &assignment.query.statement else {
+                return Ok(PreparedRowSubquery::Correlated(assignment.clone()));
+            };
+            let inner = select_inner_qualifiers(select);
+            if select_references_outer(select, &inner, outer_qualifiers) {
+                return Ok(PreparedRowSubquery::Correlated(assignment.clone()));
+            }
+            let mut values = evaluate_row_subquery(scope, assignment, &BatchRow::new(Vec::new()))?;
+            Ok(PreparedRowSubquery::Uncorrelated {
+                columns: assignment.columns.clone(),
+                values: values.take_values(),
+            })
+        })
+        .collect()
+}
+
+fn select_inner_qualifiers(select: &SelectStatement) -> HashSet<String> {
+    let mut inner = HashSet::new();
+    source_qualifiers(&select.source, &mut inner);
+    for cte in &select.ctes {
+        inner.insert(crate::sql::cte_identity::folded_qualifier(&cte.name));
+    }
+    inner
+}
+
+fn select_references_outer(
+    select: &SelectStatement,
+    inner: &HashSet<String>,
+    outer: &HashSet<String>,
+) -> bool {
+    let bare_outer = matches!(select.source, QuerySource::SingleRow);
+    let references = |expr: &Expr| {
+        expr.any_descendant_or_self(&mut |node| {
+            let Expr::Column(name) = node else {
+                return false;
+            };
+            let Ok(column) = crate::sql::ColumnIdentifierPath::parse(name) else {
+                return false;
+            };
+            if column.is_qualified() {
+                let qualifier = column
+                    .lookup_key()
+                    .strip_suffix(&format!(".{}", column.field_lookup_key()))
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                !inner.contains(&qualifier) && outer.contains(&qualifier)
+            } else {
+                bare_outer
+            }
+        })
+    };
+    select.projection.iter().any(|item| match item {
+        SelectItem::Column { name, .. } => references(&Expr::Column(name.clone())),
+        SelectItem::Expr { expr, .. } => references(expr),
+        SelectItem::Function { function, .. } => function.expressions().any(references),
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(function.partition_by.iter())
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(references),
+        SelectItem::Wildcard => false,
+    }) || select
+        .filter
+        .iter()
+        .chain(select.having.iter())
+        .chain(select.group_by.iter())
+        .chain(select.distinct_on.iter())
+        .chain(select.order.iter().map(|order| &order.expr))
+        .any(references)
+}
+
+pub(super) fn evaluate_prepared_row_subquery(
+    scope: &ExecutionScope<'_>,
+    prepared: &PreparedRowSubquery,
+    outer: &BatchRow,
+) -> Result<Vec<Value>, QueryError> {
+    match prepared {
+        PreparedRowSubquery::Correlated(assignment) => {
+            evaluate_row_subquery(scope, assignment, outer).map(|mut values| values.take_values())
+        }
+        PreparedRowSubquery::Uncorrelated { values, .. } => Ok(values.clone()),
+    }
+}
+
 /// The values one row subquery assigns to its columns.
 pub(super) fn evaluate_row_subquery(
     scope: &ExecutionScope<'_>,

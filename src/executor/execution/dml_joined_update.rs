@@ -8,10 +8,16 @@ use super::dml_joined::{
 use super::dml_update::{updated_payload_from_row, AssignmentTarget};
 use super::{
     build_dml_result, check_timeout, dml_referential_actions, row_id_from_batch_row,
-    update_assignment_to_json, BatchRow, Cassie, CassieSession, DmlResultContext, Expr,
-    FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
+    update_assignment_to_json, BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext,
+    Expr, FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
-use crate::sql::ast::{DeleteStatement, RowSubqueryAssignment, UpdateStatement};
+use crate::sql::ast::{DeleteStatement, UpdateStatement};
+
+type PreparedJoinedAssignments = (
+    Vec<(String, Expr)>,
+    Vec<super::dml_row_subquery::PreparedRowSubquery>,
+);
+use std::collections::HashSet;
 
 /// Whether an `UPDATE` executes through the joined path.
 #[must_use]
@@ -19,12 +25,25 @@ pub(crate) fn update_is_joined(statement: &UpdateStatement) -> bool {
     statement.from.is_some()
         || !statement.row_subqueries.is_empty()
         || statement.returning_aliases.is_some()
+        || statement
+            .assignments
+            .iter()
+            .any(|(_, expression)| expression.contains_subquery())
+        || statement
+            .filter
+            .as_ref()
+            .is_some_and(Expr::contains_subquery)
 }
 
 /// Whether a `DELETE` executes through the joined path.
 #[must_use]
 pub(crate) fn delete_is_joined(statement: &DeleteStatement) -> bool {
-    statement.using.is_some() || statement.returning_aliases.is_some()
+    statement.using.is_some()
+        || statement.returning_aliases.is_some()
+        || statement
+            .filter
+            .as_ref()
+            .is_some_and(Expr::contains_subquery)
 }
 
 /// One target row's stored state before and after an update.
@@ -42,7 +61,7 @@ pub(super) fn update_target_row(
     row: &BatchRow,
     assignments: &[(String, Expr)],
     array_targets: &[crate::sql::ast::UpdateTarget],
-    row_subqueries: &[RowSubqueryAssignment],
+    row_subqueries: &[super::dml_row_subquery::PreparedRowSubquery],
 ) -> Result<Option<UpdatedRow>, QueryError> {
     check_timeout(scope.controls)?;
     let Some(current) = scope
@@ -54,11 +73,8 @@ pub(super) fn update_target_row(
     };
     let assignments = assignments
         .iter()
-        .map(|(column, value)| {
-            super::dml_subqueries::resolve_statement_subqueries(scope, value)
-                .map(|value| (column.clone(), value))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|(column, value)| (column.clone(), value.clone()))
+        .collect::<Vec<_>>();
     let assignments = assignments.as_slice();
     let mut payload = {
         // Assignment subqueries read the data as it was when the statement began.
@@ -82,11 +98,20 @@ pub(super) fn update_target_row(
         )?
     };
     for assignment in row_subqueries {
-        let mut values = super::dml_row_subquery::evaluate_row_subquery(scope, assignment, row)?;
+        let values =
+            super::dml_row_subquery::evaluate_prepared_row_subquery(scope, assignment, row)?;
+        let columns = match assignment {
+            super::dml_row_subquery::PreparedRowSubquery::Correlated(assignment) => {
+                assignment.columns.as_slice()
+            }
+            super::dml_row_subquery::PreparedRowSubquery::Uncorrelated { columns, .. } => {
+                columns.as_slice()
+            }
+        };
         let object = payload
             .as_object_mut()
             .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
-        for (column, value) in assignment.columns.iter().zip(values.take_values()) {
+        for (column, value) in columns.iter().zip(values) {
             object.insert(
                 column.clone(),
                 update_assignment_to_json(column, &value, target.schema)?,
@@ -96,11 +121,18 @@ pub(super) fn update_target_row(
     let assigned = assignments
         .iter()
         .map(|(column, _)| column.as_str())
-        .chain(
-            row_subqueries
-                .iter()
-                .flat_map(|assignment| assignment.columns.iter().map(String::as_str)),
-        )
+        .chain(row_subqueries.iter().flat_map(|assignment| {
+            match assignment {
+                super::dml_row_subquery::PreparedRowSubquery::Correlated(assignment) => assignment
+                    .columns
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                super::dml_row_subquery::PreparedRowSubquery::Uncorrelated { columns, .. } => {
+                    columns.iter().map(String::as_str).collect::<Vec<_>>()
+                }
+            }
+        }))
         .collect::<Vec<_>>();
     scope
         .cassie
@@ -160,13 +192,11 @@ pub(super) fn execute_joined_update(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
-    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
-        QueryError::General(format!("collection '{}' not found", statement.table))
-    })?;
-    let qualifier = statement
-        .alias
-        .clone()
-        .unwrap_or_else(|| crate::catalog::local_name(&statement.table));
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
+        cassie, session, controls,
+    )?;
+    let (schema, qualifier) =
+        joined_schema_and_qualifier(cassie, &statement.table, statement.alias.as_deref())?;
     let target = JoinedTarget {
         table: &statement.table,
         qualifier: &qualifier,
@@ -177,7 +207,7 @@ pub(super) fn execute_joined_update(
         session,
         params,
         user_functions,
-        controls,
+        controls: &statement_controls,
     };
     let targets = target_rows(&scope, &statement.table)?;
     let source = joined_source(&scope, statement.from.as_ref())?;
@@ -188,6 +218,8 @@ pub(super) fn execute_joined_update(
         &source,
         statement.filter.as_ref(),
     )?;
+    let (assignments, row_subqueries) =
+        prepare_joined_assignments(&scope, statement, &source, &qualifier)?;
     let mut updated = 0usize;
     let mut returning_rows = Vec::new();
     for (target_index, source_index) in first_matches(&matches, targets.len())
@@ -211,9 +243,9 @@ pub(super) fn execute_joined_update(
             &target,
             &row_id,
             &row,
-            &statement.assignments,
+            &assignments,
             &statement.array_targets,
-            &statement.row_subqueries,
+            &row_subqueries,
         )?
         else {
             continue;
@@ -251,13 +283,64 @@ pub(super) fn execute_joined_update(
             params,
             user_functions,
             command_prefix: "UPDATE",
-            controls,
-            statement_read_controls: controls,
+            controls: &statement_controls,
+            statement_read_controls: &statement_controls,
             returning_schema: Some(&returning_schema),
         },
         updated,
         returning_rows,
     )
+}
+
+fn joined_schema(cassie: &Cassie, table: &str) -> Result<CollectionSchema, QueryError> {
+    cassie
+        .catalog
+        .get_schema(table)
+        .ok_or_else(|| QueryError::General(format!("collection '{table}' not found")))
+}
+
+fn joined_schema_and_qualifier(
+    cassie: &Cassie,
+    table: &str,
+    alias: Option<&str>,
+) -> Result<(CollectionSchema, String), QueryError> {
+    Ok((
+        joined_schema(cassie, table)?,
+        alias.map_or_else(|| crate::catalog::local_name(table), str::to_owned),
+    ))
+}
+
+fn prepare_joined_assignments(
+    scope: &ExecutionScope<'_>,
+    statement: &UpdateStatement,
+    source: &SourceRows,
+    qualifier: &str,
+) -> Result<PreparedJoinedAssignments, QueryError> {
+    let outer_qualifiers = source
+        .fields
+        .iter()
+        .map(|field| field.qualifier.to_ascii_lowercase())
+        .chain(std::iter::once(qualifier.to_ascii_lowercase()))
+        .chain(std::iter::once(String::new()))
+        .collect::<HashSet<_>>();
+    let assignments = statement
+        .assignments
+        .iter()
+        .map(|(column, expression)| {
+            super::dml_subqueries::resolve_statement_subqueries_with_outer(
+                scope,
+                expression,
+                &outer_qualifiers,
+            )
+            .map(|expression| (column.clone(), expression))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let row_subqueries = super::dml_row_subquery::prepare_row_subqueries(
+        scope,
+        &statement.row_subqueries,
+        &outer_qualifiers,
+    )?;
+    Ok((assignments, row_subqueries))
 }
 
 pub(super) fn execute_joined_delete(
@@ -269,6 +352,9 @@ pub(super) fn execute_joined_delete(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     check_timeout(controls)?;
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
+        cassie, session, controls,
+    )?;
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
@@ -286,7 +372,7 @@ pub(super) fn execute_joined_delete(
         session,
         params,
         user_functions,
-        controls,
+        controls: &statement_controls,
     };
     let targets = target_rows(&scope, &statement.table)?;
     let source = joined_source(&scope, statement.using.as_ref())?;
@@ -343,8 +429,8 @@ pub(super) fn execute_joined_delete(
             params,
             user_functions,
             command_prefix: "DELETE",
-            controls,
-            statement_read_controls: controls,
+            controls: &statement_controls,
+            statement_read_controls: &statement_controls,
             returning_schema: Some(&returning_schema),
         },
         deleted,

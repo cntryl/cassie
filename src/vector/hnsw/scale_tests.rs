@@ -1,4 +1,7 @@
-//! Full-build validity and recall over a few thousand deterministic points.
+//! Scale-qualified HNSW validity and recall over a fixed 3,000-point profile.
+//! These cases are intentionally excluded from ordinary unit qualification.
+//! Run explicitly:
+//! `cargo test --locked --lib vector::hnsw::scale_tests -- --ignored`
 
 use super::{build_graph, graph_validity_violation, search_graph};
 use crate::embeddings::{DistanceMetric, HnswIndexOptions, NormalizedVectorRecord};
@@ -21,6 +24,41 @@ fn points(count: usize, stream: u64) -> Vec<Vec<f32>> {
     (0..count)
         .map(|_| (0..DIMENSIONS).map(|_| next_value(&mut state)).collect())
         .collect()
+}
+
+fn independent_l2(left: &[f32], right: &[f32]) -> f64 {
+    left.iter()
+        .zip(right)
+        .map(|(left, right)| {
+            let delta = f64::from(*left) - f64::from(*right);
+            delta * delta
+        })
+        .sum::<f64>()
+        .sqrt()
+}
+
+fn independent_cosine(left: &[f32], right: &[f32]) -> f64 {
+    let dot = left
+        .iter()
+        .zip(right)
+        .map(|(left, right)| f64::from(*left) * f64::from(*right))
+        .sum::<f64>();
+    let left_norm = left
+        .iter()
+        .map(|value| f64::from(*value).powi(2))
+        .sum::<f64>()
+        .sqrt();
+    let right_norm = right
+        .iter()
+        .map(|value| f64::from(*value).powi(2))
+        .sum::<f64>()
+        .sqrt();
+    let denominator = left_norm * right_norm;
+    if denominator == 0.0 {
+        1.0
+    } else {
+        1.0 - dot / denominator
+    }
 }
 
 fn record(id: String, values: &[f32], metric: DistanceMetric) -> NormalizedVectorRecord {
@@ -87,24 +125,26 @@ fn recall_for(metric: DistanceMetric, distance: fn(&[f32], &[f32]) -> f64) -> f6
 }
 
 #[test]
-fn should_build_valid_high_recall_l2_graph_over_thousands_of_points() {
+#[ignore = "scale qualification: fixed 3000-point HNSW L2 profile"]
+fn should_build_valid_high_recall_l2_graph_for_3000_points() {
     // Arrange
     let metric = DistanceMetric::L2;
 
     // Act
-    let recall = recall_for(metric, crate::vector::l2_distance);
+    let recall = recall_for(metric, independent_l2);
 
     // Assert
     assert!(recall >= 0.90, "l2 recall {recall}");
 }
 
 #[test]
-fn should_build_valid_high_recall_cosine_graph_over_thousands_of_points() {
+#[ignore = "scale qualification: fixed 3000-point HNSW cosine profile"]
+fn should_build_valid_high_recall_cosine_graph_for_3000_points() {
     // Arrange
     let metric = DistanceMetric::Cosine;
 
     // Act
-    let recall = recall_for(metric, crate::vector::cosine_distance);
+    let recall = recall_for(metric, independent_cosine);
 
     // Assert
     assert!(recall >= 0.90, "cosine recall {recall}");

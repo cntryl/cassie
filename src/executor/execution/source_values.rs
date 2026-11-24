@@ -163,13 +163,10 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
-        Expr::Function(function) if crate::sql::binder::values::allows_function(&function.name) => {
-            64
-        }
-        // A subquery (`_` below) admits its own rows when it runs.
-        Expr::Function(_) | Expr::Column(_) => {
+        Expr::Function(_) => 64,
+        Expr::Column(_) => {
             return Err(crate::app::CassieError::Unsupported(
-                "functions and subqueries in VALUES are not yet supported".into(),
+                "columns in VALUES are not yet supported".into(),
             )
             .into());
         }

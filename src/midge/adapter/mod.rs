@@ -72,6 +72,7 @@ thread_local! {
     static INDEX_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static UNIQUE_CONSTRAINT_CLEANUP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static COLLECTION_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static VIEW_RENAME_PUBLICATION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static NAMESPACE_METADATA_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_ADD_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_ADD_BACKFILL_FAILPOINT: Cell<bool> = const { Cell::new(false) };
@@ -289,15 +290,32 @@ pub(crate) fn check_collection_rename_failure_point() -> Result<(), CassieError>
 }
 
 #[doc(hidden)]
+pub fn set_view_rename_publication_failure_point(enabled: bool) {
+    VIEW_RENAME_PUBLICATION_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_view_rename_publication_failure_point() -> Result<(), CassieError> {
+    if VIEW_RENAME_PUBLICATION_FAILPOINT.replace(false) {
+        return Err(CassieError::Execution(
+            "injected test failure before view rename publication".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
 pub fn set_namespace_metadata_rename_failure_point(enabled: bool) {
     NAMESPACE_METADATA_RENAME_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_namespace_metadata_rename_failure_point() -> Result<(), CassieError> {
     if NAMESPACE_METADATA_RENAME_FAILPOINT.replace(false) {
-        return Err(CassieError::Execution(
-            "injected test failure before namespace metadata commit".to_string(),
-        ));
+        return Err(CassieError::Diagnostic(Box::new(
+            crate::app::DiagnosticError::new(
+                "XX000",
+                "injected test failure before namespace metadata commit",
+            ),
+        )));
     }
     Ok(())
 }

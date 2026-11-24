@@ -221,19 +221,6 @@ pub(crate) fn clock_dependent(encoded: &str) -> bool {
         .any(|input| lower.contains(&format!("\"stringliteral\":\"{input}\"")))
 }
 
-/// Whether `name` is a date/time builtin.
-pub(crate) fn is_temporal(name: &str) -> bool {
-    super::function(name).is_some_and(|metadata| {
-        matches!(
-            metadata.id,
-            FunctionId::Temporal
-                | FunctionId::PgSleep
-                | FunctionId::PgSleepFor
-                | FunctionId::PgSleepUntil
-        )
-    })
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Shape {
     Date,

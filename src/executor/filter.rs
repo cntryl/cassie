@@ -116,7 +116,8 @@ pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
 mod functions;
 pub(crate) use functions::{
-    expression_contains_routine_subquery, function_contains_routine_subquery,
+    expression_contains_routine_subquery, expression_contains_unresolved_routine_subquery,
+    function_contains_routine_subquery,
 };
 #[path = "filter/like.rs"]
 mod like;

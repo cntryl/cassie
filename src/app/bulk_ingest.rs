@@ -10,38 +10,6 @@ use crate::types::DataType;
 
 const COPY_NULL: &str = "\\N";
 
-type CopyRowStagedBarriers = (
-    std::sync::Arc<std::sync::Barrier>,
-    std::sync::Arc<std::sync::Barrier>,
-);
-
-static COPY_ROW_STAGED_BARRIERS: std::sync::OnceLock<
-    std::sync::Mutex<Option<CopyRowStagedBarriers>>,
-> = std::sync::OnceLock::new();
-
-#[doc(hidden)]
-pub fn set_copy_row_staged_barriers(
-    staged: Option<std::sync::Arc<std::sync::Barrier>>,
-    resume: Option<std::sync::Arc<std::sync::Barrier>>,
-) {
-    *COPY_ROW_STAGED_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("COPY row staged barrier mutex") = staged.zip(resume);
-}
-
-fn pause_after_copy_row_staged() {
-    let barriers = COPY_ROW_STAGED_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("COPY row staged barrier mutex")
-        .take();
-    if let Some((staged, resume)) = barriers {
-        staged.wait();
-        resume.wait();
-    }
-}
-
 #[derive(Clone, Copy)]
 pub(crate) struct CopyCsvOptions<'a> {
     pub(crate) delimiter: char,
@@ -399,7 +367,9 @@ impl Cassie {
             references.collect(&statement.table, &constraints, &prepared, schema.as_ref())?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
-            pause_after_copy_row_staged();
+            if affected == 1 {
+                controls.copy_row_staged(1)?;
+            }
         }
 
         check_copy_cancellation(cancellation)?;

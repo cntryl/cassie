@@ -169,15 +169,11 @@ fn should_cancel_copy_after_the_first_row_is_staged() {
     let path = data_dir("copy-cancel-after-first-staged-row");
     let cassie = std::sync::Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
     cassie.startup().expect("startup");
-    let staged = std::sync::Arc::new(std::sync::Barrier::new(2));
-    let resume = std::sync::Arc::new(std::sync::Barrier::new(2));
-    cassie::app::set_copy_row_staged_barriers(
-        Some(std::sync::Arc::clone(&staged)),
-        Some(std::sync::Arc::clone(&resume)),
-    );
-    let cancellation = QueryCancellationHandle::new();
+    let mut cancellation = QueryCancellationHandle::new();
+    let copy_pause = cancellation.pause_after_copy_row_staged();
     let worker_cancellation = cancellation.clone();
     let worker_cassie = std::sync::Arc::clone(&cassie);
+    let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
     let worker = std::thread::spawn(move || {
         let session = worker_cassie.create_session("copy-midstream-cancel", None);
         worker_cassie
@@ -213,14 +209,24 @@ fn should_cancel_copy_after_the_first_row_is_staged() {
             .expect("read after rollback")
             .rows()
             .to_vec();
-        (result, rows)
+        result_tx
+            .send((result, rows))
+            .expect("send canceled COPY result");
     });
-    staged.wait();
+    let staged_row_ordinal = copy_pause
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("first COPY row must be staged before cancellation");
+    assert_eq!(staged_row_ordinal, 1);
 
     // Act
     cancellation.cancel();
-    resume.wait();
-    let (result, rows) = worker.join().expect("COPY worker completes");
+    copy_pause.send().expect("resume COPY worker");
+    let (result, rows) = result_rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("COPY worker completes");
+    worker
+        .join()
+        .unwrap_or_else(|_| panic!("COPY worker thread panicked"));
 
     // Assert
     assert!(matches!(

@@ -12,19 +12,7 @@ pub(super) fn qualify(
 ) -> Result<(), CassieError> {
     if let Some(comparison) = RowComparisonOp::from_binary(op) {
         if left_type == Some(&DataType::Json) || right_type == Some(&DataType::Json) {
-            let type_name = |expression: &Expr, kind: Option<&DataType>| {
-                if matches!(expression, Expr::StringLiteral(_)) {
-                    "unknown".to_owned()
-                } else {
-                    kind.map_or_else(|| "unknown".to_owned(), DataType::type_name)
-                }
-            };
-            return Err(CassieError::Execution(format!(
-                "operator does not exist: {} {} {}",
-                type_name(left, left_type),
-                comparison.symbol(),
-                type_name(right, right_type),
-            )));
+            return qualify_json_operands(comparison, left, right, left_type, right_type);
         }
     }
     let comparison = if let BinaryOp::JsonbCompare { comparison } = op {
@@ -38,16 +26,38 @@ pub(super) fn qualify(
         };
         comparison
     };
+    let explicit_jsonb = matches!(
+        &*left,
+        Expr::Cast {
+            data_type: DataType::Jsonb,
+            source_type: None,
+            ..
+        }
+    ) || matches!(
+        &*right,
+        Expr::Cast {
+            data_type: DataType::Jsonb,
+            source_type: None,
+            ..
+        }
+    );
     for (index, (expression, kind)) in [(left, left_type), (right, right_type)]
         .into_iter()
         .enumerate()
     {
         if let Expr::StringLiteral(literal) = expression {
             serde_json::from_str::<serde::de::IgnoredAny>(literal).map_err(|error| {
-                CassieError::from(
-                    crate::app::DiagnosticError::new("22P02", "invalid input syntax for type json")
+                if explicit_jsonb {
+                    CassieError::from(
+                        crate::app::DiagnosticError::new(
+                            "22P02",
+                            "invalid input syntax for type json",
+                        )
                         .with_detail(error.to_string()),
-                )
+                    )
+                } else {
+                    CassieError::Planner(format!("invalid JSON literal: {error}"))
+                }
             })?;
             *expression = Expr::Cast {
                 expr: Box::new(std::mem::replace(expression, Expr::Null)),
@@ -55,7 +65,9 @@ pub(super) fn qualify(
                 source_type: None,
                 identity: CastIdentity::Scalar,
             };
-        } else if kind.is_some_and(|kind| !matches!(kind, DataType::Jsonb | DataType::Null)) {
+        } else if kind
+            .is_some_and(|kind| !matches!(kind, DataType::Json | DataType::Jsonb | DataType::Null))
+        {
             let type_name = kind.map_or_else(|| "unknown".to_owned(), DataType::type_name);
             let (left_name, right_name) = if index == 0 {
                 (
@@ -75,5 +87,63 @@ pub(super) fn qualify(
         }
     }
     *op = BinaryOp::JsonbCompare { comparison };
+    Ok(())
+}
+
+fn qualify_json_operands(
+    comparison: RowComparisonOp,
+    left: &mut Expr,
+    right: &mut Expr,
+    left_type: Option<&DataType>,
+    right_type: Option<&DataType>,
+) -> Result<(), CassieError> {
+    let explicit_json = [(&*left, left_type), (&*right, right_type)]
+        .into_iter()
+        .any(|(expression, _)| {
+            matches!(
+                expression,
+                Expr::Cast {
+                    data_type: DataType::Json,
+                    source_type: None,
+                    ..
+                }
+            )
+        });
+    if explicit_json {
+        let type_name = |expression: &Expr, kind: Option<&DataType>| {
+            if matches!(expression, Expr::StringLiteral(_)) {
+                "unknown".to_owned()
+            } else {
+                kind.map_or_else(|| "unknown".to_owned(), DataType::type_name)
+            }
+        };
+        return Err(CassieError::Execution(format!(
+            "operator does not exist: {} {} {}",
+            type_name(left, left_type),
+            comparison.symbol(),
+            type_name(right, right_type),
+        )));
+    }
+    for (expression, kind) in [(left, left_type), (right, right_type)] {
+        if let Expr::StringLiteral(literal) = expression {
+            serde_json::from_str::<serde::de::IgnoredAny>(literal)
+                .map_err(|error| CassieError::Planner(format!("invalid JSON literal: {error}")))?;
+            *expression = Expr::Cast {
+                expr: Box::new(std::mem::replace(expression, Expr::Null)),
+                data_type: DataType::Jsonb,
+                source_type: Some(DataType::Text),
+                identity: CastIdentity::Scalar,
+            };
+        } else if kind
+            .is_some_and(|kind| !matches!(kind, DataType::Json | DataType::Jsonb | DataType::Null))
+        {
+            return Err(CassieError::Execution(format!(
+                "operator does not exist: {} {} {}",
+                left_type.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+                comparison.symbol(),
+                right_type.map_or_else(|| "unknown".to_owned(), DataType::type_name),
+            )));
+        }
+    }
     Ok(())
 }

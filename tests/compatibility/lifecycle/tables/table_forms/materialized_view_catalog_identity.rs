@@ -93,7 +93,8 @@ async fn assert_materialized_view_attribute_rows(
              FROM pg_catalog.pg_attribute a \
              JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
              JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
-             WHERE c.relname = 'compat_mv_catalog_identity' AND n.nspname = 'public' ORDER BY a.attnum",
+             WHERE c.relname = 'compat_mv_catalog_identity' \
+               AND n.nspname = 'compat_mv_catalog' ORDER BY a.attnum",
             &[],
         )
         .await
@@ -243,7 +244,8 @@ async fn assert_drop_removes_materialized_view_catalog_rows(client: &tokio_postg
             "SELECT count(*) = 0 FROM pg_catalog.pg_attribute a \
              JOIN pg_catalog.pg_class c ON a.attrelid = c.oid \
              JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid \
-             WHERE c.relname = 'compat_mv_catalog_renamed' AND n.nspname = 'public'",
+             WHERE c.relname = 'compat_mv_catalog_renamed' \
+               AND n.nspname = 'compat_mv_catalog'",
             &[],
         )
         .await

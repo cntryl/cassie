@@ -310,16 +310,8 @@ fn execute_view_source(
         .parse_statement_for_session(env.session, &view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
-    let (logical, stored_functions) = if view.function_dependency_database.is_empty() {
-        (
-            build_logical_plan_in_session(env.cassie, env.session, &parsed)?,
-            None,
-        )
-    } else {
-        let context = crate::sql::binder::BindingContext::scoped(
-            view.function_dependency_database.clone(),
-            view.function_dependency_search_path.clone(),
-        );
+    let stored_context = stored_view_context(env, &parsed, view);
+    let (logical, stored_functions) = if let Some(context) = &stored_context {
         let all_functions = env.cassie.catalog.list_functions();
         let mut functions = crate::catalog::function_resolution::functions_for_scope(
             &all_functions,
@@ -342,16 +334,18 @@ fn execute_view_source(
             }
         }
         (
-            build_logical_plan_in_context(env.cassie, &context, &parsed)?,
+            build_logical_plan_in_context(env.cassie, context, &parsed)?,
             Some(functions),
+        )
+    } else {
+        (
+            build_logical_plan_in_session(env.cassie, env.session, &parsed)?,
+            None,
         )
     };
     let mut view_cte_context = CteContext::new();
     let rows = if let Some(functions) = &stored_functions {
-        let context = crate::sql::binder::BindingContext::scoped(
-            view.function_dependency_database.clone(),
-            view.function_dependency_search_path.clone(),
-        );
+        let context = stored_context.expect("stored view function scope");
         let plan_env = super::plan_execution_env_with_binding_context(
             env.cassie,
             env.session,
@@ -374,6 +368,77 @@ fn execute_view_source(
         qualify,
         name,
     )
+}
+
+fn stored_view_context(
+    env: &SourceExecutionEnv<'_>,
+    parsed: &crate::sql::ast::ParsedStatement,
+    view: &crate::catalog::ViewMeta,
+) -> Option<crate::sql::binder::BindingContext> {
+    if view.function_dependency_database.is_empty()
+        && view.function_dependency_search_path.is_empty()
+    {
+        return None;
+    }
+    let database = if view.function_dependency_database.is_empty() {
+        env.cassie.default_database.clone()
+    } else {
+        view.function_dependency_database.clone()
+    };
+    let raw_catalog_names = match &parsed.statement {
+        crate::sql::ast::QueryStatement::Select(select) => {
+            crate::sql::binder::select_referenced_relations(select)
+                .iter()
+                .any(|name| env.cassie.catalog.get_collection(name).is_some())
+        }
+        _ => false,
+    };
+    let search_schemas = view
+        .function_dependency_search_path
+        .iter()
+        .map(|schema| schema.to_ascii_lowercase())
+        .collect::<std::collections::HashSet<_>>();
+    let legacy_function_names = env.cassie.catalog.list_functions().iter().any(|function| {
+        matches!(
+            crate::catalog::parse_name(&function.name),
+            Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. })
+                if search_schemas.contains(&schema.to_ascii_lowercase())
+        )
+    });
+    let legacy_graph_names = env
+        .cassie
+        .catalog
+        .list_property_graphs()
+        .iter()
+        .any(|graph| {
+            matches!(
+                crate::catalog::parse_name(&graph.name),
+                Ok(crate::catalog::ParsedName::SchemaQualified { .. }
+                    | crate::catalog::ParsedName::Unqualified(_))
+            )
+        });
+    let retained_function_dependencies = env
+        .cassie
+        .catalog
+        .list_functions()
+        .iter()
+        .any(|function| view.function_dependency_ids.contains(&function.object_id));
+    let unscoped = env.cassie.catalog.list_namespaces().is_empty()
+        || raw_catalog_names
+        || legacy_function_names
+        || legacy_graph_names
+        || retained_function_dependencies;
+    Some(if unscoped {
+        crate::sql::binder::BindingContext::unscoped(
+            database,
+            view.function_dependency_search_path.clone(),
+        )
+    } else {
+        crate::sql::binder::BindingContext::scoped(
+            database,
+            view.function_dependency_search_path.clone(),
+        )
+    })
 }
 
 fn execute_single_row_source(env: &SourceExecutionEnv<'_>) -> SourceExecution {
@@ -775,39 +840,33 @@ fn resolve_filter_or_correlate(
     batches: Vec<Batch>,
     search_context: Option<&filter::SearchContext>,
 ) -> Result<(Vec<Batch>, Option<Expr>), QueryError> {
-    if plan.filter.as_ref().is_some_and(|filter_expr| {
-        filter::expression_contains_routine_subquery(filter_expr, env.user_functions)
-    }) {
-        let batches = super::exists_correlated::filter_rows_per_outer_row(
-            &ExistsResolutionContext {
-                cassie: env.cassie,
-                session: env.session,
-                binding_context: env.binding_context,
-                cte_context,
-                user_functions: env.user_functions,
-                params: env.params,
-                parameter_type_oids: env.parameter_type_oids,
-                controls: env.controls,
-                outer_row: None,
-            },
-            &plan.source,
-            plan.filter.as_ref().expect("routine filter was checked"),
-            batches,
-            search_context,
-        )?;
-        return Ok((batches, None));
+    match resolve_plan_filter(&env.plan_env(), plan, cte_context) {
+        Ok(filter)
+            if !filter.as_ref().is_some_and(|expr| {
+                filter::expression_contains_unresolved_routine_subquery(expr, env.user_functions)
+            }) =>
+        {
+            return Ok((batches, filter));
+        }
+        Ok(_) => {}
+        Err(error) => {
+            if !plan.filter.as_ref().is_some_and(|expr| {
+                super::exists_correlated::contains_exists_or_routine_subquery(
+                    expr,
+                    env.user_functions,
+                )
+            }) {
+                return Err(error);
+            }
+        }
     }
-    let error = match resolve_plan_filter(&env.plan_env(), plan, cte_context) {
-        Ok(filter) => return Ok((batches, filter)),
-        Err(error) => error,
-    };
-    let Some(filter_expr) = plan
+    let filter_expr = plan
         .filter
         .as_ref()
-        .filter(|expr| super::exists_correlated::contains_exists(expr))
-    else {
-        return Err(error);
-    };
+        .filter(|expr| {
+            super::exists_correlated::contains_exists_or_routine_subquery(expr, env.user_functions)
+        })
+        .expect("unresolved correlated filter requires a correlated expression");
     let batches = super::exists_correlated::filter_rows_per_outer_row(
         &ExistsResolutionContext {
             cassie: env.cassie,

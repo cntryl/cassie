@@ -1,9 +1,73 @@
 use std::sync::{mpsc, Arc, Barrier};
 use std::time::Duration;
 
+const CONCURRENCY_DEADLINE: Duration = Duration::from_secs(5);
+
+fn wait_for_barrier(barrier: &Arc<Barrier>, label: &str) {
+    let (tx, rx) = mpsc::channel();
+    let waiter = Arc::clone(barrier);
+    let handle = std::thread::spawn(move || {
+        waiter.wait();
+        tx.send(()).expect("send barrier result");
+    });
+    rx.recv_timeout(CONCURRENCY_DEADLINE)
+        .unwrap_or_else(|error| panic!("{label} barrier deadline: {error}"));
+    handle
+        .join()
+        .unwrap_or_else(|_| panic!("{label} barrier waiter panicked"));
+}
+
+struct ProjectionPauseCleanup {
+    pairs: Vec<(Arc<Barrier>, Arc<Barrier>)>,
+    armed: bool,
+}
+
+impl ProjectionPauseCleanup {
+    fn arm(pairs: impl IntoIterator<Item = (Arc<Barrier>, Arc<Barrier>)>) -> Self {
+        Self {
+            pairs: pairs.into_iter().collect(),
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ProjectionPauseCleanup {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        set_materialized_projection_replace_start_barriers(None, None);
+        set_materialized_projection_replace_barriers(None, None);
+        set_projection_replay_prepare_barriers(None, None, None);
+        for (ready, resume) in &self.pairs {
+            let ready = Arc::clone(ready);
+            let resume = Arc::clone(resume);
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let ready_handle = std::thread::spawn(move || {
+                ready.wait();
+                ready_tx.send(()).expect("send ready cleanup");
+            });
+            let resume = Arc::clone(&resume);
+            let (resume_tx, resume_rx) = mpsc::channel();
+            let resume_handle = std::thread::spawn(move || {
+                resume.wait();
+                resume_tx.send(()).expect("send resume cleanup");
+            });
+            let _ = ready_rx.recv_timeout(CONCURRENCY_DEADLINE);
+            let _ = resume_rx.recv_timeout(CONCURRENCY_DEADLINE);
+            let _ = ready_handle.join();
+            let _ = resume_handle.join();
+        }
+    }
+}
+
 use cassie::app::{
     projection_concurrency_test_guard, set_projection_replay_prepare_barriers, Cassie,
-    ProjectionReplayBatch, ProjectionReplayEvent,
+    CassieSession, ProjectionReplayBatch, ProjectionReplayEvent,
 };
 use cassie::executor::{
     set_materialized_projection_replace_barriers,
@@ -52,35 +116,42 @@ fn canonical_projection(cassie: &Cassie, collection: &str) -> String {
         .map_or_else(|| collection.to_string(), |schema| schema.collection)
 }
 
+fn execute_setup(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
+    for sql in statements {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect("prepare projection fixture");
+    }
+}
+
+fn join_projection_thread<T>(handle: std::thread::JoinHandle<T>, label: &str) {
+    handle
+        .join()
+        .unwrap_or_else(|_| panic!("{label} thread panicked"));
+}
+
+fn concurrent_projection_fixture() -> (Arc<Cassie>, CassieSession) {
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("setup", None);
+    (cassie, session)
+}
+
 #[test]
 fn should_serialize_concurrent_materialized_projection_refreshes() {
     // Arrange
     let _guard = projection_concurrency_test_guard();
-    let path = data_dir("refresh");
-    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
-    cassie.startup().expect("startup");
-    let setup = cassie.create_session("setup", None);
-    cassie
-        .execute_sql(
-            &setup,
+    let (cassie, setup) = concurrent_projection_fixture();
+    execute_setup(
+        &cassie,
+        &setup,
+        &[
             "CREATE TABLE projection_concurrent_source (title TEXT, score INT)",
-            vec![],
-        )
-        .expect("create source");
-    cassie
-        .execute_sql(
-            &setup,
             "INSERT INTO projection_concurrent_source VALUES ('alpha', 1), ('bravo', 2)",
-            vec![],
-        )
-        .expect("seed source");
-    cassie
-        .execute_sql(
-            &setup,
-            "CREATE MATERIALIZED PROJECTION projection_concurrent AS SELECT title FROM projection_concurrent_source WHERE score > 1",
-            vec![],
-        )
-        .expect("create projection");
+            "CREATE MATERIALIZED PROJECTION projection_concurrent AS \
+             SELECT title FROM projection_concurrent_source WHERE score > 1",
+        ],
+    );
     let dropped = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
     let replace_ready = Arc::new(Barrier::new(2));
@@ -93,18 +164,24 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
         Some(Arc::clone(&dropped)),
         Some(Arc::clone(&resume)),
     );
+    let mut pause_cleanup = ProjectionPauseCleanup::arm([
+        (Arc::clone(&replace_ready), Arc::clone(&replace_resume)),
+        (Arc::clone(&dropped), Arc::clone(&resume)),
+    ]);
 
     // Act
     let first_cassie = Arc::clone(&cassie);
+    let (first_tx, first_rx) = mpsc::channel();
     let first = std::thread::spawn(move || {
         let session = first_cassie.create_session("first", None);
-        first_cassie.execute_sql(
+        let result = first_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED PROJECTION projection_concurrent",
             vec![],
-        )
+        );
+        first_tx.send(result).expect("send first refresh result");
     });
-    replace_ready.wait();
+    wait_for_barrier(&replace_ready, "materialized projection replace ready");
     cassie
         .execute_sql(
             &setup,
@@ -112,12 +189,16 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
             vec![],
         )
         .expect("mutate source between refresh snapshots");
-    replace_resume.wait();
-    dropped.wait();
+    wait_for_barrier(&replace_resume, "materialized projection replace resume");
+    wait_for_barrier(&dropped, "materialized projection old relation dropped");
     let (second_tx, second_rx) = mpsc::channel();
+    let (second_boundary_tx, second_boundary_rx) = mpsc::channel();
     let second_cassie = Arc::clone(&cassie);
     let second = std::thread::spawn(move || {
         let session = second_cassie.create_session("second", None);
+        second_boundary_tx
+            .send(())
+            .expect("signal second refresh boundary");
         let result = second_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED PROJECTION projection_concurrent",
@@ -125,15 +206,22 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
         );
         second_tx.send(result).expect("send second refresh result");
     });
-    let early_second = second_rx.recv_timeout(Duration::from_millis(250)).ok();
-    resume.wait();
-    let first_result = first.join().expect("first refresh thread");
-    second.join().expect("second refresh thread");
-    let second_result = early_second.unwrap_or_else(|| {
-        second_rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("second refresh should complete")
-    });
+    second_boundary_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("second refresh reaches execution boundary");
+    assert!(
+        second_rx.try_recv().is_err(),
+        "second refresh completed before publication"
+    );
+    wait_for_barrier(&resume, "materialized projection replacement publication");
+    let first_result = first_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("first refresh should complete");
+    join_projection_thread(first, "first refresh");
+    let second_result = second_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("second refresh should complete");
+    join_projection_thread(second, "second refresh");
     let rows = cassie
         .execute_sql(
             &setup,
@@ -152,7 +240,7 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
             vec![Value::String("charlie".to_string())],
         ]
     );
-    let _ = std::fs::remove_dir_all(path);
+    pause_cleanup.disarm();
 }
 
 #[test]
@@ -206,18 +294,22 @@ fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build
         Some(Arc::clone(&build_ready)),
         Some(Arc::clone(&build_resume)),
     );
+    let mut pause_cleanup =
+        ProjectionPauseCleanup::arm([(Arc::clone(&build_ready), Arc::clone(&build_resume))]);
     let refresh_cassie = Arc::clone(&cassie);
 
     // Act
+    let (refresh_tx, refresh_rx) = mpsc::channel();
     let refresh = std::thread::spawn(move || {
         let session = refresh_cassie.create_session("refresh", None);
-        refresh_cassie.execute_sql(
+        let result = refresh_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED VIEW CONCURRENTLY materialized_view_reader_copy",
             vec![],
-        )
+        );
+        refresh_tx.send(result).expect("send refresh result");
     });
-    build_ready.wait();
+    wait_for_barrier(&build_ready, "concurrent materialized view build ready");
     let during_build = cassie
         .execute_sql(
             &setup,
@@ -225,11 +317,12 @@ fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build
             vec![],
         )
         .expect("read the active output while the replacement is building");
-    build_resume.wait();
-    refresh
-        .join()
-        .expect("concurrent refresh thread")
+    wait_for_barrier(&build_resume, "concurrent materialized view build resume");
+    refresh_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("concurrent refresh should complete")
         .expect("concurrent refresh should publish the replacement");
+    join_projection_thread(refresh, "concurrent refresh");
     let after_refresh = cassie
         .execute_sql(
             &setup,
@@ -253,48 +346,54 @@ fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build
             vec![Value::String("updated".to_string())],
         ]
     );
+    pause_cleanup.disarm();
 }
 
 #[test]
 fn should_serialize_materialized_view_refresh_modes() {
     // Arrange
     let _guard = projection_concurrency_test_guard();
-    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
-    cassie.startup().expect("startup");
-    let setup = cassie.create_session("setup", None);
-    for sql in [
-        "CREATE TABLE materialized_view_refresh_order_source \
-           (id INT PRIMARY KEY, label TEXT)",
-        "INSERT INTO materialized_view_refresh_order_source VALUES (1, 'one')",
-        "CREATE MATERIALIZED VIEW materialized_view_refresh_order_copy \
-           (item_id, item_label) AS \
-           SELECT id, label FROM materialized_view_refresh_order_source",
-        "CREATE UNIQUE INDEX materialized_view_refresh_order_copy_id_uq \
-           ON materialized_view_refresh_order_copy (item_id)",
-        "UPDATE materialized_view_refresh_order_source SET label = 'concurrent' WHERE id = 1",
-    ] {
-        cassie
-            .execute_sql(&setup, sql, vec![])
-            .expect("prepare materialized view");
-    }
+    let (cassie, setup) = concurrent_projection_fixture();
+    execute_setup(
+        &cassie,
+        &setup,
+        &[
+            "CREATE TABLE materialized_view_refresh_order_source \
+               (id INT PRIMARY KEY, label TEXT)",
+            "INSERT INTO materialized_view_refresh_order_source VALUES (1, 'one')",
+            "CREATE MATERIALIZED VIEW materialized_view_refresh_order_copy \
+               (item_id, item_label) AS \
+               SELECT id, label FROM materialized_view_refresh_order_source",
+            "CREATE UNIQUE INDEX materialized_view_refresh_order_copy_id_uq \
+               ON materialized_view_refresh_order_copy (item_id)",
+            "UPDATE materialized_view_refresh_order_source \
+               SET label = 'concurrent' WHERE id = 1",
+        ],
+    );
     let build_ready = Arc::new(Barrier::new(2));
     let build_resume = Arc::new(Barrier::new(2));
     set_materialized_projection_replace_start_barriers(
         Some(Arc::clone(&build_ready)),
         Some(Arc::clone(&build_resume)),
     );
+    let mut pause_cleanup =
+        ProjectionPauseCleanup::arm([(Arc::clone(&build_ready), Arc::clone(&build_resume))]);
     let concurrent_cassie = Arc::clone(&cassie);
 
     // Act
+    let (concurrent_tx, concurrent_rx) = mpsc::channel();
     let concurrent = std::thread::spawn(move || {
         let session = concurrent_cassie.create_session("concurrent", None);
-        concurrent_cassie.execute_sql(
+        let result = concurrent_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED VIEW CONCURRENTLY materialized_view_refresh_order_copy",
             vec![],
-        )
+        );
+        concurrent_tx
+            .send(result)
+            .expect("send concurrent refresh result");
     });
-    build_ready.wait();
+    wait_for_barrier(&build_ready, "refresh mode build ready");
     cassie
         .execute_sql(
             &setup,
@@ -316,19 +415,21 @@ fn should_serialize_materialized_view_refresh_modes() {
             ))
             .expect("send ordinary refresh result");
     });
-    started_rx
-        .recv_timeout(Duration::from_secs(5))
-        .expect("ordinary refresh should reach its execution boundary");
-    let ordinary_before_publish = ordinary_rx.recv_timeout(Duration::from_millis(250)).ok();
-    let was_blocked_before_publish = ordinary_before_publish.is_none();
-    build_resume.wait();
-    let concurrent_result = concurrent.join().expect("concurrent refresh thread");
-    ordinary.join().expect("ordinary refresh thread");
-    let ordinary_result = ordinary_before_publish.unwrap_or_else(|| {
-        ordinary_rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("ordinary refresh should complete after publication")
-    });
+    assert_eq!(
+        started_rx
+            .recv_timeout(CONCURRENCY_DEADLINE)
+            .expect("ordinary refresh reaches execution boundary"),
+        ()
+    );
+    wait_for_barrier(&build_resume, "refresh mode build resume");
+    let concurrent_result = concurrent_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("concurrent refresh should complete");
+    join_projection_thread(concurrent, "concurrent refresh");
+    let ordinary_result = ordinary_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("ordinary refresh should complete after publication");
+    join_projection_thread(ordinary, "ordinary refresh");
     let rows = cassie
         .execute_sql(
             &setup,
@@ -348,12 +449,12 @@ fn should_serialize_materialized_view_refresh_modes() {
     // Assert
     concurrent_result.expect("concurrent refresh should succeed");
     ordinary_result.expect("ordinary refresh should succeed");
-    assert!(was_blocked_before_publish);
     assert_eq!(
         rows.rows(),
         vec![vec![Value::String("ordinary".to_string())]]
     );
     assert_eq!(has_indexes.rows(), vec![vec![Value::Bool(true)]]);
+    pause_cleanup.disarm();
 }
 
 #[test]
@@ -458,24 +559,32 @@ fn should_keep_concurrent_replay_checkpoint_monotonic() {
         Some(Arc::clone(&ready)),
         Some(Arc::clone(&resume)),
     );
+    let mut pause_cleanup =
+        ProjectionPauseCleanup::arm([(Arc::clone(&ready), Arc::clone(&resume))]);
 
     // Act
+    let (low_tx, low_rx) = mpsc::channel();
     let low_cassie = Arc::clone(&cassie);
     let low_projection = projection.clone();
     let low = std::thread::spawn(move || {
-        low_cassie.replay_projection_batch(replay_batch(
+        let result = low_cassie.replay_projection_batch(replay_batch(
             &low_projection,
             "batch-low",
             "event-low",
             "checkpoint-5",
             5,
-        ))
+        ));
+        low_tx.send(result).expect("send low replay result");
     });
-    ready.wait();
+    wait_for_barrier(&ready, "low replay prepare ready");
     let (high_tx, high_rx) = mpsc::channel();
+    let (high_boundary_tx, high_boundary_rx) = mpsc::channel();
     let high_cassie = Arc::clone(&cassie);
     let high_projection = projection.clone();
     let high = std::thread::spawn(move || {
+        high_boundary_tx
+            .send(())
+            .expect("signal high replay boundary");
         let result = high_cassie.replay_projection_batch(replay_batch(
             &high_projection,
             "batch-high",
@@ -485,17 +594,26 @@ fn should_keep_concurrent_replay_checkpoint_monotonic() {
         ));
         high_tx.send(result).expect("send high replay result");
     });
-    let early_high = high_rx.recv_timeout(Duration::from_millis(250)).ok();
-    resume.wait();
-    low.join().expect("low replay thread").expect("low replay");
-    high.join().expect("high replay thread");
-    early_high
-        .unwrap_or_else(|| {
-            high_rx
-                .recv_timeout(Duration::from_secs(5))
-                .expect("high replay should complete")
-        })
-        .expect("high replay");
+    high_boundary_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("high replay reaches execution boundary");
+    assert!(
+        high_rx.try_recv().is_err(),
+        "high replay completed before low replay resumed"
+    );
+    wait_for_barrier(&resume, "low replay prepare resume");
+    low_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("low replay should complete")
+        .expect("low replay");
+    low.join()
+        .unwrap_or_else(|_| panic!("low replay thread panicked"));
+    let high_result = high_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("high replay should complete");
+    high.join()
+        .unwrap_or_else(|_| panic!("high replay thread panicked"));
+    high_result.expect("high replay");
     let metadata = cassie
         .catalog
         .get_projection_metadata(&projection)
@@ -504,6 +622,7 @@ fn should_keep_concurrent_replay_checkpoint_monotonic() {
     // Assert
     assert_eq!(metadata.source_position, Some(10));
     assert_eq!(metadata.source_checkpoint.as_deref(), Some("checkpoint-10"));
+    pause_cleanup.disarm();
     let _ = std::fs::remove_dir_all(path);
 }
 
@@ -530,24 +649,32 @@ fn should_apply_concurrent_duplicate_replay_event_once() {
         Some(Arc::clone(&ready)),
         Some(Arc::clone(&resume)),
     );
+    let mut pause_cleanup =
+        ProjectionPauseCleanup::arm([(Arc::clone(&ready), Arc::clone(&resume))]);
 
     // Act
     let paused_cassie = Arc::clone(&cassie);
     let paused_projection = projection.clone();
+    let (paused_tx, paused_rx) = mpsc::channel();
     let paused = std::thread::spawn(move || {
-        paused_cassie.replay_projection_batch(replay_batch(
+        let result = paused_cassie.replay_projection_batch(replay_batch(
             &paused_projection,
             "batch-paused",
             "event-shared",
             "checkpoint-1",
             1,
-        ))
+        ));
+        paused_tx.send(result).expect("send paused replay result");
     });
-    ready.wait();
+    wait_for_barrier(&ready, "duplicate replay prepare ready");
     let (racing_tx, racing_rx) = mpsc::channel();
+    let (racing_boundary_tx, racing_boundary_rx) = mpsc::channel();
     let racing_cassie = Arc::clone(&cassie);
     let racing_projection = projection.clone();
     let racing = std::thread::spawn(move || {
+        racing_boundary_tx
+            .send(())
+            .expect("signal racing replay boundary");
         let result = racing_cassie.replay_projection_batch(replay_batch(
             &racing_projection,
             "batch-racing",
@@ -557,26 +684,40 @@ fn should_apply_concurrent_duplicate_replay_event_once() {
         ));
         racing_tx.send(result).expect("send racing replay result");
     });
-    let early_racing = racing_rx.recv_timeout(Duration::from_millis(250)).ok();
-    resume.wait();
-    let paused = paused
-        .join()
-        .expect("paused replay thread")
+    racing_boundary_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("racing replay reaches execution boundary");
+    assert!(
+        racing_rx.try_recv().is_err(),
+        "racing replay completed before paused replay resumed"
+    );
+    wait_for_barrier(&resume, "duplicate replay prepare resume");
+    let paused_result = paused_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("paused replay should complete")
         .expect("paused replay");
-    racing.join().expect("racing replay thread");
-    let racing = early_racing
-        .unwrap_or_else(|| {
-            racing_rx
-                .recv_timeout(Duration::from_secs(5))
-                .expect("racing replay should complete")
-        })
+    let paused_handle = paused;
+    paused_handle
+        .join()
+        .unwrap_or_else(|_| panic!("paused replay thread panicked"));
+    let racing_result = racing_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("racing replay should complete")
         .expect("racing replay");
+    let racing_handle = racing;
+    racing_handle
+        .join()
+        .unwrap_or_else(|_| panic!("racing replay thread panicked"));
 
     // Assert
-    assert_eq!(paused.applied_event_count + racing.applied_event_count, 1);
     assert_eq!(
-        paused.skipped_duplicate_count + racing.skipped_duplicate_count,
+        paused_result.applied_event_count + racing_result.applied_event_count,
         1
     );
+    assert_eq!(
+        paused_result.skipped_duplicate_count + racing_result.skipped_duplicate_count,
+        1
+    );
+    pause_cleanup.disarm();
     let _ = std::fs::remove_dir_all(path);
 }

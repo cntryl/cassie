@@ -373,6 +373,24 @@ impl<'a> Occurrences<'a> {
             };
             self.demands.values[occurrence.slot] |= demand;
         }
+        let embedded_json_array = occurrence.transformed_oid == 114
+            && matches!(
+                crate::sql::binder::parameter_data_type_for_oid(target),
+                Some(crate::types::DataType::Array(_))
+            )
+            && matches!(
+                self.input,
+                PrivateParameterTypeInput::Embedded { values, .. }
+                    if values
+                        .get(occurrence.slot)
+                        .is_some_and(|value| matches!(value, Value::Json(_)))
+            );
+        if embedded_json_array {
+            self.slots.values[occurrence.slot] = target;
+            occurrence.transformed_oid = target;
+            summary.oid = target;
+            return Ok(());
+        }
         if occurrence.transformed_oid == UNKNOWN_PARAMETER_TYPE_OID {
             let slot = &mut self.slots.values[occurrence.slot];
             if *slot != UNKNOWN_PARAMETER_TYPE_OID && *slot != target && !occurrence.contextual_null

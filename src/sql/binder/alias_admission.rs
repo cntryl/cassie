@@ -19,13 +19,29 @@ pub(super) fn validate(
     context: &BindingContext,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<(), CassieError> {
-    Walk {
+    let result = Walk {
         catalog,
         context,
         controls,
         depth: 0,
     }
-    .statement_names(statement, &Names::default(), false)
+    .statement_names(statement, &Names::default(), false);
+    let mutation = matches!(
+        statement.statement,
+        QueryStatement::Insert(_)
+            | QueryStatement::Update(_)
+            | QueryStatement::Delete(_)
+            | QueryStatement::Merge(_)
+    );
+    result.map_err(|error| match error {
+        CassieError::DeferredCorrelatedResolution { name, .. } if mutation => {
+            CassieError::UndefinedColumn(name)
+        }
+        CassieError::DeferredCorrelatedResolution { qualifier, .. } => {
+            CassieError::Planner(format!("unknown relation qualifier '{qualifier}'"))
+        }
+        error => error,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -84,12 +100,12 @@ impl Walk<'_> {
             }
             QueryStatement::Insert(insert) => {
                 let mut names = outer.clone();
-                names
-                    .folded
-                    .extend(crate::catalog::qualifier_variants(&insert.table));
-                names
-                    .folded
-                    .extend(insert.alias.as_deref().map(target_alias));
+                mutation_names(
+                    &mut names,
+                    &insert.table,
+                    insert.alias.as_deref(),
+                    insert.returning_aliases.as_ref(),
+                );
                 let outer = &names;
                 match &insert.source {
                     super::InsertSource::Select(select) => self.query(select, outer, active)?,
@@ -121,40 +137,48 @@ impl Walk<'_> {
             }
             QueryStatement::Update(update) => {
                 let mut names = outer.clone();
-                names
-                    .folded
-                    .extend(crate::catalog::qualifier_variants(&update.table));
-                names
-                    .folded
-                    .extend(update.alias.as_deref().map(target_alias));
+                mutation_names(
+                    &mut names,
+                    &update.table,
+                    update.alias.as_deref(),
+                    update.returning_aliases.as_ref(),
+                );
+                if let Some(source) = &update.from {
+                    self.source_names(&source.source, &mut names)?;
+                }
                 let outer = &names;
                 for (_, expr) in &update.assignments {
-                    self.expression(expr, outer, active)?;
+                    self.expression(expr, outer, true)?;
                 }
                 if let Some(expr) = &update.filter {
-                    self.expression(expr, outer, active)?;
+                    self.expression(expr, outer, true)?;
                 }
-                self.items(&update.returning, outer, active)
+                self.items(&update.returning, outer, true)
             }
             QueryStatement::Delete(delete) => {
                 let mut names = outer.clone();
-                names
-                    .folded
-                    .extend(crate::catalog::qualifier_variants(&delete.table));
-                names
-                    .folded
-                    .extend(delete.alias.as_deref().map(target_alias));
+                mutation_names(
+                    &mut names,
+                    &delete.table,
+                    delete.alias.as_deref(),
+                    delete.returning_aliases.as_ref(),
+                );
+                if let Some(source) = &delete.using {
+                    self.source_names(&source.source, &mut names)?;
+                }
                 let outer = &names;
                 if let Some(expr) = &delete.filter {
-                    self.expression(expr, outer, active)?;
+                    self.expression(expr, outer, true)?;
                 }
-                self.items(&delete.returning, outer, active)
+                self.items(&delete.returning, outer, true)
             }
+            QueryStatement::Merge(merge) => self.merge_names(merge, outer),
             QueryStatement::CreateView(view) => {
                 let parsed = self.reparse(&view.query)?;
                 self.child()
                     .statement_names(&parsed, &Names::default(), false)
             }
+
             QueryStatement::CreateMaterializedProjection(projection) => {
                 let parsed = self.reparse(&projection.query)?;
                 self.child()
@@ -167,6 +191,54 @@ impl Walk<'_> {
             }
             _ => Ok(()),
         }
+    }
+
+    fn merge_names(
+        &self,
+        merge: &crate::sql::ast::MergeStatement,
+        outer: &Names,
+    ) -> Result<(), CassieError> {
+        let mut names = outer.clone();
+        names
+            .folded
+            .extend(crate::catalog::qualifier_variants(&merge.table));
+        names
+            .folded
+            .extend(merge.alias.as_deref().map(target_alias));
+        self.source_names(&merge.source.source, &mut names)?;
+        self.expression(&merge.on, &names, true)?;
+        for clause in &merge.clauses {
+            if let Some(condition) = &clause.condition {
+                self.expression(condition, &names, true)?;
+            }
+            match &clause.action {
+                crate::sql::ast::MergeAction::Update {
+                    assignments,
+                    row_subqueries,
+                } => {
+                    for (_, expression) in assignments {
+                        self.expression(expression, &names, true)?;
+                    }
+                    for assignment in row_subqueries {
+                        self.child()
+                            .statement_names(&assignment.query, &names, true)?;
+                    }
+                }
+                crate::sql::ast::MergeAction::Insert {
+                    values: Some(values),
+                    ..
+                } => {
+                    for value in values {
+                        self.expression(value, &names, true)?;
+                    }
+                }
+                crate::sql::ast::MergeAction::Delete
+                | crate::sql::ast::MergeAction::DoNothing
+                | crate::sql::ast::MergeAction::Insert { values: None, .. } => {}
+            }
+        }
+        row_image_names(&mut names, merge.returning_aliases.as_ref());
+        self.items(&merge.returning, &names, true)
     }
 
     fn source_names(&self, source: &QuerySource, names: &mut Names) -> Result<bool, CassieError> {
@@ -373,11 +445,33 @@ impl Walk<'_> {
             Ok(())
         } else {
             let qualifier = qualifier.as_deref().unwrap_or(folded);
-            Err(CassieError::Planner(format!(
-                "unresolvable column reference '{name}': unknown relation qualifier '{qualifier}'"
-            )))
+            Err(CassieError::DeferredCorrelatedResolution {
+                name: name.to_string(),
+                qualifier: qualifier.to_string(),
+            })
         }
     }
+}
+
+fn mutation_names(
+    names: &mut Names,
+    table: &crate::sql::ast::IdentifierPath,
+    alias: Option<&str>,
+    returning: Option<&crate::sql::ast::ReturningAliases>,
+) {
+    names
+        .folded
+        .extend(crate::catalog::qualifier_variants(table));
+    names.folded.extend(alias.map(target_alias));
+    row_image_names(names, returning);
+}
+
+fn row_image_names(names: &mut Names, aliases: Option<&crate::sql::ast::ReturningAliases>) {
+    let Some(aliases) = aliases else {
+        return;
+    };
+    names.folded.insert(target_alias(&aliases.old));
+    names.folded.insert(target_alias(&aliases.new));
 }
 
 /// A mutation target alias is visible to the statement's subqueries.

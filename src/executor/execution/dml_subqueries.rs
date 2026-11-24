@@ -7,6 +7,7 @@ use super::{
     filter, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, QueryError,
     QueryExecutionControls, QuerySource, Value,
 };
+use std::collections::HashSet;
 
 pub(super) struct RowSubqueries<'a> {
     pub(super) cassie: &'a Cassie,
@@ -26,22 +27,23 @@ impl RowSubqueries<'_> {
         if !expr.contains_subquery() {
             return Ok(expr.clone());
         }
-        let (_read, _overlay) =
-            crate::executor::execution::entrypoints::enter_statement_read(self.controls);
-        match crate::executor::execution::resolve_statement_exists(
+        resolve_expression_subqueries(
+            expr,
             self.cassie,
             self.session,
-            expr,
             self.user_functions,
             self.params,
             self.controls,
-        ) {
-            Ok(resolved) => Ok(resolved),
-            Err(error) if crate::executor::execution::subquery_eval::is_interruption(&error) => {
-                Err(error)
-            }
-            Err(_) => Ok(expr.clone()),
-        }
+            &self
+                .alias
+                .into_iter()
+                .map(str::to_ascii_lowercase)
+                .chain(std::iter::once(
+                    crate::catalog::local_name(self.table).to_ascii_lowercase(),
+                ))
+                .chain(std::iter::once(String::new()))
+                .collect(),
+        )
     }
 
     /// Evaluates `expr` for `row`, running a correlated subquery with the row
@@ -139,6 +141,13 @@ fn all_resolved(expr: &Expr) -> bool {
     })
 }
 
+fn should_defer_correlated_resolution(error: &QueryError) -> bool {
+    matches!(
+        error,
+        QueryError::Cassie(crate::app::CassieError::DeferredCorrelatedResolution { .. })
+    )
+}
+
 /// Replaces every uncorrelated subquery of `expr` by its value, read from the
 /// data as it was when the statement began. An expression without a subquery
 /// is returned unchanged.
@@ -146,25 +155,88 @@ pub(super) fn resolve_statement_subqueries(
     scope: &super::dml_joined::ExecutionScope<'_>,
     expr: &Expr,
 ) -> Result<Expr, QueryError> {
+    resolve_statement_subqueries_with_outer(scope, expr, &HashSet::new())
+}
+
+pub(super) fn resolve_statement_subqueries_with_outer(
+    scope: &super::dml_joined::ExecutionScope<'_>,
+    expr: &Expr,
+    outer_qualifiers: &HashSet<String>,
+) -> Result<Expr, QueryError> {
     if !expr.contains_subquery() {
         return Ok(expr.clone());
     }
-    let (_read, _overlay) =
-        crate::executor::execution::entrypoints::enter_statement_read(scope.controls);
-    match crate::executor::execution::resolve_statement_exists(
+    resolve_expression_subqueries(
+        expr,
         scope.cassie,
         scope.session,
-        expr,
         scope.user_functions,
         scope.params,
         scope.controls,
-    ) {
-        Ok(resolved) => Ok(resolved),
-        Err(error) if crate::executor::execution::subquery_eval::is_interruption(&error) => {
-            Err(error)
-        }
-        Err(_) => Ok(expr.clone()),
+        outer_qualifiers,
+    )
+}
+
+fn resolve_expression_subqueries(
+    expr: &Expr,
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+    outer_qualifiers: &HashSet<String>,
+) -> Result<Expr, QueryError> {
+    if matches!(expr, Expr::Subquery(_) | Expr::Exists(_)) {
+        let (_read, _overlay) =
+            crate::executor::execution::entrypoints::enter_statement_read(controls);
+        return match crate::executor::execution::resolve_statement_exists(
+            cassie,
+            session,
+            expr,
+            user_functions,
+            params,
+            controls,
+        ) {
+            Ok(resolved) => Ok(resolved),
+            Err(error) if crate::executor::execution::subquery_eval::is_interruption(&error) => {
+                Err(error)
+            }
+            Err(error) if should_defer_correlated_resolution(&error) => Ok(expr.clone()),
+            Err(QueryError::Cassie(crate::app::CassieError::UndefinedColumn(name)))
+                if undefined_outer_qualifier(&name, outer_qualifiers) =>
+            {
+                Ok(expr.clone())
+            }
+            Err(error) => Err(error),
+        };
     }
+
+    let (_read, _overlay) = crate::executor::execution::entrypoints::enter_statement_read(controls);
+    let mut resolved = expr.clone();
+    resolved.try_visit_children_mut(|child| {
+        *child = resolve_expression_subqueries(
+            child,
+            cassie,
+            session,
+            user_functions,
+            params,
+            controls,
+            outer_qualifiers,
+        )?;
+        Ok::<(), QueryError>(())
+    })?;
+    Ok(resolved)
+}
+
+fn undefined_outer_qualifier(name: &str, outer_qualifiers: &HashSet<String>) -> bool {
+    let parsed = crate::sql::ColumnIdentifierPath::parse(name)
+        .ok()
+        .and_then(|column| column.namespace_qualifier());
+    parsed
+        .as_ref()
+        .map(|qualifier| qualifier.to_ascii_lowercase())
+        .is_some_and(|qualifier| outer_qualifiers.contains(&qualifier))
+        || (outer_qualifiers.contains("") && parsed.is_none())
 }
 
 /// Evaluates a subquery expression against a joined DML row. The row already

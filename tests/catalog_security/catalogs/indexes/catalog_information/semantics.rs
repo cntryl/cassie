@@ -376,13 +376,12 @@ fn should_join_supported_catalog_oid_fields_for_psql_describe_queries() {
                  JOIN pg_catalog.pg_class c ON pr.prrelid = c.oid)",
         )
         .expect("execute supported psql catalog joins");
-
     // Assert
     assert_eq!(
         selected.rows(),
         vec![vec![
             Value::Int64(2),
-            Value::Int64(4),
+            Value::Int64(2),
             Value::Int64(4),
             Value::Int64(2),
             Value::Int64(2),

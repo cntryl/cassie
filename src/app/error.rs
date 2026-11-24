@@ -79,6 +79,11 @@ pub enum CassieError {
     #[error("unresolvable column reference '{0}'; known fields or aliases required")]
     UndefinedColumn(String),
 
+    /// Internal signal used only while DML defers a correlated subquery until
+    /// the mutation's outer row is available.
+    #[error("unresolvable correlated column reference '{name}'")]
+    DeferredCorrelatedResolution { name: String, qualifier: String },
+
     #[error("column reference \"{0}\" is ambiguous")]
     AmbiguousColumn(String),
 
@@ -266,6 +271,9 @@ impl CassieError {
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),
+            Self::DeferredCorrelatedResolution { .. } => {
+                bad_request_descriptor("42703", self.to_string())
+            }
             Self::AmbiguousColumn(_) => bad_request_descriptor("42702", self.to_string()),
             Self::BooleanInput(error) => bad_request_descriptor("22P02", error.to_string()),
             Self::FloatInput(error) => bad_request_descriptor(error.sql_state(), error.to_string()),
@@ -604,6 +612,12 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
+    if let Some(detail) = message.strip_prefix("invalid JSON literal: ") {
+        return bad_request_descriptor(
+            "22P02",
+            format!("invalid input syntax for type json: {detail}"),
+        );
+    }
     if text_boolean_predicate_mismatch(message) {
         return bad_request_descriptor("42804", message.to_string());
     }

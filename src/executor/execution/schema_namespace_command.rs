@@ -426,7 +426,7 @@ pub(crate) fn alter_schema(
             &function_renames,
             &view_renames,
         )
-        .map_err(|error| QueryError::General(error.to_string()))?;
+        .map_err(QueryError::Cassie)?;
     rename_schema_descendants(cassie, session, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
     for view in &views_to_validate {
@@ -893,7 +893,7 @@ pub(crate) fn object_in_schema(name: &str, schema: &str) -> bool {
         }
         Err(_) => return false,
     };
-    if !crate::catalog::name_matches(schema, &object_schema) {
+    if !crate::catalog::name_matches(&crate::catalog::local_name(schema), &object_schema) {
         return false;
     }
 
@@ -907,17 +907,24 @@ pub(crate) fn object_in_schema(name: &str, schema: &str) -> bool {
 
 pub(crate) fn rewrite_relation_name_for_schema(
     name: &str,
-    current_schema: &str,
+    _current_schema: &str,
     next_schema: &str,
 ) -> String {
-    let Some(database) = crate::catalog::schema_database_name(current_schema) else {
-        return name.to_string();
-    };
-    crate::catalog::canonical_relation_name(
-        &database,
-        &crate::catalog::local_name(next_schema),
-        &crate::catalog::local_name(name),
-    )
+    match crate::catalog::parse_name(name) {
+        Ok(crate::catalog::ParsedName::DatabaseQualified { database, .. }) => {
+            crate::catalog::canonical_relation_name(
+                &database,
+                &crate::catalog::local_name(next_schema),
+                &crate::catalog::local_name(name),
+            )
+        }
+        Ok(crate::catalog::ParsedName::SchemaQualified { .. }) => format!(
+            "{}.{}",
+            crate::catalog::local_name(next_schema),
+            crate::catalog::local_name(name)
+        ),
+        _ => name.to_string(),
+    }
 }
 
 pub(crate) fn rewrite_relation_name_from_map(

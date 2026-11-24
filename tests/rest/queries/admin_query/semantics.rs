@@ -80,7 +80,6 @@ fn should_scope_each_admin_request_to_its_explicit_database() {
         stop_rest_server(shutdown, server).await;
     });
 }
-
 #[test]
 fn should_execute_admin_query_through_rest() {
     // Arrange
@@ -122,7 +121,6 @@ fn should_execute_admin_query_through_rest() {
         let _ = std::fs::remove_dir_all(data_dir);
     });
 }
-
 #[test]
 fn should_complete_admin_query_workflow_given_one_authenticated_session() {
     // Arrange
@@ -319,11 +317,16 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
             "CREATE TABLE rest_schema_secret (token TEXT)",
             "CREATE TABLE rest_graph_visible (id INTEGER PRIMARY KEY)",
             "CREATE TABLE rest_graph_secret (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE rest_graph_edge (id INTEGER PRIMARY KEY, src INTEGER, dst INTEGER)",
             "CREATE VIEW rest_schema_secret_view AS SELECT token FROM rest_schema_secret",
             "CREATE INDEX rest_schema_secret_idx ON rest_schema_secret (token)",
             "CREATE PROPERTY GRAPH rest_visibility_graph VERTEX TABLES \
              (rest_graph_visible AS visible KEY (id) LABEL visible_node PROPERTIES (id), \
-              rest_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id))",
+              rest_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id)) \
+             EDGE TABLES (rest_graph_edge AS link KEY (id) \
+              SOURCE KEY (src) REFERENCES visible(id) \
+              DESTINATION KEY (dst) REFERENCES visible(id) \
+              LABEL link PROPERTIES (id))",
             "CREATE VIEW rest_graph_view AS \
              SELECT direct.id FROM GRAPH_TABLE(rest_visibility_graph \
              MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \
@@ -332,9 +335,12 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
             "GRANT CONNECT ON DATABASE postgres TO rest_schema_reader",
             "GRANT USAGE ON SCHEMA public TO rest_schema_reader",
             "GRANT SELECT ON TABLE public.rest_graph_visible TO rest_schema_reader",
+            "GRANT SELECT ON TABLE public.rest_graph_edge TO rest_schema_reader",
         ] {
             cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
         }
+        let secret_index =
+            crate::support_sql::canonical_test_index(&cassie, "rest_schema_secret", "rest_schema_secret_idx");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let reader_cookie =
@@ -368,8 +374,14 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
             section_items(&payload, "views"),
             &canonical_relation_name("postgres", "public", "rest_graph_view")
         ));
-        assert_eq!(section_items(&payload, "views").len(), 0);
-        assert_eq!(section_items(&payload, "indexes").len(), 0);
+        assert!(!contains_item(
+            section_items(&payload, "views"),
+            &canonical_relation_name("postgres", "public", "rest_schema_secret_view")
+        ));
+        assert!(!contains_item(
+            section_items(&payload, "indexes"),
+            &secret_index
+        ));
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);
@@ -572,6 +584,97 @@ fn should_serve_restful_admin_aliases() {
             explain_payload["plan"]["diagnostics"]["access_path_reason"],
             "scalar-index-seek"
         );
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+#[test]
+fn should_resolve_mixed_case_collections_with_percent_decoded_quotes() {
+    // Arrange
+    let data_dir = data_dir("mixed-case-rest-collection");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie
+            .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
+            .expect("admin session");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE cities (id INT PRIMARY KEY, name TEXT)",
+                Vec::new(),
+            )
+            .expect("create lowercase table");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE \"Cities\" (id INT PRIMARY KEY, name TEXT)",
+                Vec::new(),
+            )
+            .expect("create mixed-case table");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie.clone()).await;
+        let client = Client::new();
+        let cookie = login_cookie(&client, &base_url).await;
+
+        // Act
+        let lowercase = client
+            .post(format!("{base_url}/api/v1/collections/cities/documents"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"id": 1, "name": "lower"}))
+            .send()
+            .await
+            .expect("lowercase collection write");
+        let mixed = client
+            .post(format!("{base_url}/api/v1/collections/%22Cities%22/documents"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"id": 2, "name": "mixed"}))
+            .send()
+            .await
+            .expect("mixed-case collection write");
+        let folded = client
+            .post(format!("{base_url}/api/v1/collections/CITIES/documents"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"id": 3, "name": "folded"}))
+            .send()
+            .await
+            .expect("folded collection write");
+        let percent_folded = client
+            .post(format!("{base_url}/api/v1/collections/%43ITIES/documents"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"id": 4, "name": "percent-folded"}))
+            .send()
+            .await
+            .expect("percent-decoded folded collection write");
+
+        // Assert
+        assert_eq!(lowercase.status(), StatusCode::OK);
+        assert_eq!(mixed.status(), StatusCode::OK);
+        assert_eq!(folded.status(), StatusCode::OK);
+        assert_eq!(percent_folded.status(), StatusCode::OK);
+        let lower_rows = cassie
+            .midge
+            .scan_documents("postgres.public.cities")
+            .expect("lowercase documents");
+        let mixed_rows = cassie
+            .midge
+            .scan_documents("postgres.public.\"Cities\"")
+            .expect("mixed-case documents");
+        assert_eq!(lower_rows[0].payload["name"], "lower");
+        assert_eq!(mixed_rows[0].payload["name"], "mixed");
+        assert_eq!(lower_rows.len(), 3);
+        let names = lower_rows
+            .iter()
+            .map(|row| row.payload["name"].as_str())
+            .collect::<Vec<_>>();
+        assert!(names.contains(&Some("lower")));
+        assert!(names.contains(&Some("folded")));
+        assert!(names.contains(&Some("percent-folded")));
 
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);

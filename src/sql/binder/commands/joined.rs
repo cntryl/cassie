@@ -6,18 +6,31 @@ use super::mutations::{
     bind_assignments, bind_mutation_source, bind_predicate, bind_returning, resolve_target,
     row_image_fields, target_qualifier, JoinedScope,
 };
-use crate::sql::ast::{DeleteStatement, IdentifierPath, QuerySource, UpdateStatement};
+use crate::sql::ast::{DeleteStatement, Expr, IdentifierPath, QuerySource, UpdateStatement};
 
 #[must_use]
 pub(super) fn update_needs_joined_binding(statement: &UpdateStatement) -> bool {
     statement.from.is_some()
         || !statement.row_subqueries.is_empty()
         || statement.returning_aliases.is_some()
+        || statement
+            .assignments
+            .iter()
+            .any(|(_, expression)| expression.contains_subquery())
+        || statement
+            .filter
+            .as_ref()
+            .is_some_and(Expr::contains_subquery)
 }
 
 #[must_use]
 pub(super) fn delete_needs_joined_binding(statement: &DeleteStatement) -> bool {
-    statement.using.is_some() || statement.returning_aliases.is_some()
+    statement.using.is_some()
+        || statement.returning_aliases.is_some()
+        || statement
+            .filter
+            .as_ref()
+            .is_some_and(Expr::contains_subquery)
 }
 
 fn target_only_scope(

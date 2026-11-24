@@ -52,7 +52,6 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
         .midge
         .raw_put(StorageFamily::Data, &index_key, &malformed_metadata)
         .expect("replace index metadata with malformed expression");
-
     // Act
     let result = cassie.execute_sql(
         &session,
@@ -77,9 +76,10 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
     );
 
     // Assert
+    let error = result.expect_err("malformed scalar index metadata must abort DROP");
     assert!(
-        result.is_err(),
-        "malformed scalar index metadata must abort DROP"
+        error.to_string().contains("invalid expression metadata"),
+        "unexpected DROP failure: {error}"
     );
     let schema = cassie
         .catalog
@@ -94,7 +94,7 @@ fn should_preserve_cascade_dependents_when_index_expression_metadata_is_malforme
         .catalog
         .get_constraints("drop_column_metadata_child")
         .iter()
-        .any(|constraint| constraint.foreign_key_name.is_some()));
+        .any(|constraint| constraint.references_table.is_some()));
     assert!(cassie
         .catalog
         .list_indexes(table)

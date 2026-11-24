@@ -75,6 +75,10 @@ fn should_restore_a_cascaded_graph_view_closure_on_rollback() {
     fixture
         .execute("ROLLBACK")
         .expect("restore graph and view closure");
+    assert_eq!(
+        fixture.rows("SELECT x FROM vg"),
+        vec![vec![Value::Int64(1)]]
+    );
     let restored = fixture.rows("SELECT x FROM vg_outer");
 
     // Assert

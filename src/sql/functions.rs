@@ -47,7 +47,7 @@ mod unsupported_server_control;
 mod unsupported_server_files;
 pub(crate) use temporal::{
     binary_type as temporal_binary_type, clock_dependent as temporal_clock_dependent,
-    is_temporal as is_temporal_function, return_type as temporal_return_type,
+    return_type as temporal_return_type,
 };
 mod text;
 mod window;

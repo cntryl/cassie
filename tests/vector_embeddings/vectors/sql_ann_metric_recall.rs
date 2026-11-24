@@ -101,14 +101,10 @@ const IVFFLAT_OPTIONS: &str =
     "index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42";
 const HNSW_OPTIONS: &str = "index_type = hnsw, m = 32, ef_construction = 256, ef_search = 256";
 
-fn hnsw_rows() -> usize {
-    // The declared 10,000-row profile takes about a minute to build, so the
-    // suite default is the 1,024-row profile; set the variable to run it.
-    std::env::var("CASSIE_ANN_RECALL_HNSW_ROWS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(1_024)
-}
+const FIXED_HNSW_CORRECTNESS_ROWS: usize = 1_024;
+const FIXED_HNSW_SCALE_ROWS: usize = 10_000;
+// Explicit 10,000-row scale qualification:
+// `cargo test --locked --test vector_embeddings sql_ann_metric_recall::should_reach_recall_floor_for_scale_hnsw -- --ignored`
 
 #[test]
 fn should_reach_recall_floor_on_every_query_for_ivfflat_l2() {
@@ -147,7 +143,7 @@ fn should_reach_recall_floor_on_every_query_for_hnsw_l2() {
 
     // Act
     // Assert
-    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_CORRECTNESS_ROWS, metric);
 }
 
 #[test]
@@ -157,7 +153,7 @@ fn should_reach_recall_floor_on_every_query_for_hnsw_cosine() {
 
     // Act
     // Assert
-    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_CORRECTNESS_ROWS, metric);
 }
 
 #[test]
@@ -167,5 +163,23 @@ fn should_reach_recall_floor_on_every_query_for_hnsw_dot() {
 
     // Act
     // Assert
-    measure("hnsw", HNSW_OPTIONS, hnsw_rows(), metric);
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_CORRECTNESS_ROWS, metric);
+}
+
+#[test]
+#[ignore = "scale qualification: fixed 10000-row HNSW L2 recall profile"]
+fn should_reach_recall_floor_for_scale_hnsw_l2() {
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_SCALE_ROWS, Metric::L2);
+}
+
+#[test]
+#[ignore = "scale qualification: fixed 10000-row HNSW cosine recall profile"]
+fn should_reach_recall_floor_for_scale_hnsw_cosine() {
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_SCALE_ROWS, Metric::Cosine);
+}
+
+#[test]
+#[ignore = "scale qualification: fixed 10000-row HNSW dot recall profile"]
+fn should_reach_recall_floor_for_scale_hnsw_dot() {
+    measure("hnsw", HNSW_OPTIONS, FIXED_HNSW_SCALE_ROWS, Metric::Dot);
 }

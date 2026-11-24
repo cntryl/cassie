@@ -88,6 +88,11 @@ fn parse_array_text(text: &str, array: &SqlArray) -> Result<SqlArray, QueryError
         .map_err(|error| QueryError::Cassie(crate::app::CassieError::ArrayInput(error)))
 }
 
+fn parse_json_array(text: &str) -> Result<SqlArray, String> {
+    let value = serde_json::from_str(text).map_err(|error| error.to_string())?;
+    SqlArray::from_nested_json(&value, false)
+}
+
 fn element_type(value: &Value) -> crate::types::DataType {
     match value {
         Value::Bool(_) => crate::types::DataType::Boolean,
@@ -133,10 +138,25 @@ pub(super) fn evaluate(
                 }
                 return Some(Ok(ScalarValue::Null));
             }
-            let (ScalarValue::Array(left), ScalarValue::Array(right)) = (left, right) else {
-                return Some(Err(unsupported(op)));
+            let values = match (left, right) {
+                (ScalarValue::Array(left), ScalarValue::Array(right)) => {
+                    (left.clone(), right.clone())
+                }
+                (ScalarValue::Array(left), ScalarValue::Json(right)) => {
+                    match parse_json_array(right) {
+                        Ok(right) => (left.clone(), right),
+                        Err(_) => return Some(Err(unsupported(op))),
+                    }
+                }
+                (ScalarValue::Json(left), ScalarValue::Array(right)) => {
+                    match parse_json_array(left) {
+                        Ok(left) => (left, right.clone()),
+                        Err(_) => return Some(Err(unsupported(op))),
+                    }
+                }
+                _ => return Some(Err(unsupported(op))),
             };
-            return Some(compare_result(left, op, right));
+            return Some(compare_result(&values.0, op, &values.1));
         }
     }
     let operator = match op {

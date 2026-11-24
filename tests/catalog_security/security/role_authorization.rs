@@ -22,7 +22,11 @@ fn catalog_visibility_roles(
         "CREATE VIEW catalog_secret_view AS SELECT token FROM catalog_secret",
         "CREATE PROPERTY GRAPH catalog_graph VERTEX TABLES \
          (catalog_graph_visible AS visible KEY (id) LABEL visible_node PROPERTIES (id), \
-          catalog_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id))",
+          catalog_graph_secret AS secret KEY (id) LABEL secret_node PROPERTIES (id)) \
+         EDGE TABLES (catalog_graph_visible AS visible_loop KEY (id) \
+          SOURCE KEY (id) REFERENCES visible (id) \
+          DESTINATION KEY (id) REFERENCES visible (id) \
+          LABEL visible_edge PROPERTIES (id))",
         "CREATE VIEW catalog_graph_direct_view AS \
          SELECT direct.id FROM GRAPH_TABLE(catalog_graph \
          MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \

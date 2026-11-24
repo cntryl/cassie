@@ -109,6 +109,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
         CassieError::UndefinedColumn(_) => "undefined_column",
+        CassieError::DeferredCorrelatedResolution { .. } => "deferred_correlated_resolution",
         CassieError::AmbiguousColumn(_) => "ambiguous_column",
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_)

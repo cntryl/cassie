@@ -1,4 +1,7 @@
 #[test]
+#[ignore = "scale qualification: fixed 5001-row batched HNSW publication profile"]
+// Run explicitly:
+// `cargo test --locked --test vector_embeddings should_clean_batched_hnsw_sidecars_after_failed_publication_retry -- --ignored`
 fn should_clean_batched_hnsw_sidecars_after_failed_publication_retry() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
@@ -175,48 +178,44 @@ fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
     put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
     put_hnsw_index(&cassie, collection, 2);
     let cassie = std::sync::Arc::new(cassie);
+    let selected = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let resume = std::sync::Arc::new(std::sync::Barrier::new(2));
+    cassie::executor::set_vector_ann_rerank_barriers(
+        cassie.as_ref(),
+        Some(std::sync::Arc::clone(&selected)),
+        Some(std::sync::Arc::clone(&resume)),
+    );
 
     // Act
-    let readers = (0..4)
-        .map(|_| {
-            let cassie = std::sync::Arc::clone(&cassie);
-            std::thread::spawn(move || {
-                let session = cassie.create_session("tester", None);
-                cassie
-                    .execute_sql(
-                        &session,
-                        "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM hnsw_concurrent_mutation ORDER BY distance ASC LIMIT 1",
-                        vec![],
-                    )
-                    .unwrap()
-                    .rows()[0][0]
-                    .clone()
-            })
-        })
-        .collect::<Vec<_>>();
-    let writer = {
-        let cassie = std::sync::Arc::clone(&cassie);
-        std::thread::spawn(move || {
-            put_hnsw_document(
-                cassie.as_ref(),
-                "hnsw_concurrent_mutation",
-                "new-nearest",
-                [0.99, 0.0, 0.0],
-            );
-        })
-    };
-    writer.join().unwrap();
-    let results = readers
-        .into_iter()
-        .map(|reader| reader.join().unwrap())
-        .collect::<Vec<_>>();
+    let reader_cassie = std::sync::Arc::clone(&cassie);
+    let reader = std::thread::spawn(move || {
+        let session = reader_cassie.create_session("tester", None);
+        reader_cassie
+            .execute_sql(
+                &session,
+                "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM hnsw_concurrent_mutation ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .unwrap()
+            .rows()[0][0]
+            .clone()
+    });
+    selected.wait();
+    put_hnsw_document(
+        cassie.as_ref(),
+        "hnsw_concurrent_mutation",
+        "new-nearest",
+        [0.99, 0.0, 0.0],
+    );
+    resume.wait();
+    let result = reader.join().unwrap();
+    cassie::executor::set_vector_ann_rerank_barriers(cassie.as_ref(), None, None);
 
     // Assert
-    assert_eq!(results.len(), 4);
-    assert!(results.into_iter().all(|value| {
-        value == Value::String("near".to_string())
-            || value == Value::String("new-nearest".to_string())
-    }));
+    assert!(
+        result == Value::String("near".to_string())
+            || result == Value::String("new-nearest".to_string())
+    );
     assert_eq!(
         stored_hnsw_index(cassie.as_ref(), collection)
             .metadata

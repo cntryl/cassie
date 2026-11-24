@@ -317,7 +317,7 @@ fn validate_source_predicates(
         QuerySource::Values { rows } => {
             super::values::coerce_with_controls(
                 rows,
-                &std::collections::HashMap::new(),
+                types.functions(),
                 types.parameter_types(),
                 types.controls(),
             )?;

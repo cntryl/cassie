@@ -7,7 +7,8 @@ use super::expr::{
 use super::identifiers::parse_relation_path_prefix;
 use super::{
     parse_statement, CommonTableExpression, Expr, HashMap, HashSet, JoinKind, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, SqlErrorKind,
+    WindowFunctionCall,
 };
 use crate::sql::ast::{WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit};
 
@@ -159,6 +160,9 @@ pub(super) fn parse_projection_item_with_named_windows(
         // `expr label` names the output column without `AS`. It is tried only when the item
         // is not an expression by itself, so no accepted spelling changes meaning.
         Err(error) => {
+            if error.kind() == SqlErrorKind::ResourceLimit {
+                return Err(error);
+            }
             if let Some(error) = unexpected_projection_token(expr_raw) {
                 return Err(error);
             }
@@ -231,6 +235,11 @@ fn unexpected_projection_token(raw: &str) -> Option<SqlError> {
             let (token, token_start, _) = next_token_span(&remainder[after_alias..])?;
             let token_offset = remainder_start + after_alias + token_start;
             if bare_sql_identifier(alias)
+                && ![
+                    "and", "between", "distinct", "from", "in", "is", "like", "not", "or",
+                ]
+                .iter()
+                .any(|keyword| alias.eq_ignore_ascii_case(keyword))
                 && parse_expression(raw[..index].trim()).is_ok()
                 && bare_sql_identifier(token)
             {

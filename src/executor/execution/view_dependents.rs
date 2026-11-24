@@ -75,13 +75,21 @@ pub(super) fn views_calling_function(
     cassie: &Cassie,
     function: &crate::catalog::FunctionMeta,
 ) -> Vec<ViewMeta> {
-    let Ok(ParsedName::DatabaseQualified {
-        database,
-        schema,
-        name,
-    }) = crate::catalog::parse_name(&function.name)
-    else {
-        return Vec::new();
+    let (database, schema, name) = match crate::catalog::parse_name(&function.name) {
+        Ok(ParsedName::DatabaseQualified {
+            database,
+            schema,
+            name,
+        }) => (database, schema, name),
+        Ok(ParsedName::SchemaQualified { schema, name }) => {
+            (cassie.default_database.clone(), schema, name)
+        }
+        Ok(ParsedName::Unqualified(name)) => (
+            cassie.default_database.clone(),
+            crate::catalog::DEFAULT_SCHEMA.to_string(),
+            name,
+        ),
+        Err(_) => return Vec::new(),
     };
     cassie
         .catalog

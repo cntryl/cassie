@@ -8,6 +8,8 @@
 
 use std::collections::HashMap as StdHashMap;
 
+use std::collections::HashSet;
+
 use super::{
     batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, scan, BatchRow, Cassie,
     CassieSession, CollectionSchema, CteContext, Expr, FieldMeta, FunctionMeta, HashMap,
@@ -238,15 +240,19 @@ pub(super) fn match_rows(
     source: &SourceRows,
     condition: Option<&Expr>,
 ) -> Result<Vec<Vec<usize>>, QueryError> {
+    let outer_qualifiers = source
+        .fields
+        .iter()
+        .map(|field| field.qualifier.to_ascii_lowercase())
+        .chain(std::iter::once(target.qualifier.to_ascii_lowercase()))
+        .chain(std::iter::once(String::new()))
+        .collect::<HashSet<_>>();
     let condition = condition
         .map(|condition| {
-            crate::executor::execution::resolve_statement_exists(
-                scope.cassie,
-                scope.session,
+            super::dml_subqueries::resolve_statement_subqueries_with_outer(
+                scope,
                 condition,
-                scope.user_functions,
-                scope.params,
-                scope.controls,
+                &outer_qualifiers,
             )
         })
         .transpose()?;
@@ -277,17 +283,29 @@ pub(super) fn match_rows(
                 Some(source_row),
                 Vec::new(),
             );
-            if filter::eval_scalar(
-                &row,
-                condition,
-                scope.params,
-                None,
-                scope.user_functions,
-                None,
-                scope.session,
-            )?
-            .is_true()?
-            {
+            let matches = if condition.contains_subquery() {
+                match super::dml_subqueries::evaluate_joined(scope, &row, condition)? {
+                    Value::Bool(true) => true,
+                    Value::Bool(false) | Value::Null => false,
+                    _ => {
+                        return Err(QueryError::General(
+                            "argument of WHERE must be type boolean".into(),
+                        ));
+                    }
+                }
+            } else {
+                filter::eval_scalar(
+                    &row,
+                    condition,
+                    scope.params,
+                    None,
+                    scope.user_functions,
+                    None,
+                    scope.session,
+                )?
+                .is_true()?
+            };
+            if matches {
                 hits.push(target_index);
             }
         }

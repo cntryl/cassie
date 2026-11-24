@@ -544,6 +544,8 @@ fn pg_table_is_visible<R: RowAccess + ?Sized>(
     let schema = row
         .get("relnamespace")
         .and_then(value_as_string)
+        .or_else(|| row.get("nspname").and_then(value_as_string))
+        .or_else(|| row.get("n.nspname").and_then(value_as_string))
         .or_else(|| row.get("schemaname").and_then(value_as_string))
         .or_else(|| row.get("table_schema").and_then(value_as_string))
         .unwrap_or_else(|| DEFAULT_SCHEMA.to_string());
@@ -648,6 +650,13 @@ pub(crate) fn expression_contains_routine_subquery(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> bool {
     routine::expression_contains_routine_subquery(expression, user_functions)
+}
+
+pub(crate) fn expression_contains_unresolved_routine_subquery(
+    expression: &Expr,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> bool {
+    routine::expression_contains_unresolved_routine_subquery(expression, user_functions)
 }
 
 pub(crate) fn function_contains_routine_subquery(

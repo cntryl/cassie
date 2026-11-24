@@ -938,10 +938,14 @@ mod ivfflat_candidate_tests {
     #[test]
     fn should_skip_non_l2_ivfflat_index_candidates_for_hybrid_exact_fallback() {
         // Arrange
-        let cassie = crate::app::Cassie::new_in_memory_with_config(
-            crate::config::CassieRuntimeConfig::default(),
-        )
-        .expect("in-memory Cassie");
+        let mut config = crate::config::CassieRuntimeConfig::default();
+        config.embeddings =
+            crate::config::EmbeddingsRuntimeConfig::Local(crate::config::LocalRuntimeConfig {
+                model: "hybrid-test".to_string(),
+                dimensions: 2,
+            });
+        let cassie =
+            crate::app::Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("root", None);
         cassie
@@ -992,10 +996,14 @@ mod ivfflat_candidate_tests {
     #[test]
     fn should_skip_non_l2_hnsw_index_candidates_for_hybrid_exact_fallback() {
         // Arrange
-        let cassie = crate::app::Cassie::new_in_memory_with_config(
-            crate::config::CassieRuntimeConfig::default(),
-        )
-        .expect("in-memory Cassie");
+        let mut config = crate::config::CassieRuntimeConfig::default();
+        config.embeddings =
+            crate::config::EmbeddingsRuntimeConfig::Local(crate::config::LocalRuntimeConfig {
+                model: "hybrid-test".to_string(),
+                dimensions: 2,
+            });
+        let cassie =
+            crate::app::Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("root", None);
         cassie

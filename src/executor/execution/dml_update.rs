@@ -58,9 +58,7 @@ pub(in crate::executor::execution) fn execute_update(
         None
     };
     let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
-    let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
-        QueryError::General(format!("collection '{}' not found", statement.table))
-    })?;
+    let schema = update_schema(cassie, &statement.table)?;
     let subqueries = super::dml_subqueries::RowSubqueries {
         cassie,
         session,
@@ -82,6 +80,7 @@ pub(in crate::executor::execution) fn execute_update(
     for (_, expr) in &mut folded.assignments {
         *expr = subqueries.fold(expr)?;
     }
+
     let statement = &folded;
     let mut returning_rows = Vec::new();
     let prepare_context = PrepareUpdateContext {
@@ -94,9 +93,12 @@ pub(in crate::executor::execution) fn execute_update(
         controls,
         subqueries: &subqueries,
     };
+    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
     for row in &matched_rows {
         check_timeout(controls)?;
-        let prepared = prepare_update_row(&prepare_context, row)?;
+        prepared_rows.push(prepare_update_row(&prepare_context, row)?);
+    }
+    for prepared in prepared_rows {
         apply_update_row(
             cassie,
             session,
@@ -128,6 +130,13 @@ pub(in crate::executor::execution) fn execute_update(
         updated_count,
         returning_rows,
     )
+}
+
+fn update_schema(cassie: &Cassie, table: &str) -> Result<CollectionSchema, QueryError> {
+    cassie
+        .catalog
+        .get_schema(table)
+        .ok_or_else(|| QueryError::General(format!("collection '{table}' not found")))
 }
 
 /// Admit explicit READ COMMITTED UPDATE row ownership before the DML gate.
@@ -594,6 +603,7 @@ fn set_array_slice(
     if upper < lower {
         return Ok(());
     }
+    validate_slice_length(lower, upper, replacement)?;
     let (mut old_lower, mut old_length, mut elements) = if array.is_empty() {
         (1, 0_usize, Vec::new())
     } else {
@@ -677,6 +687,25 @@ fn set_array_slice(
     )
     .map_err(QueryError::General)?;
     Ok(())
+}
+
+fn validate_slice_length(
+    lower: i32,
+    upper: i32,
+    replacement: &crate::types::SqlArray,
+) -> Result<(), QueryError> {
+    let target_length = upper
+        .checked_sub(lower)
+        .and_then(|length| length.checked_add(1))
+        .and_then(|length| usize::try_from(length).ok())
+        .ok_or_else(|| QueryError::General("array slice length is out of range".into()))?;
+    if replacement.len() == target_length {
+        Ok(())
+    } else {
+        Err(QueryError::General(
+            "array slice assignment dimensions do not match".into(),
+        ))
+    }
 }
 
 fn apply_update_row(

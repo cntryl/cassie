@@ -173,12 +173,20 @@ fn pg_catalog_view_field_type_map(collection: &str) -> FieldTypeMap {
     })
 }
 
-fn values_field_type_map(rows: &[Vec<ast::Expr>], parameter_types: &[i32]) -> FieldTypeMap {
-    binder::values::schema(rows, &HashMap::new(), parameter_types).map_or_default(|schema| {
+pub(crate) fn values_field_type_map_with_functions(
+    rows: &[Vec<ast::Expr>],
+    parameter_types: &[i32],
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> FieldTypeMap {
+    binder::values::schema(rows, user_functions, parameter_types).map_or_default(|schema| {
         schema
             .fields
             .into_iter()
             .map(|field| (field.name, field.data_type))
             .collect()
     })
+}
+
+fn values_field_type_map(rows: &[Vec<ast::Expr>], parameter_types: &[i32]) -> FieldTypeMap {
+    values_field_type_map_with_functions(rows, parameter_types, &HashMap::new())
 }

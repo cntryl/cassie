@@ -94,6 +94,7 @@ impl Catalog {
             }
         }
         sort_indexes(&mut out);
+        out.dedup();
         out
     }
 
@@ -244,6 +245,7 @@ impl Catalog {
     pub fn all_indexes_snapshot(&self) -> Vec<IndexMeta> {
         let mut out = self.indexes.read().values().cloned().collect::<Vec<_>>();
         sort_indexes(&mut out);
+        out.dedup();
         out
     }
 }

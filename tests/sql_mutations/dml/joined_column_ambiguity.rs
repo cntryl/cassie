@@ -153,7 +153,7 @@ fn should_reject_an_ambiguous_outer_column_inside_a_merge_exists_subquery() {
 }
 
 #[test]
-fn should_allow_qualified_and_unique_outer_columns_inside_subqueries() {
+fn should_allow_qualified_unique_outer_columns_inside_subqueries() {
     // Arrange
     let fixture = fixture("ambiguity-qualified-subquery-references");
 
@@ -179,7 +179,7 @@ fn should_allow_qualified_and_unique_outer_columns_inside_subqueries() {
     fixture
         .execute(
             "UPDATE mt SET w = 2 FROM ms WHERE mt.id = ms.id \
-             AND EXISTS (SELECT 1 FROM ms2 WHERE ms2.z = w + 5)",
+             AND EXISTS (SELECT 1 FROM ms2 WHERE ms2.z = w + 1)",
         )
         .expect("unique outer reference");
 
@@ -289,5 +289,422 @@ fn should_allow_a_merge_insert_value_the_target_also_declares() {
     assert_eq!(
         fixture.rows("SELECT v FROM mt"),
         vec![vec![Value::Int64(99)]]
+    );
+}
+
+#[test]
+fn should_reject_an_update_scalar_subquery_with_multiple_rows_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-update-scalar-multirow",
+        &[
+            "CREATE TABLE scalar_update_target (id INT, v INT)",
+            "CREATE TABLE scalar_update_values (v INT)",
+            "INSERT INTO scalar_update_target VALUES (1, 10), (2, 20)",
+            "INSERT INTO scalar_update_values VALUES (7), (8)",
+        ],
+    );
+
+    // Act
+    let error =
+        fixture.error("UPDATE scalar_update_target SET v = (SELECT v FROM scalar_update_values)");
+
+    // Assert
+    assert_eq!(error.sql_state(), "21000");
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM scalar_update_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(20)],
+        ]
+    );
+}
+
+#[test]
+fn should_assign_null_from_an_update_scalar_subquery() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-update-scalar-null",
+        &[
+            "CREATE TABLE scalar_update_null_target (id INT, v INT)",
+            "INSERT INTO scalar_update_null_target VALUES (1, 10), (2, 20)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "UPDATE scalar_update_null_target SET v = (SELECT v FROM scalar_update_null_target WHERE id = 99)",
+        )
+        .expect("assign NULL from a zero-row scalar subquery");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM scalar_update_null_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Null],
+            vec![Value::Int64(2), Value::Null],
+        ]
+    );
+}
+
+#[test]
+fn should_evaluate_a_correlated_update_scalar_subquery_per_target_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-update-scalar-correlated",
+        &[
+            "CREATE TABLE scalar_update_correlated_target (id INT, v INT)",
+            "CREATE TABLE scalar_update_correlated_source (id INT, v INT)",
+            "INSERT INTO scalar_update_correlated_target VALUES (1, 10), (2, 20)",
+            "INSERT INTO scalar_update_correlated_source VALUES (1, 100), (2, 200)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "UPDATE scalar_update_correlated_target t SET v = \
+             (SELECT s.v FROM scalar_update_correlated_source s WHERE s.id = t.id)",
+        )
+        .expect("evaluate correlated UPDATE scalar subqueries per row");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM scalar_update_correlated_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(100)],
+            vec![Value::Int64(2), Value::Int64(200)],
+        ]
+    );
+}
+
+#[test]
+fn should_evaluate_a_correlated_delete_scalar_subquery_per_target_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-delete-scalar-correlated",
+        &[
+            "CREATE TABLE scalar_delete_correlated_target (id INT, keep INT)",
+            "CREATE TABLE scalar_delete_correlated_source (id INT, keep INT)",
+            "INSERT INTO scalar_delete_correlated_target VALUES (1, 1), (2, 0)",
+            "INSERT INTO scalar_delete_correlated_source VALUES (1, 1), (2, 0)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "DELETE FROM scalar_delete_correlated_target t WHERE \
+             (SELECT s.keep FROM scalar_delete_correlated_source s WHERE s.id = t.id) = 1",
+        )
+        .expect("evaluate correlated DELETE scalar subqueries per row");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM scalar_delete_correlated_target ORDER BY id"),
+        vec![vec![Value::Int64(2), Value::Int64(0)]]
+    );
+}
+
+#[test]
+fn should_reject_a_delete_scalar_subquery_with_multiple_rows_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-delete-scalar-multirow",
+        &[
+            "CREATE TABLE scalar_delete_target (id INT, keep INT)",
+            "CREATE TABLE scalar_delete_values (keep INT)",
+            "INSERT INTO scalar_delete_target VALUES (1, 1), (2, 0)",
+            "INSERT INTO scalar_delete_values VALUES (1), (1)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error(
+        "DELETE FROM scalar_delete_target WHERE (SELECT keep FROM scalar_delete_values) = 1",
+    );
+
+    // Assert
+    assert_eq!(error.sql_state(), "21000");
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM scalar_delete_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(0)],
+        ]
+    );
+}
+
+#[test]
+fn should_delete_nothing_when_a_delete_scalar_subquery_returns_no_rows() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-delete-scalar-null",
+        &[
+            "CREATE TABLE scalar_delete_null_target (id INT, keep INT)",
+            "INSERT INTO scalar_delete_null_target VALUES (1, 1), (2, 0)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "DELETE FROM scalar_delete_null_target WHERE \
+             (SELECT keep FROM scalar_delete_null_target WHERE id = 99) = 1",
+        )
+        .expect("a zero-row scalar subquery yields SQL NULL and deletes nothing");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM scalar_delete_null_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(0)]
+        ]
+    );
+}
+
+#[test]
+fn should_reject_a_joined_update_scalar_subquery_with_multiple_rows_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-update-scalar-multirow",
+        &[
+            "CREATE TABLE joined_scalar_update_target (id INT, v INT)",
+            "CREATE TABLE joined_scalar_update_source (id INT, v INT)",
+            "CREATE TABLE joined_scalar_update_values (v INT)",
+            "INSERT INTO joined_scalar_update_target VALUES (1, 10), (2, 20)",
+            "INSERT INTO joined_scalar_update_source VALUES (1, 100)",
+            "INSERT INTO joined_scalar_update_values VALUES (7), (8)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error(
+        "UPDATE joined_scalar_update_target t SET v = \
+         (SELECT v FROM joined_scalar_update_values) \
+         FROM joined_scalar_update_source s WHERE t.id = s.id",
+    );
+
+    // Assert
+    assert_eq!(error.sql_state(), "21000");
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM joined_scalar_update_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(20)]
+        ]
+    );
+}
+
+#[test]
+fn should_delete_nothing_for_a_joined_zero_row_scalar_subquery() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-delete-scalar-null",
+        &[
+            "CREATE TABLE joined_scalar_delete_target (id INT, keep INT)",
+            "CREATE TABLE joined_scalar_delete_source (id INT)",
+            "INSERT INTO joined_scalar_delete_target VALUES (1, 1), (2, 0)",
+            "INSERT INTO joined_scalar_delete_source VALUES (1)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "DELETE FROM joined_scalar_delete_target t USING joined_scalar_delete_source s \
+             WHERE t.id = s.id AND \
+             (SELECT keep FROM joined_scalar_delete_target WHERE id = 99) = 1",
+        )
+        .expect("a zero-row joined scalar subquery yields SQL NULL and deletes nothing");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM joined_scalar_delete_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(0)]
+        ]
+    );
+}
+
+#[test]
+fn should_evaluate_a_joined_correlated_update_scalar_subquery_per_target_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-update-scalar-correlated",
+        &[
+            "CREATE TABLE joined_scalar_update_target (id INT, v INT)",
+            "CREATE TABLE joined_scalar_update_source (id INT, v INT)",
+            "INSERT INTO joined_scalar_update_target VALUES (1, 10), (2, 20)",
+            "INSERT INTO joined_scalar_update_source VALUES (1, 100), (2, 200)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "UPDATE joined_scalar_update_target t SET v = \
+             (SELECT s.v FROM joined_scalar_update_source s WHERE s.id = t.id) \
+             FROM joined_scalar_update_source s WHERE t.id = s.id",
+        )
+        .expect("evaluate joined correlated UPDATE scalar subqueries per row");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM joined_scalar_update_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(100)],
+            vec![Value::Int64(2), Value::Int64(200)]
+        ]
+    );
+}
+
+#[test]
+fn should_reject_a_joined_delete_scalar_subquery_with_multiple_rows_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-delete-scalar-multirow",
+        &[
+            "CREATE TABLE joined_scalar_delete_target (id INT, keep INT)",
+            "CREATE TABLE joined_scalar_delete_source (id INT)",
+            "CREATE TABLE joined_scalar_delete_values (keep INT)",
+            "INSERT INTO joined_scalar_delete_target VALUES (1, 1), (2, 0)",
+            "INSERT INTO joined_scalar_delete_source VALUES (1)",
+            "INSERT INTO joined_scalar_delete_values VALUES (1), (1)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error(
+        "DELETE FROM joined_scalar_delete_target t USING joined_scalar_delete_source s \
+         WHERE t.id = s.id AND (SELECT keep FROM joined_scalar_delete_values) = 1",
+    );
+
+    // Assert
+    assert_eq!(error.sql_state(), "21000");
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM joined_scalar_delete_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(0)]
+        ]
+    );
+}
+
+#[test]
+fn should_reject_a_plain_update_scalar_type_error_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-update-scalar-type-error",
+        &[
+            "CREATE TABLE scalar_update_type_target (id INT, v INT)",
+            "INSERT INTO scalar_update_type_target VALUES (1, 10), (2, 20)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error("UPDATE scalar_update_type_target SET v = (SELECT 'not-an-int')");
+
+    // Assert
+    assert_eq!(error.sql_state(), "22P02");
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM scalar_update_type_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(20)]
+        ]
+    );
+}
+
+#[test]
+fn should_reject_a_joined_delete_binder_error_without_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-delete-binder-error",
+        &[
+            "CREATE TABLE joined_delete_binder_target (id INT, keep INT)",
+            "CREATE TABLE joined_delete_binder_source (id INT)",
+            "INSERT INTO joined_delete_binder_target VALUES (1, 1)",
+            "INSERT INTO joined_delete_binder_source VALUES (1)",
+        ],
+    );
+
+    // Act
+    let error = fixture.error(
+        "DELETE FROM joined_delete_binder_target t \
+         USING joined_delete_binder_source s \
+         WHERE t.id = s.id AND missing_alias.keep = 1",
+    );
+
+    // Assert
+    assert_eq!(error.sql_state(), "42703");
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM joined_delete_binder_target"),
+        vec![vec![Value::Int64(1), Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_assign_null_from_a_joined_update_scalar_subquery() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-update-scalar-null",
+        &[
+            "CREATE TABLE joined_scalar_update_null_target (id INT, v INT)",
+            "CREATE TABLE joined_scalar_update_null_source (id INT)",
+            "INSERT INTO joined_scalar_update_null_target VALUES (1, 10), (2, 20)",
+            "INSERT INTO joined_scalar_update_null_source VALUES (1), (2)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "UPDATE joined_scalar_update_null_target t SET v = \
+             (SELECT v FROM joined_scalar_update_null_target WHERE id = 99) \
+             FROM joined_scalar_update_null_source s WHERE t.id = s.id",
+        )
+        .expect("assign NULL from a joined zero-row scalar subquery");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, v FROM joined_scalar_update_null_target ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Null],
+            vec![Value::Int64(2), Value::Null]
+        ]
+    );
+}
+
+#[test]
+fn should_evaluate_a_joined_correlated_delete_scalar_subquery_per_target_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-joined-delete-scalar-correlated",
+        &[
+            "CREATE TABLE joined_scalar_delete_correlated_target (id INT, keep INT)",
+            "CREATE TABLE joined_scalar_delete_correlated_source (id INT, keep INT)",
+            "INSERT INTO joined_scalar_delete_correlated_target VALUES (1, 1), (2, 0)",
+            "INSERT INTO joined_scalar_delete_correlated_source VALUES (1, 1), (2, 0)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "DELETE FROM joined_scalar_delete_correlated_target t \
+             USING joined_scalar_delete_correlated_source s \
+             WHERE t.id = s.id AND \
+             (SELECT i.keep FROM joined_scalar_delete_correlated_source i WHERE i.id = t.id) = 1",
+        )
+        .expect("evaluate joined correlated DELETE scalar subqueries per row");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, keep FROM joined_scalar_delete_correlated_target ORDER BY id"),
+        vec![vec![Value::Int64(2), Value::Int64(0)]]
     );
 }

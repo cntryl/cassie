@@ -612,17 +612,13 @@ fn bind_existing_alter_table(
                 "namespace '{target}' is reserved"
             )));
         }
-        let source = crate::catalog::RelationId::parse_canonical(table).ok_or_else(|| {
-            CassieError::Planner(format!(
-                "relation '{table}' has no canonical database identity"
-            ))
-        })?;
-        let destination = crate::catalog::SchemaId::parse_canonical(target).ok_or_else(|| {
-            CassieError::Planner(format!(
-                "schema '{target}' has no canonical database identity"
-            ))
-        })?;
-        if source.database != destination.database {
+        let source = crate::catalog::RelationId::parse_canonical(table);
+        let destination = crate::catalog::SchemaId::parse_canonical(target);
+        if source
+            .as_ref()
+            .zip(destination.as_ref())
+            .is_some_and(|(source, destination)| source.database != destination.database)
+        {
             return Err(CassieError::Planner(
                 "ALTER TABLE SET SCHEMA cannot move a relation between databases".into(),
             ));
@@ -965,15 +961,20 @@ fn rename_target_in_source_schema(
             "ALTER TABLE RENAME TO takes an unqualified name, got '{target}'"
         )));
     };
-    if !context.scopes_database_objects() {
-        return normalize_relation_name(target, context);
-    }
     match parse_name(source).map_err(CassieError::Planner)? {
         ParsedName::DatabaseQualified {
             database, schema, ..
         } => Ok(canonical_relation_name(&database, &schema, &name)),
         ParsedName::SchemaQualified { schema, .. } => {
-            Ok(canonical_relation_name(&context.database, &schema, &name))
+            if context.scopes_database_objects() {
+                Ok(canonical_relation_name(&context.database, &schema, &name))
+            } else {
+                Ok(format!(
+                    "{}.{}",
+                    crate::catalog::canonical_identifier_component(&schema),
+                    name
+                ))
+            }
         }
         ParsedName::Unqualified(_) => normalize_relation_name(&name, context),
     }

@@ -201,17 +201,75 @@ fn should_keep_uncorrelated_merge_set_subqueries_working() {
 #[test]
 fn should_reject_a_correlated_merge_set_subquery_that_returns_multiple_rows() {
     // Arrange
-    let fixture = correlated_merge_fixture("issue-1458-correlated-merge-set-cardinality");
-    fixture
-        .execute("INSERT INTO mgs VALUES (1, 43)")
-        .expect("add second matching subquery row");
+    let fixture = sql_fixture(
+        "issue-1458-correlated-merge-set-cardinality",
+        &[
+            "CREATE TABLE mg (id INT, w INT)",
+            "CREATE TABLE mgs (id INT, v INT)",
+            "CREATE TABLE mg_lookup (id INT, v INT)",
+            "INSERT INTO mg VALUES (1, 10), (2, 20)",
+            "INSERT INTO mgs VALUES (1, 42), (2, 84)",
+            "INSERT INTO mg_lookup VALUES (1, 42), (2, 83), (2, 84)",
+        ],
+    );
 
     // Act
+    fixture
+        .execute(
+            "MERGE INTO mg t USING (SELECT 1 AS id, 42 AS v) s ON t.id = s.id \
+             WHEN MATCHED THEN UPDATE SET w = s.v",
+        )
+        .expect("successful MERGE match before the later cardinality failure");
+    assert_eq!(
+        fixture.rows("SELECT id, w FROM mg ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(42)],
+            vec![Value::Int64(2), Value::Int64(20)],
+        ]
+    );
     let error = fixture.error(
-        "MERGE INTO mg t USING (SELECT 1 AS id) s ON t.id = s.id \
-         WHEN MATCHED THEN UPDATE SET w = (SELECT x.v FROM mgs x WHERE x.id = s.id)",
+        "MERGE INTO mg t USING mgs s ON t.id = s.id \
+         WHEN MATCHED THEN UPDATE SET w = (SELECT x.v FROM mg_lookup x WHERE x.id = s.id)",
     );
 
     // Assert
     assert_eq!(error.sql_state(), "21000");
+    assert_eq!(
+        fixture.rows("SELECT id, w FROM mg ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Int64(42)],
+            vec![Value::Int64(2), Value::Int64(20)],
+        ]
+    );
+}
+
+#[test]
+fn should_assign_null_from_a_merge_scalar_subquery_without_mutating_other_rows() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1458-correlated-merge-set-null",
+        &[
+            "CREATE TABLE mg (id INT, w INT)",
+            "CREATE TABLE mgs (id INT, v INT)",
+            "INSERT INTO mg VALUES (1, 10), (2, 20)",
+            "INSERT INTO mgs VALUES (1, 42)",
+        ],
+    );
+
+    // Act
+    fixture
+        .execute(
+            "MERGE INTO mg t USING mgs s ON t.id = s.id \
+             WHEN MATCHED THEN UPDATE SET w = (SELECT x.v FROM mgs x WHERE x.id = 99)",
+        )
+        .expect("assign NULL from a zero-row scalar subquery");
+
+    // Assert
+    assert_eq!(
+        fixture.rows("SELECT id, w FROM mg ORDER BY id"),
+        vec![
+            vec![Value::Int64(1), Value::Null],
+            vec![Value::Int64(2), Value::Int64(20)],
+        ]
+    );
 }

@@ -750,7 +750,7 @@ fn alter_table_drop_column(
     // A column added later under the same name starts without the dropped
     // column's storage strategy and compression method.
     super::column_storage_command::reset_column_storage(cassie, table, field)?;
-    unregister_vector_indexes_on_column(cassie, table, field);
+    unregister_indexes_on_column(cassie, table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
@@ -759,9 +759,9 @@ fn alter_table_drop_column(
     refresh_table_cardinality_stats(cassie, table)
 }
 
-fn unregister_vector_indexes_on_column(cassie: &Cassie, table: &str, field: &str) {
+fn unregister_indexes_on_column(cassie: &Cassie, table: &str, field: &str) {
     for index in cassie.catalog.list_indexes(table) {
-        if matches!(index.kind, catalog::IndexKind::Vector) && index.references_field(field) {
+        if index.references_field(field) {
             cassie
                 .catalog
                 .unregister_index(&index.collection, &index.name);

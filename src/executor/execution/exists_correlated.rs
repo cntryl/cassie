@@ -69,7 +69,14 @@ pub(super) fn filter_rows_per_outer_row(
                 session: context.session,
                 resolver: &resolve,
             },
-        )?;
+        )
+        .map_err(|error| {
+            if let QueryError::Cassie(error @ crate::app::CassieError::UndefinedColumn(_)) = error {
+                QueryError::Cassie(crate::app::CassieError::Execution(error.to_string()))
+            } else {
+                error
+            }
+        })?;
         match value {
             crate::types::Value::Bool(true) => kept.push(row),
             crate::types::Value::Bool(false) | crate::types::Value::Null => {}

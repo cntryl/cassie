@@ -28,40 +28,130 @@ const INDEX_PREDICATE_QUERY: &str =
 type Frames = Vec<(u8, Vec<u8>)>;
 
 #[test]
-fn should_report_syntax_message_and_character_position_in_error_response() {
+fn should_report_syntax_message_with_character_position_in_error_response() {
     // Arrange
     let (cassie, path) = configured_cassie("issue-1488-syntax-position", &[]);
 
     // Act
     let simple = simple_round_trip(cassie, path, "SELECT 1 FORM t_probe;");
+    let (parse_cassie, parse_path) = configured_cassie("issue-1488-extended-position", &[]);
+    let extended = binary_round_trip(parse_cassie, parse_path, "SELECT 1 FORM t_probe;");
 
     // Assert
-    let error = simple
+    for (path, frames) in [("simple", &simple), ("extended", &extended)] {
+        let error = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .unwrap_or_else(|| panic!("{path} ErrorResponse"));
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())), "{path}");
+        assert!(
+            fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())),
+            "{path}"
+        );
+        assert!(fields.contains(&('P', "15".to_owned())), "{path}");
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"t_probe\"".to_owned()),
+                ('P', "15".to_owned()),
+            ],
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_oid_shapes_given_catalog_identity_joins() {
+    // Arrange
+    let setup = [
+        "CREATE TABLE oid_identity_probe (id INT PRIMARY KEY, n INT DEFAULT 7)",
+        "CREATE INDEX oid_identity_probe_n_idx ON oid_identity_probe (n)",
+    ];
+    let (cassie, path) = configured_cassie("oid-identity-shapes", &setup);
+
+    // Act
+    let frames = binary_round_trip(
+        cassie,
+        path,
+        "SELECT d.adrelid, c.oid, d.adbin \
+         FROM pg_catalog.pg_attrdef d \
+         JOIN pg_catalog.pg_class c ON c.oid = d.adrelid \
+         WHERE c.relname = 'oid_identity_probe'",
+    );
+
+    // Assert
+    assert_eq!(support::error_code(&frames), None);
+    let description = frames
         .iter()
-        .find(|(tag, _)| *tag == b'E')
-        .expect("simple-query ErrorResponse");
-    let fields = support::parse_error_fields(&error.1);
-    assert!(fields.contains(&('C', "42601".to_owned())));
-    assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
-    assert!(fields.contains(&('P', "15".to_owned())));
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(
+        description
+            .iter()
+            .map(|field| (field.name.as_str(), field.type_oid, field.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            ("adrelid", OID_OID, 1),
+            ("oid", OID_OID, 1),
+            ("adbin", OID_TEXT, 1)
+        ]
+    );
+    let rows = frames
+        .iter()
+        .filter(|frame| frame.0 == b'D')
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1);
 }
 
 #[test]
 fn should_report_parse_syntax_position_for_multibyte_prefix_as_characters() {
     // Arrange
     let (cassie, path) = configured_cassie("issue-1488-multibyte-position", &[]);
+    let (simple_cassie, simple_path) =
+        configured_cassie("issue-1488-multibyte-simple-position", &[]);
 
     // Act
     let frames = binary_round_trip(cassie, path, "SELECT 'é' AS café FORM t_probe;");
+    let simple = simple_round_trip(
+        simple_cassie,
+        simple_path,
+        "SELECT 'é' AS café FORM t_probe;",
+    );
 
     // Assert
-    let error = frames
-        .iter()
-        .find(|(tag, _)| *tag == b'E')
-        .expect("Parse ErrorResponse");
-    let fields = support::parse_error_fields(&error.1);
-    assert!(fields.contains(&('M', "syntax error at or near \"FORM\"".to_owned())));
-    assert!(fields.contains(&('P', "20".to_owned())));
+    for (path, result) in [("simple", &simple), ("extended", &frames)] {
+        let error = result
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .unwrap_or_else(|| panic!("{path} ErrorResponse"));
+        let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())), "{path}");
+        assert!(
+            fields.contains(&('M', "syntax error at or near \"FORM\"".to_owned())),
+            "{path}"
+        );
+        assert!(fields.contains(&('P', "20".to_owned())), "{path}");
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"FORM\"".to_owned()),
+                ('P', "20".to_owned()),
+            ],
+            "{path}"
+        );
+    }
 }
 
 #[test]
@@ -82,8 +172,21 @@ fn should_preserve_original_position_after_unicode_escaped_identifier() {
             .find(|(tag, _)| *tag == b'E')
             .expect("syntax ErrorResponse");
         let fields = support::parse_error_fields(&error.1);
+        assert!(fields.contains(&('C', "42601".to_owned())));
         assert!(fields.contains(&('M', "syntax error at or near \"t_probe\"".to_owned())));
-        assert!(fields.contains(&('P', "27".to_owned())));
+        assert!(fields.contains(&('P', "26".to_owned())));
+        assert_eq!(
+            fields
+                .iter()
+                .filter(|(field, _)| matches!(*field, 'C' | 'M' | 'P'))
+                .cloned()
+                .collect::<Vec<_>>(),
+            vec![
+                ('C', "42601".to_owned()),
+                ('M', "syntax error at or near \"t_probe\"".to_owned()),
+                ('P', "26".to_owned()),
+            ]
+        );
     }
 }
 

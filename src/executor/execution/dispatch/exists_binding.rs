@@ -27,7 +27,7 @@ pub(in crate::executor::execution) fn build_exists_logical_plan_with_fields(
         &outer_ctes,
         outer_fields,
     )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    .map_err(QueryError::from)?;
     let mut plan = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;
     crate::planner::logical::rewrite_reserved_id_references(&mut plan, &context.cassie.catalog);

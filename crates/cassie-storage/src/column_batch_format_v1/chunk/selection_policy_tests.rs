@@ -1,6 +1,6 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use super::{decode, encode, encode_with_policy, Codec, EncodedChunk, LogicalType};
+use super::{Codec, EncodedChunk, LogicalType, decode, encode, encode_with_policy};
 
 #[test]
 fn should_apply_the_complete_chunk_thirty_two_byte_savings_boundary() {
@@ -188,5 +188,8 @@ fn assert_chunk(
     assert_eq!(decoded.encoded_len, complete_len);
     assert_eq!(decoded.decoded_len, decoded_len);
     assert_eq!(decoded.values, values);
-    println!("codec={codec:?} type={logical_type:?} count={} nulls={null_count} complete_bytes={complete_len} decoded_bytes={decoded_len}", values.len());
+    println!(
+        "codec={codec:?} type={logical_type:?} count={} nulls={null_count} complete_bytes={complete_len} decoded_bytes={decoded_len}",
+        values.len()
+    );
 }

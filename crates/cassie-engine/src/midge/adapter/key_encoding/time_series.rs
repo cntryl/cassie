@@ -1,6 +1,6 @@
 use super::{
-    append_terminated_component, encoded_u64_component, key, prefix, LexKey,
-    FAMILY_TIME_SERIES_INDEX,
+    FAMILY_TIME_SERIES_INDEX, LexKey, append_terminated_component, encoded_u64_component, key,
+    prefix,
 };
 
 const ARTIFACT_MANIFEST: [u8; 1] = [1];

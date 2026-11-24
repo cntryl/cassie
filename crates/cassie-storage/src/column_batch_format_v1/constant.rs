@@ -1,4 +1,4 @@
-use super::{scalar_bytes, LogicalType};
+use super::{LogicalType, scalar_bytes};
 use crate::StorageCodecError;
 
 pub(super) fn constant_eligible(

@@ -1,9 +1,9 @@
 use crate::StorageCodecError;
 use cassie_core::types::numeric::i64_to_f64;
 
-use super::binary::{invalid, write_i64, write_u32, Reader};
+use super::binary::{Reader, invalid, write_i64, write_u32};
 use super::bitpack;
-use super::chunk::{checked_count, BLOCK_LEN};
+use super::chunk::{BLOCK_LEN, checked_count};
 
 const MAX_SCALE: u8 = 18;
 

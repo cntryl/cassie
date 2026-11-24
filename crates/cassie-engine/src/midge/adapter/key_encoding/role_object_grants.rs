@@ -1,6 +1,6 @@
 use crate::catalog::{RoleGrantTarget, RoleObjectGrantMeta};
 
-use super::{key, prefix, FAMILY_ROLE_OBJECT_GRANT};
+use super::{FAMILY_ROLE_OBJECT_GRANT, key, prefix};
 
 pub(in crate::midge::adapter) fn role_object_grant_key(grant: &RoleObjectGrantMeta) -> Vec<u8> {
     let role_id = grant.role_id.to_be_bytes();

@@ -1,6 +1,6 @@
 use crate::StorageCodecError;
 
-use super::binary::{invalid, write_bytes, write_u16, write_u32, write_u64, Reader};
+use super::binary::{Reader, invalid, write_bytes, write_u16, write_u32, write_u64};
 
 const MAGIC: &[u8; 4] = b"CBR1";
 const FORMAT_VERSION: u16 = 1;

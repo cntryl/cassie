@@ -1,7 +1,7 @@
 use cntryl_lexkey::LexKey;
 
 use super::{
-    encoded_u64_component, key, prefix, FAMILY_NORMALIZED_VECTOR, FAMILY_VECTOR_INDEX_STATE,
+    FAMILY_NORMALIZED_VECTOR, FAMILY_VECTOR_INDEX_STATE, encoded_u64_component, key, prefix,
 };
 
 pub(crate) fn vector_index_state_key(relation_id: u64, field_id: u32) -> Vec<u8> {

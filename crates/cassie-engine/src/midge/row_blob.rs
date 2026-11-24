@@ -4,6 +4,15 @@ use crate::app::CassieError;
 use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Value};
 use uuid::Uuid;
 
+pub(crate) use cassie_storage::row_blob::{
+    Cursor, RowBlobEncodeError, RowBlobField, RowBlobRecord, RowFieldMeta, RowSchema,
+};
+pub(crate) use cassie_storage::row_blob::{
+    FORMAT_VERSION, MAGIC, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE,
+    TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING,
+    TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32, field_bit,
+};
+
 mod compact;
 mod composite;
 mod domain;
@@ -12,307 +21,22 @@ mod enum_value;
 mod vector_field;
 
 use self::compact::{decode_directory_value, expected_type_tag};
-use self::encoding::encode_value;
 pub(crate) use compact::{
-    decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
-    encode_compact_value, CompactScalar,
+    CompactScalar, decode_compact_field_value, decode_compact_scalar, encode_compact_sql_null,
+    encode_compact_value,
 };
-pub(crate) use vector_field::{split_vector_row, PackedVector, VectorColumn};
-
-const MAGIC: &[u8; 4] = b"CRB1";
-const FORMAT_VERSION: u8 = 1;
-const TYPE_NULL: u8 = 0x00;
-const TYPE_BOOL: u8 = 0x01;
-const TYPE_I64: u8 = 0x02;
-const TYPE_F64: u8 = 0x04;
-const TYPE_STRING: u8 = 0x05;
-const TYPE_UUID: u8 = 0x06;
-const TYPE_JSON: u8 = 0x07;
-const TYPE_VECTOR_F32: u8 = 0x08;
-const TYPE_DATE: u8 = 0x09;
-const TYPE_TIME: u8 = 0x0A;
-const TYPE_TIMESTAMP: u8 = 0x0B;
-const TYPE_ARRAY: u8 = 0x0C;
-const TYPE_BYTEA: u8 = 0x0D;
-/// An extended type: the type OID, then its PostgreSQL binary form.
-const TYPE_EXTENDED: u8 = 0x0E;
-/// A named composite value.
-const TYPE_COMPOSITE: u8 = 0x0F;
-/// A named domain value wrapping one framed base value.
-const TYPE_DOMAIN: u8 = 0x10;
-/// A named enum value: version, type OID and immutable member id.
-const TYPE_ENUM: u8 = 0x11;
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct RowSchema {
-    #[serde(default)]
-    pub relation_id: u64,
-    pub schema_version: u32,
-    pub next_field_id: u32,
-    pub fields: Vec<RowFieldMeta>,
-    /// Highest column-layout write revision this relation has ever used.
-    /// Converting a column table to row authority raises it, so the next
-    /// column write after converting back never repeats a marker value an
-    /// earlier REPEATABLE READ snapshot may have fenced.
-    #[serde(default)]
-    pub column_revision_floor: u64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct RowFieldMeta {
-    pub field_id: u32,
-    pub name: String,
-    #[serde(default)]
-    pub normalized_name: String,
-    #[serde(default)]
-    pub aliases: Vec<String>,
-    pub data_type: DataType,
-    pub nullable: bool,
-    pub retired: bool,
-    /// The row-schema version that introduced this field. Rows written at an
-    /// earlier version legitimately have no stored value for it.
-    #[serde(default = "initial_added_version")]
-    pub added_version: u32,
-}
-
-fn initial_added_version() -> u32 {
-    1
-}
-
-impl RowSchema {
-    pub(crate) fn from_schema(schema: &Schema) -> Self {
-        let mut fields = schema
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(index, field)| RowFieldMeta {
-                field_id: field_id_from_index(index),
-                name: field.name.clone(),
-                normalized_name: crate::sql::ColumnIdentifierPath::stored_field_key(&field.name),
-                aliases: Vec::new(),
-                data_type: field.data_type.clone(),
-                nullable: field.nullable,
-                retired: false,
-                added_version: 1,
-            })
-            .collect::<Vec<_>>();
-        hydrate_normalized_names(fields.as_mut_slice());
-
-        Self {
-            relation_id: 0,
-            schema_version: 1,
-            next_field_id: next_field_id_for_len(fields.len()),
-            fields,
-            column_revision_floor: 0,
-        }
-    }
-
-    pub(crate) fn active_schema(&self) -> Schema {
-        Schema {
-            fields: self
-                .fields
-                .iter()
-                .filter(|field| !field.retired)
-                .map(|field| FieldSchema {
-                    name: field.name.clone(),
-                    data_type: field.data_type.clone(),
-                    nullable: field.nullable,
-                })
-                .collect(),
-        }
-    }
-
-    pub(crate) fn add_field(&mut self, field: FieldSchema) -> Result<(), CassieError> {
-        if self
-            .fields
-            .iter()
-            .any(|entry| entry.name == field.name && !entry.retired)
-        {
-            return Err(CassieError::Unsupported(format!(
-                "field '{0}' already exists",
-                field.name
-            )));
-        }
-
-        let normalized_name = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
-        self.fields.push(RowFieldMeta {
-            field_id: self.next_field_id,
-            name: field.name,
-            normalized_name,
-            aliases: Vec::new(),
-            data_type: field.data_type,
-            nullable: field.nullable,
-            retired: false,
-            added_version: self.schema_version + 1,
-        });
-        self.next_field_id += 1;
-        self.schema_version += 1;
-        Ok(())
-    }
-
-    pub(crate) fn rename_field(&mut self, current: &str, next: &str) -> Result<(), CassieError> {
-        if self
-            .fields
-            .iter()
-            .any(|entry| entry.name == next && !entry.retired)
-        {
-            return Err(CassieError::Unsupported(format!(
-                "field '{next}' already exists"
-            )));
-        }
-
-        let Some(field_index) = self
-            .fields
-            .iter()
-            .position(|entry| entry.name == current && !entry.retired)
-        else {
-            return Err(CassieError::Unsupported(format!(
-                "field '{current}' not found"
-            )));
-        };
-
-        let next_normalized = crate::sql::ColumnIdentifierPath::stored_field_key(next);
-        for (index, entry) in self.fields.iter_mut().enumerate() {
-            if index != field_index {
-                entry.aliases.retain(|alias| {
-                    crate::sql::ColumnIdentifierPath::stored_field_key(alias) != next_normalized
-                });
-            }
-        }
-        let field = &mut self.fields[field_index];
-        push_field_alias(field, field.name.clone());
-        field.name = next.to_string();
-        field.normalized_name = next_normalized;
-        self.schema_version += 1;
-        Ok(())
-    }
-
-    pub(crate) fn retire_field(&mut self, name: &str) -> bool {
-        let Some(field) = self
-            .fields
-            .iter_mut()
-            .find(|entry| entry.name == name && !entry.retired)
-        else {
-            return false;
-        };
-
-        push_field_alias(field, field.name.clone());
-        field.retired = true;
-        self.schema_version += 1;
-        true
-    }
-
-    pub(crate) fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
-        self.fields.iter().filter(|field| !field.retired).collect()
-    }
-}
-
-fn hydrate_normalized_names(fields: &mut [RowFieldMeta]) {
-    for field in fields {
-        if field.normalized_name.is_empty() {
-            field.normalized_name = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
-        }
-    }
-}
-
-fn field_id_from_index(index: usize) -> u32 {
-    u32::try_from(index + 1).expect("row schema field ids fit in u32")
-}
-
-fn next_field_id_for_len(len: usize) -> u32 {
-    u32::try_from(len)
-        .expect("row schema field ids fit in u32")
-        .checked_add(1)
-        .expect("next row schema field id fits in u32")
-}
-
-fn push_field_alias(field: &mut RowFieldMeta, alias: String) {
-    if field.aliases.iter().any(|candidate| {
-        crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
-            == crate::sql::ColumnIdentifierPath::stored_field_key(&alias)
-    }) {
-        return;
-    }
-    field.aliases.push(alias);
-}
+pub(crate) use vector_field::{PackedVector, VectorColumn, split_vector_row};
 
 pub(crate) fn encode_row(
     schema: &RowSchema,
     payload: &serde_json::Value,
 ) -> Result<Vec<u8>, CassieError> {
-    let object = payload
-        .as_object()
-        .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
-
-    let mut fields = Vec::new();
-    for field in schema.active_fields_by_id() {
-        let Some(value) = object.get(&field.name) else {
-            continue;
-        };
-        let (type_tag, encoded) = encode_value(&field.data_type, value)?;
-        fields.push((field.field_id, type_tag, encoded));
-    }
-
-    let max_field_id = schema
-        .fields
-        .iter()
-        .map(|field| field.field_id)
-        .max()
-        .unwrap_or_default();
-    let bitmap_len = usize::try_from(max_field_id.div_ceil(8)).unwrap_or(usize::MAX);
-    let mut presence = vec![0_u8; bitmap_len];
-    let mut nulls = vec![0_u8; bitmap_len];
-    let mut payload = Vec::new();
-    let mut directory = Vec::with_capacity(fields.len());
-    for (field_id, type_tag, encoded) in &fields {
-        set_field_bit(&mut presence, *field_id);
-        if *type_tag == TYPE_NULL {
-            set_field_bit(&mut nulls, *field_id);
+    cassie_storage::row_blob::encode_row(schema, payload, encoding::encode_value).map_err(|error| {
+        match error {
+            RowBlobEncodeError::Layout(error) => CassieError::from(error),
+            RowBlobEncodeError::FieldValue(error) => error,
         }
-        let offset = u32::try_from(payload.len())
-            .map_err(|_| CassieError::Parse("row blob payload offset overflow".to_string()))?;
-        let len = u32::try_from(encoded.len())
-            .map_err(|_| CassieError::Parse("row blob field length overflow".to_string()))?;
-        payload.extend_from_slice(encoded);
-        directory.push((*field_id, *type_tag, offset, len));
-    }
-
-    let mut out = Vec::new();
-    out.extend_from_slice(MAGIC);
-    out.push(FORMAT_VERSION);
-    out.extend_from_slice(&schema.schema_version.to_be_bytes());
-    out.extend_from_slice(&max_field_id.to_be_bytes());
-    out.extend_from_slice(
-        &u32::try_from(bitmap_len)
-            .map_err(|_| CassieError::Parse("row blob bitmap length overflow".to_string()))?
-            .to_be_bytes(),
-    );
-    out.extend_from_slice(&presence);
-    out.extend_from_slice(&nulls);
-    out.extend_from_slice(
-        &u32::try_from(directory.len())
-            .map_err(|_| CassieError::Parse("row blob field count overflow".to_string()))?
-            .to_be_bytes(),
-    );
-    for (field_id, type_tag, offset, len) in directory {
-        out.extend_from_slice(&field_id.to_be_bytes());
-        out.push(type_tag);
-        out.extend_from_slice(&offset.to_be_bytes());
-        out.extend_from_slice(&len.to_be_bytes());
-    }
-    out.extend_from_slice(&payload);
-
-    Ok(out)
-}
-
-fn set_field_bit(bitmap: &mut [u8], field_id: u32) {
-    let Some(zero_based) = field_id.checked_sub(1) else {
-        return;
-    };
-    let byte = usize::try_from(zero_based / 8).unwrap_or(usize::MAX);
-    if let Some(slot) = bitmap.get_mut(byte) {
-        *slot |= 1 << (zero_based % 8);
-    }
+    })
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
@@ -431,101 +155,30 @@ fn decode_row_with_projection(
     Ok(serde_json::Value::Object(object))
 }
 
-struct RowDirectory<'a> {
-    presence: &'a [u8],
-    nulls: &'a [u8],
-    entries: std::collections::HashMap<u32, (u8, usize, usize)>,
-    payload: &'a [u8],
-}
+struct RowDirectory<'a>(RowBlobRecord<'a>);
 
 impl<'a> RowDirectory<'a> {
     fn parse(row: &'a [u8]) -> Result<Self, CassieError> {
-        let mut cursor = Cursor::new(row);
-        cursor.expect_bytes(MAGIC)?;
-        let version = cursor.read_u8()?;
-        if version != FORMAT_VERSION {
-            return Err(CassieError::Parse(format!(
-                "unsupported row blob format version {version}"
-            )));
-        }
-        let _schema_version = cursor.read_u32()?;
-        let _max_field_id = cursor.read_u32()?;
-        let bitmap_len = usize::try_from(cursor.read_u32()?)
-            .map_err(|_| CassieError::Parse("row blob bitmap length overflow".to_string()))?;
-        let presence = cursor.read_exact(bitmap_len)?;
-        let nulls = cursor.read_exact(bitmap_len)?;
-        let field_count = cursor.read_u32()?;
-        let mut entries = std::collections::HashMap::new();
-        for _ in 0..field_count {
-            let field_id = cursor.read_u32()?;
-            let type_tag = cursor.read_u8()?;
-            let offset = usize::try_from(cursor.read_u32()?)
-                .map_err(|_| CassieError::Parse("row blob field offset overflow".to_string()))?;
-            let len = usize::try_from(cursor.read_u32()?)
-                .map_err(|_| CassieError::Parse("row blob field length overflow".to_string()))?;
-            entries.insert(field_id, (type_tag, offset, len));
-        }
-        let payload = cursor.remaining();
-        // `encode_row` lays fields out back to back, so the directory must
-        // describe a partition of the payload. Checking only the maximum end
-        // offset would accept entries that overlap each other and leave
-        // earlier bytes covered twice and later bytes not at all, which
-        // decodes as a plausible value instead of an error. Sorting the
-        // ranges and requiring each to start exactly where the previous one
-        // ended rejects overlaps, gaps, and trailing bytes together.
-        let mut ranges = Vec::with_capacity(entries.len());
-        for (_, offset, len) in entries.values() {
-            let Some(end) = offset.checked_add(*len) else {
-                return Err(CassieError::Parse(
-                    "invalid row blob field bounds".to_string(),
-                ));
-            };
-            if end > payload.len() {
-                return Err(CassieError::Parse(
-                    "invalid row blob field bounds".to_string(),
-                ));
-            }
-            ranges.push((*offset, end));
-        }
-        ranges.sort_unstable();
-        let mut covered = 0usize;
-        for (start, end) in ranges {
-            if start != covered {
-                return Err(CassieError::Parse(
-                    "row blob field ranges must partition the payload".to_string(),
-                ));
-            }
-            covered = end;
-        }
-        if covered != payload.len() {
-            return Err(CassieError::Parse(
-                "row blob contains trailing bytes".to_string(),
-            ));
-        }
-        Ok(Self {
-            presence,
-            nulls,
-            entries,
-            payload,
-        })
+        RowBlobRecord::parse(row)
+            .map(Self)
+            .map_err(CassieError::from)
     }
 
     fn decode(&self, field: &RowFieldMeta) -> Result<Option<serde_json::Value>, CassieError> {
-        let field_id = field.field_id;
-        if !field_bit(self.presence, field_id) {
+        let Some(stored) = self.0.field(field.field_id)? else {
             return Ok(None);
-        }
-        if field_bit(self.nulls, field_id) {
-            if matches!(field.data_type, DataType::Json | DataType::Jsonb) {
-                // Older rows encoded JSON document null with the generic SQL
-                // NULL tag. Under the current contract those rows are SQL NULL.
-                return Ok(None);
+        };
+        let (type_tag, bytes) = match stored {
+            RowBlobField::SqlNull => {
+                if matches!(field.data_type, DataType::Json | DataType::Jsonb) {
+                    // Older rows encoded JSON document null with the generic SQL
+                    // NULL tag. Under the current contract those rows are SQL NULL.
+                    return Ok(None);
+                }
+                return Ok(Some(serde_json::Value::Null));
             }
-            return Ok(Some(serde_json::Value::Null));
-        }
-        let (type_tag, offset, len) = self.entries.get(&field_id).copied().ok_or_else(|| {
-            CassieError::Parse("row blob field missing directory entry".to_string())
-        })?;
+            RowBlobField::Encoded { type_tag, bytes } => (type_tag, bytes),
+        };
         // Several tags differ by a single bit (TYPE_F64/TYPE_STRING,
         // TYPE_UUID/TYPE_JSON), so a corrupted tag can decode as a valid
         // value of the wrong type. The schema already says what this field
@@ -537,7 +190,6 @@ impl<'a> RowDirectory<'a> {
                 field.name
             )));
         }
-        let bytes = &self.payload[offset..offset + len];
         let decoded = decode_directory_value(type_tag, bytes)?;
         if let DataType::Composite(descriptor) = &field.data_type {
             composite::check_stored(descriptor, &decoded)?;
@@ -545,15 +197,6 @@ impl<'a> RowDirectory<'a> {
         enum_value::check_column(&field.data_type, &decoded)?;
         Ok(Some(decoded))
     }
-}
-
-fn field_bit(bitmap: &[u8], field_id: u32) -> bool {
-    field_id.checked_sub(1).is_some_and(|zero_based| {
-        let byte = usize::try_from(zero_based / 8).unwrap_or(usize::MAX);
-        bitmap
-            .get(byte)
-            .is_some_and(|value| value & (1 << (zero_based % 8)) != 0)
-    })
 }
 
 fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {
@@ -792,7 +435,7 @@ fn decode_array(
             TYPE_ARRAY => {
                 return Err(CassieError::Parse(
                     "nested array element is invalid in CRB1 row blob".to_string(),
-                ))
+                ));
             }
             TYPE_EXTENDED => decode_array_extended(cursor)?,
             _ => value_from_decoded_tag(value_type, decode_value(value_type, cursor, controls)?)?,
@@ -905,92 +548,6 @@ fn encode_bytea(value: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
-}
-
-struct Cursor<'a> {
-    bytes: &'a [u8],
-    offset: usize,
-}
-
-impl<'a> Cursor<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn expect_bytes(&mut self, expected: &[u8]) -> Result<(), CassieError> {
-        let actual = self.read_exact(expected.len())?;
-        if actual != expected {
-            return Err(CassieError::Parse("invalid row blob magic".into()));
-        }
-        Ok(())
-    }
-
-    fn read_u8(&mut self) -> Result<u8, CassieError> {
-        let bytes = self.read_exact(1)?;
-        Ok(bytes[0])
-    }
-
-    fn read_u32(&mut self) -> Result<u32, CassieError> {
-        let bytes = self.read_exact(4)?;
-        Ok(u32::from_be_bytes(bytes.try_into().map_err(|_| {
-            CassieError::Parse("invalid u32 in row blob".to_string())
-        })?))
-    }
-
-    fn read_i64(&mut self) -> Result<i64, CassieError> {
-        let bytes = self.read_exact(8)?;
-        Ok(i64::from_be_bytes(bytes.try_into().map_err(|_| {
-            CassieError::Parse("invalid i64 in row blob".to_string())
-        })?))
-    }
-
-    fn read_f64(&mut self) -> Result<f64, CassieError> {
-        let bytes = self.read_exact(8)?;
-        Ok(f64::from_be_bytes(bytes.try_into().map_err(|_| {
-            CassieError::Parse("invalid f64 in row blob".to_string())
-        })?))
-    }
-
-    fn read_varint(&mut self) -> Result<u64, CassieError> {
-        let mut shift = 0;
-        let mut value = 0u64;
-
-        loop {
-            if shift >= 64 {
-                return Err(CassieError::Parse("row blob varint overflow".into()));
-            }
-            let byte = self.read_u8()?;
-            value |= u64::from(byte & 0x7f) << shift;
-            if byte & 0x80 == 0 {
-                return Ok(value);
-            }
-            shift += 7;
-        }
-    }
-
-    fn read_len_prefixed(&mut self) -> Result<Vec<u8>, CassieError> {
-        let len = usize::try_from(self.read_varint()?)
-            .map_err(|_| CassieError::Parse("row blob length overflow".to_string()))?;
-        Ok(self.read_exact(len)?.to_vec())
-    }
-
-    fn read_exact(&mut self, len: usize) -> Result<&'a [u8], CassieError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or_else(|| CassieError::Parse("row blob offset overflow".into()))?;
-        if end > self.bytes.len() {
-            return Err(CassieError::Parse("truncated row blob".into()));
-        }
-
-        let bytes = &self.bytes[self.offset..end];
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn remaining(&self) -> &'a [u8] {
-        &self.bytes[self.offset..]
-    }
 }
 
 #[cfg(test)]

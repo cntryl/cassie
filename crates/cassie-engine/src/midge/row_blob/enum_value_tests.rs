@@ -1,6 +1,6 @@
 use super::*;
 use crate::midge::row_blob::encoding::encode_value;
-use crate::types::enum_type::{sort_order_at, ENUM_STORAGE_KEY};
+use crate::types::enum_type::{ENUM_STORAGE_KEY, sort_order_at};
 use crate::types::{DataType, EnumMember, EnumRef};
 
 fn mood_type() -> EnumType {

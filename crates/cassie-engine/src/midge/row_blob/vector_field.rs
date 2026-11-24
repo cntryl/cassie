@@ -6,8 +6,8 @@
 //! decodes the remaining fields (when a filter needs them) without the vector.
 
 use super::{
-    active_field_names, field_bit, field_matches_name, DataType, RowDirectory, RowFieldMeta,
-    RowSchema, TYPE_VECTOR_F32,
+    DataType, RowDirectory, RowFieldMeta, RowSchema, TYPE_VECTOR_F32, active_field_names,
+    field_bit, field_matches_name,
 };
 use crate::app::CassieError;
 

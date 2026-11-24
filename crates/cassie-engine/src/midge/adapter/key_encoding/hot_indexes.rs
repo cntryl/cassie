@@ -1,6 +1,6 @@
 use super::{
-    append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix, CassieError,
-    LexKey, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION,
+    CassieError, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION, LexKey,
+    append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix,
 };
 
 pub(crate) fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {

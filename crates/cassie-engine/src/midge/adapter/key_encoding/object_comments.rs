@@ -1,4 +1,4 @@
-use super::{key, prefix, FAMILY_OBJECT_COMMENT};
+use super::{FAMILY_OBJECT_COMMENT, key, prefix};
 
 pub(in crate::midge::adapter) fn object_comment_key(
     class_oid: u32,

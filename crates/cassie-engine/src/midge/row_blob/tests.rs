@@ -5,6 +5,26 @@ mod controlled_directory;
 #[path = "controlled_directory_tests.rs"]
 mod controlled_directory_tests;
 
+#[test]
+fn should_preserve_existing_row_blob_bytes_after_storage_placement() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "v".to_owned(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    });
+    let expected =
+        b"CRB1\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x01\x00\x00\x00\x01\x00\x00\x00\x01\x05\x00\x00\x00\x00\x00\x00\x00\x01x";
+
+    // Act
+    let encoded = encode_row(&schema, &serde_json::json!({"v": "x"})).expect("row");
+
+    // Assert
+    assert_eq!(encoded, expected);
+}
+
 pub(crate) fn owned_row_cell(
     source: &str,
     identity: crate::runtime::accounted::json_arena::PlainIdentity,

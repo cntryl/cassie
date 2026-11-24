@@ -211,17 +211,23 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     assert!(!row_parts.iter().any(|part| part == b"field"));
     assert!(!metadata_parts.iter().any(|part| part == b"metadata"));
     assert!(!segment_parts.iter().any(|part| part == b"segment"));
-    assert!(!reservation_constraint_parts
-        .iter()
-        .any(|part| part == b"constraint"));
+    assert!(
+        !reservation_constraint_parts
+            .iter()
+            .any(|part| part == b"constraint")
+    );
     assert!(!reservation_index_parts.iter().any(|part| part == b"index"));
-    assert!(!fulltext_metadata_parts
-        .iter()
-        .any(|part| part == b"metadata"));
+    assert!(
+        !fulltext_metadata_parts
+            .iter()
+            .any(|part| part == b"metadata")
+    );
     assert!(fulltext_metadata_parts.contains(&FULLTEXT_ARTIFACT_META.as_slice()));
-    assert!(!fulltext_term_record_parts
-        .iter()
-        .any(|part| part == b"term"));
+    assert!(
+        !fulltext_term_record_parts
+            .iter()
+            .any(|part| part == b"term")
+    );
     assert!(fulltext_term_record_parts.contains(&FULLTEXT_ARTIFACT_TERM.as_slice()));
     assert!(fulltext_terms_parts.contains(&FULLTEXT_ARTIFACT_POSTINGS.as_slice()));
     assert!(!fulltext_terms_parts.iter().any(|part| part == b"postings"));
@@ -317,9 +323,11 @@ fn should_encode_time_series_bucket_bounds_as_ordered_integers() {
         decode_time_series_entry_key(&middle, &data_prefix),
         Some(("tenant".to_string(), 0, 0, 0, "a".to_string()))
     );
-    assert!(!middle
-        .windows(b"1970-01-01".len())
-        .any(|window| window == b"1970-01-01"));
+    assert!(
+        !middle
+            .windows(b"1970-01-01".len())
+            .any(|window| window == b"1970-01-01")
+    );
 }
 
 #[test]

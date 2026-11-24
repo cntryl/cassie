@@ -7,7 +7,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
 use super::super::{
-    expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION, MAGIC, TYPE_JSON,
+    Cursor, FORMAT_VERSION, MAGIC, RowFieldMeta, TYPE_JSON, expected_type_tag, field_bit,
 };
 
 #[derive(Clone, Copy)]
@@ -201,7 +201,10 @@ impl<'a> Directory<'a> {
                     let entry = self.entries.values[mid];
                     let expected = expected_type_tag(&field.data_type);
                     if entry.tag != expected {
-                        return Err(CassieError::Parse(format!("row blob field '{}' stores type tag {} but its schema declares type tag {expected}", field.name, entry.tag)));
+                        return Err(CassieError::Parse(format!(
+                            "row blob field '{}' stores type tag {} but its schema declares type tag {expected}",
+                            field.name, entry.tag
+                        )));
                     }
                     debug_assert_eq!(entry.tag, TYPE_JSON);
                     return Ok(Some(
@@ -242,7 +245,7 @@ impl<'a> Directory<'a> {
             _ => {
                 return Err(HandoffError::Directory(CassieError::Execution(
                     "raw JSON span requires a JSON field".into(),
-                )))
+                )));
             }
         };
         PlainCell::parse_bytes_observing(bytes, identity, controls, copied)

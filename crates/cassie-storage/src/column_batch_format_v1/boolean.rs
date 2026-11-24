@@ -1,6 +1,6 @@
 //! Primitive Plain CBC1 Boolean decode; no JSON or SQL Value lane objects.
 use super::binary::invalid;
-use super::chunk::{bit_is_set, parse_chunk, Codec, LogicalType};
+use super::chunk::{Codec, LogicalType, bit_is_set, parse_chunk};
 use crate::StorageCodecError;
 
 pub struct DecodedBooleanChunk {

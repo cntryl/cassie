@@ -1,8 +1,8 @@
 use cntryl_lexkey::LexKey;
 
 use super::{
-    encoded_u64_component, key, prefix, FAMILY_FULLTEXT_INDEX, FULLTEXT_ARTIFACT_DOCUMENT,
-    FULLTEXT_ARTIFACT_META, FULLTEXT_ARTIFACT_POSTINGS, FULLTEXT_ARTIFACT_TERM,
+    FAMILY_FULLTEXT_INDEX, FULLTEXT_ARTIFACT_DOCUMENT, FULLTEXT_ARTIFACT_META,
+    FULLTEXT_ARTIFACT_POSTINGS, FULLTEXT_ARTIFACT_TERM, encoded_u64_component, key, prefix,
 };
 
 pub(crate) fn fulltext_index_key(relation_id: u64, index_id: u64) -> Vec<u8> {

@@ -1,4 +1,4 @@
-use super::{key, prefix, scoped_key, FAMILY_DATABASE_IDENTITY, FAMILY_PROPERTY_GRAPH};
+use super::{FAMILY_DATABASE_IDENTITY, FAMILY_PROPERTY_GRAPH, key, prefix, scoped_key};
 
 /// Every mapped property graph definition in one database family.
 pub(crate) fn property_graph_prefix() -> Vec<u8> {

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::StorageCodecError;
 
 use super::binary::{
-    invalid, write_bytes, write_f64, write_i64, write_u16, write_u32, write_u64, Reader,
+    Reader, invalid, write_bytes, write_f64, write_i64, write_u16, write_u32, write_u64,
 };
 use super::bitpack;
 

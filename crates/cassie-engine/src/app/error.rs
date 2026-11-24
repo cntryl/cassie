@@ -699,7 +699,19 @@ impl From<cassie_storage::StorageCodecError> for CassieError {
     fn from(error: cassie_storage::StorageCodecError) -> Self {
         match error {
             cassie_storage::StorageCodecError::InvalidEncoding(message) => Self::Parse(message),
+            cassie_storage::StorageCodecError::UnsupportedValue(message) => {
+                Self::Unsupported(message)
+            }
+            cassie_storage::StorageCodecError::InvalidValue(message) => {
+                Self::InvalidVector(message)
+            }
         }
+    }
+}
+
+impl From<cassie_storage::row_blob::RowSchemaError> for CassieError {
+    fn from(error: cassie_storage::row_blob::RowSchemaError) -> Self {
+        Self::Unsupported(error.to_string())
     }
 }
 

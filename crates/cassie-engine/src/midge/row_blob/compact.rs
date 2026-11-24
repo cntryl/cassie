@@ -7,10 +7,10 @@ use crate::app::CassieError;
 use crate::types::DataType;
 
 use super::{
-    composite, decode_value, encode_value, enum_value, write_varint, Cursor, TYPE_ARRAY, TYPE_BOOL,
-    TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED, TYPE_F64,
-    TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID,
-    TYPE_VECTOR_F32,
+    Cursor, TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM,
+    TYPE_EXTENDED, TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME,
+    TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32, composite, decode_value, encode_value, enum_value,
+    write_varint,
 };
 
 pub(crate) fn encode_compact_value(

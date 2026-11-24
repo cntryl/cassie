@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::StorageCodecError;
 
-use super::binary::{invalid, write_bytes, write_u16, write_u32, Reader};
+use super::binary::{Reader, invalid, write_bytes, write_u16, write_u32};
 use super::chunk::MAX_SCALAR_BYTES;
 
 const MAX_SYMBOLS: usize = 256;
@@ -281,7 +281,7 @@ mod tests {
 
     use sha2::{Digest, Sha256};
 
-    use super::{decode, decode_selected, encode, ESCAPE};
+    use super::{ESCAPE, decode, decode_selected, encode};
 
     #[test]
     fn should_materialize_only_selected_fsst_values() {

@@ -547,7 +547,7 @@ mod tests {
     }
 
     #[test]
-    fn should_preserve_precomposed_and_decomposed_accents_without_accent_folding() {
+    fn should_preserve_precomposed_decomposed_accents_without_accent_folding() {
         // Arrange
         let config = AnalyzerConfig {
             name: "simple".to_string(),

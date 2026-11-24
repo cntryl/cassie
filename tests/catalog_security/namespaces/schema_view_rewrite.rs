@@ -244,7 +244,7 @@ impl Drop for NamespaceMetadataFailureGuard {
 }
 
 #[test]
-fn should_rollback_namespace_function_and_view_metadata_on_publication_failure() {
+fn should_rollback_namespace_function_view_metadata_on_publication_failure() {
     // Arrange
     let fixture = sql_fixture(
         "schema-rename-metadata-publication-failure",

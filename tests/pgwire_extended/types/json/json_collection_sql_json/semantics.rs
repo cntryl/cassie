@@ -75,7 +75,7 @@ fn should_return_sql_null_for_whole_null_standard_object_arrays() {
 }
 
 #[test]
-fn should_resolve_case_insensitive_and_qualified_standard_object_names() {
+fn should_resolve_case_insensitive_qualified_standard_object_names() {
     // Arrange
     let cycle = fixture::execute_cycle(
         "SELECT JSON_OBJECT('{a,b}'), jSoN_Object('{a,b}'), pg_catalog.JSON_OBJECT('{a,b}'), JSONB_OBJECT(NULL::TEXT[]), pg_catalog.JSONB_OBJECT(NULL::TEXT[])",
@@ -132,7 +132,7 @@ fn should_report_null_json_object_keys_with_null_not_null_sqlstate() {
 }
 
 #[test]
-fn should_preserve_null_json_object_values_and_array_error_sqlstates() {
+fn should_preserve_null_json_object_values_plus_array_error_sqlstates() {
     // Arrange
     let success_sql = [
         "SELECT json_object('{a,b}', '{1,NULL}')",

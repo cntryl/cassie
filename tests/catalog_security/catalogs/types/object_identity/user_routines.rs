@@ -634,7 +634,7 @@ fn should_preserve_a_routine_scalar_subquery_in_a_window_aggregate() {
 }
 
 #[test]
-fn should_resolve_routine_scalar_subqueries_in_window_partition_and_order() {
+fn should_resolve_routine_scalar_subqueries_in_window_partition_order() {
     // Arrange
     let fixture = sql_fixture(
         "routine_scalar_subquery_window_partition_order",
@@ -901,7 +901,7 @@ fn should_resolve_a_quoted_mixed_case_function_parameter() {
 }
 
 #[test]
-fn should_allow_distinct_quoted_and_unquoted_function_arguments() {
+fn should_allow_distinct_quoted_unquoted_function_arguments() {
     // Arrange
     let fixture = sql_fixture("routine_distinct_quoted_arguments", &[]);
     fixture

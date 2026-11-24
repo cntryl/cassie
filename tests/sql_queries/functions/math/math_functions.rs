@@ -258,7 +258,7 @@ fn should_reject_float_remainder_in_a_where_clause_on_an_empty_table() {
 }
 
 #[test]
-fn should_keep_integer_numeric_and_float8_operator_results() {
+fn should_keep_integer_numeric_float8_operator_results() {
     // Arrange
     let fixture = sql_fixture("issue-1477-remainder-compatible-overloads", &[]);
 

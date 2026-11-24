@@ -301,7 +301,7 @@ fn should_percent_decode_a_quoted_collection_segment_through_the_http_router() {
 }
 
 #[test]
-fn should_reject_encoded_collection_separators_and_traversal() {
+fn should_reject_encoded_collection_separators_with_traversal() {
     // Arrange
     let invalid = [
         "cities%2Fevents",

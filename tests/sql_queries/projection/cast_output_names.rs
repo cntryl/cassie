@@ -89,7 +89,7 @@ fn should_name_unaliased_arithmetic_expression_column_question_mark() {
 }
 
 #[test]
-fn should_name_unaliased_casts_case_and_cast_function_expressions() {
+fn should_name_unaliased_casts_case_plus_cast_function_expressions() {
     // Arrange
     let fixture = fixture("unaliased-expression-derived-names");
 
@@ -118,7 +118,7 @@ fn should_name_unaliased_casts_case_and_cast_function_expressions() {
 }
 
 #[test]
-fn should_name_unaliased_casts_with_postgresql_catalog_types_and_exists() {
+fn should_name_unaliased_casts_with_postgresql_catalog_types_plus_exists() {
     // Arrange
     let fixture = fixture("unaliased-expression-catalog-type-names");
 
@@ -160,7 +160,7 @@ fn should_name_unaliased_casts_with_postgresql_catalog_types_and_exists() {
 }
 
 #[test]
-fn should_keep_function_names_aliases_and_duplicate_labels_positionally() {
+fn should_keep_function_names_aliases_plus_duplicate_labels_positionally() {
     // Arrange
     let fixture = fixture("unaliased-expression-name-guards");
 

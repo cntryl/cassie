@@ -2,7 +2,7 @@
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
 /// Every spelling the result cache treats as sequence-mutating or session-dependent.
-pub(crate) const SEQUENCE_FUNCTION_NAMES: [&str; 8] = [
+pub const SEQUENCE_FUNCTION_NAMES: [&str; 8] = [
     "nextval",
     "currval",
     "setval",

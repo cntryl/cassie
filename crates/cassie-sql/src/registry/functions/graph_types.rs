@@ -10,18 +10,18 @@ use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 use crate::types::DataType;
 
 /// The user-visible `cassie_graph.key_part(value)`.
-pub(crate) const KEY_PART: &str = "cassie_graph.key_part";
+pub const KEY_PART: &str = "cassie_graph.key_part";
 /// The lowered `(value, type_tag)` form; the double underscore keeps it out
 /// of the documented API.
-pub(crate) const KEY_PART_TAGGED: &str = "cassie_graph.__key_part_tagged";
+pub const KEY_PART_TAGGED: &str = "cassie_graph.__key_part_tagged";
 
 /// The user-visible reference constructors and their lowered forms, which the
 /// binder wraps in a cast to the reserved type (the double underscore keeps
 /// them out of the documented API and makes the lowering idempotent).
-pub(crate) const VERTEX_REF: &str = "cassie_graph.vertex_ref";
-pub(crate) const EDGE_REF: &str = "cassie_graph.edge_ref";
-pub(crate) const VERTEX_REF_TYPED: &str = "cassie_graph.__vertex_ref";
-pub(crate) const EDGE_REF_TYPED: &str = "cassie_graph.__edge_ref";
+pub const VERTEX_REF: &str = "cassie_graph.vertex_ref";
+pub const EDGE_REF: &str = "cassie_graph.edge_ref";
+pub const VERTEX_REF_TYPED: &str = "cassie_graph.__vertex_ref";
+pub const EDGE_REF_TYPED: &str = "cassie_graph.__edge_ref";
 
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
@@ -83,21 +83,21 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
 ];
 
 /// The table functions of the API and their output column names.
-pub(crate) const TABLE_FUNCTIONS: [&str; 3] = [
+pub const TABLE_FUNCTIONS: [&str; 3] = [
     "cassie_graph.key_parts",
     "cassie_graph.path_steps",
     "cassie_graph.weighted_path_steps",
 ];
 
 /// Whether `name` is one of the FROM-only graph type functions.
-pub(crate) fn is_table_function(name: &str) -> bool {
+pub fn is_table_function(name: &str) -> bool {
     TABLE_FUNCTIONS
         .iter()
         .any(|function| function.eq_ignore_ascii_case(name))
 }
 
 /// The argument count of a table function.
-pub(crate) fn table_arity(name: &str) -> usize {
+pub fn table_arity(name: &str) -> usize {
     if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[2]) {
         2
     } else {
@@ -106,7 +106,7 @@ pub(crate) fn table_arity(name: &str) -> usize {
 }
 
 /// Whether the `vertex` and `edge` columns of `name` are `graph_element_ref`s.
-pub(crate) fn has_element_columns(name: &str) -> bool {
+pub fn has_element_columns(name: &str) -> bool {
     TABLE_FUNCTIONS[1..]
         .iter()
         .any(|function| function.eq_ignore_ascii_case(name))
@@ -115,16 +115,13 @@ pub(crate) fn has_element_columns(name: &str) -> bool {
 /// Output columns of a table function with the element columns untyped, for callers with
 /// no catalog. The descriptor is per database, so the binder resolves it and the typed
 /// columns come from [`table_columns_typed`].
-pub(crate) fn table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
+pub fn table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
     table_columns_typed(name, &DataType::Null)
 }
 
 /// Output columns of a table function whose `vertex` and `edge` columns have the
 /// `element` type.
-pub(crate) fn table_columns_typed(
-    name: &str,
-    element: &DataType,
-) -> Option<Vec<(String, DataType)>> {
+pub fn table_columns_typed(name: &str, element: &DataType) -> Option<Vec<(String, DataType)>> {
     let element = element.clone();
     let columns: Vec<(&str, DataType)> = if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[0]) {
         vec![

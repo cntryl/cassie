@@ -1,6 +1,6 @@
 //! Fixed BYTEA builtins and shared signature-selection helpers.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
-pub(crate) const fn is_bytea_function(id: FunctionId) -> bool {
+pub const fn is_bytea_function(id: FunctionId) -> bool {
     matches!(
         id,
         FunctionId::Encode
@@ -118,13 +118,13 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
 
 /// Select among the existing PostgreSQL BYTEA and pending BIT overloads.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BitInputSelection {
+pub enum BitInputSelection {
     Bytea,
     Ambiguous,
     PendingBit,
 }
 
-pub(crate) fn bit_input_selection(
+pub fn bit_input_selection(
     id: FunctionId,
     first_unknown: bool,
     index_oid: i32,
@@ -144,7 +144,7 @@ pub(crate) fn bit_input_selection(
 }
 
 /// A visible SQL routine with another arity cannot hide a matching fixed builtin.
-pub(crate) fn has_distinct_builtin_arity(name: &str, actual: usize, declared: usize) -> bool {
+pub fn has_distinct_builtin_arity(name: &str, actual: usize, declared: usize) -> bool {
     actual != declared
         && super::function(name).is_some_and(|metadata| {
             (is_bytea_function(metadata.id)

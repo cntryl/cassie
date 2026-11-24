@@ -241,7 +241,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ),
 ];
 
-pub(crate) fn is_variadic_array_argument(expression: &crate::sql::ast::Expr) -> bool {
+pub fn is_variadic_array_argument<A>(expression: &crate::sql::ast::Expr<A>) -> bool {
     matches!(
         expression,
         crate::sql::ast::Expr::Function(function)
@@ -340,7 +340,7 @@ const fn mutation(
     }
 }
 
-pub(super) const fn inputs(kind: JsonFunction) -> Option<&'static [i32]> {
+pub const fn inputs(kind: JsonFunction) -> Option<&'static [i32]> {
     match kind {
         JsonFunction::Typeof(false)
         | JsonFunction::ArrayLength(false)

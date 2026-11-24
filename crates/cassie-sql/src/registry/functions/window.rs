@@ -3,28 +3,28 @@
 use super::{FunctionArity, FunctionId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum WindowArgumentType {
+pub enum WindowArgumentType {
     AnyElement,
     Int4,
     AnyCompatible,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct WindowInputSignature {
-    pub(crate) arity: usize,
-    pub(crate) arguments: &'static [WindowArgumentType],
+pub struct WindowInputSignature {
+    pub arity: usize,
+    pub arguments: &'static [WindowArgumentType],
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct WindowFunction {
-    pub(crate) id: FunctionId,
-    pub(crate) name: &'static str,
-    pub(crate) arity: FunctionArity,
+pub struct WindowFunction {
+    pub id: FunctionId,
+    pub name: &'static str,
+    pub arity: FunctionArity,
     signatures: &'static [WindowInputSignature],
 }
 
 impl WindowFunction {
-    pub(crate) fn signature(&self, arity: usize) -> Option<&'static [WindowArgumentType]> {
+    pub fn signature(&self, arity: usize) -> Option<&'static [WindowArgumentType]> {
         self.signatures
             .iter()
             .find(|signature| signature.arity == arity)
@@ -78,7 +78,7 @@ const FUNCTIONS: &[WindowFunction] = &[
     },
 ];
 
-pub(crate) fn window_function(name: &str) -> Option<&'static WindowFunction> {
+pub fn window_function(name: &str) -> Option<&'static WindowFunction> {
     let local_name = name.rsplit('.').next()?;
     FUNCTIONS
         .iter()
@@ -86,7 +86,7 @@ pub(crate) fn window_function(name: &str) -> Option<&'static WindowFunction> {
 }
 
 /// The finite aggregate families admitted by the existing window evaluator.
-pub(crate) fn aggregate_window_function(name: &str) -> Option<&'static super::ScalarFunction> {
+pub fn aggregate_window_function(name: &str) -> Option<&'static super::ScalarFunction> {
     let function = super::function(name)?;
     (matches!(
         function.id,

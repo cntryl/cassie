@@ -7,6 +7,78 @@ use super::{
 use crate::types::DataType;
 
 #[test]
+fn should_register_two_float8_regression_aggregate_signatures() {
+    // Arrange
+    let identities = [
+        ("corr", FunctionId::Corr),
+        ("covar_pop", FunctionId::CovarPop),
+        ("covar_samp", FunctionId::CovarSamp),
+        ("regr_count", FunctionId::RegrCount),
+        ("regr_slope", FunctionId::RegrSlope),
+        ("regr_intercept", FunctionId::RegrIntercept),
+        ("regr_r2", FunctionId::RegrR2),
+        ("regr_sxx", FunctionId::RegrSxx),
+        ("regr_sxy", FunctionId::RegrSxy),
+        ("regr_syy", FunctionId::RegrSyy),
+        ("regr_avgx", FunctionId::RegrAvgx),
+        ("regr_avgy", FunctionId::RegrAvgy),
+    ];
+
+    // Act / Assert
+    for (name, expected) in identities {
+        let registered = function(name).expect("registered regression aggregate");
+        assert!(registered.is_aggregate);
+        assert_eq!(registered.id, expected);
+        assert_eq!(registered.arity, FunctionArity::Exact(2));
+        assert!(crate::sql::functions::regression::is_regression_function(
+            registered.id
+        ));
+        let expected_return = if expected == FunctionId::RegrCount {
+            FunctionReturnType::BigInt
+        } else {
+            FunctionReturnType::Float
+        };
+        assert_eq!(registered.return_type, expected_return);
+        let qualified = format!("pg_catalog.{name}");
+        assert_eq!(
+            function(&qualified).expect("qualified aggregate").id,
+            expected
+        );
+        assert!(matches!(
+            input_signature(registered.id),
+            Some(FunctionInputSignature::Positional(signature)) if signature == [701, 701]
+        ));
+    }
+}
+
+#[test]
+fn should_register_named_statistical_aggregate_input_signatures() {
+    // Arrange
+    let identities = [
+        ("var_pop", FunctionId::VarPop),
+        ("var_samp", FunctionId::VarSamp),
+        ("variance", FunctionId::Variance),
+        ("stddev_pop", FunctionId::StddevPop),
+        ("stddev_samp", FunctionId::StddevSamp),
+        ("stddev", FunctionId::Stddev),
+    ];
+
+    // Act / Assert
+    for (name, expected) in identities {
+        let registered = function(name).expect("registered statistical aggregate");
+        assert!(registered.is_aggregate);
+        assert_eq!(registered.id, expected);
+        assert!(crate::sql::functions::statistical::is_statistical_function(
+            registered.id
+        ));
+        assert!(matches!(
+            input_signature(registered.id),
+            Some(FunctionInputSignature::CommonArguments)
+        ));
+    }
+}
+
+#[test]
 fn should_define_one_metadata_mapping_per_function_id() {
     // Arrange
     let functions = registry();

@@ -171,7 +171,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
 ];
-pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
+pub const fn is_runtime_helper(id: FunctionId) -> bool {
     matches!(
         id,
         FunctionId::CurrentQuery
@@ -190,11 +190,11 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::PgIsOtherTempSchema
     )
 }
-pub(crate) fn is_loaded_modules(name: &str) -> bool {
+pub fn is_loaded_modules(name: &str) -> bool {
     name.eq_ignore_ascii_case("pg_get_loaded_modules")
         || name.eq_ignore_ascii_case("pg_catalog.pg_get_loaded_modules")
 }
-pub(crate) fn loaded_modules_columns() -> Vec<(String, DataType)> {
+pub fn loaded_modules_columns() -> Vec<(String, DataType)> {
     ["module_name", "version", "file_name"]
         .into_iter()
         .map(|name| (name.into(), DataType::Text))

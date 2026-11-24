@@ -12,7 +12,7 @@ const fn aggregate(id: FunctionId, name: &'static str) -> ScalarFunction {
     }
 }
 
-pub(crate) const FUNCTIONS: &[ScalarFunction] = &[
+pub const FUNCTIONS: &[ScalarFunction] = &[
     aggregate(FunctionId::VarPop, "var_pop"),
     aggregate(FunctionId::VarPop, "pg_catalog.var_pop"),
     aggregate(FunctionId::VarSamp, "var_samp"),
@@ -27,7 +27,7 @@ pub(crate) const FUNCTIONS: &[ScalarFunction] = &[
     aggregate(FunctionId::Stddev, "pg_catalog.stddev"),
 ];
 
-pub(crate) const fn is_statistical_function(id: FunctionId) -> bool {
+pub const fn is_statistical_function(id: FunctionId) -> bool {
     matches!(
         id,
         FunctionId::VarPop
@@ -37,36 +37,4 @@ pub(crate) const fn is_statistical_function(id: FunctionId) -> bool {
             | FunctionId::StddevSamp
             | FunctionId::Stddev
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{is_statistical_function, FunctionId};
-    use crate::sql::functions::{function, FunctionInputSignature};
-
-    #[test]
-    fn should_register_named_statistical_aggregate_identities() {
-        // Arrange
-        let identities = [
-            ("var_pop", FunctionId::VarPop),
-            ("var_samp", FunctionId::VarSamp),
-            ("variance", FunctionId::Variance),
-            ("stddev_pop", FunctionId::StddevPop),
-            ("stddev_samp", FunctionId::StddevSamp),
-            ("stddev", FunctionId::Stddev),
-        ];
-
-        // Act
-        for (name, expected) in identities {
-            let registered = function(name).expect("registered statistical aggregate");
-            // Assert
-            assert!(registered.is_aggregate);
-            assert_eq!(registered.id, expected);
-            assert!(is_statistical_function(registered.id));
-            assert!(matches!(
-                crate::sql::functions::input_signature(registered.id),
-                Some(FunctionInputSignature::CommonArguments)
-            ));
-        }
-    }
 }

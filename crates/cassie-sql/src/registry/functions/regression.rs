@@ -16,7 +16,7 @@ const fn aggregate(
     }
 }
 
-pub(crate) const FUNCTIONS: &[ScalarFunction] = &[
+pub const FUNCTIONS: &[ScalarFunction] = &[
     aggregate(FunctionId::Corr, "corr", FunctionReturnType::Float),
     aggregate(
         FunctionId::Corr,
@@ -107,7 +107,7 @@ pub(crate) const FUNCTIONS: &[ScalarFunction] = &[
     ),
 ];
 
-pub(crate) const fn is_regression_function(id: FunctionId) -> bool {
+pub const fn is_regression_function(id: FunctionId) -> bool {
     matches!(
         id,
         FunctionId::Corr
@@ -123,56 +123,4 @@ pub(crate) const fn is_regression_function(id: FunctionId) -> bool {
             | FunctionId::RegrAvgx
             | FunctionId::RegrAvgy
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{is_regression_function, FunctionId};
-    use crate::sql::functions::{
-        function, input_signature, FunctionArity, FunctionInputSignature, FunctionReturnType,
-    };
-
-    #[test]
-    fn should_register_two_float8_regression_aggregate_signatures() {
-        // Arrange
-        let identities = [
-            ("corr", FunctionId::Corr),
-            ("covar_pop", FunctionId::CovarPop),
-            ("covar_samp", FunctionId::CovarSamp),
-            ("regr_count", FunctionId::RegrCount),
-            ("regr_slope", FunctionId::RegrSlope),
-            ("regr_intercept", FunctionId::RegrIntercept),
-            ("regr_r2", FunctionId::RegrR2),
-            ("regr_sxx", FunctionId::RegrSxx),
-            ("regr_sxy", FunctionId::RegrSxy),
-            ("regr_syy", FunctionId::RegrSyy),
-            ("regr_avgx", FunctionId::RegrAvgx),
-            ("regr_avgy", FunctionId::RegrAvgy),
-        ];
-
-        for (name, expected) in identities {
-            // Act
-            let registered = function(name).expect("registered regression aggregate");
-            // Assert
-            assert!(registered.is_aggregate);
-            assert_eq!(registered.id, expected);
-            assert_eq!(registered.arity, FunctionArity::Exact(2));
-            assert!(is_regression_function(registered.id));
-            let expected_return = if expected == FunctionId::RegrCount {
-                FunctionReturnType::BigInt
-            } else {
-                FunctionReturnType::Float
-            };
-            assert_eq!(registered.return_type, expected_return);
-            let qualified = format!("pg_catalog.{name}");
-            assert_eq!(
-                function(&qualified).expect("qualified aggregate").id,
-                expected
-            );
-            assert!(matches!(
-                input_signature(registered.id),
-                Some(FunctionInputSignature::Positional(signature)) if signature == [701, 701]
-            ));
-        }
-    }
 }

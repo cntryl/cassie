@@ -96,7 +96,7 @@ fn is_kind(data_type: Option<&DataType>, matches: impl Fn(&DataType) -> bool) ->
     data_type.is_some_and(matches)
 }
 
-fn literal_precision(args: &[crate::sql::ast::Expr]) -> Option<u8> {
+fn literal_precision<A>(args: &[crate::sql::ast::Expr<A>]) -> Option<u8> {
     match args.first() {
         Some(crate::sql::ast::Expr::IntegerLiteral(value)) => {
             u8::try_from((*value).clamp(0, 6)).ok()
@@ -106,9 +106,9 @@ fn literal_precision(args: &[crate::sql::ast::Expr]) -> Option<u8> {
 }
 
 /// The result type of a date/time builtin given its argument types.
-pub(crate) fn return_type(
+pub fn return_type<A>(
     name: &str,
-    args: &[crate::sql::ast::Expr],
+    args: &[crate::sql::ast::Expr<A>],
     arg_type: &dyn Fn(usize) -> Option<DataType>,
 ) -> Option<DataType> {
     let name = name.strip_prefix("pg_catalog.").unwrap_or(name);
@@ -211,7 +211,7 @@ const CLOCK_INPUTS: [&str; 4] = ["now", "today", "tomorrow", "yesterday"];
 
 /// Whether a serialized statement reads the clock, through a clock function
 /// or a `'now'`/`'today'` style input, so its result must not be reused.
-pub(crate) fn clock_dependent(encoded: &str) -> bool {
+pub fn clock_dependent(encoded: &str) -> bool {
     let lower = encoded.to_ascii_lowercase();
     CLOCK_FUNCTIONS.iter().any(|name| {
         lower.contains(&format!("\"name\":\"{name}\""))
@@ -222,7 +222,7 @@ pub(crate) fn clock_dependent(encoded: &str) -> bool {
 }
 
 /// Whether `name` is a date/time builtin.
-pub(crate) fn is_temporal(name: &str) -> bool {
+pub fn is_temporal(name: &str) -> bool {
     super::function(name).is_some_and(|metadata| {
         matches!(
             metadata.id,
@@ -267,7 +267,7 @@ fn shape(data_type: Option<&DataType>) -> Option<Shape> {
 }
 
 /// The result type of `left op right` when either operand is temporal.
-pub(crate) fn binary_type(
+pub fn binary_type(
     op: &crate::sql::ast::BinaryOp,
     left: Option<&DataType>,
     right: Option<&DataType>,
@@ -312,7 +312,7 @@ pub(crate) fn binary_type(
 
 /// Whether an aggregate accepts a temporal input (`sum`/`avg` of
 /// `interval`; `min`/`max` of every temporal type).
-pub(crate) fn aggregate_input(id: FunctionId, data_type: &DataType) -> bool {
+pub fn aggregate_input(id: FunctionId, data_type: &DataType) -> bool {
     let DataType::Extended(kind) = data_type else {
         return false;
     };

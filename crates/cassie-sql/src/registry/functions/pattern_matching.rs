@@ -2,7 +2,7 @@
 
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
-pub(crate) const QUANTIFIED_PATTERN_FUNCTION: &str = "__cassie_quantified_pattern";
+pub const QUANTIFIED_PATTERN_FUNCTION: &str = "__cassie_quantified_pattern";
 
 const fn scalar(
     id: FunctionId,

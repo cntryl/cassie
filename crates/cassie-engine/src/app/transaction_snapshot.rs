@@ -127,7 +127,14 @@ impl Cassie {
                 )
             })?;
         let database = session.current_database().unwrap_or(&self.default_database);
-        history.check_row(&self.midge, database, (collection, relation, id), controls)
+        history
+            .check_row(
+                &self.midge,
+                database,
+                (collection, relation, id),
+                &controls.storage_request(),
+            )
+            .map_err(CassieError::from)
     }
 
     fn capture_transaction_read_view(
@@ -166,12 +173,13 @@ impl Cassie {
         let request = controls.storage_request();
         let (data, catalog, fence, history) =
             self.midge
-                .with_database_publication(database, &request, || {
+                .with_database_publication(database, &request, || -> Result<_, CassieError> {
                     let history = session
                         .is_repeatable_read_write()
                         .then(|| {
                             self.midge
                                 .capture_repeatable_row_history(database, &request)
+                                .map_err(CassieError::from)
                         })
                         .transpose()?;
                     let fence = session
@@ -182,6 +190,7 @@ impl Cassie {
                                 database,
                                 &request,
                             )
+                            .map_err(CassieError::from)
                         })
                         .transpose()?;
                     let data = session.capture_statement_read(&self.midge, database, controls)?;

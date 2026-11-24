@@ -756,7 +756,8 @@ impl StorageOverlay {
             })
     }
 
-    pub(crate) fn has_sequence_cursors(&self) -> bool {
+    #[doc(hidden)]
+    pub fn has_sequence_cursors(&self) -> bool {
         !self.sequence_cursors.state.lock().cursors.is_empty()
     }
 

@@ -170,9 +170,11 @@ impl Cassie {
         let initial = if let Some((_, overlay)) = transactional_ddl {
             self.midge
                 .apply_document_write_batches_with_transactional_ddl(&writes, &options, overlay)
+                .map_err(CassieError::from)
         } else {
             self.midge
                 .apply_document_write_batches_with_options(&writes, &options)
+                .map_err(CassieError::from)
         };
         #[cfg(all(test, feature = "replay-benchmark-observation"))]
         retry_policy_tests::after_initial(self, options.commit, &initial);

@@ -319,7 +319,7 @@ impl Cassie {
             }
         }
 
-        self.midge.get_document(collection, id)
+        Ok(self.midge.get_document(collection, id)?)
     }
 
     pub(crate) fn scan_projected_documents_batched_for_session_with_filter_and_timings(

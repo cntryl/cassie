@@ -369,21 +369,21 @@ impl DatabaseRestoreSession {
             CassieError::Execution("database restore staging is unavailable".to_string())
         })?;
         let target = staged.metadata.name.clone();
-        let result = self
-            .cassie
-            .midge
-            .commit_staged_database_family(
-                staged,
-                &header.source_database,
-                std::mem::take(&mut self.catalog_entries),
-            )
-            .and_then(|()| {
-                self.cassie.hydrate_catalog()?;
-                // The image carries no reserved objects: the restored database
-                // gets its own identities, as a new database does.
-                self.cassie.ensure_graph_schema_if_free(&target)?;
-                self.cassie.bump_schema_epoch_and_invalidate_query_cache()
-            });
+        let result = (|| {
+            self.cassie
+                .midge
+                .commit_staged_database_family(
+                    staged,
+                    &header.source_database,
+                    std::mem::take(&mut self.catalog_entries),
+                )
+                .map_err(CassieError::from)?;
+            self.cassie.hydrate_catalog()?;
+            // The image carries no reserved objects: the restored database
+            // gets its own identities, as a new database does.
+            self.cassie.ensure_graph_schema_if_free(&target)?;
+            self.cassie.bump_schema_epoch_and_invalidate_query_cache()
+        })();
         self.phase = RestorePhase::Closed;
         result
     }

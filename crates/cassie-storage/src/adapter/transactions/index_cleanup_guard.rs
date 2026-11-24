@@ -28,8 +28,9 @@ pub struct IndexCleanupCommitGuard<'a> {
     _source_memory: QueryMemoryReservation,
 }
 
-pub(crate) struct IndexCleanupGateNames {
-    pub(crate) values: Vec<String>,
+#[doc(hidden)]
+pub struct IndexCleanupGateNames {
+    pub values: Vec<String>,
     _directory: QueryMemoryReservation,
     _strings: QueryMemoryReservation,
 }
@@ -123,7 +124,8 @@ impl<'a> IndexCleanupCommitGuard<'a> {
         Ok(plan)
     }
 
-    pub(crate) fn gate_names(
+    #[doc(hidden)]
+    pub fn gate_names(
         &self,
         existing: &[String],
         controls: &StorageRequestContext<'_>,
@@ -182,7 +184,8 @@ impl<'a> IndexCleanupCommitGuard<'a> {
         Ok(result)
     }
 
-    pub(crate) fn validate(
+    #[doc(hidden)]
+    pub fn validate(
         &self,
         midge: &Midge,
         controls: &StorageRequestContext<'_>,

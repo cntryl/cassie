@@ -311,7 +311,7 @@ impl CassieSession {
                             .iter()
                             .any(|saved| saved.modes.read_only == Some(false))
                 },
-                |owner| owner.history.is_some(),
+                |owner| owner.has_history(),
             );
         if transaction.status != SessionTransactionStatus::InTransaction || !repeatable_read_write {
             return Ok(());

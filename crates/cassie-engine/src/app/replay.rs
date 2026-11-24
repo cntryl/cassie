@@ -457,7 +457,7 @@ impl Cassie {
             commit,
             rollup_fields,
             record_rollup_maintenance_debt,
-        );
+        ).map_err(CassieError::from);
         let write_report = match result {
             Ok(report) => report,
             // Interrupted before native submission: nothing was published and

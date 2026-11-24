@@ -5,7 +5,7 @@ use super::{
     OpenAiProvider, OpenAiProviderConfig, OpenAiRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
     TeiProvider, TeiProviderConfig, VectorIndexRecord, VoyageProvider,
 };
-use crate::embeddings::{EmbeddingProvider, DEFAULT_MAX_RESPONSE_BYTES};
+use crate::embeddings::EmbeddingProvider;
 
 #[derive(Debug, Default)]
 struct DisabledProvider;

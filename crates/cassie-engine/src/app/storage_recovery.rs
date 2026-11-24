@@ -8,7 +8,7 @@ use super::{
 impl Cassie {
     #[doc(hidden)]
     pub fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
-        self.midge.check_storage_recovery_required()
+        Ok(self.midge.check_storage_recovery_required()?)
     }
 
     #[doc(hidden)]

@@ -68,12 +68,12 @@ impl Cassie {
             BTreeMap::new()
         };
         if collection_changes.is_empty() {
-            return self.midge.scan_rows_batched_limit(
+            return Ok(self.midge.scan_rows_batched_limit(
                 collection,
                 batch_size,
                 RowDecode::Full,
                 limit,
-            );
+            )?);
         }
 
         let mut rows = self

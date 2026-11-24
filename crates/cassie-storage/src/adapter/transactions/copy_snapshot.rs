@@ -78,7 +78,8 @@ fn bytes_equal(
 }
 
 impl StorageOverlay {
-    pub(crate) fn copy_checkpoint_snapshot(
+    #[doc(hidden)]
+    pub fn copy_checkpoint_snapshot(
         &self,
         controls: &StorageRequestContext<'_>,
     ) -> Result<Option<Arc<CheckpointStorageSnapshot>>, CassieError> {
@@ -121,7 +122,8 @@ impl StorageOverlay {
         })))
     }
 
-    pub(crate) fn copy_snapshot(
+    #[doc(hidden)]
+    pub fn copy_snapshot(
         &self,
         controls: &StorageRequestContext<'_>,
     ) -> Result<Arc<CopyStorageSnapshot>, CassieError> {
@@ -183,7 +185,8 @@ impl StorageOverlay {
 }
 
 impl CopyStorageSnapshot {
-    pub(crate) fn matches(
+    #[doc(hidden)]
+    pub fn matches(
         &self,
         other: &StorageOverlay,
         controls: &StorageRequestContext<'_>,

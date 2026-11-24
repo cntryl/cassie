@@ -35,7 +35,7 @@ impl Cassie {
             }
             Err(error) => return self.rest_ann_fallback(error.into(), true),
         };
-        let source_rows = batch.source_row_count;
+        let source_rows = batch.source_row_count();
         let (_, candidates, candidate_count, _, _candidate_memory) = batch.into_parts();
         if candidates.len() < request.top_needed.min(source_rows) {
             self.runtime.record_hnsw_fallback("insufficient-candidates");

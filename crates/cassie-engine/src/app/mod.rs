@@ -108,7 +108,7 @@ pub use session::CassieSession;
 pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
 pub(crate) use session::{
     CommandCatalogScope, CopyBindingContext, SessionRandom, SessionReadScope, StagedWriteSnapshot,
-    StatementDataRead, StatementMutationBatch, StatementOverlay, StatementReadScope,
+    StatementDataRead, StatementMutationBatch, StatementReadScope,
     TransactionConflictIntent, TransactionRowChange,
 };
 #[doc(hidden)]
@@ -119,7 +119,7 @@ pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
     MAX_PREPARED_PER_SESSION,
 };
-pub(crate) use session::{PrivateOutput, PrivateOutputs};
+pub(crate) use session::PrivateOutputs;
 pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
 #[doc(hidden)]
 pub use session_objects::SessionObjectError;

@@ -23,13 +23,15 @@ impl Cassie {
         self.midge.with_collection_write_gates(&collections, || {
             if let Some(metadata) = sql_index {
                 self.midge
-                    .ensure_no_pending_index_cleanup(&index.collection, &metadata.name)?;
+                    .ensure_no_pending_index_cleanup(&index.collection, &metadata.name)
+                    .map_err(CassieError::from)?;
             }
             let rows = self.prepare_vector_backfill_with_held_gates(index)?;
             let options = self.document_write_options(&index.collection);
             let publication = self
                 .midge
-                .publish_vector_index_with_backfill(index, sql_index, rows, &options);
+                .publish_vector_index_with_backfill(index, sql_index, rows, &options)
+                .map_err(CassieError::from);
             let report = match publication {
                 Ok(report) => report,
                 Err(error) => {

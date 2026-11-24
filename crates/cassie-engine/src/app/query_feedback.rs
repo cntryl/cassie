@@ -145,7 +145,7 @@ impl Cassie {
         }
         self.runtime
             .record_storage_access("schema", true, persisted.is_ok());
-        persisted
+        persisted.map_err(CassieError::from)
     }
 
     pub(crate) fn record_feedback_for_keys(

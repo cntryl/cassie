@@ -17,6 +17,10 @@ pub(super) struct TransactionReadSnapshot {
 }
 
 impl TransactionReadSnapshot {
+    pub(crate) fn has_history(&self) -> bool {
+        self.history.is_some()
+    }
+
     pub(super) fn catalog(&self) -> &crate::catalog::Catalog {
         self.catalog.catalog()
     }

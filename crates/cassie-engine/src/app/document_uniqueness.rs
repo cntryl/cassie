@@ -1,5 +1,5 @@
-use crate::midge::scalar_expression;
 //! Reconcile committed unique reservation owners with the session's staged view.
+use crate::midge::scalar_expression;
 use crate::catalog::EngineIndexMetaExt;
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
 use crate::catalog::{IndexKind, IndexMeta};
@@ -205,6 +205,7 @@ fn published_owner(
         .midge
         .unique_scalar_index_reservation_owner(collection, &stored, key)
         .map(PublishedOwner::Ready)
+        .map_err(CassieError::from)
 }
 
 fn has_conflicting_owner(

@@ -114,12 +114,7 @@ fn should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement() 
         if name.is_empty() {
             assert_eq!(state.prepared_statements[""].id, 444);
         }
-        assert_eq!(
-            root.with_session_objects(|objects| objects
-                .prepared("late")
-                .and_then(|value| value.wire_id)),
-            Some(999)
-        );
+        assert!(root.has_wire_prepared("late", 999));
         assert!(!root.is_transaction_failed());
     }
 }
@@ -156,12 +151,7 @@ fn should_not_publish_close_or_remove_portals_after_registry_owner_replacement()
     assert_eq!(result.unwrap_err().pg_error.code, "25000");
     assert_eq!(output, [] as [u8; 0]);
     assert_eq!(state.prepared_statements["source"].id, 444);
-    assert_eq!(
-        root.with_session_objects(|objects| objects
-            .prepared("source")
-            .and_then(|value| value.wire_id)),
-        Some(999)
-    );
+    assert!(root.has_wire_prepared("source", 999));
     assert!(!root.is_transaction_failed());
 }
 
@@ -202,7 +192,7 @@ fn should_apply_prepared_namespace_changes_for_the_current_frame_owner() {
 
     // Assert
     assert!(!state.prepared_statements.contains_key("source"));
-    assert!(root.with_session_objects(|objects| objects.prepared("source").is_none()));
+    assert!(!root.has_prepared_for_test("source"));
     assert!(!root.is_transaction_failed());
 }
 
@@ -255,12 +245,7 @@ fn should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf() {
     assert_eq!(state.prepared_statements["source"].id, 999);
     assert_eq!(state.portal_owner_identity("b"), Some(owner));
     assert!(state.portals.contains_key("b"));
-    assert_eq!(
-        root.with_session_objects(|objects| objects
-            .prepared("source")
-            .and_then(|value| value.wire_id)),
-        Some(999)
-    );
+    assert!(root.has_wire_prepared("source", 999));
     assert!(!root.is_transaction_failed());
 }
 

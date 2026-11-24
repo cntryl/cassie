@@ -17,10 +17,10 @@ enum UniqueReservationDescriptor {
 }
 
 impl Midge {
-    pub(super) fn release_unique_reservations_for_batch(
+    pub(super) fn release_unique_reservations_for_batch<A>(
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         prepared: &[PreparedWrite],
     ) -> Result<(), CassieError> {
         if prepared.len() < 2
@@ -45,10 +45,10 @@ impl Midge {
         Ok(())
     }
 
-    pub(super) fn sync_unique_reservations_for_document(
+    pub(super) fn sync_unique_reservations_for_document<A>(
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         id: &str,
         previous_payload: Option<&serde_json::Value>,
         next_payload: Option<&serde_json::Value>,
@@ -105,9 +105,9 @@ impl Midge {
         Ok(())
     }
 
-    fn collect_unique_reservation_targets(
+    fn collect_unique_reservation_targets<A>(
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         unique_indexes: &[IndexMeta],
         row_schema: &RowSchema,
         payload: Option<&serde_json::Value>,

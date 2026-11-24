@@ -1,7 +1,9 @@
 use cassie_sql::catalog_declarations::ReservationIdentity;
 
+use crate::adapter::CassieError;
+
 use super::{
-    CassieError, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION, LexKey,
+    FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION, LexKey,
     append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix,
 };
 

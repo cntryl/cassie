@@ -8,7 +8,7 @@ use cassie_core::catalog::declarations::IndexKind;
 use cassie_core::types::{self, Value};
 use cassie_sql::catalog_declarations::IndexMeta;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 mod codec;
 mod reservation_owner;

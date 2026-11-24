@@ -165,7 +165,7 @@ impl RowHistory {
                 new_keys,
                 entries_memory.as_mut().expect("admitted history directory"),
             )
-            .map_err(AdapterCommitError::Cassie)?;
+            .map_err(|error| AdapterCommitError::Cassie(error.into()))?;
         }
         operation().map_err(AdapterCommitError::Native)?;
         state.sequence = sequence;

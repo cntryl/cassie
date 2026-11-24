@@ -1,9 +1,10 @@
-use cassie_core::types::{DataType, DomainType, EnumType, EnumValue, SqlArray, Value, composite::{CompositeType, RECORD_STORAGE_KEY}};
+use cassie_core::types::composite::{CompositeType, RECORD_STORAGE_KEY};
+use cassie_core::types::{DataType, DomainType, EnumType, EnumValue};
 use super::RowBlobValueError;
 use uuid::Uuid;
 
 use super::{
-    TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_ENUM, TYPE_EXTENDED,
+    TYPE_ARRAY, TYPE_BOOL, TYPE_BYTEA, TYPE_COMPOSITE, TYPE_DATE, TYPE_DOMAIN, TYPE_ENUM, TYPE_EXTENDED,
     TYPE_F64, TYPE_I64, TYPE_JSON, TYPE_NULL, TYPE_STRING, TYPE_TIME, TYPE_TIMESTAMP, TYPE_UUID,
     TYPE_VECTOR_F32,
 };

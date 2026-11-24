@@ -15,7 +15,7 @@ impl Midge {
         request: &ScalarIndexScanRequest,
         controls: &StorageRequestContext<'_>,
     ) -> Result<AccountedVec<ScalarIndexScanHit>, CassieError> {
-        let mut hits = AccountedVec::try_new(controls)?;
+        let mut hits = AccountedVec::try_new(controls.memory())?;
         self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
             hits.try_push_with_result(scalar_index_hit_variable_bytes(key, raw_value)?, || {
                 decode_scalar_index_hit(index, key, raw_value)

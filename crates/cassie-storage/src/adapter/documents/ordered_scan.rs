@@ -2,7 +2,7 @@
 mod controlled;
 
 use super::super::{
-    decode_projected_row, decode_projected_row_with_aliases, decode_row, CassieError, DocumentRef,
+    CassieError, DocumentRef,
     Midge, OrderedRowBound, Query, RowDecode,
 };
 

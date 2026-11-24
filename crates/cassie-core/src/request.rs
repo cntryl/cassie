@@ -206,6 +206,20 @@ pub struct RequestMemoryReservation {
 }
 
 impl RequestMemoryReservation {
+    /// Creates a lease for a bounded owner that outlives the request.
+    ///
+    /// # Errors
+    /// Returns the accounting error when the requested bytes exceed the budget.
+    pub fn independent_budget(budget: usize, bytes: usize) -> Result<Self, MemoryBudgetError> {
+        if bytes > budget {
+            return Err(MemoryBudgetError {
+                budget,
+                requested: bytes,
+            });
+        }
+        RequestMemory::new(budget).reserve(bytes)
+    }
+
     #[must_use]
     pub const fn bytes(&self) -> usize {
         self.bytes

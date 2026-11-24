@@ -281,7 +281,7 @@ impl OrderedSource {
             ) {
                 return Err(CassieError::QueryCanceled);
             }
-            self.last_key = Some(Accounted::try_new(controls, key.len(), || key.clone())?);
+            self.last_key = Some(Accounted::try_new(controls.memory(), key.len(), || key.clone())?);
             let Some(suffix) = key.strip_prefix(self.prefix.as_slice()) else {
                 continue;
             };

@@ -215,7 +215,7 @@ pub(crate) fn decode_projected_row_matching_with_aliases_and_hooks(
     include_historical_aliases: bool,
     hooks: &super::StorageValueHooks,
 ) -> Result<Option<serde_json::Value>, StorageError> {
-    crate::row_blob::decode_projected_row_matching_with_aliases(
+    crate::row_blob::decode_projected_row_matching(
         schema,
         row,
         projection,

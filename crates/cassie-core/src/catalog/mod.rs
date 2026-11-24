@@ -1,5 +1,6 @@
 pub mod column_storage;
 pub mod composite_type;
+pub mod controlled_name;
 pub mod declarations;
 pub mod domain_type;
 pub mod enum_type;

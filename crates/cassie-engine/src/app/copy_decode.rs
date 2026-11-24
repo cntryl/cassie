@@ -27,34 +27,12 @@ pub fn grow_text_vec<T>(
     memory: &mut crate::runtime::QueryMemoryReservation,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(), CassieError> {
-    controls.check_interruption()?;
-    if values.len() < values.capacity() {
-        return Ok(());
-    }
-    let capacity = values
-        .len()
-        .checked_add(1)
-        .and_then(|n| n.max(4).checked_next_power_of_two())
-        .ok_or_else(|| CassieError::ResourceLimit("COPY row capacity overflow".into()))?;
-    let old_bytes = values
-        .capacity()
-        .checked_mul(std::mem::size_of::<T>())
-        .ok_or_else(|| CassieError::ResourceLimit("COPY row capacity overflow".into()))?;
-    let replacement_memory;
-    let mut replacement;
-    (replacement, replacement_memory) =
-        crate::runtime::owned_memory::try_reserve_vec(capacity, memory)?;
-    for (index, value) in values.drain(..).enumerate() {
-        if index % 128 == 0 {
-            controls.check_interruption()?;
-        }
-        replacement.push(value);
-    }
-    let old = std::mem::replace(values, replacement);
-    drop(old);
-    memory.shrink_to(memory.bytes() - old_bytes);
-    memory.absorb(replacement_memory);
-    Ok(())
+    let request = cassie_core::request::text::TextRequest::new(
+        controls.interruption(),
+        controls.request_memory(),
+    );
+    cassie_core::request::text::grow_text_vec(values, memory.as_core_mut(), &request)
+        .map_err(CassieError::from)
 }
 
 #[doc(hidden)]
@@ -62,25 +40,21 @@ pub fn copy_text(
     value: &str,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(String, crate::runtime::QueryMemoryReservation), CassieError> {
-    controls.check_interruption()?;
-    let memory = controls.reserve_query_memory(value.len())?;
-    let mut copy = String::new();
-    copy.try_reserve_exact(value.len())
-        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
-    if copy.capacity() > value.len() {
-        return Err(CassieError::ResourceLimit(
-            "allocator exceeded admitted COPY text capacity".into(),
-        ));
-    }
-    let mut start = 0;
-    while start < value.len() {
-        controls.check_interruption()?;
-        let mut end = (start + 4096).min(value.len());
-        while !value.is_char_boundary(end) {
-            end -= 1;
+    let request = cassie_core::request::text::TextRequest::new(
+        controls.interruption(),
+        controls.request_memory(),
+    );
+    let (text, memory) = cassie_core::request::text::copy_text(value, &request)?;
+    Ok((text, crate::runtime::QueryMemoryReservation::from_core(memory)))
+}
+
+impl From<cassie_core::request::text::TextError> for CassieError {
+    fn from(error: cassie_core::request::text::TextError) -> Self {
+        use cassie_core::request::{text::TextError, InterruptionError};
+        match error {
+            TextError::Interrupted(InterruptionError::Canceled) => Self::QueryCanceled,
+            TextError::Interrupted(InterruptionError::DeadlineExceeded) => Self::DeadlineExceeded,
+            TextError::ResourceLimit(message) => Self::ResourceLimit(message),
         }
-        copy.push_str(&value[start..end]);
-        start = end;
     }
-    Ok((copy, memory))
 }

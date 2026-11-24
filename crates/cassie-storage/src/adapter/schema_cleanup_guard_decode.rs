@@ -73,7 +73,14 @@ pub(in crate::adapter) fn names_match(
     controls: Option<&StorageRequestContext<'_>>,
 ) -> Result<bool, CassieError> {
     if let Some(controls) = controls {
-        crate::catalog::name_matches_controlled(stored, requested, controls)
+        use cassie_core::catalog::controlled_name::name_matches_controlled;
+        use cassie_core::request::{text::{TextError, TextRequest}, InterruptionError};
+        let request = TextRequest::new(controls.interruption(), controls.memory());
+        name_matches_controlled(stored, requested, &request).map_err(|error| match error {
+            TextError::Interrupted(InterruptionError::Canceled) => CassieError::QueryCanceled,
+            TextError::Interrupted(InterruptionError::DeadlineExceeded) => CassieError::DeadlineExceeded,
+            TextError::ResourceLimit(message) => CassieError::ResourceLimit(message),
+        })
     } else {
         Ok(crate::catalog::name_matches(stored, requested))
     }

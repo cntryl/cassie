@@ -1,4 +1,5 @@
 pub mod accounted;
+pub mod text;
 
 #[cfg(test)]
 mod tests;

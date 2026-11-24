@@ -3,6 +3,7 @@
 pub mod brute_force;
 pub mod cosine;
 pub mod dot;
+pub mod hnsw;
 pub mod index_options;
 pub mod ivfflat;
 pub mod l2;

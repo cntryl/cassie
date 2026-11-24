@@ -3,6 +3,7 @@
 pub mod analyzer;
 pub mod bm25;
 pub mod inverted_index;
+pub mod query;
 pub mod tokenizer;
 
 pub use analyzer::TokenizedText;

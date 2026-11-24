@@ -194,12 +194,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "cassie-embeddings"
+version = "0.1.0"
+dependencies = [
+ "cassie-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "cassie-engine"
 version = "0.1.0"
 dependencies = [
  "argon2",
  "bytes",
  "cassie-core",
+ "cassie-embeddings",
  "cassie-search",
  "cassie-vector",
  "chrono",
@@ -252,6 +267,7 @@ dependencies = [
 name = "cassie-vector"
 version = "0.2.0"
 dependencies = [
+ "cassie-core",
  "serde",
 ]
 

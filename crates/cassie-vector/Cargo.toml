@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+cassie-core = { path = "../cassie-core" }
 serde = { version = "1.0", features = ["derive"] }
 
 [lints]

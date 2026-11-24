@@ -991,20 +991,12 @@ impl Midge {
         let needs_graph_validation = schema.fields.iter().any(|field| {
             map.get(&field.name)
                 .is_some_and(|value| !value.is_null())
-                && data_type_contains_composite(&field.data_type)
+                && cassie_core::types::graph_identity::mentions_reserved(&field.data_type)
         });
         if needs_graph_validation {
             (value_hooks.validate_graph_fields)(schema, map)?;
         }
         Ok(())
-    }
-}
-
-fn data_type_contains_composite(data_type: &DataType) -> bool {
-    match data_type {
-        DataType::Composite(_) => true,
-        DataType::Array(inner) => data_type_contains_composite(inner),
-        _ => false,
     }
 }
 

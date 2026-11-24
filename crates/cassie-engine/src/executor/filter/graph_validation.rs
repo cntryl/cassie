@@ -17,23 +17,6 @@ pub(crate) fn validate(record: &RecordValue) -> Result<(), QueryError> {
     })
 }
 
-/// Whether a value of `data_type` can contain a reserved graph type, at any
-/// depth of composite fields and arrays.
-fn mentions_reserved(data_type: &crate::types::DataType) -> bool {
-    use crate::types::DataType;
-    match data_type {
-        DataType::Composite(descriptor) => {
-            crate::types::graph::GraphTypeKind::of(descriptor).is_some()
-                || descriptor
-                    .fields
-                    .iter()
-                    .any(|field| mentions_reserved(&field.data_type))
-        }
-        DataType::Array(inner) => mentions_reserved(inner),
-        _ => false,
-    }
-}
-
 /// Validates every reserved-type record inside a decoded value.
 fn validate_nested(value: &crate::types::Value) -> Result<(), QueryError> {
     use crate::types::{typed::TypedValue, Value};
@@ -62,7 +45,7 @@ pub(crate) fn validate_stored_fields(
         let Some(value) = document.get(&field.name).filter(|value| !value.is_null()) else {
             continue;
         };
-        if !mentions_reserved(&field.data_type) {
+        if !cassie_core::types::graph_identity::mentions_reserved(&field.data_type) {
             continue;
         }
         let typed = crate::executor::scan::try_json_to_typed_value(value, &field.data_type)?;

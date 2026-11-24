@@ -1,4 +1,4 @@
-use crate::types::composite::CompositeType;
+use crate::types::{composite::CompositeType, DataType};
 
 /// The reserved schema that owns the graph types and functions.
 pub const GRAPH_SCHEMA: &str = "cassie_graph";
@@ -41,7 +41,6 @@ impl GraphTypeKind {
     /// identity.
     #[must_use]
     pub fn of(descriptor: &CompositeType) -> Option<Self> {
-        // The cheap local-name test runs first: this sits on every record cast.
         let kind = Self::ALL
             .into_iter()
             .find(|kind| kind.type_name() == descriptor.name)?;
@@ -49,5 +48,56 @@ impl GraphTypeKind {
             && crate::catalog::scope::relation_schema_name(&descriptor.qualified_name)
                 .eq_ignore_ascii_case(GRAPH_SCHEMA))
         .then_some(kind)
+    }
+}
+
+/// Whether a declared type can contain one of the reserved graph records.
+#[must_use]
+pub fn mentions_reserved(data_type: &DataType) -> bool {
+    match data_type {
+        DataType::Composite(descriptor) => {
+            GraphTypeKind::of(descriptor).is_some()
+                || descriptor
+                    .fields
+                    .iter()
+                    .any(|field| mentions_reserved(&field.data_type))
+        }
+        DataType::Array(inner) => mentions_reserved(inner),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mentions_reserved;
+    use crate::types::{composite::CompositeType, DataType};
+
+    #[test]
+    fn should_ignore_ordinary_composite_types() {
+        // Arrange
+        let ordinary = DataType::Composite(CompositeType::anonymous(vec![DataType::Int]));
+
+        // Act
+        let contains_reserved = mentions_reserved(&ordinary);
+
+        // Assert
+        assert!(!contains_reserved);
+    }
+
+    #[test]
+    fn should_find_reserved_graph_types_nested_in_composite_arrays() {
+        // Arrange
+        let mut reserved = CompositeType::anonymous(Vec::new());
+        reserved.name = super::KEY_PART_TYPE.to_owned();
+        reserved.qualified_name = "postgres.cassie_graph.graph_key_part".to_owned();
+        let outer = DataType::Composite(CompositeType::anonymous(vec![DataType::Array(Box::new(
+            DataType::Composite(reserved),
+        ))]));
+
+        // Act
+        let contains_reserved = mentions_reserved(&outer);
+
+        // Assert
+        assert!(contains_reserved);
     }
 }

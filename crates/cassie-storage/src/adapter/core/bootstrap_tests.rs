@@ -5,22 +5,23 @@ use crate::adapter::schema_write_control::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_schema_write_commit_barriers, SchemaWritePausePoint,
 };
+use crate::adapter::{CassieError, NativePublicationControlScope};
 
 #[test]
 fn should_leave_a_live_database_creation_untouched_by_repeated_bootstrap() {
     // Arrange
     let _guard = schema_write_conflict_test_guard();
     let store = Arc::new(Midge::new_in_memory("postgres").expect("memory store"));
+    let controls = crate::adapter::request_test_support::TestRequest::default();
+    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
     store.ensure_families_ready().expect("first initialization");
     store
         .create_database("existing", None)
         .expect("existing database");
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
-    let mut cleanup = crate::runtime::test_sync::TestBarrierCleanup::arm([
-        Arc::clone(&ready),
-        Arc::clone(&resume),
-    ]);
+    let mut cleanup =
+        cassie_core::test_sync::TestBarrierCleanup::arm([Arc::clone(&ready), Arc::clone(&resume)]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::DatabaseCreateFinalize),
         Some(Arc::clone(&ready)),
@@ -28,18 +29,20 @@ fn should_leave_a_live_database_creation_untouched_by_repeated_bootstrap() {
     );
     let writer_store = Arc::clone(&store);
     let worker = std::thread::spawn(move || {
+        let controls = crate::adapter::request_test_support::TestRequest::default();
+        let _request = NativePublicationControlScope::enter(Some(&controls.context()));
         let worker_guard = schema_write_conflict_worker_guard();
         let result = writer_store.create_database("staged", None);
         worker_guard.complete(SchemaWritePausePoint::DatabaseCreateFinalize);
         result
     });
-    crate::runtime::test_sync::wait_for_test_barrier(&ready, "database create finalize ready");
+    cassie_core::test_sync::wait_for_test_barrier(&ready, "database create finalize ready");
 
     // Act
     let during = store.bootstrap_families();
     set_schema_write_commit_barriers(None, None, None);
-    crate::runtime::test_sync::wait_for_test_barrier(&resume, "database create finalize resume");
-    let result = crate::runtime::test_sync::join_test_thread(worker, "database worker");
+    cassie_core::test_sync::wait_for_test_barrier(&resume, "database create finalize resume");
+    let result = cassie_core::test_sync::join_test_thread(worker, "database worker");
     cleanup.disarm();
     let after = store.bootstrap_families();
 
@@ -67,6 +70,8 @@ fn should_retry_bootstrap_after_initial_layout_admission_fails() {
     // Arrange
     use crate::adapter::{key_encoding, StorageFamily};
     let store = Midge::new_in_memory("postgres").expect("memory store");
+    let controls = crate::adapter::request_test_support::TestRequest::default();
+    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
     let schema = store
         .get_or_create_family(StorageFamily::Schema)
         .expect("schema family");
@@ -118,6 +123,8 @@ pub(super) fn fail_after_initialization() -> bool {
 fn should_retry_after_bootstrap_has_persisted_families() {
     // Arrange
     let store = Midge::new_in_memory("postgres").expect("memory store");
+    let controls = crate::adapter::request_test_support::TestRequest::default();
+    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
     FAIL_AFTER_INITIALIZATION.set(true);
     let first = store.ensure_families_ready();
 
@@ -135,10 +142,14 @@ fn should_retry_after_bootstrap_has_persisted_families() {
 fn should_initialize_once_for_concurrent_first_callers() {
     // Arrange
     let store = Arc::new(Midge::new_in_memory("postgres").expect("memory store"));
+    let controls = crate::adapter::request_test_support::TestRequest::default();
+    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
     let first_store = Arc::clone(&store);
     let (entered_tx, entered_rx) = std::sync::mpsc::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let first = std::thread::spawn(move || {
+        let controls = crate::adapter::request_test_support::TestRequest::default();
+        let _request = NativePublicationControlScope::enter(Some(&controls.context()));
         INITIALIZING.with(|slot| {
             *slot.borrow_mut() = Some(Box::new(move || {
                 entered_tx.send(()).expect("initialization entered");
@@ -156,6 +167,8 @@ fn should_initialize_once_for_concurrent_first_callers() {
     let (waiting_tx, waiting_rx) = std::sync::mpsc::channel();
     let (duplicate_tx, duplicate_rx) = std::sync::mpsc::channel();
     let second = std::thread::spawn(move || {
+        let controls = crate::adapter::request_test_support::TestRequest::default();
+        let _request = NativePublicationControlScope::enter(Some(&controls.context()));
         BEFORE_GATE.with(|slot| {
             *slot.borrow_mut() = Some(Box::new(move || {
                 waiting_tx.send(()).expect("second reached gate");
@@ -195,6 +208,8 @@ fn should_initialize_once_for_concurrent_first_callers() {
 fn should_reject_repeated_bootstrap_after_recovery_is_required() {
     // Arrange
     let store = Midge::new_in_memory("postgres").expect("memory store");
+    let controls = crate::adapter::request_test_support::TestRequest::default();
+    let _request = NativePublicationControlScope::enter(Some(&controls.context()));
     store.bootstrap_families().expect("initial bootstrap");
     store.latch_storage_recovery_required_for_test();
 
@@ -203,7 +218,7 @@ fn should_reject_repeated_bootstrap_after_recovery_is_required() {
 
     // Assert
     assert!(matches!(
-        result       .expect_err("quarantined storage"),
+        result.expect_err("quarantined storage"),
         CassieError::RecoveryRequired(_)
     ));
 }

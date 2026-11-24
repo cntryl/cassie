@@ -1,7 +1,7 @@
 use std::sync::{Arc, Barrier};
 
 use super::super::Midge;
-use crate::adapter::{key_encoding, StorageFamily};
+use crate::adapter::{key_encoding, CassieError, StorageFamily};
 
 const V1: &str = "cassie-midge-layout-v1-0.1.0";
 const V2: &str = "cassie-midge-layout-v2-0.2.0";

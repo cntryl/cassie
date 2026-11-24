@@ -377,7 +377,7 @@ impl From<std::io::Error> for StorageError {
 }
 
 #[cfg(test)]
-mod tests {
+mod outcome_unknown_tests {
     use super::StorageError;
 
     #[test]

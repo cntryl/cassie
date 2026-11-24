@@ -35,7 +35,7 @@ pub(super) fn resolve_order_ordinals(
                     let mut matching = matching;
                     let first = matching.next();
                     let ambiguous = first.is_some_and(|first| {
-                        matching.any(|output| !same_column_expression(first, output))
+                        matching.any(|output| !same_output_expression(first, output))
                     });
                     if ambiguous {
                         return Err(SqlError::diagnostic(
@@ -91,14 +91,17 @@ fn ordinal_survives_alias_capture(position: i64, expr: &Expr, projection: &[Sele
     captures.is_empty() || captures.len() == 1 && Some(captures[0]) == target
 }
 
-fn same_column_expression(left: &SelectItem, right: &SelectItem) -> bool {
-    let (SelectItem::Column { name: left, .. }, SelectItem::Column { name: right, .. }) =
-        (left, right)
-    else {
-        return false;
-    };
-    crate::column_identifier::ColumnIdentifierPath::reference_field_key(left)
-        == crate::column_identifier::ColumnIdentifierPath::reference_field_key(right)
+fn same_output_expression(left: &SelectItem, right: &SelectItem) -> bool {
+    match (left, right) {
+        (SelectItem::Column { name: left, .. }, SelectItem::Column { name: right, .. }) => {
+            crate::column_identifier::ColumnIdentifierPath::reference_field_key(left)
+                == crate::column_identifier::ColumnIdentifierPath::reference_field_key(right)
+        }
+        (SelectItem::Expr { expr: left, .. }, SelectItem::Expr { expr: right, .. }) => {
+            left.structurally_eq(right)
+        }
+        _ => false,
+    }
 }
 
 fn alias_of(item: &SelectItem) -> Option<&str> {

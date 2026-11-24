@@ -1,27 +1,25 @@
-use super::{
-    Arc, AtomicBool, AtomicUsize, CassieError, CassieRuntimeLimits, Duration, Instant, Ordering,
-    RuntimeState,
+use super::{Arc, CassieError, CassieRuntimeLimits, Duration, Instant, RuntimeState};
+use cassie_core::request::{
+    Interruption, InterruptionError, RequestCancellation, RequestMemory, RequestMemoryReservation,
+    RequestMemoryTracker,
 };
 use std::sync::Weak;
 
 #[derive(Debug, Clone)]
 pub struct QueryCancellationHandle(
-    Arc<AtomicBool>,
+    RequestCancellation,
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
     Option<Arc<super::QueryTestPause>>,
-    tokio::sync::watch::Sender<bool>,
     Option<Arc<super::aggregate_test_pause::QueryAggregateTestPause>>,
 );
 
 impl Default for QueryCancellationHandle {
     fn default() -> Self {
-        let (cancellation_signal, _) = tokio::sync::watch::channel(false);
         Self(
-            Arc::new(AtomicBool::new(false)),
+            RequestCancellation::new(),
             crate::midge::adapter::current_query_scan_control_scope(),
             super::sleep_test_pause::take_next_query_pause()
                 .or_else(super::regex_test_pause::take_next_query_pause),
-            cancellation_signal,
             None,
         )
     }
@@ -37,10 +35,10 @@ impl QueryCancellationHandle {
         &mut self,
         pause: Arc<super::aggregate_test_pause::QueryAggregateTestPause>,
     ) -> bool {
-        if self.4.is_some() {
+        if self.3.is_some() {
             return false;
         }
-        self.4 = Some(pause);
+        self.3 = Some(pause);
         true
     }
 
@@ -62,27 +60,21 @@ impl QueryCancellationHandle {
     }
 
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
-        self.3.send_replace(true);
+        self.0.cancel();
     }
 
     #[must_use]
     pub fn is_canceled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
+        self.0.is_canceled()
     }
 
     #[doc(hidden)]
     pub async fn wait_canceled(&self) {
-        let mut signal = self.3.subscribe();
-        while !*signal.borrow_and_update() {
-            if signal.changed().await.is_err() {
-                return;
-            }
-        }
+        self.0.wait_canceled().await;
     }
 
     pub(crate) fn is_same_request(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        self.0.is_same_request(&other.0)
     }
 }
 
@@ -104,7 +96,7 @@ impl RuntimeState {
             .query_memory_observation
             .lock()
             .expect("query memory observation") =
-            QueryMemoryObservation(Arc::downgrade(&controls.memory));
+            QueryMemoryObservation(controls.memory.downgrade());
         metrics.query.peak_accounted_memory_bytes = metrics
             .query
             .peak_accounted_memory_bytes
@@ -114,13 +106,13 @@ impl RuntimeState {
 
 /// Observes only the latest recorded query without retaining its tracker or request scope.
 #[derive(Debug, Default)]
-pub(super) struct QueryMemoryObservation(Weak<QueryMemoryTracker>);
+pub(super) struct QueryMemoryObservation(Weak<RequestMemoryTracker>);
 
 impl QueryMemoryObservation {
     pub(super) fn current_and_peak_bytes(&self) -> (usize, usize) {
         self.0.upgrade().map_or((0, 0), |tracker| {
-            let current = tracker.used.load(Ordering::Acquire);
-            let peak = tracker.peak.load(Ordering::Acquire).max(current);
+            let current = tracker.current_bytes();
+            let peak = tracker.peak_bytes().max(current);
             (current, peak)
         })
     }
@@ -166,7 +158,7 @@ pub struct QueryExecutionControls {
     pub cte_recursion_depth: usize,
     cancellation: QueryCancellationHandle,
     relational_cte_boundary: bool,
-    memory: Arc<QueryMemoryTracker>,
+    memory: RequestMemory,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
     temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
@@ -182,34 +174,32 @@ struct TemporalSlot {
 }
 
 #[derive(Debug)]
-struct QueryMemoryTracker {
-    budget: usize,
-    used: AtomicUsize,
-    peak: AtomicUsize,
-}
-
-#[derive(Debug)]
 pub struct QueryMemoryReservation {
-    tracker: Arc<QueryMemoryTracker>,
-    bytes: usize,
+    core: RequestMemoryReservation,
 }
 
 impl QueryMemoryReservation {
+    pub(crate) fn from_core(core: RequestMemoryReservation) -> Self {
+        Self { core }
+    }
+
+    pub(crate) fn into_core(self) -> RequestMemoryReservation {
+        self.core
+    }
     #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(crate) fn bytes_for_test(&self) -> usize {
-        self.bytes
+        self.core.bytes()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
-    /// Reports whether this reservation belongs to the supplied query controls.
     #[doc(hidden)]
     pub fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
-        Arc::ptr_eq(&self.tracker, &controls.memory)
+        self.core.belongs_to(&controls.memory)
     }
 
     #[cfg(not(any(test, feature = "transport-test-hooks")))]
     pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
-        Arc::ptr_eq(&self.tracker, &controls.memory)
+        self.core.belongs_to(&controls.memory)
     }
 
     /// A narrow bounded owner without a request token, deadline or test scope.
@@ -218,61 +208,50 @@ impl QueryMemoryReservation {
             return Err(memory_limit_error(budget, bytes));
         }
         Ok(Self {
-            tracker: Arc::new(QueryMemoryTracker {
-                budget,
-                used: AtomicUsize::new(bytes),
-                peak: AtomicUsize::new(bytes),
-            }),
-            bytes,
+            core: RequestMemory::new(budget)
+                .reserve(bytes)
+                .map_err(memory_budget_error)?,
         })
     }
 
     #[cfg(test)]
     pub(crate) fn tracker_peak_bytes(&self) -> usize {
-        self.tracker.peak.load(Ordering::Acquire)
+        self.core.tracker_peak_bytes()
     }
 
     #[cfg(test)]
     pub(crate) fn tracker_used_bytes(&self) -> usize {
-        self.tracker.used.load(Ordering::Acquire)
+        self.core.tracker_used_bytes()
     }
 
     /// Creates a separate narrow lease against the same query tracker.
-    ///
     /// # Errors
     ///
     /// Returns a resource-limit error when the shared query budget cannot satisfy the request.
     #[doc(hidden)]
     pub fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
-        reserve_tracker_memory(&self.tracker, bytes)?;
-        Ok(Self {
-            tracker: Arc::clone(&self.tracker),
-            bytes,
-        })
+        self.core
+            .try_sibling(bytes)
+            .map(|core| Self { core })
+            .map_err(memory_budget_error)
     }
 
     pub(crate) fn shares_tracker(&self, controls: &QueryExecutionControls) -> bool {
-        Arc::ptr_eq(&self.tracker, &controls.memory)
+        self.core.belongs_to(&controls.memory)
     }
 
     /// Transfers an already-live reservation without releasing or reserving its bytes again.
-    ///
     /// # Panics
     ///
     /// Panics when the reservations belong to different query trackers.
     #[doc(hidden)]
-    pub fn absorb(&mut self, mut other: Self) {
-        assert!(Arc::ptr_eq(&self.tracker, &other.tracker));
-        self.bytes = self
-            .bytes
-            .checked_add(other.bytes)
-            .expect("admitted memory sum");
-        other.bytes = 0;
+    pub fn absorb(&mut self, other: Self) {
+        self.core.absorb(other.core);
     }
     #[must_use]
     #[doc(hidden)]
     pub const fn bytes(&self) -> usize {
-        self.bytes
+        self.core.bytes()
     }
 
     /// # Errors
@@ -285,12 +264,9 @@ impl QueryMemoryReservation {
     /// an internal accounting invariant violation.
     #[doc(hidden)]
     pub fn try_grow(&mut self, additional_bytes: usize) -> Result<(), CassieError> {
-        reserve_tracker_memory(&self.tracker, additional_bytes)?;
-        self.bytes = self
-            .bytes
-            .checked_add(additional_bytes)
-            .expect("reservation growth is bounded by the shared tracker");
-        Ok(())
+        self.core
+            .try_grow(additional_bytes)
+            .map_err(memory_budget_error)
     }
 
     /// # Panics
@@ -299,18 +275,10 @@ impl QueryMemoryReservation {
     #[doc(hidden)]
     pub fn shrink_to(&mut self, retained_bytes: usize) {
         assert!(
-            retained_bytes <= self.bytes,
+            retained_bytes <= self.core.bytes(),
             "cannot grow a query memory reservation by shrinking it"
         );
-        let released = self.bytes - retained_bytes;
-        self.bytes = retained_bytes;
-        self.tracker.used.fetch_sub(released, Ordering::AcqRel);
-    }
-}
-
-impl Drop for QueryMemoryReservation {
-    fn drop(&mut self) {
-        self.tracker.used.fetch_sub(self.bytes, Ordering::AcqRel);
+        self.core.shrink_to(retained_bytes);
     }
 }
 
@@ -352,7 +320,7 @@ impl QueryExecutionControls {
     }
 
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
-        if let Some(pause) = self.cancellation.4.as_deref() {
+        if let Some(pause) = self.cancellation.3.as_deref() {
             pause.reach()?;
         }
         Ok(())
@@ -389,13 +357,30 @@ impl QueryExecutionControls {
     /// Returns the cancellation or deadline error when execution should stop.
     #[doc(hidden)]
     pub fn check_interruption(&self) -> Result<(), CassieError> {
-        if self.is_canceled() {
-            return Err(CassieError::QueryCanceled);
-        }
-        if self.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-        Ok(())
+        self.interruption().check().map_err(|error| match error {
+            InterruptionError::Canceled => CassieError::QueryCanceled,
+            InterruptionError::DeadlineExceeded => CassieError::DeadlineExceeded,
+        })
+    }
+
+    #[must_use]
+    pub fn interruption(&self) -> Interruption<'_> {
+        Interruption::new(self.deadline, &self.cancellation.0)
+    }
+
+    #[must_use]
+    pub fn request_memory(&self) -> &RequestMemory {
+        &self.memory
+    }
+
+    pub fn reserve_request_memory(
+        &self,
+        bytes: usize,
+    ) -> Result<RequestMemoryReservation, CassieError> {
+        self.memory
+            .reserve(bytes)
+            .map_err(memory_budget_error)
+            .map(|reservation| QueryMemoryReservation::from_core(reservation).into_core())
     }
     pub(crate) fn with_statement_read(
         &self,
@@ -445,11 +430,7 @@ impl QueryExecutionControls {
             relational_cte_boundary: false,
             temporal: Arc::default(),
             statement_state: Arc::default(),
-            memory: Arc::new(QueryMemoryTracker {
-                budget: limits.query_memory_budget_bytes,
-                used: AtomicUsize::new(0),
-                peak: AtomicUsize::new(0),
-            }),
+            memory: RequestMemory::new(limits.query_memory_budget_bytes),
         }
     }
 
@@ -544,43 +525,18 @@ impl QueryExecutionControls {
         &self,
         bytes: usize,
     ) -> Result<QueryMemoryReservation, CassieError> {
-        reserve_tracker_memory(&self.memory, bytes)?;
-        Ok(QueryMemoryReservation {
-            tracker: Arc::clone(&self.memory),
-            bytes,
-        })
+        self.reserve_request_memory(bytes)
+            .map(QueryMemoryReservation::from_core)
     }
 
     #[must_use]
     pub fn peak_query_memory_bytes(&self) -> usize {
-        self.memory.peak.load(Ordering::Acquire)
+        self.memory.peak_bytes()
     }
 
     #[must_use]
     pub fn current_query_memory_bytes(&self) -> usize {
-        self.memory.used.load(Ordering::Acquire)
-    }
-}
-
-fn reserve_tracker_memory(tracker: &QueryMemoryTracker, bytes: usize) -> Result<(), CassieError> {
-    let mut used = tracker.used.load(Ordering::Acquire);
-    loop {
-        let Some(next) = used.checked_add(bytes) else {
-            return Err(memory_limit_error(tracker.budget, usize::MAX));
-        };
-        if next > tracker.budget {
-            return Err(memory_limit_error(tracker.budget, next));
-        }
-        match tracker
-            .used
-            .compare_exchange_weak(used, next, Ordering::AcqRel, Ordering::Acquire)
-        {
-            Ok(_) => {
-                tracker.peak.fetch_max(next, Ordering::AcqRel);
-                return Ok(());
-            }
-            Err(actual) => used = actual,
-        }
+        self.memory.current_bytes()
     }
 }
 
@@ -588,6 +544,10 @@ fn memory_limit_error(budget: usize, requested: usize) -> CassieError {
     CassieError::ResourceLimit(format!(
         "query memory budget exceeded: {requested} > {budget}"
     ))
+}
+
+fn memory_budget_error(error: cassie_core::request::MemoryBudgetError) -> CassieError {
+    memory_limit_error(error.budget, error.requested)
 }
 
 #[cfg(test)]
@@ -734,7 +694,7 @@ mod tests {
         // Arrange
         let runtime = super::RuntimeState::new(CassieRuntimeLimits::default());
         let controls = controls_with_budget(1_048_576);
-        let tracker = std::sync::Arc::downgrade(&controls.memory);
+        let tracker = controls.memory.downgrade();
         let mut builder = crate::executor::QueryResult::try_builder(&controls).expect("builder");
         builder
             .try_push_row(&[crate::types::Value::String("retained output".repeat(32))])
@@ -797,13 +757,13 @@ mod tests {
     fn should_retire_cancellation_scope_while_managed_rows_keep_only_memory_alive() {
         // Arrange
         let cancellation = super::QueryCancellationHandle::new();
-        let cancellation_owner = std::sync::Arc::downgrade(&cancellation.0);
+        let cancellation_owner = cancellation.0.downgrade();
         let controls = QueryExecutionControls::with_cancellation(
             &CassieRuntimeLimits::default(),
             Instant::now(),
             cancellation.clone(),
         );
-        let tracker = std::sync::Arc::downgrade(&controls.memory);
+        let tracker = controls.memory.downgrade();
         let mut builder = crate::executor::QueryResult::try_builder(&controls).expect("builder");
         builder
             .try_push_column(&crate::executor::ColumnMeta::text("owned"))
@@ -822,12 +782,11 @@ mod tests {
         drop(controls);
         drop(cancellation);
         drop(rows);
-        let request_retired = cancellation_owner.upgrade().is_none();
+        let request_retired = !cancellation_owner.is_alive();
         let memory_live = tracker
             .upgrade()
             .expect("narrow retained tracker")
-            .used
-            .load(super::Ordering::Acquire);
+            .current_bytes();
         let retained_values = alias.as_slice()[0].len();
         drop(alias);
         let tracker_retired = tracker.upgrade().is_none();

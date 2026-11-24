@@ -191,8 +191,9 @@ impl CassieSession {
                 .savepoints
                 .iter()
                 .map(|savepoint| &savepoint.storage_overlay),
-            controls,
+            &controls.storage_request(),
         )
+        .map_err(CassieError::from)
     }
 
     pub(crate) fn transaction_storage_overlay(

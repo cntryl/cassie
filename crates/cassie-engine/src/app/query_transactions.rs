@@ -262,7 +262,13 @@ impl Cassie {
             .as_ref()
             .map_or_default(|catalog| self.role_grant_targets_removed_by_transaction(catalog));
         if let Some(catalog) = &catalog_overlay {
-            storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
+            {
+                let (sequences, _memory) =
+                    storage_overlay.prepare_sequence_cursor_metadata(&controls.storage_request())?;
+                for sequence in sequences {
+                    catalog.register_sequence(sequence);
+                }
+            }
             let staged = storage_overlay.staged_sequence_object_ids(&controls.storage_request())?;
             catalog.refresh_published_sequence_cursors(&self.publication_catalog, &staged);
         }
@@ -302,7 +308,7 @@ impl Cassie {
             .as_ref()
             .map_or(row_collections.as_slice(), |names| names.values.as_slice());
         let publish = || {
-            index_guard.validate(&self.midge, controls)?;
+            index_guard.validate(&self.midge, &controls.storage_request())?;
             self.publish_transaction_rows(
                 session,
                 &database,

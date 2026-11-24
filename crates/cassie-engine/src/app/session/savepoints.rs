@@ -144,8 +144,9 @@ impl CassieSession {
                         transaction.savepoints[..=index]
                             .iter()
                             .map(|savepoint| &savepoint.storage_overlay),
-                        &controls,
+                        &controls.storage_request(),
                     )
+                    .map_err(CassieError::from)
             })();
             if let Err(error) = pruning {
                 transaction.rollback_epoch = previous_epoch;

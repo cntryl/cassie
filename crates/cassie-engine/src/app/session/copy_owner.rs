@@ -168,7 +168,7 @@ impl CopyCommandOwner {
             .catalog
             .catalog()
             .matches_transaction_metadata(current, controls)?
-            || !self.storage.matches(&overlay, controls)?
+            || !self.storage.matches(&overlay, &controls.storage_request())?
         {
             return Err(stale_copy());
         }
@@ -615,7 +615,7 @@ impl CassieSession {
                     .catalog
                     .catalog()
                     .matches_transaction_metadata(current, controls)?
-                || !owner.storage.matches(&overlay, controls)?
+                || !owner.storage.matches(&overlay, &controls.storage_request())?
                 || owner
                     .midge
                     .copy_physical_identity(target, &overlay, &controls.storage_request())?

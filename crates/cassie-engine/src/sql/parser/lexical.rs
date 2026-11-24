@@ -40,14 +40,16 @@ fn dollar_quote_delimiter(input: &str, start: usize) -> Option<&str> {
     Some(&input[start..=end])
 }
 
-pub(crate) fn dollar_quoted_content(input: &str) -> Option<&str> {
+#[doc(hidden)]
+pub fn dollar_quoted_content(input: &str) -> Option<&str> {
     let delimiter = dollar_quote_delimiter(input, 0)?;
     let start = delimiter.len();
     let end = start + input[start..].find(delimiter)?;
     (end + delimiter.len() == input.len()).then_some(&input[start..end])
 }
 
-pub(crate) fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
+#[doc(hidden)]
+pub fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
     let delimiter = dollar_quote_delimiter(input, start)?;
     let content_start = start + delimiter.len();
     Some(
@@ -59,7 +61,8 @@ pub(crate) fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
     )
 }
 
-pub(crate) fn escape_string_prefix(input: &str, quote: usize) -> bool {
+#[doc(hidden)]
+pub fn escape_string_prefix(input: &str, quote: usize) -> bool {
     input[..quote]
         .strip_suffix(['e', 'E'])
         .is_some_and(|prefix| {

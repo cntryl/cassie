@@ -1,6 +1,7 @@
 pub(crate) mod check_comparison;
 pub(crate) mod literal_inputs;
-pub(crate) mod parse_analysis;
+#[doc(hidden)]
+pub mod parse_analysis;
 use std::collections::HashMap;
 
 use crate::catalog::FieldMeta;
@@ -52,12 +53,15 @@ pub use parser::{
 
 #[cfg(test)]
 pub(crate) use parameters::checked_parse_parameter_types_in_scope;
-pub(crate) use parameters::AdmittedParameterTypes;
 pub(crate) use parameters::{
-    checked_parameter_types_in_scope, checked_wire_parse_parameter_types_in_scope,
-    contextual_string_parameter_type_oids, validate_wire_parse_parameter_slots,
-    ParameterAdmissionError, ParameterSemanticDiagnostic, PrivateParameterTypeInput,
-    ScalarLiteralDiagnostic,
+    checked_parameter_types_in_scope, contextual_string_parameter_type_oids,
+    PrivateParameterTypeInput,
+};
+#[doc(hidden)]
+pub use parameters::{
+    checked_wire_parse_parameter_types_in_scope, validate_wire_parse_parameter_slots,
+    AdmittedParameterTypes, BooleanConstruct, ParameterAdmissionError,
+    ParameterSemanticDiagnostic, ScalarLiteralDiagnostic,
 };
 pub use parameters::{
     declared_parameter_type_conflict, parameter_count, parameter_type_oids,

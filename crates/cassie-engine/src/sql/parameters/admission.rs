@@ -18,7 +18,8 @@ use crate::sql::{ast, ParsedStatement, QueryStatement};
 pub(super) const MAX_PARAMETER_COUNT: usize = 268_435_455;
 
 #[derive(Debug)]
-pub(crate) enum ParameterAdmissionError {
+#[doc(hidden)]
+pub enum ParameterAdmissionError {
     Memory(String),
     InvalidParam(String),
     // Drop the copied text before releasing the lease that accounts for it.
@@ -48,7 +49,8 @@ pub(crate) enum ParameterAdmissionError {
 }
 
 #[derive(Debug)]
-pub(crate) struct AdmittedParameterTypes {
+#[doc(hidden)]
+pub struct AdmittedParameterTypes {
     // Drop the value before releasing its transient capacity reservation.
     oids: Vec<i32>,
     _reservation: QueryMemoryReservation,
@@ -79,11 +81,13 @@ impl AdmittedParameterTypes {
         self.binding_required
     }
 
-    pub(crate) fn types(&self) -> &[i32] {
+    #[doc(hidden)]
+    pub fn types(&self) -> &[i32] {
         &self.oids
     }
 
-    pub(crate) fn final_check(&self) -> Result<(), ParameterAdmissionError> {
+    #[doc(hidden)]
+    pub fn final_check(&self) -> Result<(), ParameterAdmissionError> {
         if self.binding_required {
             return Err(ParameterAdmissionError::InvalidParam(
                 "invalid scalar input during binding".into(),

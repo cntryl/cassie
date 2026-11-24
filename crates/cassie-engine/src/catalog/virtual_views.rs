@@ -53,7 +53,8 @@ mod virtual_views_procedures;
 mod virtual_views_projections;
 #[path = "virtual_views_property_graphs.rs"]
 mod virtual_views_property_graphs;
-pub(crate) use virtual_views_property_graphs::visible_property_graphs;
+#[doc(hidden)]
+pub use virtual_views_property_graphs::visible_property_graphs;
 #[path = "virtual_views_relations.rs"]
 mod virtual_views_relations;
 #[path = "virtual_views_repair.rs"]

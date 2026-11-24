@@ -6,7 +6,8 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "compact_json_tests.rs"]
 mod tests;
 
-pub(crate) struct OwnedJsonText {
+#[doc(hidden)]
+pub struct OwnedJsonText {
     text: String,
     memory: QueryMemoryReservation,
 }
@@ -16,7 +17,8 @@ impl OwnedJsonText {
         &self.text
     }
 
-    pub(crate) fn into_parts(self) -> (String, QueryMemoryReservation) {
+    #[doc(hidden)]
+    pub fn into_parts(self) -> (String, QueryMemoryReservation) {
         (self.text, self.memory)
     }
 }

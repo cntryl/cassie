@@ -11,7 +11,8 @@ use super::{CursorError, Document, DocumentError, SourceStack, WrappedCause};
 #[path = "document_jsonb_tests.rs"]
 mod tests;
 
-pub(crate) enum JsonbFieldError {
+#[doc(hidden)]
+pub enum JsonbFieldError {
     Diagnostic(OwnedDiagnostic),
     Control(CassieError),
 }
@@ -45,7 +46,8 @@ impl JsonbFieldError {
     }
 }
 
-pub(crate) fn parse_field(
+#[doc(hidden)]
+pub fn parse_field(
     source: &[u8],
     column: usize,
     controls: &QueryExecutionControls,

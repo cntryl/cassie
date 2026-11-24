@@ -7,7 +7,8 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
-pub(crate) fn normalize(
+#[doc(hidden)]
+pub fn normalize(
     parsed: &mut ParsedStatement,
     declared: &[i32],
     controls: &QueryExecutionControls,

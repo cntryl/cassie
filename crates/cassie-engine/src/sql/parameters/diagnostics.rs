@@ -15,20 +15,23 @@ const MAX_DECIMAL_DIGITS: usize = (usize::BITS as usize * 30_103) / 100_000 + 1;
 const UNDEFINED_FUNCTION_HINT: &str = "No function matches the given name and argument types. You might need to add explicit type casts.";
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ScalarLiteralDiagnostic {
+#[doc(hidden)]
+pub enum ScalarLiteralDiagnostic {
     Syntax(&'static str),
     Range(&'static str),
     FloatRange,
 }
 
 impl ScalarLiteralDiagnostic {
-    pub(crate) const fn code(self) -> &'static str {
+    #[doc(hidden)]
+    pub const fn code(self) -> &'static str {
         match self {
             Self::Syntax(_) => "22P02",
             Self::Range(_) | Self::FloatRange => "22003",
         }
     }
-    pub(crate) fn capacity(self, input: &str) -> Option<usize> {
+    #[doc(hidden)]
+    pub fn capacity(self, input: &str) -> Option<usize> {
         if matches!(self, Self::FloatRange) {
             return input
                 .len()
@@ -41,7 +44,8 @@ impl ScalarLiteralDiagnostic {
         };
         input.len().checked_add(name.len())?.checked_add(overhead)
     }
-    pub(crate) fn write(self, input: &str, output: &mut impl Write) -> fmt::Result {
+    #[doc(hidden)]
+    pub fn write(self, input: &str, output: &mut impl Write) -> fmt::Result {
         match self {
             Self::Syntax(name) => {
                 write!(output, "invalid input syntax for type {name}: \"{input}\"")
@@ -58,7 +62,8 @@ impl ScalarLiteralDiagnostic {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BooleanConstruct {
+#[doc(hidden)]
+pub enum BooleanConstruct {
     Where,
     Having,
     Join,
@@ -87,7 +92,8 @@ impl BooleanConstruct {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ParameterSemanticDiagnostic {
+#[doc(hidden)]
+pub enum ParameterSemanticDiagnostic {
     DistinctAggregateOrder,
     ValuesWidth,
     ValuesTypes {
@@ -135,7 +141,8 @@ pub(crate) enum ParameterSemanticDiagnostic {
 }
 
 impl ParameterSemanticDiagnostic {
-    pub(crate) fn uses_execution_error(self) -> bool {
+    #[doc(hidden)]
+    pub fn uses_execution_error(self) -> bool {
         matches!(
             self,
             Self::DistinctAggregateOrder
@@ -151,7 +158,8 @@ impl ParameterSemanticDiagnostic {
                 }
         )
     }
-    pub(crate) const fn code(self) -> &'static str {
+    #[doc(hidden)]
+    pub const fn code(self) -> &'static str {
         match self {
             Self::ValuesWidth => "42601",
             Self::PendingNameInput
@@ -172,21 +180,24 @@ impl ParameterSemanticDiagnostic {
         }
     }
 
-    pub(crate) fn message(self) -> String {
+    #[doc(hidden)]
+    pub fn message(self) -> String {
         let mut message = String::with_capacity(self.message_capacity());
         self.write_message(&mut message)
             .expect("String formatting cannot fail");
         message
     }
 
-    pub(crate) const fn hint(self) -> Option<&'static str> {
+    #[doc(hidden)]
+    pub const fn hint(self) -> Option<&'static str> {
         match self {
             Self::ToCharTimeTz { .. } => Some(UNDEFINED_FUNCTION_HINT),
             _ => None,
         }
     }
 
-    pub(crate) fn message_capacity(self) -> usize {
+    #[doc(hidden)]
+    pub fn message_capacity(self) -> usize {
         match self {
             Self::ValuesWidth => "VALUES lists must all be the same length".len(),
             Self::PendingNameInput => PENDING_NAME_INPUT.len(),
@@ -244,7 +255,8 @@ impl ParameterSemanticDiagnostic {
         }
     }
 
-    pub(crate) fn write_message(self, output: &mut impl Write) -> fmt::Result {
+    #[doc(hidden)]
+    pub fn write_message(self, output: &mut impl Write) -> fmt::Result {
         match self {
             Self::PendingNameInput => output.write_str(PENDING_NAME_INPUT),
             Self::PendingDatumInput => output.write_str(PENDING_DATUM_INPUT),
@@ -314,14 +326,16 @@ impl ParameterSemanticDiagnostic {
     }
 
     #[cfg(test)]
-    pub(crate) fn detail(self) -> Option<String> {
+    #[doc(hidden)]
+    pub fn detail(self) -> Option<String> {
         let mut detail = String::with_capacity(self.detail_capacity()?);
         self.write_detail(&mut detail)
             .expect("String formatting cannot fail");
         Some(detail)
     }
 
-    pub(crate) fn detail_capacity(self) -> Option<usize> {
+    #[doc(hidden)]
+    pub fn detail_capacity(self) -> Option<usize> {
         match self {
             Self::Inconsistent {
                 previous,
@@ -347,7 +361,8 @@ impl ParameterSemanticDiagnostic {
         }
     }
 
-    pub(crate) fn write_detail(self, output: &mut impl Write) -> fmt::Result {
+    #[doc(hidden)]
+    pub fn write_detail(self, output: &mut impl Write) -> fmt::Result {
         if let Self::Inconsistent {
             previous,
             requested,

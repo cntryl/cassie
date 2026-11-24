@@ -17,11 +17,16 @@ use crate::types::DataType;
 use super::Catalog;
 
 /// Raw session scope, borrowed only for the synchronous parameter-inference visit.
-pub(crate) struct FunctionInputScope<'a> {
-    pub(crate) database: &'a str,
-    pub(crate) search_path: &'a [String],
-    pub(crate) user: &'a str,
-    pub(crate) enforce_database_scope: bool,
+#[doc(hidden)]
+pub struct FunctionInputScope<'a> {
+    #[doc(hidden)]
+    pub database: &'a str,
+    #[doc(hidden)]
+    pub search_path: &'a [String],
+    #[doc(hidden)]
+    pub user: &'a str,
+    #[doc(hidden)]
+    pub enforce_database_scope: bool,
 }
 
 struct SearchPath<'a> {

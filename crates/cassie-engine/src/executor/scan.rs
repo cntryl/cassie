@@ -20,10 +20,11 @@ use std::time::Duration;
 mod character_arrays;
 pub(crate) mod composite_arrays;
 mod controlled_source;
-pub(crate) use composite_arrays::{
-    element_descriptor as composite_array_descriptor, from_text as composite_array_from_text,
-    typed_records as composite_array_records,
-};
+#[doc(hidden)]
+pub use composite_arrays::from_text as composite_array_from_text;
+#[doc(hidden)]
+pub use composite_arrays::typed_records as composite_array_records;
+pub(crate) use composite_arrays::element_descriptor as composite_array_descriptor;
 mod enum_values;
 pub(crate) use character_arrays::{
     hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,

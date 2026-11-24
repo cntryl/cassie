@@ -12,7 +12,8 @@ use super::{CursorError, Document, DocumentError, DocumentProgress, SourceStack,
 mod tests;
 
 #[derive(Debug)]
-pub(crate) enum BinaryJsonError {
+#[doc(hidden)]
+pub enum BinaryJsonError {
     Invalid,
     Controlled(CassieError),
 }
@@ -32,7 +33,8 @@ fn map_document_error(error: DocumentError) -> BinaryJsonError {
     }
 }
 
-pub(crate) fn binary_json_text(
+#[doc(hidden)]
+pub fn binary_json_text(
     source: &[u8],
     controls: &QueryExecutionControls,
 ) -> Result<OwnedJsonText, BinaryJsonError> {

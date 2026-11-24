@@ -22,7 +22,8 @@ impl From<CassieError> for DiagnosticError {
     }
 }
 
-pub(crate) struct OwnedDiagnostic {
+#[doc(hidden)]
+pub struct OwnedDiagnostic {
     text: String,
     _memory: QueryMemoryReservation,
 }
@@ -36,7 +37,8 @@ impl fmt::Debug for OwnedDiagnostic {
 }
 
 impl OwnedDiagnostic {
-    pub(crate) fn as_str(&self) -> &str {
+    #[doc(hidden)]
+    pub fn as_str(&self) -> &str {
         &self.text
     }
 }

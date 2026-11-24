@@ -216,7 +216,8 @@ pub use type_scope::parse_data_type_in_scope;
 pub use type_scope::{with_type_scope, TypeResolver};
 #[path = "parser/with_statement.rs"]
 mod with_statement;
-pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
+#[doc(hidden)]
+pub use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "parser/materialized_view.rs"]

@@ -57,7 +57,8 @@ pub(super) fn from_storage(
 /// # Errors
 /// Returns `XX001` for a malformed document and the input error for text that
 /// is not a record of this type.
-pub(crate) fn typed_records(
+#[doc(hidden)]
+pub fn typed_records(
     array: &SqlArray,
     descriptor: &CompositeRef,
 ) -> Result<Value, CassieError> {
@@ -91,7 +92,8 @@ pub(crate) fn typed_records(
 ///
 /// # Errors
 /// Returns an error when the text is not an array of such records.
-pub(crate) fn from_text(text: &str, descriptor: &CompositeRef) -> Result<Value, CassieError> {
+#[doc(hidden)]
+pub fn from_text(text: &str, descriptor: &CompositeRef) -> Result<Value, CassieError> {
     let element_type = DataType::Composite(descriptor.clone());
     let parsed = crate::types::array::parse_sql_text_array(text, &element_type)
         .map_err(|error| CassieError::ArrayInput(error.to_string()))?;

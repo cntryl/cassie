@@ -14,7 +14,8 @@ use std::cell::Cell;
 
 #[path = "parse_analysis/type_functions.rs"]
 mod type_functions;
-pub(crate) use type_functions::normalize as normalize_type_functions;
+#[doc(hidden)]
+pub use type_functions::normalize as normalize_type_functions;
 
 pub(crate) fn validate(
     parsed: &ParsedStatement,

@@ -129,6 +129,8 @@ pub use auth::{NetworkPrincipal, NetworkRole};
 mod auth_rate_limit;
 mod bulk_ingest;
 #[doc(hidden)]
+pub(crate) use bulk_ingest::{copy_columns, CopyCsvOptions, CopyIngestOptions};
+#[doc(hidden)]
 pub use bulk_ingest::{CopyColumn, CopyIngestResult, CopySkippedRow};
 mod consistency;
 mod database_images;

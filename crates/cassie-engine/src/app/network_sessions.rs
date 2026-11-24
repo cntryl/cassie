@@ -280,12 +280,21 @@ fn decode_record(value: &[u8]) -> Option<PersistedSession> {
     serde_json::from_slice(value).ok()
 }
 
-#[cfg(any(test, feature = "transport-test-hooks"))]
-#[doc(hidden)]
-pub fn session_key(token: &str) -> Vec<u8> {
+fn session_key_impl(token: &str) -> Vec<u8> {
     let mut key = SESSION_KEY_PREFIX.to_vec();
     key.extend_from_slice(digest(token.as_bytes()).as_bytes());
     key
+}
+
+#[cfg(any(test, feature = "transport-test-hooks"))]
+#[doc(hidden)]
+pub fn session_key(token: &str) -> Vec<u8> {
+    session_key_impl(token)
+}
+
+#[cfg(not(any(test, feature = "transport-test-hooks")))]
+fn session_key(token: &str) -> Vec<u8> {
+    session_key_impl(token)
 }
 
 fn random_token() -> String {

@@ -85,7 +85,9 @@ pub use indexes::{
 };
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
-pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
+pub(crate) use metadata::ControlledCatalogSnapshot;
+#[doc(hidden)]
+pub use metadata::FunctionInputScope;
 pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub use property_graphs::{

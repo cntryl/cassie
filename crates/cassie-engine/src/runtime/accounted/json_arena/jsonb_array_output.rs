@@ -15,7 +15,8 @@ use super::jsonb_array_envelope::{
 #[path = "jsonb_array_output_tests.rs"]
 mod tests;
 
-pub(crate) enum OutputError {
+#[doc(hidden)]
+pub enum OutputError {
     Diagnostic(OwnedDiagnostic),
     Control(CassieError),
 }
@@ -51,7 +52,8 @@ pub(crate) enum Progress {
     EscapeScan,
 }
 
-pub(crate) fn render(
+#[doc(hidden)]
+pub fn render(
     source: &[u8],
     column: usize,
     controls: &QueryExecutionControls,

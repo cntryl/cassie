@@ -470,7 +470,8 @@ pub fn parameter_from_text(
 
 /// Controlled version of temporal bind decoding. Control failures propagate
 /// as query errors; ordinary PostgreSQL input errors remain type diagnostics.
-pub(crate) fn parameter_from_text_with_controls(
+#[doc(hidden)]
+pub fn parameter_from_text_with_controls(
     kind: ExtendedType,
     text: &str,
     controls: &crate::runtime::QueryExecutionControls,

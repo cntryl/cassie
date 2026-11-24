@@ -590,7 +590,7 @@ impl Midge {
             raw.len(),
         )?;
         let memory = controls.reserve(retained_bytes)?;
-        let payload = super::decode_row(&row_schema, &raw)?;
+        let payload = super::decode_row_with_hooks(&row_schema, &raw, tx.value_hooks())?;
         controls.check_interruption()?;
         Ok(Some(ControlledRetrievalDocument {
             document: DocumentRef {

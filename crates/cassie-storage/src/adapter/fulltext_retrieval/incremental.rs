@@ -16,7 +16,7 @@ use super::blocks::{self, PostingChange};
 use super::layout::{document_length, document_terms, read_term_record, IndexRecord};
 use super::metrics::FulltextWriteTally;
 use super::{
-    analyze_document_statistics, codec, collect_scan, decode_row, key_encoding, CassieError,
+    analyze_document_statistics, codec, collect_scan, decode_row_with_hooks, key_encoding, CassieError,
     FulltextIndexMetadata, FulltextTermRecord, IndexMeta, Midge, PersistedFulltextDocumentStats,
     PersistedFulltextPosting, Query, STATE_VERSION,
 };
@@ -296,7 +296,8 @@ impl Midge {
                 .get(&Self::doc_key(collection, id))
                 .map_err(CassieError::from)?,
         };
-        raw.map(|raw| decode_row(row_schema, &raw)).transpose()
+        raw.map(|raw| decode_row_with_hooks(row_schema, &raw, tx.value_hooks()))
+            .transpose()
     }
 
     fn stage_incremental_fulltext_writes(

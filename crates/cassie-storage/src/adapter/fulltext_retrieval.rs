@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    collect_scan, decode_row, key_encoding, CassieError, IndexMeta, Midge, Query, RowSchema,
+    collect_scan, decode_row_with_hooks, key_encoding, CassieError, IndexMeta, Midge, Query, RowSchema,
 };
 use cassie_search::analyzer::AnalyzerConfig;
 
@@ -625,7 +625,7 @@ impl Midge {
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
                     continue;
                 };
-                documents.entry(id).or_insert(decode_row(row_schema, &raw)?);
+                documents.entry(id).or_insert(decode_row_with_hooks(row_schema, &raw, tx.value_hooks())?);
             }
         }
         Ok(documents.into_iter().collect())

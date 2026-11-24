@@ -70,7 +70,7 @@ pub struct CopyFromOperation {
     owner: Option<CopyCommandOwner>,
     authority: FailureAuthority,
     controls: QueryExecutionControls,
-    _admission: QueryMemoryReservation,
+    admission: QueryMemoryReservation,
 }
 
 impl CopyFromOperation {
@@ -204,13 +204,14 @@ impl CopyFromOperation {
             owner,
             authority,
             controls,
-            _admission: admission,
+            admission,
         })
     }
 
     /// Request controls associated with the operation, borrowed for decoding.
     #[must_use]
     pub fn controls(&self) -> &QueryExecutionControls {
+        debug_assert!(self.admission.belongs_to(&self.controls));
         &self.controls
     }
 
@@ -224,6 +225,12 @@ impl CopyFromOperation {
         let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
             .unwrap_or_else(|| self.controls.clone());
         operation(&controls)
+    }
+
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn expire_for_test(&mut self) {
+        self.controls.deadline = Some(Instant::now());
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
@@ -252,14 +259,15 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
-    pub fn admission_reservation_for_test(&self) -> &QueryMemoryReservation {
-        &self._admission
+    #[must_use]
+    pub fn into_admission_reservation_for_test(self) -> QueryMemoryReservation {
+        self.admission
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
     pub fn admission_reservation_bytes_for_test(&self) -> usize {
-        self._admission.bytes_for_test()
+        self.admission.bytes_for_test()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
@@ -268,7 +276,7 @@ impl CopyFromOperation {
         &self,
         controls: &QueryExecutionControls,
     ) -> bool {
-        self._admission.belongs_to(controls)
+        self.admission.belongs_to(controls)
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]

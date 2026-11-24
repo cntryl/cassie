@@ -8,7 +8,7 @@ type CopyRowsWithMemory = (Vec<Vec<Option<String>>>, QueryMemoryReservation);
 #[derive(Debug)]
 pub enum CopyWhereError {
     Cassie(CassieError),
-    Undefined(String),
+    Undefined(String, QueryMemoryReservation),
     Jsonb(crate::runtime::accounted::json_arena::JsonbDiagnostic),
 }
 
@@ -232,7 +232,8 @@ fn parameterize_columns(
                 }
                 let Some(parameter_index) = find_column(columns, name.as_str(), false, controls)?
                 else {
-                    return Err(CopyWhereError::Undefined(name.into_parts().0));
+                    let (name, memory) = name.into_parts();
+                    return Err(CopyWhereError::Undefined(name, memory));
                 };
                 output.push_parameter(parameter_index, controls)?;
                 parameter = true;

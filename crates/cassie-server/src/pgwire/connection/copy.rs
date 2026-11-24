@@ -896,7 +896,7 @@ async fn finish_simple_copy(
             write_copy_error(write_half, &session, &cassie_pg_error(&error)).await,
             SimpleCopyOutcome::Handled
         ),
-        Err(crate::app::transport::copy::CopyOperationError::Undefined(name)) => {
+        Err(crate::app::transport::copy::CopyOperationError::Undefined(name, _memory)) => {
             write_copy_unknown_column_with_length(
                 write_half,
                 &session,

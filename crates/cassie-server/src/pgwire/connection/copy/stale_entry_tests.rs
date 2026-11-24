@@ -106,7 +106,7 @@ fn should_execute_sequence_predicate_with_current_copy_owner() {
 }
 
 #[test]
-fn should_binary_copy_a_staged_enum_before_transaction_commit() {
+fn should_reject_binary_copy_into_a_staged_enum_with_feature_not_supported() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
@@ -147,17 +147,13 @@ fn should_binary_copy_a_staged_enum_before_transaction_commit() {
     let result = operation.with_publication_scope(|controls| {
         execute::execute_decoded_operation(&session, &request, &operation, &payload, None, controls)
     });
-    let selected = cassie
-        .execute_sql(&session, "SELECT mood FROM copy_binary_enum", Vec::new())
-        .expect("read staged enum value");
 
     // Assert
-    assert!(result.is_ok());
-    assert!(matches!(
-        selected.rows().first().and_then(|row| row.first()),
-        Some(crate::types::Value::Typed(crate::types::typed::TypedValue::Enum(value)))
-            if value.label() == "ok"
-    ));
+    let Err(filter::CopyWhereError::Cassie(error)) = result else {
+        panic!("binary COPY into a staged enum should return an unsupported error");
+    };
+    assert_eq!(error.sql_state(), "0A000");
+    assert!(error.to_string().contains("COPY into enum field 'mood'"));
     cassie
         .execute_sql(&session, "ROLLBACK", Vec::new())
         .expect("rollback");
@@ -277,7 +273,7 @@ fn should_preserve_deadline_before_rejecting_stale_copy_owner() {
     // Arrange
     let mut fixture = EntryFixture::new(ENTRY_COPY_SQL, None);
     fixture.retire();
-    fixture.binding.controls.deadline = Some(std::time::Instant::now());
+    fixture.binding.operation.expire_for_test();
 
     // Act
     let result = fixture.run(&fixture.session, b"41\n");
@@ -623,7 +619,7 @@ fn should_preserve_deadline_before_savepoint_stale_owner() {
         .session
         .rollback_to_savepoint("copy_entry")
         .expect("rollback");
-    fixture.binding.controls.deadline = Some(std::time::Instant::now());
+    fixture.binding.operation.expire_for_test();
 
     // Act
     let result = fixture.run(&fixture.session, b"41\n");

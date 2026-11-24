@@ -396,8 +396,9 @@ fn should_retain_copy_binding_charge_until_blocking_worker_finishes() {
                     operation,
                 } = *binding;
                 drop((cassie, controls, authority));
+                let admission = operation.into_admission_reservation_for_test();
                 let before = tracker.current_query_memory_bytes();
-                drop(operation);
+                drop(admission);
                 let after = tracker.current_query_memory_bytes();
                 Ok((retained, on_tracker, before, after))
             },

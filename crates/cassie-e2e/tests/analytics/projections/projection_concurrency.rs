@@ -17,51 +17,30 @@ fn wait_for_barrier(barrier: &Arc<Barrier>, label: &str) {
         .unwrap_or_else(|_| panic!("{label} barrier waiter panicked"));
 }
 
-struct ProjectionPauseCleanup {
-    pairs: Vec<(Arc<Barrier>, Arc<Barrier>)>,
-    armed: bool,
-}
+struct ProjectionPauseCleanup(Option<cassie::runtime::test_sync::TestBarrierCleanup>);
 
 impl ProjectionPauseCleanup {
     fn arm(pairs: impl IntoIterator<Item = (Arc<Barrier>, Arc<Barrier>)>) -> Self {
-        Self {
-            pairs: pairs.into_iter().collect(),
-            armed: true,
-        }
+        Self(Some(cassie::runtime::test_sync::TestBarrierCleanup::arm(
+            pairs.into_iter().flat_map(|(ready, resume)| [ready, resume]),
+        )))
     }
 
     fn disarm(&mut self) {
-        self.armed = false;
+        if let Some(mut cleanup) = self.0.take() {
+            cleanup.disarm();
+        }
     }
 }
 
 impl Drop for ProjectionPauseCleanup {
     fn drop(&mut self) {
-        if !self.armed {
+        if self.0.is_none() {
             return;
         }
         set_materialized_projection_replace_start_barriers(None, None);
         set_materialized_projection_replace_barriers(None, None);
         set_projection_replay_prepare_barriers(None, None, None);
-        for (ready, resume) in &self.pairs {
-            let ready = Arc::clone(ready);
-            let resume = Arc::clone(resume);
-            let (ready_tx, ready_rx) = mpsc::channel();
-            let ready_handle = std::thread::spawn(move || {
-                ready.wait();
-                ready_tx.send(()).expect("send ready cleanup");
-            });
-            let resume = Arc::clone(&resume);
-            let (resume_tx, resume_rx) = mpsc::channel();
-            let resume_handle = std::thread::spawn(move || {
-                resume.wait();
-                resume_tx.send(()).expect("send resume cleanup");
-            });
-            let _ = ready_rx.recv_timeout(CONCURRENCY_DEADLINE);
-            let _ = resume_rx.recv_timeout(CONCURRENCY_DEADLINE);
-            let _ = ready_handle.join();
-            let _ = resume_handle.join();
-        }
     }
 }
 

@@ -608,9 +608,10 @@ fn should_reject_duplicate_unique_value_after_column_rename() {
 #[test]
 fn should_replay_unique_reservations_after_interrupted_column_rename() {
     // Arrange
-    support::use_local_storage();
     let path = support::data_dir("unique_reservation_rename_column_recovery");
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let config = cassie::config::CassieRuntimeConfig::default();
+    let cassie =
+        Cassie::new_local_with_data_dir_and_config(&path, config.clone()).expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for sql in [
@@ -622,13 +623,14 @@ fn should_replay_unique_reservations_after_interrupted_column_rename() {
     set_field_rename_failure_point(true);
 
     // Act
-    let interrupted = cassie.execute_sql(
-        &session,
-        "ALTER TABLE unique_reservation_rename_recovery RENAME COLUMN k TO kk",
-        vec![],
-    );
+    let interrupted =
+        cassie
+            .midge
+            .alter_collection_rename_column("unique_reservation_rename_recovery", "k", "kk");
+    drop(session);
     drop(cassie);
-    let recovered = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+    let recovered =
+        Cassie::new_local_with_data_dir_and_config(&path, config).expect("reopen Cassie");
     recovered.startup().expect("replay field rename");
     let session = recovered.create_session("tester", None);
     let duplicate = recovered.execute_sql(
@@ -638,13 +640,15 @@ fn should_replay_unique_reservations_after_interrupted_column_rename() {
     );
 
     // Assert
-    assert!(
-        interrupted.is_err(),
-        "failure point did not interrupt rename"
-    );
-    assert!(
-        duplicate.is_err(),
-        "recovered rename lost unique reservation"
+    assert!(interrupted
+        .expect_err("failure point interrupts the durable rename")
+        .to_string()
+        .contains("injected test failure after field rename schema commit"));
+    assert_eq!(
+        duplicate
+            .expect_err("recovered rename must retain the unique reservation")
+            .sql_state(),
+        "23505"
     );
     let rows = recovered
         .execute_sql(
@@ -657,5 +661,7 @@ fn should_replay_unique_reservations_after_interrupted_column_rename() {
         rows.rows(),
         vec![vec![Value::Float64(1.0), Value::Int64(1)]]
     );
+    drop(session);
+    drop(recovered);
     let _ = std::fs::remove_dir_all(path);
 }

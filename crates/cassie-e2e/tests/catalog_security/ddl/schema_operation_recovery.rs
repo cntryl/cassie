@@ -419,15 +419,19 @@ fn should_replay_field_rename_data_after_schema_commit_interruption() {
 
     // Act
     set_field_rename_failure_point(true);
-    assert!(cassie
+    let interrupted = cassie
         .midge
-        .alter_collection_rename_column("field_rename_recovery", "before", "after")
-        .is_err());
+        .alter_collection_rename_column("field_rename_recovery", "before", "after");
     drop(cassie);
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("replay field rename");
 
     // Assert
+    assert!(matches!(
+        interrupted,
+        Err(cassie::midge::adapter::error::StorageError::Execution(message))
+            if message == "injected test failure after field rename schema commit"
+    ));
     let documents = restarted
         .midge
         .scan_documents("field_rename_recovery")

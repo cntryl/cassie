@@ -2,7 +2,10 @@
 fn should_discard_staged_table_copy_on_explicit_rollback() {
     // Arrange
     let boundary = copy_cycle();
-    let tail = vec![vec![wire::simple_query_frame("ROLLBACK")]];
+    let tail = vec![
+        vec![wire::simple_query_frame("SELECT n FROM wire_tx ORDER BY n")],
+        vec![wire::simple_query_frame("ROLLBACK")],
+    ];
 
     // Act
     let result = run_script(
@@ -21,6 +24,15 @@ fn should_discard_staged_table_copy_on_explicit_rollback() {
     assert_eq!(
         wire::data_rows(&result.after),
         vec![vec![Some("0".to_string())]]
+    );
+    assert_eq!(
+        wire::data_rows(&result.tail[0]),
+        vec![vec![Some("1".to_string())], vec![Some("2".to_string())]]
+    );
+    assert_eq!(wire::error_code(&result.tail[1]), None);
+    assert_eq!(
+        result.tail[1].last().map(|frame| frame.1.as_slice()),
+        Some(&b"I"[..])
     );
     assert_eq!(
         wire::data_rows(&result.terminal),

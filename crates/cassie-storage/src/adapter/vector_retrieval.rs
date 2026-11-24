@@ -848,7 +848,7 @@ impl Midge {
                 "hnsw fallback:unknown-neighbor-id".to_string(),
             ));
         }
-        let Some((result, candidate_memory)) = result else {
+        let Some((result, mut candidate_memory)) = result else {
             return Ok(None);
         };
         // Truncating top-k drops identities but retains the ef_search-sized backing buffer.

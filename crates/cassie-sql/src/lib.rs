@@ -1,0 +1,28 @@
+//! Cassie's SQL syntax model and parser.
+
+pub mod ast;
+pub mod attachment;
+pub use cassie_core::{catalog, types};
+pub mod column_identifier;
+pub mod definition_guard;
+pub mod default_expression;
+pub mod identifier_text;
+pub mod index_options;
+pub mod parser;
+pub mod sequence_default;
+
+mod ast_attachment_tests;
+pub mod declarations;
+
+pub use parser::{
+    parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,
+    EnumResolver, SqlError, SqlErrorKind, TypeResolver,
+};
+
+/// Compatibility namespace for syntax consumers moving from the engine SQL module.
+pub mod sql {
+    pub use crate::ast;
+    pub use crate::ast::*;
+    pub use crate::parser;
+    pub use crate::parse_statement;
+}

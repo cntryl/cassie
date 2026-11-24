@@ -10,126 +10,25 @@
 use crate::types::DataType;
 use serde_json::Value;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum VolatileDefault {
-    Now,
-    CurrentTimestamp,
-    LocalTimestamp,
-    CurrentDate,
-    RandomUuid,
-}
-
-impl VolatileDefault {
-    fn parse(raw: &str) -> Option<Self> {
-        let normalized = raw
-            .chars()
-            .filter(|character| !character.is_whitespace())
-            .collect::<String>()
-            .to_ascii_lowercase();
-        // `DEFAULT (now())` names the same function; only exact names match
-        // below, so peeling outer parentheses cannot admit an expression.
-        let mut unwrapped = normalized.as_str();
-        while let Some(inner) = unwrapped
-            .strip_prefix('(')
-            .and_then(|rest| rest.strip_suffix(')'))
-        {
-            unwrapped = inner;
-        }
-        let without_precision = strip_precision(unwrapped);
-        match without_precision {
-            "now()" => Some(Self::Now),
-            "current_timestamp" => Some(Self::CurrentTimestamp),
-            "localtimestamp" => Some(Self::LocalTimestamp),
-            "current_date" => Some(Self::CurrentDate),
-            "gen_random_uuid()" => Some(Self::RandomUuid),
-            _ => None,
-        }
-    }
-
-    const fn canonical(self) -> &'static str {
-        match self {
-            Self::Now => "now()",
-            Self::CurrentTimestamp => "CURRENT_TIMESTAMP",
-            Self::LocalTimestamp => "LOCALTIMESTAMP",
-            Self::CurrentDate => "CURRENT_DATE",
-            Self::RandomUuid => "gen_random_uuid()",
-        }
-    }
-
-    fn accepts(self, data_type: &DataType) -> bool {
-        let textual = matches!(data_type, DataType::Text | DataType::Varchar { .. });
-        match self {
-            Self::Now | Self::CurrentTimestamp | Self::LocalTimestamp => {
-                textual
-                    || matches!(
-                        data_type,
-                        DataType::Timestamp
-                            | DataType::Extended(
-                                crate::types::extended::ExtendedType::Timestamp { .. }
-                                    | crate::types::extended::ExtendedType::TimestampTz { .. }
-                            )
-                    )
-            }
-            Self::CurrentDate => textual || matches!(data_type, DataType::Date),
-            Self::RandomUuid => textual || matches!(data_type, DataType::Uuid),
-        }
-    }
-
-    fn evaluate(self) -> Value {
-        match self {
-            Self::Now | Self::CurrentTimestamp | Self::LocalTimestamp => {
-                let now = time::OffsetDateTime::now_utc();
-                Value::String(format!(
-                    "{}T{:02}:{:02}:{:02}.{:06}Z",
-                    crate::types::temporal::format_date(now.date()),
-                    now.hour(),
-                    now.minute(),
-                    now.second(),
-                    now.microsecond()
-                ))
-            }
-            Self::CurrentDate => Value::String(crate::types::temporal::format_date(
-                time::OffsetDateTime::now_utc().date(),
-            )),
-            Self::RandomUuid => Value::String(uuid::Uuid::new_v4().to_string()),
-        }
-    }
-}
-
-/// Drops a `(precision)` suffix from `current_timestamp(3)` or
-/// `localtimestamp(3)`; any other text is returned unchanged.
-fn strip_precision(normalized: &str) -> &str {
-    let Some(open) = normalized.find('(') else {
-        return normalized;
-    };
-    let (name, rest) = normalized.split_at(open);
-    let digits = rest
-        .strip_prefix('(')
-        .and_then(|rest| rest.strip_suffix(')'))
-        .unwrap_or_default();
-    if matches!(name, "current_timestamp" | "localtimestamp")
-        && !digits.is_empty()
-        && digits.chars().all(|character| character.is_ascii_digit())
-    {
-        name
-    } else {
-        normalized
-    }
-}
-
-/// Returns the canonical stored expression for a supported volatile column
-/// default such as `now()` or `CURRENT_TIMESTAMP`, or `None` for any other
-/// text.
-#[must_use]
-pub fn parse_volatile_default_expression(raw: &str) -> Option<String> {
-    VolatileDefault::parse(raw).map(|default| default.canonical().to_string())
-}
+use cassie_sql::default_expression::VolatileDefault;
+pub use cassie_sql::default_expression::parse_volatile_default_expression;
 
 /// Whether `expression` is a supported volatile default whose value a column
 /// of `data_type` can hold.
 #[must_use]
 pub fn volatile_default_accepts(expression: &str, data_type: &DataType) -> bool {
-    VolatileDefault::parse(expression).is_some_and(|default| default.accepts(data_type))
+    let Some(default) = VolatileDefault::parse(expression) else { return false; };
+    let textual = matches!(data_type, DataType::Text | DataType::Varchar { .. });
+    match default {
+        VolatileDefault::Now | VolatileDefault::CurrentTimestamp | VolatileDefault::LocalTimestamp => {
+            textual || matches!(data_type, DataType::Timestamp | DataType::Extended(
+                crate::types::extended::ExtendedType::Timestamp { .. }
+                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+            ))
+        }
+        VolatileDefault::CurrentDate => textual || matches!(data_type, DataType::Date),
+        VolatileDefault::RandomUuid => textual || matches!(data_type, DataType::Uuid),
+    }
 }
 
 /// Evaluates a stored volatile default for one inserted row. Returns `None`
@@ -137,7 +36,20 @@ pub fn volatile_default_accepts(expression: &str, data_type: &DataType) -> bool 
 /// expression, which is evaluated through its sequence).
 #[must_use]
 pub fn evaluate_volatile_default(expression: &str) -> Option<Value> {
-    VolatileDefault::parse(expression).map(VolatileDefault::evaluate)
+    match VolatileDefault::parse(expression)? {
+        VolatileDefault::Now | VolatileDefault::CurrentTimestamp | VolatileDefault::LocalTimestamp => {
+            let now = time::OffsetDateTime::now_utc();
+            Some(Value::String(format!(
+                "{}T{:02}:{:02}:{:02}.{:06}Z",
+                crate::types::temporal::format_date(now.date()),
+                now.hour(), now.minute(), now.second(), now.microsecond()
+            )))
+        }
+        VolatileDefault::CurrentDate => Some(Value::String(crate::types::temporal::format_date(
+            time::OffsetDateTime::now_utc().date()
+        ))),
+        VolatileDefault::RandomUuid => Some(Value::String(uuid::Uuid::new_v4().to_string())),
+    }
 }
 
 /// Coerces a literal column default to the column's declared type, as

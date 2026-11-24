@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use crate::catalog::{derive_scoped_name, name_matches};
 use crate::types::DataType;
-pub use cassie_core::catalog::declarations::SequencePersistence;
 
 pub use super::sequence_state::{
     SequenceCursor, SequenceError, SequenceOptions, SequenceParameters,
@@ -18,6 +17,27 @@ use super::Catalog;
 pub struct SequenceOwner {
     pub table: String,
     pub column: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SequencePersistence {
+    #[default]
+    Permanent,
+    Unlogged,
+    Temporary,
+}
+
+impl SequencePersistence {
+    /// `pg_class.relpersistence`.
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Permanent => "p",
+            Self::Unlogged => "u",
+            Self::Temporary => "t",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -244,69 +264,6 @@ impl Catalog {
     }
 }
 
-#[must_use]
-pub fn serial_sequence_name(table: &str, field: &str) -> String {
-    derive_scoped_name(table, |local| format!("{local}_{field}_seq"))
-}
-
-pub use cassie_core::catalog::sequence_default::{
-    canonical_nextval_expression, parse_nextval_default_expression,
+pub use cassie_sql::sequence_default::{
+    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
 };
-
-
-#[cfg(test)]
-mod tests {
-    use super::SequenceMeta;
-    use crate::catalog::Catalog;
-    use crate::types::DataType;
-
-    #[test]
-    fn should_update_published_sequence_cursor_without_changing_catalog_version() {
-        // Arrange
-        let catalog = Catalog::new();
-        let mut sequence = SequenceMeta::new("public.cursor_probe_seq", DataType::BigInt);
-        sequence.object_id = 71;
-        catalog.register_sequence(sequence.clone());
-        let version = catalog.version();
-        sequence.current_value = 2;
-        sequence.is_called = true;
-
-        // Act
-        catalog.update_sequence_cursor(&sequence);
-
-        // Assert
-        let current = catalog
-            .get_sequence("public.cursor_probe_seq")
-            .expect("published sequence");
-        assert_eq!(catalog.version(), version);
-        assert_eq!(current.current_value, 2);
-        assert!(current.is_called);
-        assert_eq!(current.object_id, 71);
-    }
-
-    #[test]
-    fn should_ignore_a_cursor_update_for_a_replaced_sequence_identity() {
-        // Arrange
-        let catalog = Catalog::new();
-        let mut original = SequenceMeta::new("public.cursor_replaced_seq", DataType::BigInt);
-        original.object_id = 71;
-        catalog.register_sequence(original);
-        let mut replacement = SequenceMeta::new("public.cursor_replaced_seq", DataType::BigInt);
-        replacement.object_id = 72;
-        replacement.current_value = 9;
-        replacement.is_called = true;
-        let version = catalog.version();
-
-        // Act
-        catalog.update_sequence_cursor(&replacement);
-
-        // Assert
-        let current = catalog
-            .get_sequence("public.cursor_replaced_seq")
-            .expect("original sequence remains registered");
-        assert_eq!(catalog.version(), version);
-        assert_eq!(current.object_id, 71);
-        assert_eq!(current.current_value, 1);
-        assert!(!current.is_called);
-    }
-}

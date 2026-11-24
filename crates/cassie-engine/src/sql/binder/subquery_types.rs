@@ -1,3 +1,4 @@
+use crate::sql::SubqueryExprWidthError;
 //! Records each sublink's output type and checks its width after binding.
 //!
 //! Expression typing has no catalog access, so a scalar subquery's type is

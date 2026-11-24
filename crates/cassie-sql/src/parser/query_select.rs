@@ -1,0 +1,740 @@
+use super::{
+    parse_named_windows, parse_parenthesized_prefix, parse_projection_item_with_named_windows,
+    parse_query_source, CommonTableExpression, Expr, HashSet, NamedWindows, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SqlError,
+};
+use crate::ast::{SelectSet, SelectStatement, SetOperator};
+use crate::parser::clauses::{
+    find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
+};
+use crate::parser::expr::{parse_expression, parse_order_by, split_csv};
+use crate::parser::order_ordinals::{resolve_order_ordinals, validate_set_order_ordinals};
+
+#[path = "query_select/grouping_sets.rs"]
+mod grouping_sets;
+#[path = "pagination.rs"]
+mod pagination;
+#[path = "values.rs"]
+mod values;
+
+pub(super) fn parse_select_statement(
+    sql: &str,
+    withs: Vec<CommonTableExpression>,
+    recursive: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = crate::parser::lexical::trim_separators(sql)
+        .trim_end_matches(';')
+        .trim();
+    let (trimmed, _) = strip_query_parentheses(trimmed)?;
+    if let Some((set_pos, set_len, set_operator)) = find_set_operation(trimmed) {
+        return parse_set_select_statement(
+            trimmed,
+            withs,
+            recursive,
+            set_pos,
+            set_len,
+            set_operator,
+        );
+    }
+
+    ensure_select_statement(trimmed)?;
+    if crate::parser::lexical::pattern_end(trimmed, 0, "values").is_some() {
+        return values::parse(trimmed, withs, recursive);
+    }
+
+    let after_select = crate::parser::lexical::trim_separators(&trimmed[6..]);
+    let (mut select_part, rest, source) = split_select_projection_and_rest(after_select)?;
+    let (distinct, distinct_on) = parse_distinct_clause(&mut select_part)?;
+    let clauses = parse_clauses(&rest)?;
+    let source = resolve_select_source(&rest, &clauses, source)?;
+    let parsed_clauses = parse_select_clauses(&rest, &clauses)?;
+    let named_windows = parsed_clauses
+        .window_sql
+        .as_deref()
+        .map(parse_named_windows)
+        .transpose()?
+        .unwrap_or_default();
+    let projection = parse_projection_items(&select_part, &named_windows)?;
+    let filter = parsed_clauses
+        .where_sql
+        .as_deref()
+        .map(parse_expression)
+        .transpose()?;
+    let group_by = parse_group_by_clause(parsed_clauses.group_sql.as_deref())?;
+    let having = parsed_clauses
+        .having_sql
+        .as_deref()
+        .map(parse_expression)
+        .transpose()?;
+    let order = parsed_clauses
+        .order_sql
+        .as_deref()
+        .map(parse_order_by)
+        .transpose()?
+        .unwrap_or_default();
+    let order = resolve_order_ordinals(order, &projection)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Select(Box::new(SelectStatement {
+            source,
+            ctes: withs,
+            recursive,
+            distinct,
+            distinct_on,
+            projection,
+            filter,
+            group_by,
+            grouping_subtotal: parsed_clauses.grouping_subtotal,
+            having,
+            order,
+            limit: parsed_clauses.limit,
+            offset: parsed_clauses.offset,
+            set: None,
+        })),
+    })
+}
+
+pub(super) fn parse_set_select_statement(
+    trimmed: &str,
+    withs: Vec<CommonTableExpression>,
+    recursive: bool,
+    set_pos: usize,
+    token_len: usize,
+    operator: SetOperator,
+) -> Result<ParsedStatement, SqlError> {
+    let mut operand_sql = vec![trimmed[..set_pos].trim()];
+    let mut operators = vec![operator];
+    let mut rest = trimmed[set_pos + token_len..].trim();
+    while let Some((position, len, operator)) = find_set_operation(rest) {
+        operand_sql.push(rest[..position].trim());
+        operators.push(operator);
+        rest = rest[position + len..].trim();
+    }
+    if operand_sql.iter().any(|sql| sql.is_empty()) || rest.is_empty() {
+        return Err(SqlError::new(
+            "set operation requires both SELECT operands".into(),
+        ));
+    }
+
+    let (last_sql, global_order, global_limit, global_offset) =
+        split_set_right_and_global_clauses(rest)?;
+    let mut operands = Vec::with_capacity(operand_sql.len() + 1);
+    let mut first_projection = None;
+    for sql in operand_sql
+        .into_iter()
+        .chain(std::iter::once(last_sql.as_str()))
+    {
+        let (operand, projection) = parse_set_operand(sql)?;
+        first_projection.get_or_insert(projection);
+        operands.push(operand);
+    }
+    let first_projection = first_projection.expect("first set operand");
+
+    let mut root = build_set_tree(operands, &operators);
+    root.ctes = withs;
+    root.recursive = recursive;
+    validate_set_order_ordinals(&global_order, &first_projection)?;
+    root.order = global_order;
+    root.limit = global_limit;
+    root.offset = global_offset;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Select(Box::new(root)),
+    })
+}
+
+fn parse_set_operand(sql: &str) -> Result<(SelectStatement, Vec<super::SelectItem>), SqlError> {
+    let (sql, parenthesized) = strip_query_parentheses(sql)?;
+    match parse_select_statement(sql, Vec::new(), false)?.statement {
+        QueryStatement::Select(select) => {
+            let projection = select.projection.clone();
+            let operand = if parenthesized {
+                derived_set_operand(*select)
+            } else {
+                *select
+            };
+            Ok((operand, projection))
+        }
+        _ => Err(SqlError::new(
+            "set operation requires SELECT operands".into(),
+        )),
+    }
+}
+
+fn strip_query_parentheses(mut sql: &str) -> Result<(&str, bool), SqlError> {
+    let mut stripped = false;
+    for _ in 0..=128 {
+        let Some(inner) = crate::parser::clauses::strip_parentheses(sql) else {
+            return Ok((sql, stripped));
+        };
+        stripped = true;
+        sql = inner;
+    }
+    Err(SqlError::resource_limit(
+        "set operand nesting exceeds 128 levels".into(),
+    ))
+}
+
+/// Folds operands into a tree where every operator is left-associative and
+/// `INTERSECT` binds tighter than `UNION` and `EXCEPT`, as in PostgreSQL.
+fn build_set_tree(operands: Vec<SelectStatement>, operators: &[SetOperator]) -> SelectStatement {
+    let mut operands = operands.into_iter();
+    let mut terms = Vec::new();
+    let mut term_operators = Vec::new();
+    let mut term = operands.next().expect("set operation has a first operand");
+    for (&operator, operand) in operators.iter().zip(operands) {
+        if matches!(operator, SetOperator::Intersect | SetOperator::IntersectAll) {
+            term = combine_set_operands(term, operator, operand);
+        } else {
+            terms.push(term);
+            term_operators.push(operator);
+            term = operand;
+        }
+    }
+    terms.push(term);
+
+    let mut terms = terms.into_iter();
+    let mut root = terms.next().expect("set operation has a first term");
+    for (operator, term) in term_operators.into_iter().zip(terms) {
+        root = combine_set_operands(root, operator, term);
+    }
+    root
+}
+
+/// Keep the left operand intact when it contains a completed set operation.
+/// Repeated UNIONs are associative over rows, but their pairwise type
+/// resolution is observable (two unknown inputs resolve to text).
+fn combine_set_operands(
+    left: SelectStatement,
+    operator: SetOperator,
+    right: SelectStatement,
+) -> SelectStatement {
+    let mut root = if left.set.is_some() {
+        derived_set_operand(left)
+    } else {
+        left
+    };
+    root.set = Some(Box::new(SelectSet {
+        operator,
+        right: Box::new(right),
+    }));
+    root
+}
+
+fn derived_set_operand(select: SelectStatement) -> SelectStatement {
+    SelectStatement {
+        source: QuerySource::Subquery {
+            alias: "__set_operand".to_string(),
+            select: Box::new(select),
+            lateral: false,
+        },
+        ctes: Vec::new(),
+        recursive: false,
+        distinct: false,
+        distinct_on: Vec::new(),
+        projection: vec![super::SelectItem::Wildcard],
+        filter: None,
+        group_by: Vec::new(),
+        grouping_subtotal: false,
+        having: None,
+        order: Vec::new(),
+        limit: None,
+        offset: None,
+        set: None,
+    }
+}
+
+/// Returns the byte offset, byte length and operator of the first top-level
+/// set operation in `sql`.
+#[must_use]
+pub(super) fn find_set_operation(sql: &str) -> Option<(usize, usize, SetOperator)> {
+    let union = find_top_level_union(sql).map(|(position, len, all)| {
+        let operator = if all {
+            SetOperator::UnionAll
+        } else {
+            SetOperator::Union
+        };
+        (position, len, operator)
+    });
+    [
+        ("intersect", SetOperator::Intersect),
+        ("except", SetOperator::Except),
+    ]
+    .into_iter()
+    .filter_map(|(token, operator)| {
+        find_top_level_keyword(sql, 0, token).map(|pos| {
+            let end = pos + token.len();
+            let next = crate::parser::lexical::separator_end(sql, end);
+            if let Some(all_end) = crate::parser::lexical::pattern_end(sql, next, "all") {
+                let all = if operator == SetOperator::Intersect {
+                    SetOperator::IntersectAll
+                } else {
+                    SetOperator::ExceptAll
+                };
+                return (pos, all_end - pos, all);
+            }
+            let end =
+                crate::parser::lexical::pattern_end(sql, next, "distinct").unwrap_or(end);
+            (pos, end - pos, operator)
+        })
+    })
+    .chain(union)
+    .min_by_key(|(position, _, _)| *position)
+}
+
+type ResultClauses = (Vec<OrderExpr>, Option<Expr>, Option<Expr>);
+type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<Expr>, Option<Expr>);
+
+pub(super) fn split_set_right_and_global_clauses(
+    right_sql: &str,
+) -> Result<SetRightAndResultClauses, SqlError> {
+    let trimmed = crate::parser::lexical::trim_separators(right_sql);
+    if trimmed.starts_with('(') {
+        let close = crate::parser::lexical::matching_paren(trimmed, 0)
+            .ok_or_else(|| SqlError::syntax("unclosed set operand".into()))?;
+        let rest = crate::parser::lexical::trim_separators(&trimmed[close + 1..]);
+        let (order, limit, offset) = if rest.is_empty() {
+            (Vec::new(), None, None)
+        } else {
+            parse_global_result_clauses(rest)?
+        };
+        return Ok((trimmed[..=close].to_string(), order, limit, offset));
+    }
+    ensure_select_statement(trimmed)?;
+
+    let prefix = if crate::parser::lexical::pattern_end(trimmed, 0, "values").is_some() {
+        "VALUES"
+    } else {
+        "SELECT"
+    };
+    let after_select = crate::parser::lexical::trim_separators(&trimmed[prefix.len()..]);
+    let clauses = parse_clauses(after_select)?;
+    let Some(global_start) = clauses
+        .iter()
+        .find(|clause| {
+            matches!(
+                clause.token,
+                ClauseToken::Recognized(
+                    Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch
+                )
+            )
+        })
+        .map(|clause| clause.position)
+    else {
+        return Ok((trimmed.to_string(), Vec::new(), None, None));
+    };
+
+    let right_without_global = format!("{prefix} {}", after_select[..global_start].trim());
+    let global_rest = after_select[global_start..].trim();
+    let (order, limit, offset) = parse_global_result_clauses(global_rest)?;
+    Ok((right_without_global, order, limit, offset))
+}
+
+pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, SqlError> {
+    let clauses = parse_clauses(rest)?;
+    pagination::validate_fetch_order(&clauses)?;
+    let mut order = Vec::new();
+    let mut limit = None;
+    let mut offset = None;
+    let mut seen = HashSet::new();
+
+    for (idx, clause) in clauses.iter().enumerate() {
+        let next_pos = clauses
+            .get(idx + 1)
+            .map_or_else(|| rest.len(), |clause| clause.position);
+        let ClauseToken::Recognized(kind) = clause.token else {
+            return Err(SqlError::new(format!(
+                "unsupported clause '{}'",
+                clause.text()
+            )));
+        };
+        if !matches!(
+            kind,
+            Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch
+        ) {
+            return Err(SqlError::new(format!(
+                "unsupported global set operation clause '{}'",
+                clause.text()
+            )));
+        }
+        let start = clause.end;
+        let raw_value = rest[start..next_pos].trim();
+        if raw_value.is_empty() {
+            return Err(SqlError::new(format!(
+                "missing value for clause '{}'",
+                clause.text()
+            )));
+        }
+
+        match kind {
+            Clause::Order => {
+                if !seen.insert("order by") {
+                    return Err(SqlError::new("duplicate ORDER BY clause".into()));
+                }
+                order = parse_order_by(raw_value)?;
+            }
+            Clause::Limit | Clause::Fetch => {
+                if !seen.insert("limit") {
+                    return Err(SqlError::new("duplicate LIMIT clause".into()));
+                }
+                limit = if matches!(kind, Clause::Fetch) {
+                    pagination::parse_fetch(raw_value)?
+                } else {
+                    pagination::parse_bound(raw_value, false)?
+                };
+            }
+            Clause::Offset => {
+                if !seen.insert("offset") {
+                    return Err(SqlError::new("duplicate OFFSET clause".into()));
+                }
+                offset = pagination::parse_offset(raw_value)?;
+            }
+            Clause::Where | Clause::Group | Clause::Having | Clause::Window => {
+                unreachable!()
+            }
+        }
+    }
+
+    Ok((order, limit, offset))
+}
+
+fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
+    if crate::parser::lexical::pattern_end(sql, 0, "select").is_some()
+        || crate::parser::lexical::pattern_end(sql, 0, "values").is_some()
+    {
+        Ok(())
+    } else {
+        Err(SqlError::new(
+            "only SELECT statements are supported in this stage".into(),
+        ))
+    }
+}
+
+fn split_select_projection_and_rest(
+    after_select: &str,
+) -> Result<(String, String, Option<QuerySource>), SqlError> {
+    let from_pos = find_top_level_keyword(after_select, 0, "from");
+    if let Some(from_pos) = from_pos {
+        let select_part = after_select[..from_pos].trim();
+        if select_part.is_empty() {
+            return Err(SqlError::new(
+                "missing projection in SELECT statement".into(),
+            ));
+        }
+
+        let rest = after_select[from_pos + 4..].trim();
+        if rest.is_empty() {
+            return Err(SqlError::new("missing collection in FROM".into()));
+        }
+
+        return Ok((select_part.to_string(), rest.to_string(), None));
+    }
+
+    let clauses = parse_clauses(after_select)?;
+    let first_clause = clauses
+        .first()
+        .map_or_else(|| after_select.len(), |clause| clause.position);
+    let select_part = after_select[..first_clause].trim();
+    if select_part.is_empty() {
+        return Err(SqlError::new(
+            "missing projection in SELECT statement".into(),
+        ));
+    }
+
+    let rest = after_select[first_clause..].trim();
+    if !rest.is_empty() && clauses.is_empty() {
+        return Err(SqlError::new(
+            "unexpected tokens after SELECT projection".into(),
+        ));
+    }
+
+    Ok((
+        select_part.to_string(),
+        rest.to_string(),
+        Some(QuerySource::SingleRow),
+    ))
+}
+
+fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), SqlError> {
+    if let Some(end) = crate::parser::lexical::pattern_end(select_part, 0, "all") {
+        *select_part =
+            crate::parser::lexical::trim_separators(&select_part[end..]).to_string();
+        return Ok((false, Vec::new()));
+    }
+    let mut distinct_on = Vec::new();
+    let select_part_lower = select_part.to_ascii_lowercase();
+    if let Some(end) = crate::parser::lexical::pattern_end(select_part, 0, "distinct on") {
+        let after_distinct_on = crate::parser::lexical::trim_separators(&select_part[end..]);
+        let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
+            .ok_or_else(|| {
+                SqlError::new("DISTINCT ON requires a parenthesized expression list".into())
+            })?;
+        if raw_distinct_on.trim().is_empty() {
+            return Err(SqlError::new(
+                "DISTINCT ON requires at least one expression".into(),
+            ));
+        }
+        distinct_on = split_csv(&raw_distinct_on)
+            .into_iter()
+            .map(parse_expression)
+            .collect::<Result<Vec<_>, _>>()?;
+        *select_part = remainder.trim().to_string();
+        if select_part.is_empty() {
+            return Err(SqlError::new(
+                "missing projection in SELECT statement".into(),
+            ));
+        }
+        if select_part.to_ascii_lowercase().starts_with("distinct") {
+            return Err(SqlError::new("duplicate DISTINCT clause".into()));
+        }
+        return Ok((false, distinct_on));
+    }
+
+    if crate::parser::lexical::pattern_end(&select_part_lower, 0, "distinct").is_some() {
+        *select_part = select_part["distinct".len()..].trim().to_string();
+        return Ok((true, distinct_on));
+    }
+
+    Ok((false, distinct_on))
+}
+
+fn resolve_select_source(
+    rest: &str,
+    clauses: &[ClauseMatch],
+    source: Option<QuerySource>,
+) -> Result<QuerySource, SqlError> {
+    if let Some(source) = source {
+        return Ok(source);
+    }
+
+    let first_clause = clauses
+        .first()
+        .map_or_else(|| rest.len(), |clause| clause.position);
+    let from_source = rest[..first_clause].trim();
+    if from_source.is_empty() {
+        return Err(SqlError::new("missing collection in FROM".into()));
+    }
+    parse_query_source(from_source)
+}
+
+fn parse_projection_items(
+    select_part: &str,
+    named_windows: &NamedWindows,
+) -> Result<Vec<super::SelectItem>, SqlError> {
+    let projection_tokens: Vec<&str> = split_csv(select_part);
+    let mut projection = Vec::with_capacity(projection_tokens.len());
+    for token in projection_tokens {
+        projection.push(parse_projection_item_with_named_windows(
+            crate::parser::lexical::trim_separators(token),
+            named_windows,
+        )?);
+    }
+    Ok(projection)
+}
+
+fn parse_group_by_clause(raw: Option<&str>) -> Result<Vec<Expr>, SqlError> {
+    raw.map(|raw| {
+        split_csv(raw)
+            .into_iter()
+            .map(parse_group_by_expression)
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .transpose()
+    .map(Option::unwrap_or_default)
+}
+
+fn parse_group_by_expression(raw: &str) -> Result<Expr, SqlError> {
+    let expression = parse_expression(raw)?;
+    if !matches!(expression, Expr::IntegerLiteral(_)) {
+        return Ok(expression);
+    }
+
+    let mut unwrapped = crate::parser::lexical::trim_separators(raw);
+    while let Some(inner) = crate::parser::clauses::strip_parentheses(unwrapped) {
+        unwrapped = inner;
+    }
+    let Some(operand) = unwrapped.strip_prefix('+') else {
+        return Ok(expression);
+    };
+    let operand = parse_expression(operand)?;
+    if matches!(operand, Expr::IntegerLiteral(_)) {
+        Ok(Expr::UnaryNumeric {
+            expr: Box::new(operand),
+            op: crate::ast::UnaryNumericOp::Plus,
+        })
+    } else {
+        Ok(expression)
+    }
+}
+
+struct ParsedSelectClauses {
+    where_sql: Option<String>,
+    group_sql: Option<String>,
+    grouping_subtotal: bool,
+    having_sql: Option<String>,
+    window_sql: Option<String>,
+    order_sql: Option<String>,
+    limit: Option<Expr>,
+    offset: Option<Expr>,
+}
+
+fn parse_select_clauses(
+    rest: &str,
+    clauses: &[ClauseMatch],
+) -> Result<ParsedSelectClauses, SqlError> {
+    pagination::validate_fetch_order(clauses)?;
+    validate_window_clause_order(clauses)?;
+    let mut parsed = ParsedSelectClauses {
+        where_sql: None,
+        group_sql: None,
+        grouping_subtotal: false,
+        having_sql: None,
+        window_sql: None,
+        order_sql: None,
+        limit: None,
+        offset: None,
+    };
+    let mut seen = HashSet::new();
+
+    for (idx, clause) in clauses.iter().enumerate() {
+        let next_pos = clauses
+            .get(idx + 1)
+            .map_or_else(|| rest.len(), |clause| clause.position);
+        let (_, raw_value) = clause_value(rest, clause, next_pos)?;
+
+        match clause.token {
+            ClauseToken::Unsupported(kind) => {
+                return Err(SqlError::new(format!("unsupported clause '{kind}'")));
+            }
+            ClauseToken::Recognized(kind) => match kind {
+                Clause::Where => assign_clause(
+                    &mut seen,
+                    "where",
+                    &mut parsed.where_sql,
+                    raw_value.to_string(),
+                    "duplicate WHERE clause",
+                )?,
+                Clause::Group => {
+                    if !seen.insert("group by") {
+                        return Err(SqlError::new("duplicate GROUP BY clause".into()));
+                    }
+                    if let Some((expression, subtotal)) = grouping_sets::grouping_key(raw_value)? {
+                        parsed.grouping_subtotal = subtotal;
+                        parsed.group_sql = Some(expression.to_string());
+                    } else if grouping_sets::contains_unsupported_syntax(raw_value) {
+                        return Err(SqlError::new("unsupported GROUP BY syntax".into()));
+                    } else {
+                        parsed.group_sql = Some(raw_value.to_string());
+                    }
+                }
+                Clause::Having => assign_clause(
+                    &mut seen,
+                    "having",
+                    &mut parsed.having_sql,
+                    raw_value.to_string(),
+                    "duplicate HAVING clause",
+                )?,
+                Clause::Window => assign_clause(
+                    &mut seen,
+                    "window",
+                    &mut parsed.window_sql,
+                    raw_value.to_string(),
+                    "duplicate WINDOW clause",
+                )?,
+                Clause::Order => assign_clause(
+                    &mut seen,
+                    "order by",
+                    &mut parsed.order_sql,
+                    raw_value.to_string(),
+                    "duplicate ORDER BY clause",
+                )?,
+                Clause::Limit | Clause::Fetch => {
+                    if !seen.insert("limit") {
+                        return Err(SqlError::new("duplicate LIMIT clause".into()));
+                    }
+                    parsed.limit = if matches!(kind, Clause::Fetch) {
+                        pagination::parse_fetch(raw_value)?
+                    } else {
+                        pagination::parse_bound(raw_value, false)?
+                    };
+                }
+                Clause::Offset => {
+                    if !seen.insert("offset") {
+                        return Err(SqlError::new("duplicate OFFSET clause".into()));
+                    }
+                    parsed.offset = pagination::parse_offset(raw_value)?;
+                }
+            },
+        }
+    }
+
+    Ok(parsed)
+}
+
+fn validate_window_clause_order(clauses: &[ClauseMatch]) -> Result<(), SqlError> {
+    let Some(window_index) = clauses
+        .iter()
+        .position(|clause| matches!(clause.token, ClauseToken::Recognized(Clause::Window)))
+    else {
+        return Ok(());
+    };
+    let follows_result_clause = clauses[..window_index].iter().any(|clause| {
+        matches!(
+            clause.token,
+            ClauseToken::Recognized(Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch)
+        )
+    });
+    let precedes_filter_clause = clauses[window_index + 1..].iter().any(|clause| {
+        matches!(
+            clause.token,
+            ClauseToken::Recognized(Clause::Where | Clause::Group | Clause::Having)
+        )
+    });
+    if follows_result_clause || precedes_filter_clause {
+        return Err(SqlError::syntax("WINDOW clause is out of order".into()));
+    }
+    Ok(())
+}
+
+fn clause_value<'a>(
+    rest: &'a str,
+    clause: &ClauseMatch,
+    next_pos: usize,
+) -> Result<(&'a str, &'a str), SqlError> {
+    let token_text = match clause.token {
+        ClauseToken::Recognized(clause_kind) => clause_kind.token(),
+        ClauseToken::Unsupported(kind) => kind,
+    };
+    let start = clause.end;
+    if start > rest.len() || next_pos > rest.len() || start > next_pos {
+        return Err(SqlError::new(format!(
+            "unsupported or malformed clause placement: {}",
+            clause.text()
+        )));
+    }
+
+    let raw_value = rest[start..next_pos].trim();
+    if raw_value.is_empty() {
+        return Err(SqlError::new(format!(
+            "missing value for clause '{}'",
+            clause.text()
+        )));
+    }
+
+    Ok((token_text, raw_value))
+}
+
+fn assign_clause(
+    seen: &mut HashSet<&'static str>,
+    key: &'static str,
+    slot: &mut Option<String>,
+    value: String,
+    duplicate_error: &'static str,
+) -> Result<(), SqlError> {
+    if !seen.insert(key) {
+        return Err(SqlError::new(duplicate_error.into()));
+    }
+    *slot = Some(value);
+    Ok(())
+}

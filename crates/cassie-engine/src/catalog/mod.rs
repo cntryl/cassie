@@ -121,7 +121,9 @@ pub use scope::{
     PG_CATALOG_SCHEMA,
 };
 pub use sequences::{
-    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
     SequenceCursor, SequenceError, SequenceMeta, SequenceOptions, SequenceOwner,
     SequenceParameters, SequencePersistence,
+};
+pub use cassie_sql::sequence_default::{
+    canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,
 };

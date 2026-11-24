@@ -121,8 +121,8 @@ impl IndexMeta {
     const UNIQUE_RESERVATION_GENERATION_OPTION: &'static str =
         "__cassie_unique_reservation_generation";
     /// Index option key that records the selected PostgreSQL access method.
-    pub const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
-    pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
+    pub const ACCESS_METHOD_OPTION: &'static str = cassie_sql::index_options::ACCESS_METHOD_OPTION;
+    pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = cassie_sql::index_options::NULLS_NOT_DISTINCT_OPTION;
 
     #[must_use]
     pub(crate) fn read_definition_matches(&self, other: &Self) -> bool {
@@ -180,7 +180,7 @@ impl IndexMeta {
     /// Index option key for a per-key option such as `order` or `operator_class`.
     #[must_use]
     pub fn key_option_name(position: usize, option: &str) -> String {
-        format!("__cassie_index_key_{position}_{option}")
+        cassie_sql::index_options::key_option_name(position, option)
     }
 
     #[must_use]

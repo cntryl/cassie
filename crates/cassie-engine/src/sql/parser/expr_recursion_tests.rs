@@ -1,8 +1,8 @@
 use super::parse_statement;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
-use crate::sql::SqlErrorKind;
-use crate::types::Value;
+use crate::sql::parser::SqlErrorKind;
+use cassie_core::types::Value;
 
 fn in_memory_session(name: &str) -> (Cassie, crate::app::CassieSession) {
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())

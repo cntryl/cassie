@@ -283,44 +283,7 @@ pub fn conflicting_unique_membership(
     existing: &[FieldConstraint],
     additions: &[FieldConstraint],
 ) -> Option<String> {
-    let mut combined = existing.to_vec();
-    combined.extend(additions.iter().cloned());
-    for addition in additions.iter().filter(|addition| addition.unique) {
-        let Some(current) = existing.iter().find(|entry| {
-            entry.unique
-                && crate::sql::ColumnIdentifierPath::stored_field_key(&entry.field)
-                    == crate::sql::ColumnIdentifierPath::stored_field_key(&addition.field)
-        }) else {
-            continue;
-        };
-        let current_name = unique_name(collection, current);
-        let added_name = unique_name(collection, addition);
-        if current_name.eq_ignore_ascii_case(&added_name) {
-            continue;
-        }
-        let spans_columns = |name: &str| {
-            combined
-                .iter()
-                .filter(|entry| {
-                    entry.unique && unique_name(collection, entry).eq_ignore_ascii_case(name)
-                })
-                .nth(1)
-                .is_some()
-        };
-        if spans_columns(&current_name) || spans_columns(&added_name) {
-            return Some(format!(
-                "column '{}' cannot be in both UNIQUE constraint '{current_name}' and '{added_name}': a column may belong to only one multi-column UNIQUE constraint",
-                addition.field
-            ));
-        }
-    }
-    None
-}
-
-fn unique_name(collection: &str, constraint: &FieldConstraint) -> String {
-    constraint.unique_name.clone().unwrap_or_else(|| {
-        super::generated_constraint_name(collection, &constraint.field, "UNIQUE")
-    })
+    cassie_sql::declarations::conflicting_unique_membership(collection, existing, additions)
 }
 
 #[cfg(test)]

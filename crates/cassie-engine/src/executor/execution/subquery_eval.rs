@@ -1,3 +1,4 @@
+use crate::sql::SubqueryExprWidthError;
 //! Runs a scalar, array, row or quantified subquery and attaches its rows.
 //!
 //! Binding errors propagate, so a correlated subquery that cannot bind

@@ -1,0 +1,847 @@
+use super::expr::split_csv;
+use super::lexical::strip_keyword_suffix;
+use super::{
+    find_matching_paren, find_top_level_keyword, parse_optional_role_password, split_keyword,
+    strip_parentheses, AlterIndexOperation, AlterIndexStatement, AlterRoleStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, ConstraintCheck, ConstraintOperator, CreateDatabaseStatement,
+    CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement,
+    DropIndexStatement, DropRoleStatement, DropSchemaStatement, DropSequenceStatement,
+    DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet, IndexKind,
+    ObjectPrivilegeStatement, ObjectPrivilegeTarget, ParsedStatement, QueryStatement, SqlError,
+    Value,
+};
+use cassie_core::catalog::declarations::RoleObjectPrivilege;
+
+#[path = "schema_checks.rs"]
+mod schema_checks;
+#[path = "schema_data_types.rs"]
+mod schema_data_types;
+use schema_checks::parse_check_constraint;
+pub(super) use schema_data_types::parse_data_type;
+#[path = "schema_tokens.rs"]
+mod schema_tokens;
+pub(super) use schema_tokens::tokenize_schema_field;
+
+#[path = "schema_access_methods.rs"]
+mod schema_access_methods;
+#[path = "schema_create_table_as.rs"]
+mod schema_create_table_as;
+#[path = "schema_fields.rs"]
+mod schema_fields;
+#[path = "schema_identifiers.rs"]
+mod schema_identifiers;
+#[path = "schema_identity.rs"]
+mod schema_identity;
+#[path = "schema_indexes.rs"]
+mod schema_indexes;
+#[path = "schema_like.rs"]
+mod schema_like;
+#[path = "schema_literals.rs"]
+mod schema_literals;
+#[path = "schema_references.rs"]
+mod schema_references;
+#[path = "schema_sequences.rs"]
+mod schema_sequences;
+#[path = "schema_table_constraints.rs"]
+mod schema_table_constraints;
+#[path = "sequence_options.rs"]
+mod sequence_options;
+use schema_fields::parse_field_definition_for_table;
+pub(super) use schema_identifiers::{parse_column_identifier, parse_identifier};
+use schema_identifiers::{parse_column_reference, parse_relation_path};
+pub(super) use schema_indexes::{
+    parse_alter_index_statement, parse_create_index_statement, parse_drop_index_statement,
+    parse_index_options, parse_reindex_statement,
+};
+use schema_like::{is_like_table_element, parse_create_table_like_clause};
+pub(super) use schema_literals::parse_constant_literal;
+pub(super) use schema_literals::parse_constraint_literal;
+use schema_sequences::parse_alter_column_operation;
+use schema_table_constraints::{
+    apply_table_constraints, parse_add_constraint, parse_table_constraint,
+};
+
+pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[12..].trim();
+
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
+    if let Some(statement) =
+        schema_create_table_as::parse_create_table_as_statement(trimmed, if_not_exists, rest)?
+    {
+        return Ok(statement);
+    }
+
+    let open_paren = rest
+        .find('(')
+        .ok_or_else(|| SqlError::new("CREATE TABLE requires a column list".into()))?;
+    let close_paren = find_matching_paren(rest, open_paren)
+        .ok_or_else(|| SqlError::new("CREATE TABLE requires closing ')'".into()))?;
+    if close_paren < open_paren {
+        return Err(SqlError::new("invalid CREATE TABLE definition".into()));
+    }
+
+    let table = parse_relation_path(rest[..open_paren].trim())?;
+    let body = rest[(open_paren + 1)..close_paren].trim();
+    let trailing = rest[(close_paren + 1)..].trim();
+    if table.is_empty() {
+        return Err(SqlError::new("missing table name".into()));
+    }
+
+    let (trailing, using_mode) =
+        schema_access_methods::strip_table_access_method_clause(trailing, "CREATE TABLE")?;
+    let (options, trailing) = parse_index_options(trailing)?;
+    if !trailing.is_empty() {
+        return Err(SqlError::new(
+            "unexpected tokens after CREATE TABLE columns".into(),
+        ));
+    }
+
+    let (fields, like) = parse_create_table_body(body, &table)?;
+
+    let mut seen = HashSet::new();
+    for field in &fields {
+        let name = field.name.clone();
+        if !seen.insert(name.clone()) {
+            return Err(SqlError::duplicate_column(&name));
+        }
+    }
+
+    let with_storage_mode = match options.get("storage") {
+        Some(value) => {
+            let Some(mode) = cassie_core::catalog::declarations::CollectionStorageMode::parse_option(value) else {
+                return Err(SqlError::new(format!(
+                    "unsupported CREATE TABLE storage mode '{value}'"
+                )));
+            };
+            if matches!(mode, cassie_core::catalog::declarations::CollectionStorageMode::ColumnIndexed) {
+                return Err(SqlError::new(
+                    "CREATE TABLE storage mode 'column_indexed' is derived and cannot be created explicitly"
+                        .to_string(),
+                ));
+            }
+            Some(mode)
+        }
+        None => None,
+    };
+    let storage_mode =
+        schema_access_methods::reconcile_storage_selectors(using_mode, with_storage_mode)?;
+
+    if let Some(key) = options.keys().find(|key| key.as_str() != "storage") {
+        return Err(SqlError::new(format!(
+            "unsupported CREATE TABLE option '{key}'"
+        )));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateTable(CreateTableStatement {
+            table,
+            fields,
+            if_not_exists,
+            storage_mode,
+            as_query: None,
+            like,
+        }),
+    })
+}
+
+fn parse_create_table_body(
+    body: &str,
+    table: &crate::ast::IdentifierPath,
+) -> Result<
+    (
+        Vec<FieldDefinition>,
+        Option<crate::ast::CreateTableLikeClause>,
+    ),
+    SqlError,
+> {
+    let table_elements = if body.is_empty() {
+        Vec::new()
+    } else {
+        split_csv(body)
+    };
+    let like_element = table_elements
+        .iter()
+        .copied()
+        .find(|element| is_like_table_element(element));
+    let like = if let Some(like_element) = like_element {
+        if table_elements.len() != 1 {
+            return Err(SqlError::unsupported(
+                "this slice supports a single LIKE table element without other table elements"
+                    .into(),
+            ));
+        }
+        Some(parse_create_table_like_clause(like_element)?)
+    } else {
+        None
+    };
+
+    let mut fields = Vec::new();
+    if like.is_none() {
+        for raw in table_elements {
+            let raw = raw.trim();
+            if raw.is_empty() {
+                return Err(SqlError::new("empty column definition".into()));
+            }
+            if let Some(constraints) = parse_table_constraint(raw, table)? {
+                apply_table_constraints(&mut fields, constraints, table)?;
+            } else {
+                fields.push(parse_field_definition_for_table(raw, Some(table))?);
+            }
+        }
+
+        if fields.is_empty() {
+            return Err(SqlError::new(
+                "CREATE TABLE requires at least one column".into(),
+            ));
+        }
+    }
+
+    Ok((fields, like))
+}
+
+pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest);
+    let (cascade, table) = if let Some(table) = strip_keyword_suffix(rest, "cascade") {
+        (true, table.trim())
+    } else if let Some(table) = strip_keyword_suffix(rest, "restrict") {
+        (false, table.trim())
+    } else {
+        (false, rest.trim())
+    };
+    let names = split_csv(table);
+    if names.is_empty() || names.iter().any(|name| name.trim().is_empty()) {
+        return Err(SqlError::new("missing table name in DROP TABLE".into()));
+    }
+    let names = names
+        .into_iter()
+        .map(|name| {
+            parse_relation_path(name.trim()).map(crate::ast::IdentifierPath::into_string)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut names = names.into_iter();
+    let table = names.next().expect("validated DROP TABLE target list");
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropTable(DropTableStatement {
+            table,
+            additional_tables: names.collect(),
+            if_exists,
+            cascade,
+        }),
+    })
+}
+
+pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest);
+    let (cascade, schema) = if let Some(schema) = strip_keyword_suffix(rest, "cascade") {
+        (true, schema.trim())
+    } else if let Some(schema) = strip_keyword_suffix(rest, "restrict") {
+        (false, schema.trim())
+    } else {
+        (false, rest.trim())
+    };
+    if schema.is_empty() {
+        return Err(SqlError::new("missing schema name in DROP SCHEMA".into()));
+    }
+    if schema.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "DROP SCHEMA supports only a single schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropSchema(DropSchemaStatement {
+            schema: schema.to_string(),
+            if_exists,
+            cascade,
+        }),
+    })
+}
+
+pub(super) fn parse_create_database_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed["create database".len()..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
+    let name = rest.trim();
+    if name.is_empty() {
+        return Err(SqlError::new(
+            "missing database name in CREATE DATABASE".into(),
+        ));
+    }
+    if name.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "CREATE DATABASE supports only one database name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateDatabase(CreateDatabaseStatement {
+            name: name.to_string(),
+            if_not_exists,
+        }),
+    })
+}
+
+pub(super) fn parse_drop_database_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed["drop database".len()..].trim();
+    let (if_exists, rest) = parse_if_exists(rest);
+    let name = rest.trim();
+    if name.is_empty() {
+        return Err(SqlError::new(
+            "missing database name in DROP DATABASE".into(),
+        ));
+    }
+    if name.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "DROP DATABASE supports only one database name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropDatabase(DropDatabaseStatement {
+            name: name.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+
+    let (if_exists, rest) = parse_if_exists(rest);
+    let (table, op_clause) = split_first_token(rest)
+        .ok_or_else(|| SqlError::new("missing table name in ALTER TABLE".into()))?;
+    let table = parse_relation_path(&table)?;
+    if table.components().is_empty() {
+        return Err(SqlError::new("missing table name in ALTER TABLE".into()));
+    }
+
+    let op_clause = op_clause.trim();
+    if op_clause.is_empty() {
+        return Err(SqlError::new("missing alter operation".into()));
+    }
+
+    let operation = parse_alter_table_operation(table.as_str(), op_clause)?;
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterTable(AlterTableStatement {
+            table,
+            if_exists,
+            operation,
+        }),
+    })
+}
+
+pub(super) fn parse_alter_table_operation(
+    table: &str,
+    raw: &str,
+) -> Result<AlterTableOperation, SqlError> {
+    let actions = split_csv(raw);
+    if actions.len() > 1 {
+        return actions
+            .into_iter()
+            .map(|action| parse_alter_table_operation(table, action.trim()))
+            .collect::<Result<Vec<_>, _>>()
+            .and_then(|operations| {
+                if operations.iter().any(|operation| {
+                    matches!(operation, AlterTableOperation::SetAccessMethod { .. })
+                }) {
+                    return Err(SqlError::unsupported(
+                        "ALTER TABLE SET ACCESS METHOD cannot be combined with other actions"
+                            .to_string(),
+                    ));
+                }
+                Ok(AlterTableOperation::Multiple { operations })
+            });
+    }
+    let lower = raw.to_lowercase();
+    if starts_with_keyword(raw, "set access method") {
+        let clause = raw["set access method".len()..].trim_start();
+        let (method, trailing) = schema_access_methods::take_access_method_identifier(clause)?;
+        let access_method = schema_access_methods::parse_alter_table_access_method(method)?;
+        if !trailing.trim().is_empty() {
+            return Err(SqlError::new(
+                "unexpected tokens after ALTER TABLE access method".to_string(),
+            ));
+        }
+        return Ok(AlterTableOperation::SetAccessMethod { access_method });
+    }
+    if lower.starts_with("add column") {
+        let field_def = raw["add column".len()..].trim();
+        let (if_not_exists, field_def) = parse_if_not_exists(field_def);
+        let definition = parse_field_definition_for_table(field_def, Some(table))?;
+        return Ok(AlterTableOperation::AddColumn {
+            field: definition.name,
+            data_type: definition.data_type,
+            if_not_exists,
+            constraints: definition.constraints,
+        });
+    }
+    if lower.starts_with("alter column") {
+        return parse_alter_column_operation(raw["alter column".len()..].trim());
+    }
+    if lower.starts_with("add constraint")
+        || starts_with_keyword(raw, "add primary key")
+        || starts_with_keyword(raw, "add unique using index")
+    {
+        return parse_add_constraint(raw);
+    }
+    if lower.starts_with("drop constraint") {
+        let rest = raw["drop constraint".len()..].trim();
+        let (if_exists, rest) = parse_if_exists(rest);
+        let name = parse_identifier(rest)?;
+        if name.is_empty() {
+            return Err(SqlError::new(
+                "DROP CONSTRAINT requires a constraint name".into(),
+            ));
+        }
+        return Ok(AlterTableOperation::DropConstraint { name, if_exists });
+    }
+    if lower.starts_with("drop column") {
+        return parse_alter_drop_column(raw);
+    }
+    if lower.starts_with("rename column") {
+        return parse_alter_rename_column(raw);
+    }
+    if lower.starts_with("rename to") {
+        let table = raw["rename to".len()..].trim();
+        if table.is_empty() {
+            return Err(SqlError::new("RENAME TO requires a collection name".into()));
+        }
+        return Ok(AlterTableOperation::RenameTo {
+            table: parse_relation_path(table)?.into_string(),
+        });
+    }
+    if starts_with_keyword(raw, "set schema") {
+        let schema = raw["set schema".len()..].trim();
+        let path = parse_relation_path(schema)?;
+        if path.components().len() != 1 {
+            return Err(SqlError::new("SET SCHEMA requires one schema name".into()));
+        }
+        return Ok(AlterTableOperation::SetSchema {
+            schema: path.into_string(),
+        });
+    }
+
+    Err(SqlError::new("unsupported ALTER TABLE operation".into()))
+}
+
+fn parse_alter_drop_column(raw: &str) -> Result<AlterTableOperation, SqlError> {
+    let rest = raw["drop column".len()..].trim();
+    let (cascade, field) = if let Some(field) = strip_keyword_suffix(rest, "cascade") {
+        (true, field.trim())
+    } else if let Some(field) = strip_keyword_suffix(rest, "restrict") {
+        (false, field.trim())
+    } else {
+        (false, rest)
+    };
+    let field = parse_column_reference(field)?;
+    if field.is_empty() {
+        return Err(SqlError::new("DROP COLUMN requires a column name".into()));
+    }
+    Ok(AlterTableOperation::DropColumn { field, cascade })
+}
+
+fn parse_alter_rename_column(raw: &str) -> Result<AlterTableOperation, SqlError> {
+    let rest = raw["rename column".len()..].trim();
+    let (from, to) = split_keyword(rest, "to")
+        .ok_or_else(|| SqlError::new("RENAME COLUMN requires TO clause".into()))?;
+    if from.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "RENAME COLUMN supports only one source column".into(),
+        ));
+    }
+    if to.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "RENAME COLUMN supports only one target column".into(),
+        ));
+    }
+    Ok(AlterTableOperation::RenameColumn {
+        from: parse_column_reference(from)?,
+        to: parse_column_identifier(to)?,
+    })
+}
+
+pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_create_sequence_statement(sql)
+}
+
+pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_drop_sequence_statement(sql)
+}
+
+pub(super) fn parse_alter_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    schema_sequences::parse_alter_sequence_statement(sql)
+}
+
+pub(super) fn parse_create_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[13..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
+    let schema = rest.trim();
+    if schema.is_empty() {
+        return Err(SqlError::new("missing schema name".into()));
+    }
+    if schema.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "CREATE SCHEMA supports only one schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateSchema(CreateSchemaStatement {
+            schema: schema.to_string(),
+            if_not_exists,
+        }),
+    })
+}
+
+pub(super) fn parse_alter_schema_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[12..].trim();
+
+    let (schema, rest) = split_first_token(rest)
+        .ok_or_else(|| SqlError::new("missing schema name in ALTER SCHEMA".into()))?;
+    if schema.trim().is_empty() {
+        return Err(SqlError::new("missing schema name in ALTER SCHEMA".into()));
+    }
+
+    let rest = rest.trim();
+    let lower = rest.to_lowercase();
+    if !lower.starts_with("rename to") {
+        return Err(SqlError::new("unsupported ALTER SCHEMA operation".into()));
+    }
+
+    let target = rest["rename to".len()..].trim();
+    if target.is_empty() {
+        return Err(SqlError::new("RENAME TO requires a schema name".into()));
+    }
+    if target.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "RENAME TO supports only one schema name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterSchema(AlterSchemaStatement {
+            schema: schema.clone(),
+            operation: AlterSchemaOperation::RenameTo {
+                schema: target.to_string(),
+            },
+        }),
+    })
+}
+
+pub(super) fn parse_create_role_statement(
+    sql: &str,
+    user_alias: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[11..].trim();
+    let (if_not_exists, rest) = parse_if_not_exists(rest);
+    let mut tokens = tokenize_schema_field(rest).into_iter();
+
+    let name = tokens
+        .next()
+        .ok_or_else(|| SqlError::new("missing role name".into()))?;
+    if name.trim().is_empty() {
+        return Err(SqlError::new("missing role name".into()));
+    }
+
+    let mut login = user_alias;
+    let mut password = None;
+    while let Some(token) = tokens.next() {
+        match token.to_ascii_lowercase().as_str() {
+            "login" => login = true,
+            "nologin" => login = false,
+            "password" => {
+                let raw_password = tokens
+                    .next()
+                    .ok_or_else(|| SqlError::new("PASSWORD requires a value".into()))?;
+                password = parse_optional_role_password(&raw_password)?;
+            }
+            other => {
+                return Err(SqlError::new(format!(
+                    "unsupported CREATE ROLE option '{other}'"
+                )));
+            }
+        }
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::CreateRole(CreateRoleStatement {
+            name,
+            if_not_exists,
+            login,
+            password,
+        }),
+    })
+}
+
+pub(super) fn parse_alter_role_statement(
+    sql: &str,
+    _user_alias: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[10..].trim();
+    let (name, rest) =
+        split_first_token(rest).ok_or_else(|| SqlError::new("missing role name".into()))?;
+    let mut tokens = tokenize_schema_field(rest).into_iter();
+    let mut login = None;
+    let mut password = None;
+
+    while let Some(token) = tokens.next() {
+        match token.to_ascii_lowercase().as_str() {
+            "login" => login = Some(true),
+            "nologin" => login = Some(false),
+            "password" => {
+                let raw_password = tokens
+                    .next()
+                    .ok_or_else(|| SqlError::new("PASSWORD requires a value".into()))?;
+                password = parse_optional_role_password(&raw_password)?;
+            }
+            other => {
+                return Err(SqlError::new(format!(
+                    "unsupported ALTER ROLE option '{other}'"
+                )));
+            }
+        }
+    }
+
+    if login.is_none() && password.is_none() {
+        return Err(SqlError::new(
+            "ALTER ROLE requires at least one option".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterRole(AlterRoleStatement {
+            name,
+            login,
+            password,
+        }),
+    })
+}
+
+pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let rest = trimmed[9..].trim();
+    let (if_exists, rest) = parse_if_exists(rest);
+    let role = rest.trim();
+    if role.is_empty() {
+        return Err(SqlError::new("missing role name".into()));
+    }
+    if role.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "DROP ROLE supports only a single role name".into(),
+        ));
+    }
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::DropRole(DropRoleStatement {
+            name: role.to_string(),
+            if_exists,
+        }),
+    })
+}
+
+pub(super) fn parse_database_connect_privilege_statement(
+    sql: &str,
+    grant: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let tokens = tokenize_schema_field(trimmed);
+    let connector = if grant { "to" } else { "from" };
+    let expected_verb = if grant { "grant" } else { "revoke" };
+    if tokens.len() != 7
+        || !tokens[0].eq_ignore_ascii_case(expected_verb)
+        || !tokens[1].eq_ignore_ascii_case("connect")
+        || !tokens[2].eq_ignore_ascii_case("on")
+        || !tokens[3].eq_ignore_ascii_case("database")
+        || !tokens[5].eq_ignore_ascii_case(connector)
+    {
+        return Err(SqlError::new(format!(
+            "{} CONNECT supports exactly one database and one role",
+            expected_verb.to_ascii_uppercase()
+        )));
+    }
+    let statement = DatabaseConnectPrivilegeStatement {
+        database: parse_identifier(&tokens[4])?,
+        role: parse_identifier(&tokens[6])?,
+        object: None,
+    };
+    if statement.database.is_empty() || statement.role.is_empty() {
+        return Err(SqlError::new(format!(
+            "{} CONNECT requires one database and one role",
+            expected_verb.to_ascii_uppercase()
+        )));
+    }
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: if grant {
+            QueryStatement::GrantDatabaseConnect(statement)
+        } else {
+            QueryStatement::RevokeDatabaseConnect(statement)
+        },
+    })
+}
+
+pub(super) fn parse_object_privilege_statement(
+    sql: &str,
+    grant: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let connector = if grant { "to" } else { "from" };
+    let verb = if grant { "grant" } else { "revoke" };
+    let raw = trimmed
+        .get(verb.len()..)
+        .filter(|_| {
+            trimmed
+                .get(..verb.len())
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case(verb))
+        })
+        .ok_or_else(|| SqlError::syntax(format!("expected {verb} privilege statement")))?
+        .trim();
+    let (privileges_raw, target_clause) =
+        super::clauses::split_top_level(raw, "on").ok_or_else(|| {
+            SqlError::unsupported(format!("{verb} supports only direct schema/table grants"))
+        })?;
+    let (target_clause, role_raw) = super::clauses::split_top_level(target_clause, connector)
+        .ok_or_else(|| SqlError::syntax(format!("{verb} requires one role after {connector}")))?;
+    let target_clause = target_clause.trim();
+    let lower_target = target_clause.to_ascii_lowercase();
+    let (target, target_raw, permitted) = if let Some(name) = lower_target.strip_prefix("schema ") {
+        (
+            ObjectPrivilegeTarget::Schema(parse_identifier(&target_clause[7..])?),
+            name.trim(),
+            &[RoleObjectPrivilege::Usage][..],
+        )
+    } else if let Some(name) = lower_target.strip_prefix("table ") {
+        (
+            ObjectPrivilegeTarget::Table(parse_identifier(&target_clause[6..])?),
+            name.trim(),
+            &[
+                RoleObjectPrivilege::Select,
+                RoleObjectPrivilege::Insert,
+                RoleObjectPrivilege::Update,
+                RoleObjectPrivilege::Delete,
+            ][..],
+        )
+    } else {
+        return Err(SqlError::unsupported(format!(
+            "{verb} supports only schema USAGE and table SELECT/INSERT/UPDATE/DELETE grants"
+        )));
+    };
+    if target_raw.is_empty() {
+        return Err(SqlError::syntax(format!("{verb} requires a target object")));
+    }
+    let mut privileges = Vec::new();
+    for raw_privilege in split_csv(privileges_raw) {
+        let privilege = match raw_privilege.trim().to_ascii_lowercase().as_str() {
+            "usage" => RoleObjectPrivilege::Usage,
+            "select" => RoleObjectPrivilege::Select,
+            "insert" => RoleObjectPrivilege::Insert,
+            "update" => RoleObjectPrivilege::Update,
+            "delete" => RoleObjectPrivilege::Delete,
+            _ => {
+                return Err(SqlError::unsupported(format!(
+                    "unsupported direct privilege '{}'",
+                    raw_privilege.trim()
+                )));
+            }
+        };
+        if !permitted.contains(&privilege) {
+            return Err(SqlError::unsupported(format!(
+                "privilege '{}' is not supported for this target",
+                raw_privilege.trim()
+            )));
+        }
+        if !privileges.contains(&privilege) {
+            privileges.push(privilege);
+        }
+    }
+    if privileges.is_empty() {
+        return Err(SqlError::syntax(format!(
+            "{verb} requires at least one privilege"
+        )));
+    }
+    let role = parse_identifier(role_raw)?;
+    if role.is_empty() {
+        return Err(SqlError::syntax(format!("{verb} requires one grantee")));
+    }
+    if role.eq_ignore_ascii_case("public") {
+        return Err(SqlError::unsupported(
+            "PUBLIC object grants are not supported".to_string(),
+        ));
+    }
+    let statement = DatabaseConnectPrivilegeStatement {
+        database: String::new(),
+        role,
+        object: Some(ObjectPrivilegeStatement { target, privileges }),
+    };
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_owned(),
+        statement: if grant {
+            QueryStatement::GrantDatabaseConnect(statement)
+        } else {
+            QueryStatement::RevokeDatabaseConnect(statement)
+        },
+    })
+}
+
+pub(super) fn parse_if_not_exists(raw: &str) -> (bool, &str) {
+    let lower = raw.to_lowercase();
+    if lower.starts_with("if not exists ") {
+        return (true, raw["if not exists ".len()..].trim());
+    }
+    (false, raw.trim())
+}
+
+pub(super) fn parse_if_exists(raw: &str) -> (bool, &str) {
+    let lower = raw.to_lowercase();
+    if lower.starts_with("if exists ") {
+        return (true, raw["if exists ".len()..].trim());
+    }
+    (false, raw.trim())
+}
+
+pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let mut parts = raw.splitn(2, char::is_whitespace);
+    let first = parts.next()?.trim();
+    if first.is_empty() {
+        return None;
+    }
+
+    Some((first.to_string(), parts.next().unwrap_or("").trim_start()))
+}
+
+pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
+    super::lexical::pattern_end(raw, 0, keyword).is_some()
+}

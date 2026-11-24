@@ -10,15 +10,17 @@ use crate::types::DataType;
 pub mod ast;
 pub mod binder;
 pub(crate) mod catalog_scope;
-mod column_identifier;
+pub(crate) use cassie_sql::column_identifier::ColumnIdentifierPath;
 pub(crate) mod cte_identity;
 pub(crate) mod definition_guard;
 pub mod functions;
-mod identifier_text;
+pub(crate) use cassie_sql::identifier_text;
 pub(crate) mod numeric_comparison;
 pub mod pagination;
 mod parameters;
 pub mod parser;
+pub(crate) mod subquery_outcome;
+pub(crate) use subquery_outcome::{SubqueryExprWidthError, SubqueryOutcome, SubqueryRows};
 pub(crate) mod series_signature;
 mod source_identity;
 mod source_types;
@@ -44,7 +46,6 @@ pub use ast::{
 };
 pub use binder::{bind, BoundStatement};
 pub(crate) use catalog_scope::parse_statement_in_catalog;
-pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
 pub use parser::{
     parse_statement, with_domain_scope, with_enum_scope, with_type_scope, DomainResolver,

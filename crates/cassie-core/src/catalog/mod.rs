@@ -10,6 +10,7 @@ pub mod object_identity;
 pub mod operational;
 pub mod property_graph;
 pub mod projection;
+pub mod projection_reports;
 pub mod retention;
 pub mod role;
 pub mod scope;

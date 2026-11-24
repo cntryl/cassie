@@ -1,27 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use super::Catalog;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ProjectionRepairReportMeta {
-    pub report_id: String,
-    pub created_ms: u64,
-    pub projection_name: String,
-    pub target: String,
-    pub version_id: Option<String>,
-    pub scope: String,
-    pub action: String,
-    pub state: String,
-    pub executable: bool,
-    pub affected_objects: Vec<String>,
-    pub source_report_state: String,
-    pub source_mismatch_count: u64,
-    pub source_missing_count: u64,
-    pub source_stale_count: u64,
-    pub verification_required: String,
-    pub post_verification_state: String,
-    pub last_error: Option<String>,
-}
+pub use cassie_core::catalog::projection_reports::ProjectionRepairReportMeta;
 
 impl Catalog {
     pub fn register_projection_repair_report(&self, report: ProjectionRepairReportMeta) {

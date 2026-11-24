@@ -1,3 +1,5 @@
+use cassie_sql::catalog_declarations::ReservationIdentity;
+
 use super::{
     CassieError, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION, LexKey,
     append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix,
@@ -80,14 +82,14 @@ pub(crate) fn generated_unique_index_reservation_prefix(
 
 pub(crate) fn unique_index_reservation_key_for(
     collection: &str,
-    identity: crate::catalog::indexes::ReservationIdentity<'_>,
+    identity: ReservationIdentity<'_>,
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
     match identity {
-        crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+        ReservationIdentity::Legacy(name) => {
             unique_scalar_index_reservation_key(collection, name, values)
         }
-        crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+        ReservationIdentity::Generation(id) => {
             generated_unique_index_reservation_key(collection, id, values)
         }
     }
@@ -95,13 +97,13 @@ pub(crate) fn unique_index_reservation_key_for(
 
 pub(crate) fn unique_index_reservation_prefix_for(
     collection: &str,
-    identity: crate::catalog::indexes::ReservationIdentity<'_>,
+    identity: ReservationIdentity<'_>,
 ) -> Vec<u8> {
     match identity {
-        crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+        ReservationIdentity::Legacy(name) => {
             unique_scalar_index_reservation_prefix(collection, name)
         }
-        crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+        ReservationIdentity::Generation(id) => {
             generated_unique_index_reservation_prefix(collection, id)
         }
     }

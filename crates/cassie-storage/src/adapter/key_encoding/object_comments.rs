@@ -1,6 +1,6 @@
 use super::{FAMILY_OBJECT_COMMENT, key, prefix};
 
-pub(in crate::midge::adapter) fn object_comment_key(
+pub(in crate::adapter) fn object_comment_key(
     class_oid: u32,
     object_oid: u32,
     object_sub_id: i32,
@@ -18,7 +18,7 @@ pub(in crate::midge::adapter) fn object_comment_key(
     )
 }
 
-pub(in crate::midge::adapter) fn object_comment_object_prefix(
+pub(in crate::adapter) fn object_comment_object_prefix(
     class_oid: u32,
     object_oid: u32,
 ) -> Vec<u8> {
@@ -30,6 +30,6 @@ pub(in crate::midge::adapter) fn object_comment_object_prefix(
     )
 }
 
-pub(in crate::midge::adapter) fn object_comment_prefix() -> Vec<u8> {
+pub(in crate::adapter) fn object_comment_prefix() -> Vec<u8> {
     prefix(FAMILY_OBJECT_COMMENT, &[])
 }

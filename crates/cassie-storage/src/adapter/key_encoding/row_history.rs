@@ -4,7 +4,7 @@ use std::mem::size_of;
 
 use super::{BASELINE, FAMILY_COLUMN_STORE, FAMILY_LEGACY_DOC, FAMILY_ROW, ROOT};
 
-pub(in crate::midge::adapter) fn is_authoritative_row_key(key: &[u8]) -> bool {
+pub(in crate::adapter) fn is_authoritative_row_key(key: &[u8]) -> bool {
     let Some(key) = key
         .strip_prefix(ROOT)
         .and_then(|key| key.strip_prefix(b"\0"))

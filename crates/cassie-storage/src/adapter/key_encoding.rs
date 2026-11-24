@@ -1,7 +1,8 @@
 use cntryl_lexkey::{Encoder, LexKey};
 
-use crate::app::CassieError;
-use crate::catalog::split_identifier_path;
+use cassie_core::catalog::scope::split_identifier_path;
+
+use super::error::StorageError;
 
 #[path = "key_encoding/enum_types.rs"]
 mod enum_types;
@@ -759,7 +760,7 @@ pub(super) fn scalar_index_entry_key(
     index_id: u64,
     values: &[serde_json::Value],
     id: &str,
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageError> {
     let mut key = scalar_index_data_prefix(relation_id, index_id);
     for value in values {
         append_scalar_value(&mut key, value)?;
@@ -773,7 +774,7 @@ pub(super) fn scalar_index_seek_prefix(
     relation_id: u64,
     index_id: u64,
     equality_prefix: &[serde_json::Value],
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageError> {
     let mut seek_prefix = scalar_index_data_prefix(relation_id, index_id);
     for value in equality_prefix {
         append_scalar_value(&mut seek_prefix, value)?;
@@ -787,7 +788,7 @@ pub(super) fn scalar_index_query_bounds(
     seek_prefix: &[u8],
     lower_bound: Option<&super::ScalarIndexBound>,
     upper_bound: Option<&super::ScalarIndexBound>,
-) -> Result<ScalarIndexQueryBounds, CassieError> {
+) -> Result<ScalarIndexQueryBounds, StorageError> {
     if lower_bound.is_none() && upper_bound.is_none() && seek_prefix.is_empty() {
         return Ok((None, None));
     }
@@ -820,7 +821,7 @@ fn scalar_index_bound_key(
     value: &serde_json::Value,
     inclusive: bool,
     lower: bool,
-) -> Result<Vec<u8>, CassieError> {
+) -> Result<Vec<u8>, StorageError> {
     let mut key = seek_prefix.to_vec();
     append_scalar_value(&mut key, value)?;
     if (lower && !inclusive) || (!lower && inclusive) {
@@ -830,15 +831,15 @@ fn scalar_index_bound_key(
 }
 
 fn key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
-    cassie_storage::key_codec::encode_key(family, components)
+    crate::key_codec::encode_key(family, components)
 }
 
 fn encoded_u64_component(value: u64) -> Vec<u8> {
-    cassie_storage::key_codec::encode_u64_component(value)
+    crate::key_codec::encode_u64_component(value)
 }
 
 fn prefix(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
-    cassie_storage::key_codec::encode_prefix(family, components)
+    crate::key_codec::encode_prefix(family, components)
 }
 
 fn scoped_key(family: &[u8], scoped_name: &str, extra_components: &[&[u8]]) -> Vec<u8> {
@@ -909,14 +910,14 @@ fn data_scoped_components(raw: &str) -> Vec<String> {
 
 fn encode(family: &[u8], components: &[&[u8]], trailing_separator: bool) -> Vec<u8> {
     if trailing_separator {
-        cassie_storage::key_codec::encode_prefix(family, components)
+        crate::key_codec::encode_prefix(family, components)
     } else {
-        cassie_storage::key_codec::encode_key(family, components)
+        crate::key_codec::encode_key(family, components)
     }
 }
 
-fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(), CassieError> {
-    cassie_storage::key_codec::append_scalar_value(key, value).map_err(CassieError::from)
+fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(), StorageError> {
+    crate::key_codec::append_scalar_value(key, value).map_err(StorageError::from)
 }
 
 fn append_terminated_component(key: &mut Vec<u8>, bytes: &[u8]) {

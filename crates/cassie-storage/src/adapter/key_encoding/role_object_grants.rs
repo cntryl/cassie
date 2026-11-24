@@ -1,8 +1,8 @@
-use crate::catalog::{RoleGrantTarget, RoleObjectGrantMeta};
+use cassie_core::catalog::role::{RoleGrantTarget, RoleObjectGrantMeta};
 
 use super::{FAMILY_ROLE_OBJECT_GRANT, key, prefix};
 
-pub(in crate::midge::adapter) fn role_object_grant_key(grant: &RoleObjectGrantMeta) -> Vec<u8> {
+pub(in crate::adapter) fn role_object_grant_key(grant: &RoleObjectGrantMeta) -> Vec<u8> {
     let role_id = grant.role_id.to_be_bytes();
     let (target_kind, object_id) = match &grant.target {
         RoleGrantTarget::Schema(object_id) => (b"schema".as_slice(), *object_id),
@@ -20,6 +20,6 @@ pub(in crate::midge::adapter) fn role_object_grant_key(grant: &RoleObjectGrantMe
     )
 }
 
-pub(in crate::midge::adapter) fn role_object_grant_prefix() -> Vec<u8> {
+pub(in crate::adapter) fn role_object_grant_prefix() -> Vec<u8> {
     prefix(FAMILY_ROLE_OBJECT_GRANT, &[])
 }

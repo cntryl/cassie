@@ -225,6 +225,7 @@ dependencies = [
  "cassie-embeddings",
  "cassie-search",
  "cassie-sql",
+ "cassie-storage",
  "cassie-vector",
  "chrono",
  "cntryl-lexkey",
@@ -279,6 +280,19 @@ dependencies = [
  "cassie-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "cassie-storage"
+version = "0.1.0"
+dependencies = [
+ "cassie-core",
+ "cassie-sql",
+ "cntryl-lexkey",
+ "cntryl-midge",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

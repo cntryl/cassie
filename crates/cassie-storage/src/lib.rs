@@ -4,8 +4,11 @@ mod error;
 
 pub use error::StorageCodecError;
 
+pub mod operation_stats;
+pub mod runtime_feedback;
 pub mod column_batch_format_v1;
 pub mod key_codec;
+pub mod row_blob;
 
 mod scalar_index;
 pub use scalar_index::{

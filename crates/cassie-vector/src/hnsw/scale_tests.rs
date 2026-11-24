@@ -1,7 +1,7 @@
 //! Full-build validity and recall over a few thousand deterministic points.
 
 use super::{build_graph, graph_validity_violation, search_graph};
-use crate::embeddings::{DistanceMetric, HnswIndexOptions, NormalizedVectorRecord};
+use crate::types::{DistanceMetric, HnswIndexOptions, NormalizedVectorRecord};
 
 const DIMENSIONS: usize = 32;
 const POINTS: usize = 3_000;
@@ -24,7 +24,7 @@ fn points(count: usize, stream: u64) -> Vec<Vec<f32>> {
 }
 
 fn record(id: String, values: &[f32], metric: DistanceMetric) -> NormalizedVectorRecord {
-    let normalized = crate::vector::normalize(values).expect("normalizable vector");
+    let normalized = crate::normalize(values).expect("normalizable vector");
     NormalizedVectorRecord {
         built_generation: 0,
         collection: "docs".to_string(),
@@ -92,7 +92,7 @@ fn should_build_valid_high_recall_l2_graph_over_thousands_of_points() {
     let metric = DistanceMetric::L2;
 
     // Act
-    let recall = recall_for(metric, crate::vector::l2_distance);
+    let recall = recall_for(metric, crate::l2_distance);
 
     // Assert
     assert!(recall >= 0.90, "l2 recall {recall}");
@@ -104,7 +104,7 @@ fn should_build_valid_high_recall_cosine_graph_over_thousands_of_points() {
     let metric = DistanceMetric::Cosine;
 
     // Act
-    let recall = recall_for(metric, crate::vector::cosine_distance);
+    let recall = recall_for(metric, crate::cosine_distance);
 
     // Assert
     assert!(recall >= 0.90, "cosine recall {recall}");

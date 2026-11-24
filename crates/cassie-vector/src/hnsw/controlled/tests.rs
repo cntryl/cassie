@@ -1,15 +1,15 @@
 use std::cell::Cell;
 use std::mem::size_of;
 use std::sync::Arc;
-use std::time::Instant;
 
-use crate::config::CassieRuntimeLimits;
+use cassie_core::request::{Interruption, RequestCancellation, RequestMemory};
+use std::convert::Infallible;
+use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions};
 
 use super::{
     hnsw_cache_entry_bytes, search_graph_layer_loaded_controlled,
     search_graph_with_controlled_node_loader, ControlledHnswSearchRequest, ControlledLayerContext,
-    DistanceMetric, GraphDistanceQuery, HnswCandidate, HnswGraphNode, HnswIndexOptions,
-    QueryExecutionControls, SearchCandidate,
+    GraphDistanceQuery, HnswCandidate, SearchCandidate,
 };
 
 #[test]
@@ -49,7 +49,7 @@ fn should_include_complete_owned_node_storage_in_hnsw_memory() {
     let minimum_retained = cache_slots + "entry".len() + retained_node;
 
     // Act
-    let estimate = hnsw_cache_entry_bytes("entry", Some(&node)).expect("cache estimate");
+    let estimate = hnsw_cache_entry_bytes::<Infallible>("entry", Some(&node)).expect("cache estimate");
 
     // Assert
     assert!(
@@ -61,9 +61,10 @@ fn should_include_complete_owned_node_storage_in_hnsw_memory() {
 #[test]
 fn should_reserve_sparse_hnsw_visited_storage_before_loading_a_neighbor() {
     // Arrange
-    let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-    let mut memory = controls.reserve_query_memory(0).expect("traversal guard");
+    let cancellation = RequestCancellation::new();
+    let interruption = Interruption::new(None, &cancellation);
+    let request_memory = RequestMemory::new(usize::MAX);
+    let mut memory = request_memory.reserve(0).expect("traversal guard");
     let query = GraphDistanceQuery::from_query(&[1.0, 0.0, 0.0]).expect("query");
     let entry = Arc::new(HnswGraphNode {
         id: "entry".to_owned(),
@@ -85,17 +86,18 @@ fn should_reserve_sparse_hnsw_visited_storage_before_loading_a_neighbor() {
             metric: DistanceMetric::L2,
             query: &query,
             layer: 0,
-            controls: &controls,
+            interruption,
+            _error: std::marker::PhantomData,
         },
         "entry",
         2,
         &mut memory,
         &mut |id| {
             if id == "neighbor" {
-                observed_neighbor_bytes.set(controls.current_query_memory_bytes());
-                Ok(Some(neighbor.clone()))
+                observed_neighbor_bytes.set(request_memory.current_bytes());
+                Ok::<_, Infallible>(Some(neighbor.clone()))
             } else {
-                Ok(Some(entry.clone()))
+                Ok::<_, Infallible>(Some(entry.clone()))
             }
         },
     )
@@ -113,15 +115,16 @@ fn should_reserve_sparse_hnsw_visited_storage_before_loading_a_neighbor() {
         "visited BTree slots retain at least {minimum_visited_slots} bytes before neighbor load, but reserve {}",
         observed_neighbor_bytes.get()
     );
-    assert_eq!(controls.current_query_memory_bytes(), 0);
+    assert_eq!(request_memory.current_bytes(), 0);
 }
 
 #[test]
 fn should_keep_loaded_hnsw_layer_candidate_capacity_reserved() {
     // Arrange
-    let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-    let mut memory = controls.reserve_query_memory(0).expect("traversal guard");
+    let cancellation = RequestCancellation::new();
+    let interruption = Interruption::new(None, &cancellation);
+    let request_memory = RequestMemory::new(usize::MAX);
+    let mut memory = request_memory.reserve(0).expect("traversal guard");
     let query = GraphDistanceQuery::from_query(&[1.0, 0.0, 0.0]).expect("query");
     let entry = Arc::new(HnswGraphNode {
         id: "entry".to_owned(),
@@ -136,12 +139,13 @@ fn should_keep_loaded_hnsw_layer_candidate_capacity_reserved() {
             metric: DistanceMetric::L2,
             query: &query,
             layer: 0,
-            controls: &controls,
+            interruption,
+            _error: std::marker::PhantomData,
         },
         "entry",
         1,
         &mut memory,
-        &mut |_| Ok(Some(entry.clone())),
+        &mut |_| Ok::<_, Infallible>(Some(entry.clone())),
     )
     .expect("loaded layer");
     let retained_bytes = candidates.capacity() * size_of::<SearchCandidate>()
@@ -149,7 +153,7 @@ fn should_keep_loaded_hnsw_layer_candidate_capacity_reserved() {
             .iter()
             .map(|candidate| candidate.id.capacity())
             .sum::<usize>();
-    let live_bytes = controls.current_query_memory_bytes();
+    let live_bytes = request_memory.current_bytes();
     drop(candidates);
     drop(memory);
 
@@ -158,7 +162,7 @@ fn should_keep_loaded_hnsw_layer_candidate_capacity_reserved() {
         live_bytes >= retained_bytes,
         "candidate Vec retains {retained_bytes} bytes, but only {live_bytes} bytes remain reserved"
     );
-    assert_eq!(controls.current_query_memory_bytes(), 0);
+    assert_eq!(request_memory.current_bytes(), 0);
 }
 
 #[test]
@@ -181,8 +185,9 @@ fn should_keep_returned_hnsw_candidate_storage_reserved_until_the_result_is_drop
         })
         .collect::<Vec<_>>();
     let options = HnswIndexOptions::default();
-    let controls =
-        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cancellation = RequestCancellation::new();
+    let interruption = Interruption::new(None, &cancellation);
+    let request_memory = RequestMemory::new(usize::MAX);
     let request = ControlledHnswSearchRequest {
         metric: DistanceMetric::L2,
         entry_point: &ids[0],
@@ -193,11 +198,11 @@ fn should_keep_returned_hnsw_candidate_storage_reserved_until_the_result_is_drop
     };
 
     // Act
-    let result = search_graph_with_controlled_node_loader(&request, &controls, |id| {
+    let result = search_graph_with_controlled_node_loader(&request, interruption, &request_memory, |id| {
         let Some(node) = nodes.iter().find(|node| node.id == id) else {
-            return Ok(None);
+            return Ok::<_, Infallible>(None);
         };
-        let memory = controls.reserve_query_memory(hnsw_cache_entry_bytes(id, Some(node))?)?;
+        let memory = request_memory.reserve(hnsw_cache_entry_bytes::<Infallible>(id, Some(node)).expect("cache size")).expect("reservation");
         Ok(Some((node.clone(), memory)))
     })
     .expect("controlled HNSW search")
@@ -211,9 +216,9 @@ fn should_keep_returned_hnsw_candidate_storage_reserved_until_the_result_is_drop
             .iter()
             .map(|candidate| candidate.id.len())
             .sum::<usize>();
-    let live_bytes = controls.current_query_memory_bytes();
+    let live_bytes = request_memory.current_bytes();
     drop(result);
-    let remaining_bytes = controls.current_query_memory_bytes();
+    let remaining_bytes = request_memory.current_bytes();
 
     // Assert
     assert_eq!(candidate_count, options.ef_search);
@@ -223,4 +228,38 @@ fn should_keep_returned_hnsw_candidate_storage_reserved_until_the_result_is_drop
         "returned candidates retain {retained_bytes} bytes, but only {live_bytes} bytes remain reserved"
     );
     assert_eq!(remaining_bytes, 0);
+}
+
+#[test]
+fn should_preserve_hnsw_loader_errors_as_storage_errors() {
+    // Arrange
+    #[derive(Debug, PartialEq, Eq)]
+    struct LoaderFailure;
+
+    let cancellation = RequestCancellation::new();
+    let interruption = Interruption::new(None, &cancellation);
+    let request_memory = RequestMemory::new(usize::MAX);
+    let options = HnswIndexOptions::default();
+    let request = ControlledHnswSearchRequest {
+        metric: DistanceMetric::L2,
+        entry_point: "entry",
+        max_layer: 0,
+        query: &[1.0, 0.0],
+        options: &options,
+        limit: 1,
+    };
+
+    // Act
+    let result = search_graph_with_controlled_node_loader(
+        &request,
+        interruption,
+        &request_memory,
+        |_| Err(LoaderFailure),
+    );
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(super::HnswSearchError::Loader(LoaderFailure))
+    ));
 }

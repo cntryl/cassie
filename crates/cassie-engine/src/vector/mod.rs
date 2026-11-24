@@ -1,5 +1,5 @@
-pub mod hnsw;
 pub mod ivfflat;
+pub use cassie_vector::hnsw;
 pub mod text;
 
 pub use cassie_vector::{

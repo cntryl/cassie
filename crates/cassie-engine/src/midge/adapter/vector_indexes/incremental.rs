@@ -307,12 +307,16 @@ impl Midge {
                 |id| {
                     let key =
                         super::super::key_encoding::hnsw_graph_node_key(relation_id, field_id, id);
-                    let Some(raw) = reader.get(&key).map_err(CassieError::from)? else {
+                    let Some(raw) = reader
+                        .get(&key)
+                        .map_err(CassieError::from)
+                        .map_err(MaintainError::Store)?
+                    else {
                         return Ok(None);
                     };
                     decode_hnsw_node(&raw, id)
                         .map(Some)
-                        .map_err(|_| MaintainError::Inconsistent("invalid-node"))
+                        .map_err(|_| MaintainError::<CassieError>::Inconsistent("invalid-node"))
                 },
             );
             match Self::apply_deltas_to_maintainer(&mut maintainer, deltas) {
@@ -387,11 +391,13 @@ impl Midge {
     }
 
     fn apply_deltas_to_maintainer<L>(
-        maintainer: &mut GraphMaintainer<L>,
+        maintainer: &mut GraphMaintainer<L, CassieError>,
         deltas: &Deltas,
-    ) -> Result<usize, MaintainError>
+    ) -> Result<usize, MaintainError<CassieError>>
     where
-        L: FnMut(&str) -> Result<Option<crate::embeddings::HnswGraphNode>, MaintainError>,
+        L: FnMut(
+            &str,
+        ) -> Result<Option<crate::embeddings::HnswGraphNode>, MaintainError<CassieError>>,
     {
         let mut changed = 0usize;
         for (id, record) in deltas {

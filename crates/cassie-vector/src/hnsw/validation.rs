@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::embeddings::HnswGraphState;
+use crate::types::HnswGraphState;
 
 /// Returns the first structural violation of `graph`, or `None` when it is a
 /// valid navigable graph.
@@ -56,8 +56,8 @@ pub fn graph_validity_violation(graph: &HnswGraphState, max_neighbors: usize) ->
 }
 
 fn node_violation(
-    node: &crate::embeddings::HnswGraphNode,
-    by_id: &BTreeMap<&str, &crate::embeddings::HnswGraphNode>,
+    node: &crate::types::HnswGraphNode,
+    by_id: &BTreeMap<&str, &crate::types::HnswGraphNode>,
     max_neighbors: usize,
 ) -> Option<String> {
     if node.layers.is_empty() {

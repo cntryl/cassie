@@ -10,7 +10,7 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
 use super::{deterministic_level, GraphDistanceQuery, HNSW_GRAPH_VERSION};
-use crate::embeddings::{DistanceMetric, HnswGraphNode, HnswGraphState, NormalizedVectorRecord};
+use crate::types::{DistanceMetric, HnswGraphNode, HnswGraphState, NormalizedVectorRecord};
 
 struct DenseNode {
     id: String,
@@ -86,16 +86,16 @@ pub(super) struct GraphBuilder {
 
 fn distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &DenseNode) -> f64 {
     match metric {
-        DistanceMetric::Cosine => crate::vector::cosine_distance_from_normalized_query(
+        DistanceMetric::Cosine => crate::cosine_distance_from_normalized_query(
             &query.normalized,
             &node.query.normalized,
         ),
-        DistanceMetric::Dot => crate::vector::dot_distance_from_normalized_target(
+        DistanceMetric::Dot => crate::dot_distance_from_normalized_target(
             &query.raw,
             &node.query.normalized,
             node.magnitude,
         ),
-        DistanceMetric::L2 => crate::vector::l2_distance(&query.raw, &node.query.raw),
+        DistanceMetric::L2 => crate::l2_distance(&query.raw, &node.query.raw),
     }
 }
 

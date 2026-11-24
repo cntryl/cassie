@@ -25,50 +25,44 @@ use super::{
     deterministic_level, graph_distance, pop_nearest, GraphDistanceQuery, OrderedCandidateSet,
     SearchCandidate,
 };
-use crate::app::CassieError;
-use crate::embeddings::{DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord};
-use crate::vector::source_fingerprint::{
+use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord};
+use crate::source_fingerprint::{
     fold_record_fingerprint, normalized_vector_record_fingerprint,
 };
 
 /// Why localized maintenance stopped.
 #[derive(Debug)]
-pub(crate) enum MaintainError {
+pub enum MaintainError<E> {
     /// Reading a node failed; the write itself cannot proceed.
-    Store(CassieError),
+    Store(E),
     /// The persisted graph contradicts itself; repair it by a full rebuild.
     Inconsistent(&'static str),
 }
 
-impl From<CassieError> for MaintainError {
-    fn from(error: CassieError) -> Self {
-        Self::Store(error)
-    }
-}
 
 /// Persisted graph header a maintenance run starts from.
-pub(crate) struct MaintainerSeed {
-    pub(crate) entry_point: Option<String>,
-    pub(crate) max_layer: usize,
-    pub(crate) row_count: usize,
-    pub(crate) source_fingerprint: u64,
-    pub(crate) metric: DistanceMetric,
-    pub(crate) options: HnswIndexOptions,
+pub struct MaintainerSeed {
+    pub entry_point: Option<String>,
+    pub max_layer: usize,
+    pub row_count: usize,
+    pub source_fingerprint: u64,
+    pub metric: DistanceMetric,
+    pub options: HnswIndexOptions,
 }
 
 /// Result of a maintenance run: the records to write and the new header.
 #[derive(Debug)]
-pub(crate) struct MaintainedGraph {
-    pub(crate) puts: Vec<HnswGraphNode>,
-    pub(crate) deletes: Vec<String>,
-    pub(crate) entry_point: Option<String>,
-    pub(crate) max_layer: usize,
-    pub(crate) row_count: usize,
-    pub(crate) source_fingerprint: u64,
-    pub(crate) nodes_read: usize,
+pub struct MaintainedGraph {
+    pub puts: Vec<HnswGraphNode>,
+    pub deletes: Vec<String>,
+    pub entry_point: Option<String>,
+    pub max_layer: usize,
+    pub row_count: usize,
+    pub source_fingerprint: u64,
+    pub nodes_read: usize,
 }
 
-pub(crate) struct GraphMaintainer<L> {
+pub struct GraphMaintainer<L, E> {
     load: L,
     cache: BTreeMap<String, Option<HnswGraphNode>>,
     dirty: BTreeSet<String>,
@@ -80,19 +74,20 @@ pub(crate) struct GraphMaintainer<L> {
     metric: DistanceMetric,
     m: usize,
     ef_construction: usize,
+    error: std::marker::PhantomData<fn() -> E>,
 }
 
-type Outcome<T> = Result<T, MaintainError>;
+pub type MaintainResult<T, E> = Result<T, MaintainError<E>>;
 
-fn inconsistent<T>(reason: &'static str) -> Outcome<T> {
+fn inconsistent<T, E>(reason: &'static str) -> MaintainResult<T, E> {
     Err(MaintainError::Inconsistent(reason))
 }
 
-impl<L> GraphMaintainer<L>
+impl<L, E> GraphMaintainer<L, E>
 where
-    L: FnMut(&str) -> Result<Option<HnswGraphNode>, MaintainError>,
+    L: FnMut(&str) -> Result<Option<HnswGraphNode>, MaintainError<E>>,
 {
-    pub(crate) fn new(seed: MaintainerSeed, load: L) -> Self {
+    pub fn new(seed: MaintainerSeed, load: L) -> Self {
         Self {
             load,
             cache: BTreeMap::new(),
@@ -105,18 +100,19 @@ where
             metric: seed.metric,
             m: seed.options.m.max(1),
             ef_construction: seed.options.ef_construction.max(1),
+            error: std::marker::PhantomData,
         }
     }
 
     /// The stored vector of `id`, when it is a node.
-    pub(crate) fn stored_vector(&mut self, id: &str) -> Outcome<Option<(Vec<f32>, f64)>> {
+    pub fn stored_vector(&mut self, id: &str) -> MaintainResult<Option<(Vec<f32>, f64)>, E> {
         Ok(self
             .node(id)?
             .map(|node| (node.vector.clone(), node.magnitude)))
     }
 
     /// Ends the run and returns what must be written.
-    pub(crate) fn finish(self) -> MaintainedGraph {
+    pub fn finish(self) -> MaintainedGraph {
         let mut puts = Vec::new();
         let mut deletes = Vec::new();
         for id in self.dirty {
@@ -136,7 +132,7 @@ where
         }
     }
 
-    fn node(&mut self, id: &str) -> Outcome<Option<&HnswGraphNode>> {
+    fn node(&mut self, id: &str) -> MaintainResult<Option<&HnswGraphNode>, E> {
         if !self.cache.contains_key(id) {
             let loaded = (self.load)(id)?;
             self.nodes_read = self.nodes_read.saturating_add(1);
@@ -145,14 +141,14 @@ where
         Ok(self.cache.get(id).and_then(Option::as_ref))
     }
 
-    fn require(&mut self, id: &str) -> Outcome<&HnswGraphNode> {
+    fn require(&mut self, id: &str) -> MaintainResult<&HnswGraphNode, E> {
         match self.node(id)? {
             Some(node) => Ok(node),
             None => inconsistent("unknown-neighbor-id"),
         }
     }
 
-    fn node_mut(&mut self, id: &str) -> Outcome<&mut HnswGraphNode> {
+    fn node_mut(&mut self, id: &str) -> MaintainResult<&mut HnswGraphNode, E> {
         self.require(id)?;
         self.dirty.insert(id.to_string());
         match self.cache.get_mut(id).and_then(Option::as_mut) {
@@ -161,7 +157,7 @@ where
         }
     }
 
-    fn query_of(&mut self, id: &str) -> Outcome<GraphDistanceQuery> {
+    fn query_of(&mut self, id: &str) -> MaintainResult<GraphDistanceQuery, E> {
         let node = self.require(id)?;
         Ok(GraphDistanceQuery::from_parts(
             node.vector.clone(),
@@ -169,20 +165,20 @@ where
         ))
     }
 
-    fn distance_to(&mut self, query: &GraphDistanceQuery, id: &str) -> Outcome<f64> {
+    fn distance_to(&mut self, query: &GraphDistanceQuery, id: &str) -> MaintainResult<f64, E> {
         let metric = self.metric;
         let node = self.require(id)?;
         Ok(graph_distance(metric, query, node))
     }
 
-    fn links(&mut self, id: &str, layer: usize) -> Outcome<Vec<String>> {
+    fn links(&mut self, id: &str, layer: usize) -> MaintainResult<Vec<String>, E> {
         match self.require(id)?.layers.get(layer) {
             Some(links) => Ok(links.clone()),
             None => inconsistent("invalid-neighbor-layer"),
         }
     }
 
-    fn remove_link(&mut self, from: &str, to: &str, layer: usize) -> Outcome<()> {
+    fn remove_link(&mut self, from: &str, to: &str, layer: usize) -> MaintainResult<(), E> {
         if !self.links(from, layer)?.iter().any(|link| link == to) {
             return Ok(());
         }
@@ -190,7 +186,7 @@ where
         Ok(())
     }
 
-    fn push_link(&mut self, from: &str, to: &str, layer: usize) -> Outcome<()> {
+    fn push_link(&mut self, from: &str, to: &str, layer: usize) -> MaintainResult<(), E> {
         if self.links(from, layer)?.iter().any(|link| link == to) {
             return Ok(());
         }
@@ -200,7 +196,7 @@ where
 
     /// Keeps the `m` links of `target` closest to it. A dropped neighbor drops
     /// its link back, so links stay symmetric.
-    fn prune(&mut self, target: &str, layer: usize) -> Outcome<()> {
+    fn prune(&mut self, target: &str, layer: usize) -> MaintainResult<(), E> {
         let links = self.links(target, layer)?;
         if links.len() <= self.m {
             return Ok(());
@@ -228,7 +224,7 @@ where
         query: &GraphDistanceQuery,
         entry: &str,
         layer: usize,
-    ) -> Outcome<String> {
+    ) -> MaintainResult<String, E> {
         let mut current = entry.to_string();
         let mut current_distance = self.distance_to(query, &current)?;
         loop {
@@ -265,7 +261,7 @@ where
         entry: &str,
         layer: usize,
         ef: usize,
-    ) -> Outcome<Vec<SearchCandidate>> {
+    ) -> MaintainResult<Vec<SearchCandidate>, E> {
         let entry_candidate = SearchCandidate {
             id: entry.to_string(),
             distance: self.distance_to(query, entry)?,
@@ -303,7 +299,7 @@ where
 
     /// Inserts `record` as a new node linked both ways to its nearest
     /// neighbors on every layer it owns.
-    pub(crate) fn insert(&mut self, record: &NormalizedVectorRecord) -> Outcome<()> {
+    pub fn insert(&mut self, record: &NormalizedVectorRecord) -> MaintainResult<(), E> {
         if self.node(&record.id)?.is_some() {
             return inconsistent("duplicate-node-id");
         }
@@ -359,7 +355,7 @@ where
 
     /// Deletes `id`, reconnecting its neighbors to one another. Returns whether
     /// the node existed.
-    pub(crate) fn remove(&mut self, id: &str) -> Outcome<bool> {
+    pub fn remove(&mut self, id: &str) -> MaintainResult<bool, E> {
         let Some(removed) = self.node(id)?.cloned() else {
             return Ok(false);
         };
@@ -386,7 +382,7 @@ where
 
     /// Links each orphaned neighbor to its nearest former co-neighbors that
     /// still have room, so a deleted node does not split its neighborhood.
-    fn reconnect(&mut self, ring: &[String], layer: usize) -> Outcome<()> {
+    fn reconnect(&mut self, ring: &[String], layer: usize) -> MaintainResult<(), E> {
         for member in ring {
             let query = self.query_of(member)?;
             let linked = self.links(member, layer)?;
@@ -417,7 +413,7 @@ where
 
     /// Promotes the tallest neighbor on the deleted entry point's highest
     /// populated layer.
-    fn reelect_entry_point(&mut self, removed: &HnswGraphNode) -> Outcome<()> {
+    fn reelect_entry_point(&mut self, removed: &HnswGraphNode) -> MaintainResult<(), E> {
         let query = GraphDistanceQuery::from_parts(removed.vector.clone(), removed.magnitude);
         for layer in (0..removed.layers.len()).rev() {
             let mut best: Option<(usize, f64, String)> = None;

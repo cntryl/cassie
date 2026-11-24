@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::embeddings::{
+use crate::types::{
     DistanceMetric, HnswGraphNode, HnswGraphState, HnswIndexOptions, NormalizedVectorRecord,
 };
 use build::GraphBuilder;
@@ -19,13 +19,14 @@ mod scale_tests;
 mod validation;
 
 pub use controlled::search_graph_with_node_loader;
-pub(crate) use controlled::{
+pub use controlled::{
     search_graph_with_controlled_node_loader, ControlledHnswSearchRequest,
+    HnswGraphRepairReason, HnswSearchError,
 };
-pub(crate) use incremental::{GraphMaintainer, MaintainError, MaintainedGraph, MaintainerSeed};
+pub use incremental::{GraphMaintainer, MaintainError, MaintainResult, MaintainedGraph, MaintainerSeed};
 pub use validation::graph_validity_violation;
 
-pub(crate) const HNSW_GRAPH_VERSION: u32 = 1;
+pub const HNSW_GRAPH_VERSION: u32 = 1;
 const MAX_DETERMINISTIC_LAYER: usize = 16;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,7 +55,7 @@ struct GraphDistanceQuery {
 
 impl GraphDistanceQuery {
     fn from_query(query: &[f32]) -> Option<Self> {
-        let normalized = crate::vector::normalize(query)?.values;
+        let normalized = crate::normalize(query)?.values;
         let raw = query.to_vec();
         Some(Self { normalized, raw })
     }
@@ -139,7 +140,7 @@ pub fn graph_fallback_reason(
     if current_records.len() != records.len() {
         return Some("incompatible-source");
     }
-    let source_fingerprint = crate::vector::normalized_vector_source_fingerprint(&current_records);
+    let source_fingerprint = crate::normalized_vector_source_fingerprint(&current_records);
     if graph.source_fingerprint != 0 && graph.source_fingerprint != source_fingerprint {
         return Some("stale-source-fingerprint");
     }
@@ -219,7 +220,7 @@ pub fn build_graph(
 ) -> HnswGraphState {
     records = valid_source_records(&records, dimensions, metric);
     records.sort_by(|left, right| left.id.cmp(&right.id));
-    let source_fingerprint = crate::vector::normalized_vector_source_fingerprint(&records);
+    let source_fingerprint = crate::normalized_vector_source_fingerprint(&records);
 
     let mut builder = GraphBuilder::new(
         options.m.max(1),
@@ -240,7 +241,7 @@ pub fn search_graph(
     limit: usize,
 ) -> Option<HnswSearchResult> {
     let distance_query = GraphDistanceQuery::from_query(query)?;
-    let normalized_query = crate::vector::normalize(query)?;
+    let normalized_query = crate::normalize(query)?;
     let node_index = graph_node_index(graph);
     let entry_point = graph.entry_point.as_ref()?;
     let mut current = entry_point.clone();
@@ -405,9 +406,9 @@ fn search_graph_layer(
 fn graph_distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &HnswGraphNode) -> f64 {
     match metric {
         DistanceMetric::Cosine => {
-            crate::vector::cosine_distance_from_normalized_query(&query.normalized, &node.vector)
+            crate::cosine_distance_from_normalized_query(&query.normalized, &node.vector)
         }
-        DistanceMetric::Dot => crate::vector::dot_distance_from_normalized_target(
+        DistanceMetric::Dot => crate::dot_distance_from_normalized_target(
             &query.raw,
             &node.vector,
             node.magnitude,
@@ -424,10 +425,10 @@ fn exact_distance(
 ) -> f64 {
     match metric {
         DistanceMetric::Cosine => {
-            crate::vector::cosine_distance_from_normalized_query(normalized_query, &node.vector)
+            crate::cosine_distance_from_normalized_query(normalized_query, &node.vector)
         }
         DistanceMetric::Dot => {
-            crate::vector::dot_distance_from_normalized_target(query, &node.vector, node.magnitude)
+            crate::dot_distance_from_normalized_target(query, &node.vector, node.magnitude)
         }
         DistanceMetric::L2 => l2_to_stored(query, &node.vector, node.magnitude),
     }
@@ -444,9 +445,9 @@ fn l2_to_stored(query: &[f32], vector: &[f32], magnitude: f64) -> f64 {
         let mut target = scratch.borrow_mut();
         target.clear();
         target.extend(vector.iter().map(|value| {
-            crate::vector::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
+            crate::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
         }));
-        crate::vector::l2_distance(query, &target)
+        crate::l2_distance(query, &target)
     })
 }
 
@@ -454,7 +455,7 @@ fn denormalize(vector: &[f32], magnitude: f64) -> Vec<f32> {
     vector
         .iter()
         .map(|value| {
-            crate::vector::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
+            crate::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
         })
         .collect()
 }
@@ -519,7 +520,7 @@ fn compare_hnsw_candidates(left: &HnswCandidate, right: &HnswCandidate) -> std::
 #[cfg(test)]
 mod tests {
     use super::{build_graph, graph_distance, search, search_graph, GraphDistanceQuery};
-    use crate::embeddings::{
+    use crate::types::{
         DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord,
     };
 
@@ -534,7 +535,7 @@ mod tests {
         ];
 
         // Act
-        let selected = search(&query, candidates, 2, crate::vector::l2_distance);
+        let selected = search(&query, candidates, 2, crate::l2_distance);
 
         // Assert
         assert_eq!(selected.len(), 2);

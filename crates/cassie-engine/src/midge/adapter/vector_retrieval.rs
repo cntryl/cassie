@@ -722,6 +722,7 @@ impl Midge {
             ));
         }
         let mut missing_node = false;
+        let mut loader_error = None;
         let result = crate::vector::hnsw::search_graph_with_node_loader(
             manifest.metric,
             entry_point,
@@ -730,21 +731,28 @@ impl Midge {
             options,
             limit,
             |id| {
-                let node = tx
-                    .get(&key_encoding::hnsw_graph_node_key(
+                let node_key = key_encoding::hnsw_graph_node_key(
                         relation_id,
                         field_id,
                         id,
-                    ))
-                    .ok()
-                    .flatten()
-                    .and_then(|raw| super::codec::decode_hnsw_node(&raw, id).ok());
+                    );
+                let node = match tx.get(&node_key) {
+                    Ok(Some(raw)) => super::codec::decode_hnsw_node(&raw, id).ok(),
+                    Ok(None) => None,
+                    Err(error) => {
+                        loader_error = Some(CassieError::from(error));
+                        None
+                    }
+                };
                 if node.is_none() {
                     missing_node = true;
                 }
                 node
             },
         );
+        if let Some(error) = loader_error {
+            return Err(error);
+        }
         if missing_node {
             return Err(CassieError::Execution(
                 "hnsw fallback:unknown-neighbor-id".to_string(),
@@ -792,7 +800,8 @@ impl Midge {
                 options,
                 limit,
             },
-            controls,
+            controls.interruption(),
+            controls.request_memory(),
             |id| {
                 check_ann_controls(controls)?;
                 let raw = tx
@@ -808,15 +817,38 @@ impl Midge {
                     missing_node = true;
                     return Ok(None);
                 };
-                controlled_hnsw::decode_node(&raw, id, controls).map(Some)
+                controlled_hnsw::decode_node(&raw, id, controls)
+                    .map(|(node, memory)| Some((node, memory.into_core())))
             },
-        )?;
+        ).map_err(|error| match error {
+            crate::vector::hnsw::HnswSearchError::Loader(error) => error,
+            crate::vector::hnsw::HnswSearchError::GraphRepair(reason) => {
+                let label = match reason {
+                    crate::vector::hnsw::HnswGraphRepairReason::MissingEntryPoint => "missing-entry-point",
+                    crate::vector::hnsw::HnswGraphRepairReason::InconsistentMaxLayer => "inconsistent-max-layer",
+                };
+                CassieError::Execution(format!("hnsw fallback:{label}"))
+            }
+            crate::vector::hnsw::HnswSearchError::Interruption(error) => match error {
+                cassie_core::request::InterruptionError::Canceled => CassieError::QueryCanceled,
+                cassie_core::request::InterruptionError::DeadlineExceeded => CassieError::DeadlineExceeded,
+            },
+            crate::vector::hnsw::HnswSearchError::Memory(error) => CassieError::ResourceLimit(
+                format!("query memory budget exceeded: {} > {}", error.requested, error.budget),
+            ),
+            crate::vector::hnsw::HnswSearchError::Allocation => CassieError::ResourceLimit(
+                "unable to retain controlled HNSW candidate".to_owned(),
+            ),
+            crate::vector::hnsw::HnswSearchError::AccountingOverflow => CassieError::ResourceLimit(
+                "controlled HNSW retained memory overflow".to_owned(),
+            ),
+        })?;
         if missing_node {
             return Err(CassieError::Execution(
                 "hnsw fallback:unknown-neighbor-id".to_string(),
             ));
         }
-        let Some((result, mut candidate_memory)) = result else {
+        let Some((result, candidate_memory)) = result else {
             return Ok(None);
         };
         // Truncating top-k drops identities but retains the ef_search-sized backing buffer.
@@ -835,6 +867,7 @@ impl Midge {
                     "controlled HNSW candidate accounting overflow".to_owned(),
                 )
             })?;
+        let mut candidate_memory = crate::runtime::QueryMemoryReservation::from_core(candidate_memory);
         if candidate_bytes > candidate_memory.bytes() {
             candidate_memory.try_grow(candidate_bytes - candidate_memory.bytes())?;
         } else {

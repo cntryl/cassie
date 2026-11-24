@@ -1,5 +1,7 @@
 //! Pgwire-specific production kernels used by Cassie's benchmark executables.
 
+use crate::types::{DataType, Value};
+
 pub use cassie_engine::benchmark::{
     ExecutorKernel, KernelObservation, RowCodecKernel, RowKeyKernel, SubsystemExecutorKernel,
 };

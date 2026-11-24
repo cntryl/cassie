@@ -10,12 +10,13 @@ license-file = "../../LICENSE"
 workspace = true
 
 [features]
-replay-benchmark-observation = []
+replay-benchmark-observation = ["cassie-engine/replay-benchmark-observation"]
 
 [dependencies]
 cassie-core = { path = "../cassie-core" }
 cassie-search = { path = "../cassie-search" }
 cassie-vector = { path = "../cassie-vector" }
+cassie-engine = { path = "../cassie-engine" }
 num-traits = "0.2.19"
 num-bigint = "0.5.1"
 num-integer = "0.1.47"
@@ -52,6 +53,7 @@ fancy-regex = { version = "=0.20.2", default-features = false, features = ["std"
 sql-json-path = "0.2.0"
 
 [dev-dependencies]
+cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
 cntryl-stress = "0.5.1"
 rcgen = "0.14"
 tokio-postgres = "0.7"

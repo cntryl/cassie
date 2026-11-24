@@ -22,30 +22,7 @@ pub(super) fn float(operand: Expr) -> Expr {
     }
 }
 
-pub(crate) fn original_operand(expression: &Expr) -> Option<&Expr> {
-    let Expr::Cast {
-        expr,
-        data_type: DataType::Float,
-        identity: crate::sql::ast::CastIdentity::Scalar,
-        ..
-    } = expression
-    else {
-        return None;
-    };
-    case_operand(expr)
-}
-
-pub(crate) fn case_operand(expression: &Expr) -> Option<&Expr> {
-    let Expr::Case {
-        operand: None,
-        branches,
-        else_expr: Some(original),
-    } = expression
-    else {
-        return None;
-    };
-    branches.is_empty().then_some(original.as_ref())
-}
+pub(crate) use cassie_sql::definition_guard::{case_operand, original_operand};
 
 #[cfg(test)]
 #[path = "result_coercion_tests.rs"]

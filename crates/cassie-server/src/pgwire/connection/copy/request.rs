@@ -142,33 +142,6 @@ impl CopyRequest {
             CopyWireFormat::Csv | CopyWireFormat::Binary => "",
         })
     }
-
-    pub(super) fn force_indices(
-        selection: &ColumnSelection,
-        columns: &[crate::app::CopyColumn],
-    ) -> Vec<usize> {
-        match selection {
-            ColumnSelection::None => Vec::new(),
-            ColumnSelection::All => (0..columns.len()).collect(),
-            ColumnSelection::Columns(names) => columns
-                .iter()
-                .enumerate()
-                .filter_map(|(index, column)| match column {
-                    crate::app::CopyColumn::Field(field)
-                        if names.iter().any(|name| name == &field.name) =>
-                    {
-                        Some(index)
-                    }
-                    crate::app::CopyColumn::RowId
-                        if names.iter().any(|name| name == "_id" || name == "id") =>
-                    {
-                        Some(index)
-                    }
-                    _ => None,
-                })
-                .collect(),
-        }
-    }
 }
 
 pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, CassieError> {

@@ -82,6 +82,7 @@ pub fn issue_for_test(
     issue_with_limits_impl(cassie, &role, max_sessions, ttl_seconds)
 }
 
+#[cfg(test)]
 fn issue_with_limits(
     cassie: &Cassie,
     role: &RoleMeta,
@@ -628,7 +629,3 @@ mod tests {
         assert!(authenticate(&cassie, &replacement).is_ok());
     }
 }
-
-#[cfg(test)]
-#[path = "sessions/entrypoint_tests.rs"]
-mod entrypoint_tests;

@@ -342,7 +342,7 @@ fn should_preserve_autocommit_copy_without_owner() {
     let BoundCopyRequest::From(request, _statement, binding) = bound else {
         panic!("COPY FROM binding")
     };
-    assert!(binding.owner.is_none());
+    assert!(!binding.operation.has_owner_for_test());
 
     // Act
     let result = execute::execute_bound_copy_payload(

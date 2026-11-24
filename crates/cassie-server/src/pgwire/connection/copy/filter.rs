@@ -18,6 +18,7 @@ mod tests;
 #[derive(Debug)]
 pub(super) enum CopyWhereError {
     Cassie(CassieError),
+    #[cfg(test)]
     Undefined(String),
     Jsonb(crate::runtime::accounted::json_arena::JsonbDiagnostic),
 }

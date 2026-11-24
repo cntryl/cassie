@@ -281,7 +281,6 @@ fn bind_copy_from_stdin(
     #[cfg(test)]
     let test_context = (
         Arc::clone(operation.cassie_for_test()),
-        operation.owner_for_test(),
         operation.controls().clone(),
         operation.authority_for_test(),
     );
@@ -293,11 +292,9 @@ fn bind_copy_from_stdin(
             #[cfg(test)]
             cassie: test_context.0,
             #[cfg(test)]
-            owner: test_context.1,
+            controls: test_context.1,
             #[cfg(test)]
-            controls: test_context.2,
-            #[cfg(test)]
-            authority: test_context.3,
+            authority: test_context.2,
         }),
     ))
 }
@@ -867,7 +864,7 @@ async fn finish_simple_copy(
     let result = super::blocking::run_pgwire_blocking_with_error(
         Arc::clone(&cassie),
         "pgwire_copy_from_stdin",
-        move |cassie| {
+        move |_cassie| {
             binding.operation.with_publication_scope(|controls| {
                 execute::execute_decoded_operation(
                     &session_for_copy,

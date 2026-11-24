@@ -5,8 +5,6 @@ pub(super) struct CopyFromBinding {
     #[cfg(test)]
     pub(super) cassie: std::sync::Arc<crate::app::Cassie>,
     #[cfg(test)]
-    pub(super) owner: Option<crate::app::CopyCommandOwner>,
-    #[cfg(test)]
     pub(super) controls: crate::runtime::QueryExecutionControls,
     #[cfg(test)]
     pub(super) authority: crate::app::FailureAuthority,

@@ -31,7 +31,7 @@ pub mod test_hooks {
         Remaining,
     };
     pub use super::owner_check_test_hooks::{
-        after_owner_check, install_after_owner_check, Guard,
+        install_after_owner_check, Guard,
     };
     pub use super::publication_memory_test_hooks::{observe_before_ingest, Guard as MemoryGuard};
 }
@@ -241,8 +241,8 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
-    pub fn owner_for_test(&self) -> Option<CopyCommandOwner> {
-        self.owner.clone()
+    pub fn has_owner_for_test(&self) -> bool {
+        self.owner.is_some()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]

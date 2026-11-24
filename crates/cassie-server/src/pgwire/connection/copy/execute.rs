@@ -34,9 +34,8 @@ pub(super) fn execute_decoded_operation(
     let force_null = operation.force_null_indices(&copy_force_selection(&request.force_null))?;
     let force_not_null =
         operation.force_not_null_indices(&copy_force_selection(&request.force_not_null))?;
-    let statement = operation.statement();
     let _decoded_rows_memory;
-    let mut rows;
+    let rows;
     (rows, _decoded_rows_memory) = match request.format {
         CopyWireFormat::Csv => {
             let (rows, memory) = crate::app::parse_copy_csv_payload_controlled(
@@ -124,6 +123,7 @@ fn copy_decode_error(
     use crate::app::transport::copy::CopyOperationError;
     match error {
         filter::CopyWhereError::Cassie(error) => CopyOperationError::Cassie(error),
+        #[cfg(test)]
         filter::CopyWhereError::Undefined(name) => {
             CopyOperationError::Undefined(name)
         }

@@ -8,9 +8,9 @@ pub(super) mod guard_decode;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[doc(hidden)]
 pub struct PendingSchemaCleanup {
-    cleanup_id: String,
-    blocked_by_epoch: u64,
-    action: PendingSchemaCleanupAction,
+    pub(crate) cleanup_id: String,
+    pub(crate) blocked_by_epoch: u64,
+    pub(crate) action: PendingSchemaCleanupAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

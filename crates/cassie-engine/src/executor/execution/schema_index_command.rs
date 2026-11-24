@@ -6,6 +6,7 @@ use super::{
 use crate::sql::ast::{
     AlterIndexOperation, AlterIndexStatement, DropIndexStatement, ReindexStatement, ReindexTarget,
 };
+use cassie_storage::{adapter::error::CatalogObjectKind as StorageCatalogObjectKind, StorageError};
 
 pub(in crate::executor::execution) fn alter_index_storage_parameters(
     cassie: &Cassie,
@@ -40,7 +41,7 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
             if metadata.kind != catalog::IndexKind::Scalar
                 || !metadata.access_method().eq_ignore_ascii_case("btree")
             {
-                return Err(crate::app::CassieError::Unsupported(
+                return Err(StorageError::Unsupported(
                     "ALTER INDEX storage parameters are supported only for scalar btree indexes"
                         .to_string(),
                 ));
@@ -64,8 +65,8 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
     );
     match updated {
         Ok(()) => Ok(output),
-        Err(crate::app::CassieError::CatalogObjectNotFound {
-            kind: crate::app::CatalogObjectKind::Index,
+        Err(StorageError::CatalogObjectNotFound {
+            kind: StorageCatalogObjectKind::Index,
             ..
         }) if statement.if_exists => Ok(output),
         Err(error) => Err(QueryError::General(error.to_string())),
@@ -135,7 +136,7 @@ fn alter_fulltext_index(
                             | "analyzer_version"
                     )
                 }) {
-                    return Err(crate::app::CassieError::Unsupported(format!(
+                    return Err(StorageError::Unsupported(format!(
                         "unsupported fulltext index option '{key}'"
                     )));
                 }
@@ -226,7 +227,7 @@ pub(in crate::executor::execution) fn reindex(
                     if !cassie.catalog.exists(name)
                         && !cassie.catalog.is_sql_materialized_view(name)
                     {
-                        return Err(crate::app::CassieError::CollectionNotFound(name.clone()));
+                        return Err(StorageError::CollectionNotFound(name.clone()));
                     }
                     let collection = cassie
                         .catalog
@@ -238,7 +239,7 @@ pub(in crate::executor::execution) fn reindex(
                         .iter()
                         .any(|index| index.kind != catalog::IndexKind::Scalar)
                     {
-                        return Err(crate::app::CassieError::Unsupported(
+                        return Err(StorageError::Unsupported(
                             "REINDEX TABLE currently supports scalar indexes only".to_string(),
                         ));
                     }

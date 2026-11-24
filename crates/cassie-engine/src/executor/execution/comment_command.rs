@@ -34,7 +34,7 @@ pub(super) fn execute(
         cassie
             .midge
             .put_object_comment(&metadata)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie
             .metadata_write_catalog
             .register_object_comment(metadata);
@@ -42,7 +42,7 @@ pub(super) fn execute(
         cassie
             .midge
             .delete_object_comment(&address)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie
             .metadata_write_catalog
             .unregister_object_comment(&address);
@@ -98,7 +98,7 @@ fn object_address(
                 let row_schema = cassie
                     .midge
                     .row_schema(&collection.name)
-                    .map_err(QueryError::Cassie)?;
+                    .map_err(QueryError::from)?;
                 let field_id = row_schema
                     .fields
                     .iter()

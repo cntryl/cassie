@@ -211,7 +211,7 @@ fn update_graphs(
         cassie
             .midge
             .rename_property_graph(&previous.name, &graph)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie.catalog.unregister_property_graph(&previous.name);
         cassie.catalog.register_property_graph(graph);
     }
@@ -397,7 +397,7 @@ pub(super) fn drop_schema_graphs(cassie: &Cassie, schema: &str) -> Result<(), Qu
         cassie
             .midge
             .delete_property_graph(&graph.name)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie.catalog.unregister_property_graph(&graph.name);
     }
     Ok(())

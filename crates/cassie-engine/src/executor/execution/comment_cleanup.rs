@@ -15,7 +15,7 @@ pub(in crate::executor::execution) fn cleanup_relation_comments(
     cassie
         .midge
         .delete_object_comments_for_object(&database, 1259, object_oid)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie
         .metadata_write_catalog
         .unregister_relation_comments(&database, object_oid);
@@ -42,7 +42,7 @@ pub(in crate::executor::execution) fn cleanup_schema_comment(
     cassie
         .midge
         .delete_object_comment(&address)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie
         .metadata_write_catalog
         .unregister_object_comment(&address);

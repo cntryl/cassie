@@ -59,7 +59,7 @@ pub(super) fn drop_schema_domains(cassie: &Cassie, schema: &str) -> Result<(), Q
         cassie
             .midge
             .delete_domain_type(&domain.database, &domain.name)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie.catalog.unregister_domain_type(&domain.name);
     }
     Ok(())

@@ -35,7 +35,7 @@ pub(super) fn mark_source_projections_stale(
     let generation = cassie
         .midge
         .collection_generation(&source)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     if let Err(error) = crate::executor::check_materialized_projection_maintenance_failure_point() {
         record_failure_and_sync(cassie, &source, generation, &error);
         return Ok(());
@@ -71,7 +71,7 @@ pub(super) fn mark_source_projections_stale(
 }
 
 fn record_failure_and_sync(cassie: &Cassie, source: &str, generation: u64, error: &impl Display) {
-    let error = crate::app::CassieError::Execution(error.to_string());
+    let error = cassie_storage::StorageError::Execution(error.to_string());
     let _ = cassie
         .midge
         .record_materialized_projection_maintenance_failure(source, generation, &error);
@@ -82,7 +82,7 @@ pub(super) fn sync_debt_catalog(cassie: &Cassie, source: &str) -> Result<(), Que
     let Some(debt) = cassie
         .midge
         .maintenance_debt_for(source, MATERIALIZED_PROJECTION_ARTIFACT)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
     else {
         cassie
             .catalog

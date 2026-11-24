@@ -61,11 +61,11 @@ fn create_rollup_gated(
     cassie
         .midge
         .require_definition_version(meta.definition_semantics_version)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let source_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
     let rows = rollup_payload::serialize(rows, controls)?;
     ensure_source_generation(cassie, &meta, source_generation)?;
@@ -110,11 +110,11 @@ fn refresh_rollup_data(
         .get_rollup(name)
         .ok_or_else(|| QueryError::General(format!("rollup '{name}' does not exist")))?;
     ensure_current_rollup_format(&meta)?;
-    crate::sql::definition_guard::rollup(&meta).map_err(QueryError::Cassie)?;
+    crate::sql::definition_guard::rollup(&meta).map_err(QueryError::from)?;
     let source_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
     let rows = rollup_payload::serialize(rows, controls)?;
     ensure_source_generation(cassie, &meta, source_generation)?;
@@ -140,7 +140,7 @@ fn ensure_source_generation(
     let current_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     if current_generation != expected_generation {
         return Err(QueryError::General(
             "source changed while rollup output was being prepared; retry refresh".to_string(),
@@ -198,7 +198,7 @@ fn publish_rollup_rows_gated(
     let generation_after_publication = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     meta.state = if generation_after_publication == source_generation {
         RollupState::Ready
     } else {
@@ -314,9 +314,9 @@ pub(super) fn refresh_rollups_for_source(
     let generation = cassie
         .midge
         .collection_generation(source)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let refresh = check_rollup_maintenance_failure_point()
-        .map_err(QueryError::Cassie)
+        .map_err(QueryError::from)
         .and_then(|()| {
             for rollup in cassie.catalog.list_rollups_for_source(source) {
                 let incremental =
@@ -335,7 +335,7 @@ pub(super) fn refresh_rollups_for_source(
             let _ = sync_rollup_debt_catalog(cassie, source);
         }
         Err(error) => {
-            let storage_error = crate::app::CassieError::Execution(error.to_string());
+            let storage_error = cassie_storage::StorageError::Execution(error.to_string());
             let _ =
                 cassie
                     .midge
@@ -374,7 +374,7 @@ pub(super) fn try_execute_rollup_query(
     if cassie
         .midge
         .has_rollup_maintenance_debt(source)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
     {
         cassie.runtime.record_rollup_fallback("maintenance_pending");
         return Ok(None);
@@ -382,7 +382,7 @@ pub(super) fn try_execute_rollup_query(
     let source_generation = cassie
         .midge
         .collection_generation(source)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     if !rollup.is_fresh(source_generation) {
         cassie.runtime.record_rollup_fallback("stale");
         return Ok(None);
@@ -468,7 +468,7 @@ pub(super) fn sync_rollup_debt_catalog(cassie: &Cassie, source: &str) -> Result<
     let Some(debt) = cassie
         .midge
         .maintenance_debt_for(source, "rollup")
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
     else {
         cassie.catalog.unregister_maintenance_debt(source, "rollup");
         return Ok(());
@@ -832,14 +832,14 @@ fn replace_rollup_rows(
     let (database, key, value) = cassie
         .midge
         .rollup_data_write(meta)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let mut options = DocumentWriteBatchOptions::sync(cassie.midge.write_options_sync());
     options.data_database = Some(database);
     options.additional_data_writes.push((key, Some(value)));
     cassie
         .midge
         .apply_document_write_batch_with_options(&meta.output_collection, operations, &options)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie
         .refresh_cardinality_stats(&meta.output_collection)
         .map_err(|error| QueryError::General(error.to_string()))?;

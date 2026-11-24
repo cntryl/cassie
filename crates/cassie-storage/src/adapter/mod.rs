@@ -53,8 +53,9 @@ mod raw_ops;
 pub use publication::NativePublicationControlScope;
 mod transactions;
 pub use transactions::{
-    AdapterMutationError, AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
-    PreparedSequenceCursorMetadata, RetainedRowFence, StagedCheckpointChange, StorageOverlay,
+    AdapterMutationError, AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot,
+    IndexCleanupCommitGuard, IndexCleanupGateNames, PreparedSequenceCursorMetadata,
+    RetainedRowFence, StagedCheckpointChange, StorageOverlay,
 };
 
 #[doc(hidden)]
@@ -447,6 +448,7 @@ use layout::{
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
 mod maintenance;
+pub use maintenance::MaintenanceDebt;
 mod unique_constraint_cleanup;
 mod unique_constraint_publication;
 mod vector_publication;

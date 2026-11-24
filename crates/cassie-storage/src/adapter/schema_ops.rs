@@ -46,7 +46,8 @@ struct PendingFieldRename {
 }
 
 impl Midge {
-    pub(crate) fn validate_drop_column_index_metadata(
+    #[doc(hidden)]
+    pub fn validate_drop_column_index_metadata(
         &self,
         collection: &str,
         field: &str,

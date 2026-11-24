@@ -57,7 +57,7 @@ pub(super) fn drop_schema_enums(cassie: &Cassie, schema: &str) -> Result<(), Que
         cassie
             .midge
             .delete_enum_type(&metadata.database, &metadata.name)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie.catalog.unregister_enum_type(&metadata.name);
     }
     Ok(())

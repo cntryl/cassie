@@ -106,7 +106,7 @@ fn try_refresh_rollup_inner(
     let current_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     if meta.refresh_cursor.source_generation.checked_add(1) != Some(current_generation) {
         return Ok(Attempt::Fallback("generation-gap"));
     }
@@ -321,7 +321,7 @@ fn refresh_selected_groups(
     if cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
         != source_generation
     {
         return Ok(Attempt::Fallback("source-generation-changed"));
@@ -371,7 +371,7 @@ fn refresh_selected_groups(
             }
             RecomputedGroup::Fallback(reason) => return Ok(Attempt::Fallback(reason)),
         }
-        controls.check_interruption().map_err(QueryError::Cassie)?;
+        controls.check_interruption().map_err(QueryError::from)?;
     }
     publish_selected_groups(cassie, meta, operations, group_snapshots, source_generation)
 }
@@ -459,7 +459,7 @@ fn publish_selected_groups(
     let generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     if generation != source_generation {
         return Ok(Attempt::Fallback("source-generation-changed"));
     }
@@ -485,7 +485,7 @@ fn publish_selected_groups(
     let (database, key, value) = cassie
         .midge
         .rollup_data_write(&updated)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let mut options =
         crate::midge::adapter::DocumentWriteBatchOptions::sync(cassie.midge.write_options_sync());
     options.data_database = Some(database);
@@ -493,11 +493,11 @@ fn publish_selected_groups(
     cassie
         .midge
         .apply_document_write_batch_with_options(&meta.output_collection, operations, &options)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.catalog.register_rollup(updated);
     cassie
         .refresh_cardinality_stats(&meta.output_collection)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.runtime.record_rollup_refresh(meta.name.clone());
     Ok(Attempt::Refreshed(group_snapshots))
 }
@@ -512,7 +512,7 @@ fn prior_group_count(
     let Some(document) = cassie
         .midge
         .get_document(&meta.output_collection, &id)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
     else {
         return Ok(Some(0));
     };

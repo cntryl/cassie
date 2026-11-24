@@ -95,7 +95,7 @@ fn create_view_gated(
         crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
             .map_err(|error| QueryError::General(error.to_string()))?;
     crate::sql::binder::validate_and_rename_view_schema(&mut schema, &statement.column_names)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
     metadata.extension_dependency_ids = selected_extension_dependency_ids(cassie, select, &context);
@@ -111,7 +111,7 @@ fn create_view_gated(
     cassie
         .midge
         .require_definition_version(metadata.definition_semantics_version)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let output = empty_command("CREATE VIEW", controls)?;
     metadata.object_id = cassie
         .midge
@@ -408,7 +408,7 @@ pub(super) fn alter_table(
     if let (Some(session), Some((field, default_value))) = (session, staged_default) {
         session
             .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     if let Some(session) = session {
         match &statement.operation {
@@ -417,7 +417,7 @@ pub(super) fn alter_table(
                     statement.table.as_str().to_owned(),
                     next_table.clone(),
                 )])
-                .map_err(QueryError::Cassie)?,
+                .map_err(QueryError::from)?,
             AlterTableOperation::RenameColumn { from, to } => {
                 session.rename_transaction_column(statement.table.as_str(), from, to);
             }
@@ -688,7 +688,7 @@ fn alter_table_drop_column(
     if !cascade && !dependent_views.is_empty() {
         return Err(dependent_object_error("column", field, &dependent_views));
     }
-    let row_schema = cassie.midge.row_schema(table).map_err(QueryError::Cassie)?;
+    let row_schema = cassie.midge.row_schema(table).map_err(QueryError::from)?;
     let dropped_field_id = row_schema
         .fields
         .iter()
@@ -701,7 +701,7 @@ fn alter_table_drop_column(
         cassie
             .midge
             .validate_drop_column_index_metadata(table, field)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     if cascade {
         schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
@@ -740,7 +740,7 @@ fn alter_table_drop_column(
         cassie
             .midge
             .delete_object_comment(&address)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie
             .metadata_write_catalog
             .unregister_object_comment(&address);
@@ -754,7 +754,7 @@ fn alter_table_drop_column(
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
 }

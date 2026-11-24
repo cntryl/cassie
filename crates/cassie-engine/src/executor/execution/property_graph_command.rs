@@ -61,7 +61,7 @@ fn existing_graph(
         crate::sql::binder::resolve_existing_name(name.as_str(), context, |candidate| {
             cassie.catalog.get_property_graph(candidate).is_some()
         })
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     Ok(cassie.catalog.get_property_graph(&canonical))
 }
 
@@ -89,7 +89,7 @@ fn drop_graph(
     cassie
         .midge
         .delete_property_graph(&graph.name)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.catalog.unregister_property_graph(&graph.name);
     Ok(())
 }
@@ -119,7 +119,7 @@ fn rename(
     cassie
         .midge
         .rename_property_graph(&graph.name, &renamed)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.catalog.unregister_property_graph(&graph.name);
     cassie.catalog.register_property_graph(renamed);
     Ok(())
@@ -134,10 +134,10 @@ fn create(
     // `cassie_graph` schema fails here with `42710` until the operator resolves it.
     cassie
         .ensure_graph_schema(&context.database)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     let name =
         crate::sql::binder::normalize_new_relation_path(&graph.name, context, &cassie.catalog)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     if cassie.catalog.get_property_graph(&name).is_some() {
         return Err(diagnostic(
             DUPLICATE_OBJECT,
@@ -185,7 +185,7 @@ fn create(
             vertices,
             edges,
         })
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.catalog.register_property_graph(stored);
     Ok(())
 }
@@ -256,7 +256,7 @@ impl Source {
         table: &IdentifierPath,
     ) -> Result<Self, QueryError> {
         let canonical = crate::sql::binder::resolve_relation_path(table, &cassie.catalog, context)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         if cassie.catalog.get_view(&canonical).is_some() {
             return Err(diagnostic(
                 UNSUPPORTED,

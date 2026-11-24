@@ -39,12 +39,12 @@ pub(crate) fn check_fulltext_maintenance_failure_point() -> Result<(), CassieErr
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct MaintenanceDebt {
-    pub(crate) collection: String,
-    pub(crate) artifact: String,
-    pub(crate) target_generation: u64,
-    pub(crate) retry_count: u32,
-    pub(crate) last_error: Option<String>,
+pub struct MaintenanceDebt {
+    pub collection: String,
+    pub artifact: String,
+    pub target_generation: u64,
+    pub retry_count: u32,
+    pub last_error: Option<String>,
 }
 
 impl Midge {

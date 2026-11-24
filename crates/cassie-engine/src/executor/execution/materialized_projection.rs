@@ -170,7 +170,7 @@ fn create_materialized_relation(
         cassie
             .midge
             .require_definition_version(definition.definition_semantics_version)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     let output = empty_command(command_tag, controls)?;
     let created = cassie.midge.with_collection_gates(

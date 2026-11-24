@@ -8,6 +8,7 @@ use super::{Cassie, QueryError};
 use crate::app::CassieError;
 use crate::catalog::collections::CollectionStorageMode;
 use crate::runtime::QueryExecutionControls;
+use cassie_storage::StorageError;
 
 pub(super) fn set_access_method(
     cassie: &Cassie,
@@ -41,9 +42,11 @@ pub(super) fn set_access_method(
     let converted = cassie
         .midge
         .with_collection_gates(&[table.to_owned()], || {
-            let mut charge = |bytes: usize| -> Result<(), CassieError> {
-                controls.check_interruption()?;
-                reservation.try_grow(bytes)
+            let mut charge = |bytes: usize| -> Result<(), StorageError> {
+                controls
+                    .check_interruption()
+                    .map_err(|error| StorageError::EngineCallback(Box::new(error)))?;
+                reservation.try_grow(bytes).map_err(Into::into)
             };
             cassie
                 .midge

@@ -62,7 +62,7 @@ fn drop_schema_composite_types(cassie: &Cassie, schema: &str) -> Result<(), Quer
         cassie
             .midge
             .delete_composite_type(&composite.database, &composite.name)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
         cassie.catalog.unregister_composite_type(&composite.name);
     }
     Ok(())
@@ -223,7 +223,7 @@ pub(crate) fn drop_schema(
     let namespace_database = cassie
         .midge
         .get_database(&namespace_database_name)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
         .ok_or_else(|| QueryError::General("namespace database is unavailable".to_owned()))?;
     let namespace_database_family = namespace_database.physical_family;
     let transactional = session.is_some_and(CassieSession::is_transaction_active);
@@ -247,7 +247,7 @@ pub(crate) fn drop_schema(
     } else {
         cassie
             .cleanup_role_object_grants_for_target(&namespace_database_family, &target)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     cassie.catalog.unregister_namespace(&statement.schema);
 
@@ -272,12 +272,12 @@ pub(super) fn cleanup_table_role_grants_after_drop(
     let database_family = cassie
         .midge
         .get_database(&database_name)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
         .map(|database| database.physical_family)
         .ok_or_else(|| QueryError::General("table database is unavailable".to_owned()))?;
     cassie
         .cleanup_role_object_grants_for_target(&database_family, &target)
-        .map_err(QueryError::Cassie)
+        .map_err(QueryError::from)
 }
 
 /// A cascade may drop a schema's types only when nothing outside the schema
@@ -325,7 +325,7 @@ pub(crate) fn drop_database(
     let database_family = cassie
         .midge
         .get_database(&statement.name)
-        .map_err(QueryError::Cassie)?
+        .map_err(QueryError::from)?
         .map(|database| database.physical_family)
         .ok_or_else(|| QueryError::General("database metadata is unavailable".to_string()))?;
     let Some(session) = session else {
@@ -426,7 +426,7 @@ pub(crate) fn alter_schema(
             &function_renames,
             &view_renames,
         )
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     rename_schema_descendants(cassie, session, &target_schema, &next_schema)?;
     cassie.hydrate_catalog()?;
     for view in &views_to_validate {
@@ -511,7 +511,7 @@ fn rename_schema_collections(
     if let Some(session) = session {
         session
             .rename_transaction_collections(collection_renames)
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     Ok(())
 }

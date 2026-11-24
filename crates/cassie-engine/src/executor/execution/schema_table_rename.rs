@@ -20,7 +20,7 @@ pub(super) fn alter_table_rename_column(
     cassie
         .midge
         .alter_collection_rename_column_with_views(table, from, to, &rewritten_views)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     cassie.catalog.rename_collection_field(table, from, to);
     for view in rewritten_views {
         cassie.catalog.register_view(view);
@@ -29,7 +29,7 @@ pub(super) fn alter_table_rename_column(
     crate::executor::execution::property_graph_dependents::rename_column(cassie, table, from, to)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     crate::executor::execution::materialized_projection::mark_source_projections_stale(
         cassie, table,
     )?;
@@ -394,7 +394,7 @@ pub(super) fn alter_table_rename_table(
     cassie
         .midge
         .rename_collection(table, next_table)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     for view in &rewritten_views {
         cassie
             .midge
@@ -413,7 +413,7 @@ pub(super) fn alter_table_rename_table(
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)
+        .map_err(QueryError::from)
 }
 
 fn prepare_table_view_renames(
@@ -748,7 +748,7 @@ pub(super) fn alter_table_set_schema(
     cassie
         .midge
         .rename_collection(table, &next_table)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     for view in &rewritten_views {
         cassie
             .midge
@@ -758,14 +758,14 @@ pub(super) fn alter_table_set_schema(
     cassie
         .catalog
         .rename_collection(table, &next_table)
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     for view in rewritten_views {
         cassie.catalog.register_view(view);
     }
     if let Some(session) = session {
         session
             .rename_transaction_collections(&[(table.to_owned(), next_table.clone())])
-            .map_err(QueryError::Cassie)?;
+            .map_err(QueryError::from)?;
     }
     schema_sequence_rename::move_owned_table_sequences(cassie, sequence_move)?;
     crate::executor::execution::property_graph_dependents::rename_table(
@@ -776,7 +776,7 @@ pub(super) fn alter_table_set_schema(
     schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
+        .map_err(QueryError::from)?;
     crate::executor::execution::materialized_projection::mark_source_projections_stale(
         cassie, table,
     )?;

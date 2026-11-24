@@ -65,7 +65,7 @@ fn should_reject_fresh_native_transaction_acquisition_after_quarantine() {
 
     // Assert
     for result in [data, schema, temporary] {
-        let error = result.err().expect("new native transaction rejected");
+        let error = CassieError::from(result.err().expect("new native transaction rejected"));
         assert_eq!(error.descriptor().sql_state, "58030");
         assert!(error.storage_retry_kind().is_none());
     }

@@ -395,6 +395,8 @@ pub mod graph_catalog_entries;
 mod native_memory;
 pub use native_memory::{NativeMemoryConfiguration, NativeMemoryDiagnostics, NativeMemoryRuntime};
 mod storage_conversion;
+#[doc(hidden)]
+pub use storage_conversion::ConversionReport;
 pub use column_store::field_selection::ColumnFieldReadSnapshot;
 pub use column_store::field_selection::{ColumnFieldReadCounters, ColumnFieldSelection};
 pub use column_store::ColumnPruningSnapshot;
@@ -479,6 +481,8 @@ pub use scalar_indexes::{ScalarIndexBound, ScalarIndexScanHit, ScalarIndexScanRe
 mod namespaces;
 mod scan_types;
 mod schema_cleanup;
+#[doc(hidden)]
+pub use schema_cleanup::PendingSchemaCleanup;
 mod schema_ops;
 mod schema_write_control;
 #[doc(hidden)]

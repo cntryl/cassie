@@ -15,7 +15,8 @@ use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 const CONTROLLED_PAGE_ENTRIES: usize = 128;
 
 #[derive(Debug)]
-pub(crate) struct ControlledTimeSeriesIndexScanReport {
+#[doc(hidden)]
+pub struct ControlledTimeSeriesIndexScanReport {
     pub hits: Vec<TimeSeriesIndexScanHit>,
     pub entries_scanned: usize,
     pub generation: u64,
@@ -29,7 +30,8 @@ pub enum ControlledTimeSeriesIndexScanOutcome {
 }
 
 #[derive(Debug)]
-pub(crate) struct ControlledTimeSeriesDocumentScanReport {
+#[doc(hidden)]
+pub struct ControlledTimeSeriesDocumentScanReport {
     pub documents: Vec<DocumentRef>,
     pub memory: QueryMemoryReservation,
 }

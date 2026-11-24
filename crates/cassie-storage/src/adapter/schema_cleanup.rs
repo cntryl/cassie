@@ -6,10 +6,11 @@ use super::{
 pub(super) mod guard_decode;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub(crate) struct PendingSchemaCleanup {
-    pub cleanup_id: String,
-    pub blocked_by_epoch: u64,
-    pub action: PendingSchemaCleanupAction,
+#[doc(hidden)]
+pub struct PendingSchemaCleanup {
+    cleanup_id: String,
+    blocked_by_epoch: u64,
+    action: PendingSchemaCleanupAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

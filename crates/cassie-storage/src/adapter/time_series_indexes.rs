@@ -15,7 +15,8 @@ use metadata::{BucketIdentity, TimeSeriesManifest};
 #[path = "time_series_indexes/controlled.rs"]
 mod controlled;
 pub use controlled::{
-    ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesIndexScanOutcome,
+    ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesDocumentScanReport,
+    ControlledTimeSeriesIndexScanOutcome, ControlledTimeSeriesIndexScanReport,
 };
 
 pub(crate) const INCOMPLETE_BUCKET_MEMBERSHIP: &str = "incomplete-bucket-membership";

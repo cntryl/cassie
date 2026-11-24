@@ -69,7 +69,8 @@ pub(crate) type RewriteCharge<'a> = &'a mut dyn FnMut(usize) -> Result<(), Cassi
 
 /// Number of rows a conversion rewrote.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ConversionReport {
+#[doc(hidden)]
+pub struct ConversionReport {
     pub rows: usize,
 }
 

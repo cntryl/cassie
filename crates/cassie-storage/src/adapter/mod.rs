@@ -426,6 +426,8 @@ mod operational;
 mod operator_feedback;
 mod projections;
 mod query_scan_control;
+#[cfg(test)]
+mod request_test_support;
 pub use query_scan_control::{
     current_query_scan_control_scope, should_cancel_controlled_query_scan, QueryScanControlScope,
 };

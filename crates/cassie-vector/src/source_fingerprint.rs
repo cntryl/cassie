@@ -1,4 +1,4 @@
-use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
+use crate::types::{DistanceMetric, NormalizedVectorRecord};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0100_0000_01b3;
@@ -106,7 +106,7 @@ impl StableHasher {
 #[cfg(test)]
 mod tests {
     use super::normalized_vector_source_fingerprint;
-    use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
+    use crate::types::{DistanceMetric, NormalizedVectorRecord};
 
     fn record(id: &str, values: Vec<f32>) -> NormalizedVectorRecord {
         NormalizedVectorRecord {

@@ -27,10 +27,16 @@ flowchart TD
     end
 
     subgraph accelerators["Search, vector, AI, and analytics"]
-        search["src/search\nBM25, analyzer, inverted index"]
-        vector["src/vector\ndistance metrics, HNSW, IVFFlat"]
+        search["src/search\nfull-text query evaluation"]
+        vector["src/vector\nHNSW and vector text input"]
         hybrid["src/hybrid\ntext plus vector scoring"]
         embeddings["src/embeddings\nprovider contracts and validation"]
+    end
+
+    subgraph workspace_crates["Workspace libraries"]
+        core["cassie-core\nshared scalar and identity types"]
+        lexical["cassie-search\nlexical analysis, BM25, inverted index"]
+        vector_kernels["cassie-vector\ndistance metrics, IVFFlat, index types"]
     end
 
     subgraph storage_layer["Storage"]
@@ -63,6 +69,9 @@ flowchart TD
     types --> planner
     types --> executor
     types --> midge
+    types --> core
+    search --> lexical
+    vector --> vector_kernels
 ```
 
 Primary evidence:
@@ -184,7 +193,7 @@ flowchart TD
     result --> metrics["EXPLAIN and RuntimeState metrics\naccess_path, fallback_reason,\ntop_k_mode, join_strategy"]
 ```
 
-The registry order is implemented in [src/executor/execution/dispatch.rs](../src/executor/execution/dispatch.rs). The required access-path vocabulary and diagnostics are documented in [Performance Contracts](performance-contracts.md). Storage-side accelerator modules live under [src/midge/adapter](../src/midge/adapter/mod.rs), with search and vector logic in [src/search](../src/search/mod.rs), [src/vector](../src/vector/mod.rs), and [src/hybrid](../src/hybrid/mod.rs).
+The registry order is implemented in [src/executor/execution/dispatch.rs](../src/executor/execution/dispatch.rs). The required access-path vocabulary and diagnostics are documented in [Performance Contracts](performance-contracts.md). Storage-side accelerator modules live under [src/midge/adapter](../src/midge/adapter/mod.rs). Lexical analysis lives in [cassie-search](../crates/cassie-search/src/lib.rs), and distance metrics and IVFFlat live in [cassie-vector](../crates/cassie-vector/src/lib.rs). The server owns [full-text query evaluation](../src/search/query/mod.rs), [HNSW](../src/vector/hnsw.rs), and [hybrid scoring](../src/hybrid/mod.rs).
 
 ## Write And Admin Flows
 

@@ -248,6 +248,8 @@ dependencies = [
  "argon2",
  "bytes",
  "cassie-core",
+ "cassie-search",
+ "cassie-vector",
  "chrono",
  "cntryl-lexkey",
  "cntryl-midge",
@@ -269,7 +271,6 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
  "reqwest",
- "rust-stemmers",
  "rustls",
  "serde",
  "serde_json",
@@ -338,6 +339,21 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "cassie-search"
+version = "0.2.0"
+dependencies = [
+ "rust-stemmers",
+ "serde",
+]
+
+[[package]]
+name = "cassie-vector"
+version = "0.2.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

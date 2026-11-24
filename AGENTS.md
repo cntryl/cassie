@@ -24,8 +24,11 @@ cargo fmt --all -- --check
 | `src/pgwire/` | PostgreSQL wire protocol server (port 5432) |
 | `src/rest/` | HTTP REST API (port 8080) |
 | `src/embeddings/` | Providers: openai, ollama, tei, voyage, cohere, local |
-| `src/vector/` | Distance metrics (cosine, dot, L2) + HNSW, IVFFlat |
-| `src/search/` | BM25 full-text search, inverted index |
+| `crates/cassie-core/` | Shared scalar input, formatting, and identity types |
+| `crates/cassie-search/` | Lexical analysis, tokenization, BM25, in-memory inverted index |
+| `crates/cassie-vector/` | Distance metrics, normalization, brute force, IVFFlat, vector index types |
+| `src/vector/` | HNSW, vector text input, and vector compatibility exports |
+| `src/search/` | Full-text query evaluation and lexical compatibility exports |
 | `src/types/` | Value types, schema, row encoding |
 | `src/hybrid/` | Hybrid text+vector scoring |
 | `tests/` | Subsystem integration suites plus a shared fixture library in `tests/support/` |
@@ -44,7 +47,7 @@ Small, well-organized files are a core architecture requirement. Future feature 
 - Use this audit when planning large work:
 
 ```sh
-find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr | head -40
+find src crates tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr | head -40
 ```
 
 ## Testing

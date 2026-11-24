@@ -29,7 +29,7 @@ mod tests {
         ];
 
         // Act
-        let selected = top_k(&query, candidates, 2, crate::vector::l2_distance);
+        let selected = top_k(&query, candidates, 2, crate::l2_distance);
 
         // Assert
         assert_eq!(

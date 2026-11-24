@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 #[must_use]
 pub fn tokenize(input: &str) -> Vec<String> {
-    crate::search::analyzer::AnalyzerConfig::default().analyze(input)
+    crate::analyzer::AnalyzerConfig::default().analyze(input)
 }
 
 pub fn stop_words() -> &'static HashSet<&'static str> {

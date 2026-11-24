@@ -14,6 +14,8 @@ replay-benchmark-observation = []
 
 [dependencies]
 cassie-core = { path = "crates/cassie-core" }
+cassie-search = { path = "crates/cassie-search" }
+cassie-vector = { path = "crates/cassie-vector" }
 num-traits = "0.2.19"
 num-bigint = "0.5.1"
 num-integer = "0.1.47"
@@ -48,7 +50,6 @@ regex-automata = "0.4.18"
 regex-syntax = "0.8.11"
 fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
 sql-json-path = "0.2.0"
-rust-stemmers = "1.2.0"
 
 [dev-dependencies]
 cntryl-stress = "0.5.1"
@@ -275,8 +276,8 @@ debug = "line-tables-only"
 opt-level = 0
 
 [workspace]
-members = ["crates/cassie-core", "tests"]
-default-members = [".", "tests"]
+members = ["crates/cassie-core", "crates/cassie-search", "crates/cassie-vector", "tests"]
+default-members = [".", "crates/cassie-core", "crates/cassie-search", "crates/cassie-vector", "tests"]
 resolver = "2"
 
 [workspace.lints.clippy]

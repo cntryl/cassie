@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::embeddings::{HnswIndexOptions, IvfFlatIndexOptions, VectorIndexType};
+use crate::types::{HnswIndexOptions, IvfFlatIndexOptions, VectorIndexType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedVectorIndexOptions {

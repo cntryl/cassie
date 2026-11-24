@@ -1,9 +1,6 @@
-pub mod analyzer;
-pub mod bm25;
-pub mod inverted_index;
 pub mod query;
-pub mod tokenizer;
 
-pub use analyzer::TokenizedText;
-pub use bm25::{bm25_score, render_snippet, snippet};
-pub use tokenizer::tokenize;
+pub use cassie_search::{
+    analyzer, bm25, bm25_score, inverted_index, render_snippet, snippet, tokenize, tokenizer,
+    TokenizedText,
+};

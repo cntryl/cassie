@@ -124,7 +124,7 @@ impl AnalyzerConfig {
         } else {
             normalized
         };
-        let stop_words = crate::search::tokenizer::stop_words();
+        let stop_words = crate::tokenizer::stop_words();
         let stemmer = self.stemmer();
         tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
@@ -318,7 +318,7 @@ impl AnalyzerConfig {
     #[must_use]
     pub fn token_occurrences(&self, input: &str) -> Vec<TokenOccurrence> {
         let (folded, origins) = self.fold_with_origins(input);
-        let stop_words = crate::search::tokenizer::stop_words();
+        let stop_words = crate::tokenizer::stop_words();
         let stemmer = self.stemmer();
         let mut occurrences = Vec::new();
         let mut position = 0u32;

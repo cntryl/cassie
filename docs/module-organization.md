@@ -4,6 +4,24 @@ Cassie keeps module boundaries small so feature work can be reviewed and tested 
 
 For a diagrammed map of the current module, execution, storage, runtime, and operational surfaces, see [Architecture Diagrams](architecture-diagrams.md).
 
+## Workspace crates
+
+The root `cassie` package composes the server, SQL engine, and Midge adapter.
+The library crates under `crates/` have no dependency on the server or on Midge.
+
+| Crate | Owns |
+| --- | --- |
+| [`cassie-core`](../crates/cassie-core/src/lib.rs) | Shared scalar input, formatting, and identity types |
+| [`cassie-search`](../crates/cassie-search/src/lib.rs) | Lexical analysis, tokenization, BM25 scoring, and the in-memory inverted index |
+| [`cassie-vector`](../crates/cassie-vector/src/lib.rs) | Vector metrics, normalization, brute force, IVFFlat, and index metadata and record types |
+
+The root package re-exports moved items through `cassie::types`, `cassie::search`,
+`cassie::vector`, and `cassie::embeddings`. It owns full-text query evaluation
+and storage-backed vocabulary resolution, HNSW with query cancellation and
+memory accounting, and embedding provider orchestration. The default workspace
+members include the library crates so `cargo test --locked` runs their unit
+tests alongside the existing integration suites in `tests/`.
+
 ## Targets
 
 - Source files should stay under 1,000 lines.

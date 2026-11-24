@@ -267,4 +267,3 @@ fn should_describe_selected_standard_catalog_object_ids_as_oid() {
         vec![26; 10]
     );
 }
-

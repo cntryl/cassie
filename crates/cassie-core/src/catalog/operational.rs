@@ -35,4 +35,3 @@ pub struct OperationalAssignmentMeta {
     pub routing_hint: Option<String>,
     pub updated_ms: u64,
 }
-

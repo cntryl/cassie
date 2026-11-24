@@ -41,5 +41,3 @@ impl EngineIndexMetaExt for IndexMeta {
     }
 
 }
-
-

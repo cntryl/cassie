@@ -64,4 +64,3 @@ impl EnumTypeMeta {
         local_name(&self.name)
     }
 }
-

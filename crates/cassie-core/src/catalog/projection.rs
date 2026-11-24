@@ -256,4 +256,3 @@ pub struct ProjectionSwapMeta {
     pub unsafe_override: bool,
     pub last_error: Option<String>,
 }
-

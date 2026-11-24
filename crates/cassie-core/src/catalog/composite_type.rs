@@ -91,4 +91,3 @@ pub fn data_type_depends_on(data_type: &DataType, oid: u32) -> bool {
         _ => false,
     }
 }
-

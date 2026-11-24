@@ -106,4 +106,3 @@ impl PropertyGraphMeta {
         vertex_key || edge_column
     }
 }
-

@@ -228,4 +228,3 @@ pub struct ColumnBatchRow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IndexKind { Scalar, FullText, Vector, Hybrid, Column, TimeSeries }
-

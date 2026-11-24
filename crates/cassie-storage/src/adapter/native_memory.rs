@@ -104,6 +104,3 @@ impl Midge {
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

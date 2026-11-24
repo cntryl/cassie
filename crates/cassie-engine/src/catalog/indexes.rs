@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::types::Value;
 pub use cassie_core::catalog::declarations::IndexKind;
+pub use cassie_core::catalog::storage_metadata::{ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum, ColumnBatchRow, ColumnBatchSegmentMeta};
 
 #[cfg(test)]
 #[path = "indexes_identity_tests.rs"]
@@ -35,82 +35,6 @@ pub struct IndexMeta {
     pub kind: IndexKind,
     pub unique: bool,
     pub options: std::collections::BTreeMap<String, String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchMetadata {
-    pub metadata_format_version: u32,
-    pub summary_format_version: u32,
-    pub manifest_revision: u64,
-    pub next_segment_id: u64,
-    pub collection: String,
-    pub index_name: String,
-    pub schema_version: u32,
-    /// Durable collection generation represented by the batch payloads.
-    pub built_generation: u64,
-    pub source_row_count: usize,
-    pub fields: Vec<String>,
-    pub segment_size: usize,
-    pub segments: Vec<ColumnBatchSegmentMeta>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchSegmentMeta {
-    pub segment_id: u64,
-    pub revision: u64,
-    pub row_id_start: Option<String>,
-    /// Exclusive upper row-ID bound. `None` denotes the final unbounded range.
-    pub row_id_end: Option<String>,
-    pub row_count: usize,
-    pub null_bitmap_available: bool,
-    pub encoding_version: u32,
-    pub row_ids: ColumnBatchChunkMeta,
-    pub field_chunks: std::collections::BTreeMap<String, ColumnBatchChunkMeta>,
-    pub summary_checksum: String,
-    pub summaries: std::collections::BTreeMap<String, ColumnBatchFieldSummary>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchFieldSummary {
-    pub non_null_count: usize,
-    pub numeric_count: usize,
-    pub min: Option<Value>,
-    pub max: Option<Value>,
-    pub sum: ColumnBatchNumericSum,
-    pub integer_total: Option<i128>,
-    pub integer_prefix_min: Option<i128>,
-    pub integer_prefix_max: Option<i128>,
-    pub avg_sum: Option<f64>,
-    pub distinct_hint: Option<usize>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub enum ColumnBatchNumericSum {
-    Empty,
-    FloatEmpty,
-    Integer(i64),
-    Float(f64),
-    IntegerOverflow,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ColumnBatchChunkMeta {
-    pub logical_type: String,
-    pub codec_id: u8,
-    pub codec_name: String,
-    pub codec_version: u32,
-    pub decoded_len: usize,
-    pub encoded_len: usize,
-    pub value_count: usize,
-    pub null_count: usize,
-    pub checksum_sha256: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchRow {
-    pub row_id: String,
-    pub values: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 impl IndexMeta {

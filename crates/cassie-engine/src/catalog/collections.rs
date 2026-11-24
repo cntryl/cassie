@@ -3,46 +3,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::catalog::derive_scoped_name;
-pub use cassie_core::catalog::declarations::CollectionStorageMode;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CollectionMeta {
-    pub name: String,
-    #[serde(default)]
-    pub storage_id: u64,
-    /// Allocator-backed `pg_type.oid` of the table's row type (#828); zero
-    /// until the table is created. Renames and ALTERs keep it.
-    #[serde(default)]
-    pub row_type_object_id: u64,
-    /// Allocator-backed `pg_type.oid` of the row type's `_name` array type.
-    #[serde(default)]
-    pub row_array_object_id: u64,
-    /// Layout revision of the row type: the table's row-schema version, set at
-    /// hydration and after every ALTER TABLE. Never persisted here.
-    #[serde(skip, default = "initial_row_type_revision")]
-    pub row_type_revision: u64,
-    /// PostgreSQL's `pg_class.relhasindex` remains true after an index drop
-    /// until maintenance clears it. Cassie has no selected VACUUM path, so
-    /// this stays set for the relation's lifetime once index cleanup commits.
-    #[serde(default)]
-    pub has_ever_had_indexes: bool,
-    pub description: Option<String>,
-    #[serde(default)]
-    pub storage_mode: CollectionStorageMode,
-    #[serde(default = "default_collection_storage_version")]
-    pub storage_version: u16,
-}
-
-/// Per-table storage format revision this binary can read and write.
-pub const SUPPORTED_COLLECTION_STORAGE_VERSION: u16 = 1;
-
-impl CollectionMeta {
-    /// Whether this binary understands the table's persisted storage format.
-    #[must_use]
-    pub fn has_supported_storage_version(&self) -> bool {
-        self.storage_version == SUPPORTED_COLLECTION_STORAGE_VERSION
-    }
-}
+pub use cassie_core::catalog::storage_metadata::{
+    CollectionMeta, CollectionStorageMode, NamespaceMeta, SUPPORTED_COLLECTION_STORAGE_VERSION,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -379,51 +343,6 @@ pub struct ProjectionMeta {
     /// reused. Metadata written before this field existed reads as zero.
     #[serde(default)]
     pub version_high_water: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NamespaceMeta {
-    pub name: String,
-    pub description: Option<String>,
-    /// Stable identity allocated at creation; renames keep it.
-    #[serde(default)]
-    pub object_id: u64,
-    /// The marker of a schema the system owns (the reserved `cassie_graph`
-    /// schema); `None` for every user-created schema.
-    #[serde(default)]
-    pub system_owner: Option<String>,
-}
-
-impl CollectionMeta {
-    pub fn new(name: impl Into<String>, description: Option<String>) -> Self {
-        Self::new_with_storage_mode(name, description, CollectionStorageMode::RowStore)
-    }
-
-    pub fn new_with_storage_mode(
-        name: impl Into<String>,
-        description: Option<String>,
-        storage_mode: CollectionStorageMode,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            storage_id: 0,
-            row_type_object_id: 0,
-            row_array_object_id: 0,
-            row_type_revision: 1,
-            has_ever_had_indexes: false,
-            description,
-            storage_mode,
-            storage_version: default_collection_storage_version(),
-        }
-    }
-}
-
-fn initial_row_type_revision() -> u64 {
-    1
-}
-
-fn default_collection_storage_version() -> u16 {
-    SUPPORTED_COLLECTION_STORAGE_VERSION
 }
 
 impl ProjectionMeta {

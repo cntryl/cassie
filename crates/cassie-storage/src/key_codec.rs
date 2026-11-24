@@ -1,6 +1,6 @@
 //! Cassie persisted key framing backed by the published LexKey encoder.
 
-use cntryl_lexkey::{Encoder, LexKey};
+use cntryl_lexkey::Encoder;
 
 /// Encodes one Cassie family key using the established root and layout marker.
 pub fn encode_key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {

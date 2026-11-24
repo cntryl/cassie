@@ -150,7 +150,10 @@ impl Midge {
             if !Self::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
                 continue;
             }
-            let Some(values) = Self::scalar_index_key_values(index, payload, row_schema)? else {
+            let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+            let Some(values) =
+                Self::scalar_index_key_values(index, payload, row_schema, &evaluator)?
+            else {
                 continue;
             };
             let key = key_encoding::unique_index_reservation_key_for(

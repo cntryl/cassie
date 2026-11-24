@@ -193,7 +193,8 @@ pub(super) fn find_expression_index_conflict(
     if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
         return Ok(None);
     }
-    let Some(key) = Midge::scalar_index_key_values(index, payload, row_schema)? else {
+    let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
+    let Some(key) = Midge::scalar_index_key_values(index, payload, row_schema, &evaluator)? else {
         return Ok(None);
     };
     let staged_snapshot = session.map(|session| session.staged_write_snapshot(table));
@@ -239,7 +240,11 @@ pub(super) fn expression_index_key_matches(
     if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
         return Ok(false);
     }
-    Ok(Midge::scalar_index_key_values(index, payload, row_schema)?.as_deref() == Some(key))
+    let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
+    Ok(
+        Midge::scalar_index_key_values(index, payload, row_schema, &evaluator)?.as_deref()
+            == Some(key),
+    )
 }
 
 /// The first row conflicting on any unique key, for an untargeted

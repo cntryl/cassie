@@ -6,6 +6,7 @@ use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
 use crate::types::Value;
+use cassie_storage::ScalarExpressionEvaluator;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 
@@ -192,7 +193,8 @@ impl Midge {
                 let reservation_values = if index.unique
                     && Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)?
                 {
-                    Self::scalar_index_key_values(index, &canonical, &row_schema)?
+                    let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+                    Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
                 } else {
                     None
                 };
@@ -232,7 +234,9 @@ impl Midge {
             if !Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)? {
                 continue;
             }
-            let Some(values) = Self::scalar_index_key_values(index, &canonical, &row_schema)?
+            let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+            let Some(values) =
+                Self::scalar_index_key_values(index, &canonical, &row_schema, &evaluator)?
             else {
                 continue;
             };
@@ -333,7 +337,10 @@ impl Midge {
             return Ok(None);
         }
 
-        let Some(key_values) = Self::scalar_index_key_values(index, payload, row_schema)? else {
+        let evaluator = Self::scalar_index_expression_evaluator(&index.name);
+        let Some(key_values) =
+            Self::scalar_index_key_values(index, payload, row_schema, &evaluator)?
+        else {
             return Ok(None);
         };
         let (relation_id, index_id) = Self::scalar_index_storage_ids(index)?;
@@ -351,6 +358,7 @@ impl Midge {
         index: &IndexMeta,
         payload: &serde_json::Value,
         row_schema: &RowSchema,
+        evaluator: &impl ScalarExpressionEvaluator<Error = CassieError>,
     ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {
         let mut values = Vec::new();
         for field in index.normalized_fields() {
@@ -375,26 +383,30 @@ impl Midge {
         }
 
         let row = payload_to_row(payload, row_schema);
-        let user_functions = HashMap::new();
-        for raw_expression in expressions {
-            let expression = Self::scalar_index_expression(&index.name, &raw_expression)?;
-            let value = filter::evaluate_expr_value(
-                &row,
-                &expression,
-                &[],
-                None,
-                &user_functions,
-                None,
-                None,
-            )
-            .map_err(CassieError::from)?;
-            if matches!(value, Value::Null) && !index.nulls_not_distinct() {
-                return Ok(None);
+        let expression_values = cassie_storage::evaluate_expression_index_values(
+            &expressions,
+            &row,
+            index.nulls_not_distinct(),
+            evaluator,
+        )
+        .map_err(|error| match error {
+            cassie_storage::ScalarExpressionEvaluationError::Evaluation(error) => error,
+            cassie_storage::ScalarExpressionEvaluationError::UnsupportedValue(message) => {
+                CassieError::Unsupported(message)
             }
-            values.push(query_value_to_json(value)?);
-        }
+        })?;
+        let Some(expression_values) = expression_values else {
+            return Ok(None);
+        };
+        values.extend(expression_values);
 
         Ok(Some(values))
+    }
+
+    pub(crate) fn scalar_index_expression_evaluator(
+        index_name: &str,
+    ) -> impl ScalarExpressionEvaluator<Error = CassieError> + '_ {
+        EngineScalarExpressionEvaluator { index_name }
     }
 
     fn scalar_index_expression(index_name: &str, raw: &str) -> Result<Expr, CassieError> {
@@ -590,37 +602,22 @@ fn json_to_query_value(value: &serde_json::Value, data_type: Option<&DataType>) 
     Value::Json(value.clone())
 }
 
-fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
-    match value {
-        Value::Null => Ok(serde_json::Value::Null),
-        Value::Bool(value) => Ok(serde_json::Value::Bool(value)),
-        Value::Int64(value) => Ok(serde_json::Value::Number(value.into())),
-        Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map(serde_json::Value::Number)
-            .ok_or_else(|| {
-                CassieError::Unsupported(
-                    "non-finite scalar index expression values are not supported".to_string(),
-                )
-            }),
-        Value::String(value) => Ok(serde_json::Value::String(value)),
-        Value::Array(value) => Ok(value.to_storage_json()),
-        Value::Typed(value) => Ok(value.to_json()),
-        Value::Vector(value) => value
-            .values
-            .into_iter()
-            .map(|value| {
-                serde_json::Number::from_f64(f64::from(value))
-                    .map(serde_json::Value::Number)
-                    .ok_or_else(|| {
-                        CassieError::Unsupported(
-                            "non-finite scalar index expression values are not supported"
-                                .to_string(),
-                        )
-                    })
-            })
-            .collect::<Result<_, _>>()
-            .map(serde_json::Value::Array),
-        Value::Json(value) => Ok(value),
+struct EngineScalarExpressionEvaluator<'a> {
+    index_name: &'a str,
+}
+
+impl ScalarExpressionEvaluator for EngineScalarExpressionEvaluator<'_> {
+    type Error = CassieError;
+
+    fn evaluate(
+        &self,
+        stored_expression: &str,
+        row: &[(String, Value)],
+    ) -> Result<Value, Self::Error> {
+        let expression = Midge::scalar_index_expression(self.index_name, stored_expression)?;
+        let user_functions = HashMap::new();
+        filter::evaluate_expr_value(row, &expression, &[], None, &user_functions, None, None)
+            .map_err(CassieError::from)
     }
 }
 

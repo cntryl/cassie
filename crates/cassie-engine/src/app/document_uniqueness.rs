@@ -91,6 +91,7 @@ impl Cassie {
                 continue;
             }
             let fields = index.normalized_fields();
+            let evaluator = Midge::scalar_index_expression_evaluator(&index.name);
             let key_matches = |candidate: &serde_json::Value| -> Result<Option<Vec<serde_json::Value>>, CassieError> {
                 if !Midge::payload_matches_scalar_index_predicate(&index, candidate, &row_schema)?
                     || (!index.nulls_not_distinct()
@@ -104,7 +105,7 @@ impl Cassie {
                 {
                     return Ok(None);
                 }
-                Midge::scalar_index_key_values(&index, candidate, &row_schema)
+                Midge::scalar_index_key_values(&index, candidate, &row_schema, &evaluator)
             };
             let Some(key) = key_matches(payload)? else {
                 continue;

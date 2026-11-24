@@ -19,16 +19,14 @@ pub use validate::{validate_record, GraphTypeError};
 
 use crate::types::composite::CompositeType;
 
-/// The reserved schema that owns the graph types and functions.
-pub const GRAPH_SCHEMA: &str = "cassie_graph";
+pub use cassie_core::types::graph_identity::{GRAPH_SCHEMA, GRAPH_SCHEMA_OWNER};
+
 /// Local name of the typed key component.
 pub const KEY_PART_TYPE: &str = "graph_key_part";
 /// Local name of the durable element reference.
 pub const ELEMENT_REF_TYPE: &str = "graph_element_ref";
 /// Local name of the ordered path.
 pub const PATH_TYPE: &str = "graph_path";
-/// The ownership marker stored on the reserved namespace.
-pub const GRAPH_SCHEMA_OWNER: &str = "cassie:graph-types:v1";
 
 /// Which reserved composite type a descriptor names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

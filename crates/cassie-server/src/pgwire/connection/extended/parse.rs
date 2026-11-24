@@ -77,7 +77,7 @@ pub(super) async fn handle_parse(
             move |cassie| {
                 let started = std::time::Instant::now();
                 let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
-                    &cassie.runtime.limits(),
+                    &cassie.runtime().limits(),
                     started,
                     handle,
                 );
@@ -87,7 +87,7 @@ pub(super) async fn handle_parse(
                         .prepare_transaction_analysis_view(&session, &parsed, false, &controls)?;
                     admit(&cassie, &session, parsed, &parameter_type_oids, &controls)
                 })();
-                cassie.runtime.record_query_memory(&controls);
+                cassie.runtime().record_query_memory(&controls);
                 Ok(result)
             },
         )

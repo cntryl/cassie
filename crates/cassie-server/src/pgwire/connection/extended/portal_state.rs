@@ -416,7 +416,9 @@ pub(super) async fn write_streaming_result(
         Some(
             state
                 .portal_memory_controls
-                .reserve_query_memory(std::mem::size_of::<crate::midge::adapter::MidgeRowCursor>())
+                .reserve_query_memory(
+                    std::mem::size_of::<crate::app::transport::portal::RetainedPortal>(),
+                )
                 .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))
                 .map_err(|error| ExtendedQueryError::cassie(&error))?,
         )

@@ -142,7 +142,7 @@ pub(crate) fn execute_converted<T>(
 ///
 /// Returns an error when the request body is invalid or SQL validation fails.
 pub fn validate(cassie: &Cassie, body: &[u8]) -> Result<QueryValidateResponse, CassieError> {
-    let session = cassie.create_session(&cassie.auth_user, None);
+    let session = cassie.create_session(cassie.default_network_user(), None);
     validate_with_session(cassie, &session, body)
 }
 
@@ -243,7 +243,7 @@ pub(crate) fn explain_converted<T>(
 /// Panics when persisted catalog object names violate the canonical
 /// `database.schema.name` invariant.
 pub fn schema(cassie: &Cassie) -> QuerySchemaResponse {
-    schema_for_database(cassie, None, &cassie.default_database)
+    schema_for_database(cassie, None, cassie.default_database())
         .expect("catalog metadata must use canonical relation names")
 }
 
@@ -254,7 +254,7 @@ pub(crate) fn schema_with_session(
     cassie.ensure_session_database_access(session)?;
     let database = session
         .current_database()
-        .unwrap_or(&cassie.default_database);
+        .unwrap_or(cassie.default_database());
     schema_for_database(cassie, Some(session), database)
 }
 

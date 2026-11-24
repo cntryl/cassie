@@ -32,8 +32,8 @@ pub(crate) fn list(
     if let Some(authenticated_user) = authenticated_user {
         let normalized = normalize_role_name(authenticated_user);
         let role = cassie.lookup_role(&normalized)?.or_else(|| {
-            (normalized == normalize_role_name(&cassie.auth_user))
-                .then(|| RoleMeta::bootstrap_admin(&cassie.auth_user, None))
+            (normalized == normalize_role_name(cassie.default_network_user()))
+                .then(|| RoleMeta::bootstrap_admin(cassie.default_network_user(), None))
         });
         let role = role.ok_or(CassieError::Unauthorized)?;
         databases.retain(|database| role.can_access_database(&database.name));

@@ -103,7 +103,7 @@ pub(super) fn parse_binary_payload(
     parse_binary_payload_in_database(
         payload,
         cassie,
-        &cassie.default_database,
+        cassie.default_database(),
         statement,
         controls,
     )

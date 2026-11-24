@@ -56,7 +56,7 @@ pub(super) fn for_slots(
     }
     let database = session
         .current_database()
-        .unwrap_or(&cassie.default_database);
+        .unwrap_or(cassie.default_database());
     parameter_types
         .iter()
         .map(|oid| RecordParameter::for_oid(cassie, database, *oid))

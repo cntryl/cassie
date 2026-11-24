@@ -147,7 +147,7 @@ fn should_return_owned_numeric_error_response_through_public_route_request() {
         );
         cassie.startup().expect("startup");
         let request_body = serde_json::json!({
-            "database": cassie.default_database.clone(),
+            "database": cassie.default_database(),
             "sql": "SELECT CAST('not_numeric' AS NUMERIC)"
         })
         .to_string();

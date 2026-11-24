@@ -31,7 +31,7 @@ pub fn list(cassie: &Cassie) -> Vec<String> {
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
-    create_in_namespace(cassie, &cassie.default_database, DEFAULT_SCHEMA, body)
+    create_in_namespace(cassie, cassie.default_database(), DEFAULT_SCHEMA, body)
 }
 
 /// Creates a collection in the current database and first schema on a session's search path.
@@ -47,7 +47,7 @@ pub fn create_for_session(
     cassie.ensure_session_database_access(session)?;
     let database = session
         .current_database()
-        .unwrap_or(cassie.default_database.as_str());
+        .unwrap_or(cassie.default_database());
     let search_path = cassie.binding_search_path(session);
     let schema = search_path.first().map_or(DEFAULT_SCHEMA, String::as_str);
     create_in_namespace(cassie, database, schema, body)

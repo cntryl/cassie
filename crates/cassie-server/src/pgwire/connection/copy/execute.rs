@@ -14,6 +14,134 @@ pub(super) struct CopyCompletion {
     pub(super) notices: Vec<String>,
 }
 
+/// Decodes the wire payload, then delegates row semantics and publication to
+/// the engine's admitted typed COPY operation.
+pub(super) fn execute_decoded_operation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    request: &CopyRequest,
+    operation: &crate::app::transport::copy::CopyFromOperation,
+    payload: &[u8],
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> Result<CopyCompletion, crate::app::transport::copy::CopyOperationError> {
+    use crate::app::transport::copy::{CopyExecutionOptions, CopyHeaderMode};
+
+    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+        .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
+    let decoded_payload = payload_owner::decode_copy_payload(
+        payload,
+        request.encoding.as_deref(),
+        &controls,
+    )?;
+    let payload = decoded_payload
+        .as_ref()
+        .map_or(payload, payload_owner::DecodedPayload::as_slice);
+    let force_null = operation.force_null_indices(&copy_force_selection(&request.force_null))?;
+    let force_not_null =
+        operation.force_not_null_indices(&copy_force_selection(&request.force_not_null))?;
+    let statement = operation.statement();
+    let _decoded_rows_memory;
+    let mut rows;
+    (rows, _decoded_rows_memory) = match request.format {
+        CopyWireFormat::Csv => {
+            let (rows, memory) = crate::app::parse_copy_csv_payload_controlled(
+                payload,
+                crate::app::CopyCsvOptions {
+                    delimiter: request.csv_delimiter(),
+                    quote: request.quote,
+                    escape: request.escape,
+                    null_marker: request.null_marker(),
+                    force_null: &force_null,
+                    force_not_null: &force_not_null,
+                },
+                request.null_marker().is_empty(),
+                &controls,
+            )?;
+            (rows, Some(memory))
+        }
+        CopyWireFormat::Text => {
+            let (rows, memory) = input::parse_text_payload(
+                payload,
+                request.text_delimiter(),
+                request.null_marker(),
+                &controls,
+            )?;
+            (rows, Some(memory))
+        }
+        CopyWireFormat::Binary => {
+            let database = session
+                .current_database()
+                .unwrap_or(cassie.default_database());
+            let (rows, memory) = input::parse_binary_payload_in_database(
+                payload,
+                cassie,
+                database,
+                statement,
+                &controls,
+            )
+            .map_err(copy_decode_error)?;
+            (rows, Some(memory))
+        }
+    };
+    let header = match request.header {
+        CopyHeader::None => CopyHeaderMode::None,
+        CopyHeader::Skip => CopyHeaderMode::Skip,
+        CopyHeader::Match => CopyHeaderMode::Match,
+    };
+    let result = operation.execute_decoded_rows(
+        session,
+        rows,
+        CopyExecutionOptions {
+            header,
+            where_clause: request.where_clause.as_deref(),
+            default_marker: request.default_marker.as_deref(),
+            on_error_ignore: request.on_error == CopyOnError::Ignore,
+            reject_limit: request.reject_limit,
+        },
+        cancellation,
+    )?;
+    let notices = if request.log_verbosity == CopyLogVerbosity::Verbose {
+        skipped_row_notices(result.skipped.iter().map(|skipped| {
+            (
+                skipped.line,
+                skipped.column.as_str(),
+                skipped.value.as_str(),
+            )
+        }))
+    } else {
+        Vec::new()
+    };
+    Ok(CopyCompletion {
+        command: format!("COPY {}", result.count),
+        notices,
+    })
+}
+
+fn copy_force_selection(
+    selection: &request::ColumnSelection,
+) -> crate::app::transport::copy::CopyForceSelection {
+    match selection {
+        request::ColumnSelection::None => crate::app::transport::copy::CopyForceSelection::None,
+        request::ColumnSelection::All => crate::app::transport::copy::CopyForceSelection::All,
+        request::ColumnSelection::Columns(names) => {
+            crate::app::transport::copy::CopyForceSelection::Columns(names.clone())
+        }
+    }
+}
+
+fn copy_decode_error(
+    error: filter::CopyWhereError,
+) -> crate::app::transport::copy::CopyOperationError {
+    use crate::app::transport::copy::CopyOperationError;
+    match error {
+        filter::CopyWhereError::Cassie(error) => CopyOperationError::Cassie(error),
+        filter::CopyWhereError::Undefined(name) => {
+            CopyOperationError::Undefined(name.name().to_owned())
+        }
+        filter::CopyWhereError::Jsonb(error) => CopyOperationError::Jsonb(error),
+    }
+}
+
 #[cfg(test)]
 pub(super) fn execute_copy_payload(
     cassie: &Cassie,
@@ -93,7 +221,7 @@ pub(super) fn execute_copy_payload_for_operation(
         CopyWireFormat::Binary => {
             let database = session
                 .current_database()
-                .unwrap_or(&cassie.default_database);
+                .unwrap_or(cassie.default_database());
             let (rows, memory) = input::parse_binary_payload_in_database(
                 payload, cassie, database, statement, &controls,
             )?;

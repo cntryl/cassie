@@ -205,7 +205,7 @@ async fn dispatch_message(
 fn session_vector_oid(cassie: &Cassie, session: &CassieSession) -> Option<i32> {
     let database = session
         .current_database()
-        .unwrap_or(&cassie.default_database);
+        .unwrap_or(cassie.default_database());
     crate::catalog::object_identity::type_oid_for_database(
         &cassie.catalog,
         database,
@@ -325,7 +325,7 @@ async fn execute_prepared_portal(
     let cancellation_guard = registration.begin_query();
     let cancellation_handle = cancellation_guard.handle();
     let mut cancellation = Some(cancellation_guard);
-    let result_cap = cassie.runtime.limits().max_result_rows;
+    let result_cap = cassie.runtime().limits().max_result_rows;
     let explicit_commit = matches!(
         &parsed.statement,
         crate::sql::ast::QueryStatement::Transaction(transaction)

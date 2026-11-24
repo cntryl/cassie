@@ -26,7 +26,7 @@ fn enum_columns(
     }
     let database = session
         .current_database()
-        .unwrap_or(&cassie.default_database);
+        .unwrap_or(cassie.default_database());
     parameter_types
         .iter()
         .map(|oid| {

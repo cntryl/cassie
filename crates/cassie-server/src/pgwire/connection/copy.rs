@@ -139,7 +139,7 @@ pub(super) async fn handle_simple_copy_candidate(
 fn binding_context(cassie: &Cassie, session: &CassieSession) -> crate::sql::binder::BindingContext {
     let database = session
         .current_database()
-        .unwrap_or(cassie.default_database.as_str())
+        .unwrap_or(cassie.default_database())
         .to_string();
     let search_path = cassie.binding_search_path(session);
     if cassie.database_catalog_enforced() {
@@ -188,8 +188,8 @@ pub(super) async fn try_handle_simple_copy_query(
     }
 
     match bound {
-        BoundCopyRequest::From(request, statement, binding) => {
-            let column_count = validation::copy_response_column_count(&binding.cassie, &statement);
+        BoundCopyRequest::From(request, _statement, binding) => {
+            let column_count = binding.operation.copy_response_column_count();
             if write_copy_in_response(
                 write_half,
                 column_count,
@@ -204,7 +204,6 @@ pub(super) async fn try_handle_simple_copy_query(
                 *binding,
                 session,
                 request,
-                *statement,
                 cancellation.cloned(),
                 reader,
                 write_half,
@@ -265,93 +264,39 @@ fn bind_copy_from_stdin(
     let binding_sql = request
         .table_binding_sql()
         .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
-    let authority = crate::app::FailureAuthority::capture_for_operation(session);
-    let parsed = cassie.parse_statement_for_session(Some(session), &binding_sql)?;
-    session.authorize_statement(&parsed.statement)?;
-    cassie.authorize_role_object_access(session, &parsed.statement)?;
-    Cassie::ensure_transaction_recovery(session, &parsed)?;
-    session.ensure_transaction_writable()?;
-    let started = std::time::Instant::now();
-    let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
-        &cassie.runtime.limits(),
-        started,
-        cancellation.unwrap_or_default(),
-    );
-    session.apply_statement_timeout(&mut controls, started);
-    cassie.prepare_transaction_read_view(session, &parsed, &controls)?;
-    let crate::sql::ast::QueryStatement::Copy(copy) = &parsed.statement else {
-        return Err(CassieError::Parse(
-            "COPY FROM STDIN did not parse as a table copy".into(),
-        ));
-    };
-    let (owner, owned_context) = if session.is_transaction_active() {
-        let (owner, context) =
-            cassie.capture_bound_copy_command_owner(session, &copy.table, &controls)?;
-        (Some(owner), Some(context))
-    } else {
-        (None, None)
-    };
-    let fallback_context = owner.is_none().then(|| binding_context(cassie, session));
-    let context = owned_context
-        .as_ref()
-        .map(crate::app::CopyBindingContext::context)
-        .or(fallback_context.as_ref())
-        .expect("COPY binding context");
-    let scoped = owner.as_ref().map_or_else(
-        || (*cassie).clone(),
-        |owner| cassie.with_copy_command_owner(session, owner),
-    );
-    session.mark_transaction_query();
-    let bound = crate::sql::binder::bind_with_context(parsed, &scoped.catalog, context)?;
-    let crate::sql::ast::QueryStatement::Copy(statement) = bound.statement.statement else {
-        return Err(CassieError::Parse(
-            "COPY FROM STDIN did not bind as a table copy".into(),
-        ));
-    };
-    if owner
-        .as_ref()
-        .is_some_and(|owner| !owner.matches_target(&statement.table))
-    {
-        return Err(CassieError::Execution(
-            "COPY target changed during binding".into(),
-        ));
-    }
-    validation::validate_force_columns(&scoped, &request, &statement)?;
-    authority.reserve_shared_owner(&controls)?;
-    let binding_bytes = binding::charged_bytes(owner.is_some())?;
-    #[cfg(test)]
-    let mut observed = binding_accounting_test_hooks::before_admission(
-        cassie,
+    let force_null = engine_force_selection(&request.force_null);
+    let force_not_null = engine_force_selection(&request.force_not_null);
+    let operation = crate::app::transport::copy::CopyFromOperation::bind(
+        Arc::new(cassie.clone()),
         session,
-        &mut controls,
-        binding_bytes,
-        owner.is_some(),
-    );
-    let interruption = controls.check_interruption();
-    #[cfg(test)]
-    if interruption.is_err() {
-        if let Some(observed) = observed.take() {
-            observed.finish(false);
-        }
-    }
-    interruption?;
-    let authority_reservation = controls.reserve_query_memory(binding_bytes);
-    #[cfg(test)]
-    if let Some(observed) = observed {
-        observed.finish(true);
-    }
-    let authority_reservation = authority_reservation?;
+        &binding_sql,
+        &force_null,
+        &force_not_null,
+        cancellation,
+    )?;
+    let controls = operation.controls().clone();
+    let statement = operation.statement().clone();
     Ok(BoundCopyRequest::From(
         request,
         Box::new(statement),
         Box::new(CopyFromBinding {
-            cassie: Arc::new(scoped),
-            owner,
+            cassie: Arc::new(cassie.clone()),
+            operation,
             controls,
-            authority,
-            _authority_reservation: authority_reservation,
         }),
     ))
+}
+
+fn engine_force_selection(
+    selection: &request::ColumnSelection,
+) -> crate::app::transport::copy::CopyForceSelection {
+    match selection {
+        request::ColumnSelection::None => crate::app::transport::copy::CopyForceSelection::None,
+        request::ColumnSelection::All => crate::app::transport::copy::CopyForceSelection::All,
+        request::ColumnSelection::Columns(names) => {
+            crate::app::transport::copy::CopyForceSelection::Columns(names.clone())
+        }
+    }
 }
 
 fn bind_copy_to_stdout(
@@ -787,7 +732,6 @@ async fn handle_simple_copy_from_stdin(
     binding: CopyFromBinding,
     session: CassieSession,
     request: CopyRequest,
-    statement: CopyStatement,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -852,7 +796,6 @@ async fn handle_simple_copy_from_stdin(
                     binding,
                     session,
                     request,
-                    statement,
                     payload,
                     cancellation,
                     write_half,
@@ -897,7 +840,6 @@ async fn finish_simple_copy(
     binding: CopyFromBinding,
     session: CassieSession,
     request: CopyRequest,
-    statement: CopyStatement,
     payload: CopyPayload,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -911,14 +853,13 @@ async fn finish_simple_copy(
         move |cassie| {
             let _controls =
                 crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
-            execute::execute_copy_payload_for_operation(
+            execute::execute_decoded_operation(
                 &cassie,
                 &session_for_copy,
                 &request,
-                &statement,
+                &binding.operation,
                 payload.as_slice(),
                 cancellation.as_ref(),
-                (binding.owner.as_ref(), Some(&binding.authority)),
             )
         },
     )
@@ -937,21 +878,21 @@ async fn finish_simple_copy(
                 .is_ok()
                 && write_ready_for_query(write_half, &session).await.is_ok()
         }
-        Err(filter::CopyWhereError::Cassie(error)) => matches!(
+        Err(crate::app::transport::copy::CopyOperationError::Cassie(error)) => matches!(
             write_copy_error(write_half, &session, &cassie_pg_error(&error)).await,
             SimpleCopyOutcome::Handled
         ),
-        Err(filter::CopyWhereError::Undefined(name)) => {
+        Err(crate::app::transport::copy::CopyOperationError::Undefined(name)) => {
             write_copy_unknown_column_with_length(
                 write_half,
                 &session,
-                name.name(),
-                name.name().len(),
+                &name,
+                name.len(),
                 &controls_for_error,
             )
             .await
         }
-        Err(filter::CopyWhereError::Jsonb(owner)) => {
+        Err(crate::app::transport::copy::CopyOperationError::Jsonb(owner)) => {
             let handled = write_copy_jsonb_diagnostic_with_length(
                 write_half,
                 &session,

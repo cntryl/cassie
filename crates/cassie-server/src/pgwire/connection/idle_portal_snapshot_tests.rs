@@ -22,7 +22,7 @@ fn fixture() -> (Arc<Cassie>, CassieSession, SessionState) {
     );
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
-    let mut state = SessionState::new(&cassie.runtime.limits());
+    let mut state = SessionState::new(&cassie.runtime().limits());
     state.session = Some(session.clone());
     state.portals.insert(
         "retained".to_owned(),
@@ -38,7 +38,7 @@ fn fixture() -> (Arc<Cassie>, CassieSession, SessionState) {
             completed_command: None,
         },
     );
-    cassie.runtime.record_pgwire_portal_delta(1);
+    cassie.runtime().record_pgwire_portal_delta(1);
     stamp_current_portal(&session, &mut state);
     (cassie, session, state)
 }
@@ -124,7 +124,7 @@ async fn handle_frame(
     let mut output = Vec::new();
     let step = super::handle_ready(
         Arc::clone(cassie),
-        &cassie.runtime,
+        &cassie.runtime(),
         &mut reader,
         &mut output,
         state,
@@ -167,7 +167,7 @@ fn assert_failed_snapshot_retains_portal(site: Site) {
     let mut awaiting_sync = matches!(site, Site::SyncWait);
     let output = match site {
         Site::Direct => {
-            super::transactions::clear_idle_portals(&cassie.runtime, &mut state, &session);
+            super::transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
             Vec::new()
         }
         Site::Sync | Site::SyncWait => runtime.block_on(handle_frame(
@@ -204,7 +204,7 @@ fn assert_failed_snapshot_retains_portal(site: Site) {
     assert_eq!(current, owner);
     assert_eq!(status, "in_transaction");
     assert!(retained);
-    assert_eq!(cassie.runtime.snapshot().pgwire.portals, 1);
+    assert_eq!(cassie.runtime().snapshot().pgwire.portals, 1);
 }
 
 #[test]
@@ -257,11 +257,11 @@ fn should_clear_idle_portals_only_after_idle_snapshot() {
     let (cassie, session, mut state) = fixture();
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime, &mut state, &session);
+    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
 
     // Assert
     assert!(state.portals.is_empty());
-    assert_eq!(cassie.runtime.snapshot().pgwire.portals, 0);
+    assert_eq!(cassie.runtime().snapshot().pgwire.portals, 0);
 }
 
 #[test]
@@ -272,12 +272,12 @@ fn should_retain_portals_after_active_snapshot() {
     stamp_current_portal(&session, &mut state);
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime, &mut state, &session);
+    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
     session.rollback_transaction();
 
     // Assert
     assert!(state.portals.contains_key("retained"));
-    assert_eq!(cassie.runtime.snapshot().pgwire.portals, 1);
+    assert_eq!(cassie.runtime().snapshot().pgwire.portals, 1);
 }
 
 #[test]
@@ -289,12 +289,12 @@ fn should_retain_portals_after_failed_snapshot() {
     session.mark_transaction_failed();
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime, &mut state, &session);
+    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
     session.rollback_transaction();
 
     // Assert
     assert!(state.portals.contains_key("retained"));
-    assert_eq!(cassie.runtime.snapshot().pgwire.portals, 1);
+    assert_eq!(cassie.runtime().snapshot().pgwire.portals, 1);
 }
 
 #[test]
@@ -339,7 +339,7 @@ fn should_clear_portals_when_sync_invalidation_is_set() {
             // Assert: captured invalidation consumes the flag and clears its own portals without a snapshot.
             let decoded = frames(&output);
             assert!(state.portals.is_empty());
-            assert_eq!(cassie.runtime.snapshot().pgwire.portals, 0);
+            assert_eq!(cassie.runtime().snapshot().pgwire.portals, 0);
             assert!(!state.invalidate_portals_on_sync);
             assert!(!awaiting_sync);
             assert_eq!(decoded.iter().filter(|(tag, _)| *tag == b'Z').count(), 1);
@@ -391,7 +391,7 @@ fn should_skip_recovery_portal_check_when_storage_is_healthy() {
         let decoded = frames(&output);
         assert!(matches!(snapshot, Err(mpsc::TryRecvError::Empty)));
         assert!(state.portals.contains_key("retained"));
-        assert_eq!(cassie.runtime.snapshot().pgwire.portals, 1);
+        assert_eq!(cassie.runtime().snapshot().pgwire.portals, 1);
         assert!(failed);
         assert!(awaiting_sync);
         assert_eq!(decoded.iter().filter(|(tag, _)| *tag == b'E').count(), 1);

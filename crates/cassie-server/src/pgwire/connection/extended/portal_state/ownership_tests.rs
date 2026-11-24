@@ -81,8 +81,8 @@ fn active_query_fixture(
     cassie
         .execute_sql(&session, "INSERT INTO t VALUES (1), (2), (3)", Vec::new())
         .expect("rows");
-    let mut state = SessionState::new(&cassie.runtime.limits());
-    state.backend_registration = Some(cassie.runtime.register_pgwire_backend());
+    let mut state = SessionState::new(&cassie.runtime().limits());
+    state.backend_registration = Some(cassie.runtime().register_pgwire_backend());
     let parsed = crate::sql::parse_statement(sql).expect("statement");
     let prepared = crate::pgwire::protocol::PreparedStatement {
         id: 1,
@@ -408,7 +408,7 @@ fn should_ignore_cancellation_from_a_prior_portal_execution_when_resuming() {
     let cassie = std::sync::Arc::new(
         crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
     );
-    state.backend_registration = Some(cassie.runtime.register_pgwire_backend());
+    state.backend_registration = Some(cassie.runtime().register_pgwire_backend());
     let session = cassie.create_session("tester", None);
 
     // Act
@@ -454,7 +454,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
         let cassie = std::sync::Arc::new(
             crate::app::Cassie::new_in_memory_with_config(config).expect("memory fixture"),
         );
-        let registration = cassie.runtime.register_pgwire_backend();
+        let registration = cassie.runtime().register_pgwire_backend();
         let previous = registration.begin_query().suspend();
         state.backend_registration = Some(registration);
         state
@@ -475,7 +475,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     let secret_key = backend.secret_key();
     let session = cassie.create_session("tester", None);
     let mut writer = CancelAtFlushWrite {
-        runtime: std::sync::Arc::clone(&cassie.runtime),
+        runtime: std::sync::Arc::clone(&cassie.runtime()),
         process_id,
         secret_key,
         attempted: false,
@@ -510,7 +510,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     assert_eq!(writer.frame_tags, vec![b'D']);
     assert!(state.portals["retained"].suspended.is_none());
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
-    assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+    assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
 }
 
 #[test]
@@ -532,7 +532,7 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime),
+            runtime: std::sync::Arc::clone(&cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -564,7 +564,7 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
         );
         assert_eq!(writer.frame_tags, vec![b'D']);
         assert!(state.portals["retained"].suspended.is_none());
-        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
     }
 }
 
@@ -577,7 +577,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime),
+            runtime: std::sync::Arc::clone(&cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -588,7 +588,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
         // Act
         let error = runtime().block_on(super::super::execute_prepared_portal(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut writer,
             &mut state,
             &session,
@@ -613,7 +613,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
             .portals
             .get("retained")
             .is_none_or(|portal| portal.suspended.is_none()));
-        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
     }
 }
 
@@ -645,7 +645,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime),
+            runtime: std::sync::Arc::clone(&cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -656,7 +656,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         // Act
         let outcome = runtime().block_on(super::super::handle_execute(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut writer,
             &mut state,
             &session,
@@ -673,7 +673,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         );
         assert!(writer.frame_tags.contains(&b'C'));
         assert!(!session.is_transaction_active());
-        assert!(!cassie.runtime.cancel_pgwire_backend(process_id, secret_key));
+        assert!(!cassie.runtime().cancel_pgwire_backend(process_id, secret_key));
         if sql.starts_with("CREATE TABLE") {
             assert!(cassie.catalog.get_schema("published").is_some());
         } else if sql.starts_with("CREATE DATABASE") {

@@ -31,7 +31,7 @@ where
     T: Send + 'static,
     E: From<CassieError> + Send + 'static,
 {
-    let runtime = cassie.runtime.clone();
+    let runtime = cassie.runtime().clone();
     let started_at = std::time::Instant::now();
     runtime.record_pgwire_boundary_started(operation_name);
 
@@ -135,7 +135,7 @@ fn retryable_failures_for_test() -> &'static Mutex<HashMap<usize, String>> {
 
 #[cfg(debug_assertions)]
 fn runtime_key_for_test(cassie: &Cassie) -> usize {
-    Arc::as_ptr(&cassie.runtime).cast::<()>() as usize
+    Arc::as_ptr(cassie.runtime()).cast::<()>() as usize
 }
 
 #[cfg(test)]

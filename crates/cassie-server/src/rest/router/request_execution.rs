@@ -35,12 +35,13 @@ pub(super) async fn run_server(
     })?;
     let cassie = Arc::new(cassie);
     let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
+    let tls_options = cassie.rest_tls_options();
     let tls_config = crate::rest::tls::load_server_config(
-        cassie.rest_tls_cert_file.as_deref(),
-        cassie.rest_tls_key_file.as_deref(),
+        tls_options.certificate_path.as_deref(),
+        tls_options.private_key_path.as_deref(),
     )?;
     let admission = Arc::new(Semaphore::new(
-        cassie.runtime.limits().rest_max_connections.max(1),
+        cassie.runtime().limits().rest_max_connections.max(1),
     ));
     let listener = tokio::net::TcpListener::bind(&listen)
         .await
@@ -61,7 +62,7 @@ pub(super) async fn run_server(
                 let (stream, peer) = accept.map_err(|error| CassieError::Execution(error.to_string()))?;
                 let Ok(permit) = admission.clone().try_acquire_owned() else {
                     let write_timeout = Duration::from_millis(
-                        cassie.runtime.limits().rest_write_timeout_ms,
+                        cassie.runtime().limits().rest_write_timeout_ms,
                     );
                     let rejection_tls_config = tls_config.clone();
                     tokio::spawn(async move {
@@ -156,7 +157,7 @@ async fn serve_application<S>(
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let write_timeout = Duration::from_millis(cassie.runtime.limits().rest_write_timeout_ms);
+    let write_timeout = Duration::from_millis(cassie.runtime().limits().rest_write_timeout_ms);
     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
         let cassie = Arc::clone(&cassie);
         let admin_ui = Arc::clone(&admin_ui);
@@ -230,7 +231,7 @@ impl RestRequestExecution {
     where
         T: Send + 'static,
     {
-        let runtime = cassie.runtime.clone();
+        let runtime = cassie.runtime().clone();
         let started_at = Instant::now();
         runtime.record_rest_boundary_started(operation_name);
 
@@ -314,7 +315,7 @@ where
                 record_rest_error(&cassie, method.as_str(), path, started_at, &error)
             }
             RestBlockingError::TimedOut => {
-                cassie.runtime.record_rest_request(
+                cassie.runtime().record_rest_request(
                     method.as_str(),
                     path,
                     StatusCode::REQUEST_TIMEOUT.as_u16(),
@@ -365,7 +366,7 @@ pub(super) async fn run_rest_blocking_route_with_cancellation(
             ))
         }
         Err(RestBlockingError::TimedOut) => {
-            cassie.runtime.record_rest_request(
+            cassie.runtime().record_rest_request(
                 method.as_str(),
                 path,
                 StatusCode::REQUEST_TIMEOUT.as_u16(),

@@ -58,7 +58,7 @@ async fn handle_frame(
     let mut output = Vec::new();
     let step = super::handle_ready(
         Arc::clone(cassie),
-        &cassie.runtime,
+        &cassie.runtime(),
         &mut reader,
         &mut output,
         state,
@@ -311,9 +311,9 @@ fn fixture() -> (Arc<Cassie>, CassieSession, SessionState) {
     cassie.startup().unwrap();
     let session = cassie.create_session("outer_wire", None);
     session.begin_transaction(None).unwrap();
-    let mut state = SessionState::new(&cassie.runtime.limits());
+    let mut state = SessionState::new(&cassie.runtime().limits());
     state.session = Some(session.clone());
-    state.backend_registration = Some(cassie.runtime.register_pgwire_backend());
+    state.backend_registration = Some(cassie.runtime().register_pgwire_backend());
     (cassie, session, state)
 }
 
@@ -348,7 +348,7 @@ fn should_keep_the_replacement_healthy_after_a_simple_worker_error() {
     runtime
         .block_on(simple_execution::run_batch(
             Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut output,
             &mut state,
             &session,
@@ -397,7 +397,7 @@ fn should_keep_the_replacement_healthy_after_an_extended_worker_error() {
             completed_command: None,
         },
     );
-    cassie.runtime.record_pgwire_portal_delta(1);
+    cassie.runtime().record_pgwire_portal_delta(1);
     let _hook = wire_failure_test_hooks::install(&cassie, replace_transaction);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -425,7 +425,7 @@ fn should_keep_the_replacement_healthy_after_an_extended_worker_error() {
         let mut awaiting_sync = false;
         extended::handle_frontend_message(
             Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut reader,
             &mut output,
             &mut state,
@@ -458,7 +458,7 @@ fn should_cleanup_an_own_implicit_origin_when_the_worker_slot_is_saturated() {
         .operation_failure_authority()
         .unwrap()
         .portal_adoption();
-    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+    let occupied = cassie.runtime().try_begin_running_query().unwrap();
 
     // Act
     let result = cassie.execute_pgwire_sql_with_cancellation(
@@ -496,7 +496,7 @@ fn should_not_fail_b_when_a_captured_operation_later_hits_saturation() {
     let captured = crate::app::FailureAuthority::capture_for_operation(&operation).identity();
     replace_transaction(&root);
     let current = root.transaction_unique_owner_id();
-    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+    let occupied = cassie.runtime().try_begin_running_query().unwrap();
 
     // Act
     let result = cassie.execute_pgwire_sql_with_cancellation(
@@ -530,7 +530,7 @@ fn should_return_an_uncaptured_saturation_error_while_the_root_is_contended() {
     let root = cassie.create_session("saturated_contended", None);
     root.begin_transaction(None).unwrap();
     let operation = root.with_new_wire_operation();
-    let occupied = cassie.runtime.try_begin_running_query().unwrap();
+    let occupied = cassie.runtime().try_begin_running_query().unwrap();
     let (held_tx, held_rx) = std::sync::mpsc::sync_channel(1);
     let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
     let holding_root = root.clone();

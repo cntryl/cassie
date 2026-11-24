@@ -167,7 +167,7 @@ where
             format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
         )),
         Err(RestBodyReadError::Invalid(message)) => {
-            cassie.runtime.record_rest_request(
+            cassie.runtime().record_rest_request(
                 method.as_str(),
                 path,
                 StatusCode::BAD_REQUEST.as_u16(),
@@ -265,7 +265,7 @@ fn record_rest_error(
 ) -> (StatusCode, String) {
     let mapped = map_error(error);
     cassie
-        .runtime
+        .runtime()
         .record_rest_request(method, route, mapped.0.as_u16(), started_at.elapsed());
     mapped
 }
@@ -306,7 +306,7 @@ async fn route_request_with_admin_ui(
     validate_rest_origin(&method, &path, &request)?;
     validate_rest_content_type(&method, &path, &request)?;
     if let Some(response) = recovery_admission::guard(&cassie, &method, &path, started_at)? {
-        cassie.runtime.record_rest_request(
+        cassie.runtime().record_rest_request(
             method.as_str(),
             &path,
             response.status().as_u16(),
@@ -329,7 +329,7 @@ async fn route_request_with_admin_ui(
                     cookie_token(request.headers()),
                 ),
                 Err((status, message)) => {
-                    cassie.runtime.record_rest_request(
+                    cassie.runtime().record_rest_request(
                         method.as_str(),
                         &path,
                         status.as_u16(),
@@ -343,7 +343,7 @@ async fn route_request_with_admin_ui(
             && !is_read_only_sql_route(&method, segments.as_slice())
             && !is_self_service_auth_route(&method, segments.as_slice())
         {
-            cassie.runtime.record_rest_request(
+            cassie.runtime().record_rest_request(
                 method.as_str(),
                 &path,
                 StatusCode::FORBIDDEN.as_u16(),
@@ -356,7 +356,10 @@ async fn route_request_with_admin_ui(
         token = authenticated_token;
     }
     let session = session.unwrap_or_else(|| {
-        cassie.create_session(&cassie.auth_user, Some(cassie.default_database.clone()))
+        cassie.create_session(
+            cassie.default_network_user(),
+            Some(cassie.default_database().to_owned()),
+        )
     });
     let request_context = RestRequestContext {
         session,
@@ -383,7 +386,7 @@ async fn route_request_with_admin_ui(
     )
     .await?;
 
-    cassie.runtime.record_rest_request(
+    cassie.runtime().record_rest_request(
         method.as_str(),
         &path,
         response.status().as_u16(),
@@ -890,7 +893,7 @@ fn unsupported_route(
     path: &str,
     started_at: Instant,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
-    cassie.runtime.record_rest_request(
+    cassie.runtime().record_rest_request(
         method.as_str(),
         path,
         StatusCode::NOT_FOUND.as_u16(),
@@ -920,7 +923,7 @@ fn default_admin_ui_dir() -> PathBuf {
 async fn authenticate_rest_request(
     cassie: Arc<Cassie>,
     headers: &HeaderMap,
-) -> Result<crate::app::AuthenticatedPrincipal, (StatusCode, String)> {
+) -> Result<crate::app::NetworkPrincipal, (StatusCode, String)> {
     let Some(token) = cookie_token(headers) else {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
     };

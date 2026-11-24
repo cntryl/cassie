@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::{
-    issue_with_limits, revoke, session_key, PersistedSession, MAX_SESSIONS, SESSION_TTL_SECONDS,
+use crate::app::network_sessions::{
+    issue_for_test, revoke, session_key, PersistedSession, MAX_SESSIONS, SESSION_TTL_SECONDS,
 };
 use crate::app::{Cassie, CassieSession};
 use crate::config::CassieRuntimeConfig;
@@ -100,10 +100,7 @@ fn setup(cassie: &Cassie) -> (CassieSession, String) {
             .execute_sql(&admin, sql, Vec::new())
             .expect("reader fixture SQL");
     }
-    let principal = cassie
-        .authenticate_principal("entry_reader", Some("entry-reader-password"), None)
-        .expect("reader principal");
-    let token = issue_with_limits(cassie, &principal.role, MAX_SESSIONS, SESSION_TTL_SECONDS)
+    let token = issue_for_test(cassie, "entry_reader", MAX_SESSIONS, SESSION_TTL_SECONDS)
         .expect("valid opaque reader token");
     (admin, token)
 }
@@ -188,10 +185,7 @@ async fn observe_transition(
         .raw_get(StorageFamily::Schema, &session_key(token))
         .expect("read old token after denied HTTP request")
         .is_none();
-    let root = cassie
-        .authenticate_principal("root", Some(test_root_password()), None)
-        .expect("fresh root principal");
-    let fresh = issue_with_limits(cassie, &root.role, MAX_SESSIONS, SESSION_TTL_SECONDS)
+    let fresh = issue_for_test(cassie, "root", MAX_SESSIONS, SESSION_TTL_SECONDS)
         .expect("fresh root token");
     let control = query(client, base_url, &fresh).await;
     let control_count = count(cassie);

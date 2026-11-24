@@ -9,7 +9,7 @@ fn fixture(sql: &str) -> (Arc<Cassie>, CassieSession, SessionState) {
     );
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
-    let mut state = SessionState::new(&cassie.runtime.limits());
+    let mut state = SessionState::new(&cassie.runtime().limits());
     let parsed = crate::sql::parse_statement(sql).expect("statement");
     state.prepared_statements.insert(
         "source".to_owned(),
@@ -81,7 +81,7 @@ fn should_reject_retained_portal_output_after_storage_requires_recovery() {
         // Act
         let result = runtime().block_on(handle_execute(
             Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut writer,
             &mut state,
             &session,
@@ -114,7 +114,7 @@ fn should_reject_bind_before_retaining_a_new_portal_after_quarantine() {
     // Act
     let result = runtime().block_on(handle_bind(
         Arc::clone(&cassie),
-        &cassie.runtime,
+        &cassie.runtime(),
         &mut writer,
         &mut state,
         &session,
@@ -165,7 +165,7 @@ fn should_reject_empty_parse_after_quarantine() {
     // Act
     let result = runtime().block_on(handle_parse(
         Arc::clone(&cassie),
-        &cassie.runtime,
+        &cassie.runtime(),
         &mut writer,
         &mut state,
         &session,

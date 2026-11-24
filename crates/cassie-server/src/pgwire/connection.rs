@@ -123,7 +123,7 @@ pub async fn run_connection(
     require_tls: bool,
     peer_ip: IpAddr,
 ) {
-    let runtime = cassie.runtime.clone();
+    let runtime = cassie.runtime().clone();
     let _session_guard = runtime.begin_pgwire_session();
     let Ok(Ok(transport)) = tokio::time::timeout(
         PGWIRE_HANDSHAKE_TIMEOUT,
@@ -295,7 +295,7 @@ async fn handle_startup(
                 state.session = Some(session.clone());
                 state.ready = ReadyState::Idle;
                 runtime.record_pgwire_auth_ok();
-                let registration = cassie.runtime.register_pgwire_backend();
+                let registration = cassie.runtime().register_pgwire_backend();
                 session.set_backend_pid(registration.process_id());
                 let _ = write_auth_ok(write_half).await;
                 state.parameter_statuses =
@@ -376,7 +376,7 @@ async fn handle_password(
                     state.session = Some(session.clone());
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
-                    let registration = cassie.runtime.register_pgwire_backend();
+                    let registration = cassie.runtime().register_pgwire_backend();
                     session.set_backend_pid(registration.process_id());
                     let _ = write_auth_ok(write_half).await;
                     state.parameter_statuses =

@@ -19,7 +19,7 @@ pub(super) fn install(
     cassie: &Cassie,
     action: impl FnOnce(&CassieSession) + Send + 'static,
 ) -> Guard {
-    let key = Arc::as_ptr(&cassie.runtime) as usize;
+    let key = Arc::as_ptr(cassie.runtime()) as usize;
     assert!(NEXT
         .get_or_init(Mutex::default)
         .lock()
@@ -34,7 +34,7 @@ pub(super) fn after_worker(cassie: &Cassie, session: &CassieSession) {
         registry
             .lock()
             .unwrap()
-            .remove(&(Arc::as_ptr(&cassie.runtime) as usize))
+            .remove(&(Arc::as_ptr(cassie.runtime()) as usize))
     });
     if let Some(action) = action {
         action(session);

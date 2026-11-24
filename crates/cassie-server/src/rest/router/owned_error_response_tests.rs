@@ -108,7 +108,7 @@ fn should_keep_real_sql_numeric_error_admitted_through_rest_body_drop() {
     )
     .expect("memory fixture");
     cassie.startup().expect("startup");
-    let session = cassie.create_session("root", Some(cassie.default_database.clone()));
+    let session = cassie.create_session("root", Some(cassie.default_database().to_owned()));
     let error = cassie
         .execute_sql_with_controls(
             &session,

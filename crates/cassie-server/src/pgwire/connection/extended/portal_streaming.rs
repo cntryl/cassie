@@ -2,6 +2,9 @@ use std::sync::Arc;
 
 use tokio::io::AsyncWrite;
 
+use crate::app::transport::portal::{
+    PortalCursorDecision, PortalReadPage, RetainedPortal,
+};
 use super::portal_state::{
     write_materialized_result, write_streaming_result, write_suspended_result,
     MaterializedPortalWriteRequest, PortalExecution, PortalFetchWindow, StreamingPortalResult,
@@ -9,14 +12,9 @@ use super::portal_state::{
 };
 use super::{
     describe_prepared, run_pgwire_blocking, Cassie, CassieError, CassieSession, ExecutionMode,
-    ExtendedQueryError, PortalSuspended, PreparedStatement, QueryResult, SessionState,
+    ExtendedQueryError, PortalSuspended, PreparedStatement, SessionState,
 };
-use crate::app::PortalReadSpec;
-use crate::midge::adapter::RowDecode;
 use crate::runtime::QueryExecutionControls;
-use crate::sql::ast::{QueryStatement, SelectItem};
-use crate::types::row_identity::{is_identity_reference, ROW_IDENTITY_COLUMN};
-use crate::types::Value;
 
 pub(super) struct SuspendedPortalRequest<'a> {
     pub(super) state: &'a mut SessionState,
@@ -78,7 +76,7 @@ pub(super) async fn resume_suspended_portal(
         registration.resume_query(previous)
     };
     let active_cancellation = cancellation.handle();
-    let result_cap = cassie.runtime.limits().max_result_rows;
+    let result_cap = cassie.runtime().limits().max_result_rows;
     let state = &mut *request.state;
     let portal_name = request.portal_name;
     let result = write_suspended_result(
@@ -127,71 +125,45 @@ pub(super) async fn execute_streaming_portal_page(
         return Err(error);
     }
     request.session.mark_transaction_query();
-    let resolved = cassie.resolve_portal_read_spec(request.session, parsed);
-    let resolved = match resolved {
-        Ok(resolved) => resolved,
+    let plan = crate::app::transport::portal::resolve_portal_read_plan(
+        &cassie,
+        request.session,
+        parsed.clone(),
+    );
+    let plan = match plan {
+        Ok(plan) => plan,
         Err(error) => {
             clear_request_execution(&mut request);
             return Err(ExtendedQueryError::cassie(&error));
         }
     };
-    if let Some(mut spec) = resolved {
-        // A suspended cursor keeps reading the snapshot it opened with, so it
-        // must not be abandoned for an OFFSET re-query when this session later
-        // stages writes: that would page over a different result.
-        let suspended_cursor = request.state.portal_cursors.remove(request.portal_name);
-        if suspended_cursor.is_none()
-            && (crate::catalog::virtual_views::schema(&spec.collection).is_some()
-                || cassie.catalog.get_view(&spec.collection).is_some())
-        {
-            return execute_offset_portal_page(cassie, write_half, request).await;
+    if !plan.has_direct_cursor_plan() {
+        return execute_offset_portal_page(cassie, write_half, request).await;
+    }
+    // Resolve first, as a resumed cursor must not skip plan errors or fresh
+    // projection metadata; only then remove the cursor retained by transport.
+    let suspended_cursor = request.state.portal_cursors.remove(request.portal_name);
+    let page = crate::app::transport::portal::open_portal_page(
+        &cassie,
+        request.session,
+        plan,
+        suspended_cursor,
+    );
+    match page {
+        Ok(PortalCursorDecision::Cursor(page)) => {
+            return execute_cursor_portal_page(cassie, write_half, request, page, parsed).await;
         }
-        if suspended_cursor.is_none() && request.session.has_collection_changes(&spec.collection) {
-            return execute_offset_portal_page(cassie, write_half, request).await;
-        }
-        if spec.includes_wildcard {
-            let Some(schema) = cassie.catalog.get_schema(&spec.collection) else {
-                return execute_offset_portal_page(cassie, write_half, request).await;
-            };
-            for field in &schema.fields {
-                if !spec.source_fields.iter().any(|source| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(source, &field.name)
-                }) {
-                    spec.source_fields.push(field.name.clone());
-                }
-            }
-        }
-        let cursor = (|| {
-            let owner = request.session.repeatable_committed_read(
-                &cassie.midge,
+        Ok(PortalCursorDecision::Fallback(retained)) => {
+            if let Some(retained) = retained {
                 request
-                    .session
-                    .current_database()
-                    .unwrap_or(&cassie.default_database),
-            )?;
-            // The cursor retains DataReadTransaction's admitted Arc. Drop the
-            // thread-local scope before any await or row-page execution.
-            let _read_scope = crate::midge::adapter::StatementReadScope::enter(owner.as_ref());
-            suspended_cursor.map_or_else(
-                || {
-                    cassie.midge.open_row_cursor_with_traversal(
-                        &spec.collection,
-                        RowDecode::ProjectedHistorical(spec.source_fields.clone()),
-                        spec.traversal,
-                    )
-                },
-                |cursor| Ok(Some(cursor)),
-            )
-        })();
-        let cursor = match cursor {
-            Ok(cursor) => cursor,
-            Err(error) => {
-                clear_request_execution(&mut request);
-                return Err(ExtendedQueryError::cassie(&error));
+                    .state
+                    .portal_cursors
+                    .insert(request.portal_name.to_owned(), retained);
             }
-        };
-        if let Some(cursor) = cursor {
-            return execute_cursor_portal_page(cassie, write_half, request, spec, cursor).await;
+        }
+        Err(error) => {
+            clear_request_execution(&mut request);
+            return Err(ExtendedQueryError::cassie(&error));
         }
     }
     execute_offset_portal_page(cassie, write_half, request).await
@@ -225,13 +197,13 @@ async fn prepare_transaction_view(
         move |cassie| {
             let started = std::time::Instant::now();
             let mut controls = QueryExecutionControls::with_cancellation(
-                &cassie.runtime.limits(),
+                &cassie.runtime().limits(),
                 started,
                 handle,
             );
             session.apply_statement_timeout(&mut controls, started);
             let result = cassie.prepare_transaction_read_view(&session, &parsed, &controls);
-            cassie.runtime.record_query_memory(&controls);
+            cassie.runtime().record_query_memory(&controls);
             result
         },
     )
@@ -263,7 +235,7 @@ async fn execute_offset_portal_page(
             "streaming portal requires a select statement",
         ));
     };
-    let result_cap = cassie.runtime.limits().max_result_rows;
+    let result_cap = cassie.runtime().limits().max_result_rows;
     // A real cursor snapshot isn't available here, so the underlying source can
     // shift under concurrent writes. Fetch everything up to the result cap in
     // one shot and cache the remainder (see `write_materialized_result`)
@@ -339,8 +311,8 @@ async fn execute_cursor_portal_page(
     cassie: Arc<Cassie>,
     write_half: &mut (impl AsyncWrite + Unpin),
     mut request: StreamingPortalPageRequest<'_>,
-    spec: PortalReadSpec,
-    mut cursor: crate::midge::adapter::MidgeRowCursor,
+    page: PortalReadPage,
+    parsed: crate::sql::ParsedStatement,
 ) -> Result<(), ExtendedQueryError> {
     let columns = describe_prepared(
         Arc::clone(&cassie),
@@ -364,7 +336,7 @@ async fn execute_cursor_portal_page(
         |handle| registration.resume_query(handle),
     );
     let controls = QueryExecutionControls::with_cancellation(
-        &cassie.runtime.limits(),
+        &cassie.runtime().limits(),
         std::time::Instant::now(),
         cancellation.handle(),
     );
@@ -374,13 +346,15 @@ async fn execute_cursor_portal_page(
         request.max_rows,
     );
     let requested_rows = window.page_rows();
-    let prepared = request.prepared.clone();
     let fetched = run_pgwire_blocking(Arc::clone(&cassie), "pgwire_portal_page", move |cassie| {
-        let page = cursor.next_accounted_page(&cassie.midge, requested_rows, &controls)?;
-        let remains_suspended = page.has_more();
-        let result = portal_document_result(&cassie, &spec, &prepared, &columns, page, &controls)?;
-        let peak_bytes = controls.peak_query_memory_bytes();
-        Ok((cursor, result, remains_suspended, peak_bytes))
+        crate::app::transport::portal::fetch_portal_page(
+            &cassie,
+            page,
+            parsed,
+            &columns,
+            requested_rows,
+            &controls,
+        )
     })
     .await;
     let (cursor, result, remains_suspended, peak_bytes) = match fetched {
@@ -390,7 +364,7 @@ async fn execute_cursor_portal_page(
             return Err(ExtendedQueryError::cassie(&error));
         }
     };
-    cassie.runtime.record_query_peak_memory(peak_bytes);
+    cassie.runtime().record_query_peak_memory(peak_bytes);
     let active_cancellation = Some(cancellation.handle());
     let portal_name = request.portal_name.to_string();
     let remains_suspended = write_streaming_result(
@@ -412,129 +386,6 @@ async fn execute_cursor_portal_page(
         request.state.portal_cursors.insert(portal_name, cursor);
     }
     Ok(())
-}
-
-fn portal_document_result(
-    cassie: &Cassie,
-    spec: &PortalReadSpec,
-    prepared: &PreparedStatement,
-    columns: &[crate::executor::ColumnMeta],
-    mut documents: crate::midge::adapter::AccountedDocumentPage,
-    controls: &QueryExecutionControls,
-) -> Result<QueryResult, CassieError> {
-    let schema = cassie.catalog.get_schema(&spec.collection);
-    let Some(QueryStatement::Select(select)) =
-        prepared.parsed.as_ref().map(|parsed| &parsed.statement)
-    else {
-        return Err(CassieError::Execution(
-            "streaming portal requires a select statement".to_owned(),
-        ));
-    };
-    let mut builder = QueryResult::try_builder(controls)?;
-    for column in columns {
-        builder.try_push_column(column)?;
-    }
-    builder.try_set_command("SELECT")?;
-    // The existing conversion and lookup builders parse SQL identifiers. Admit
-    // their bounded scratch before either the sizing pass or conversion runs.
-    let _identifiers =
-        controls.reserve_query_memory(portal_identifier_bytes(spec, select, schema.as_ref())?)?;
-    while let Some(document) = documents.pop_document() {
-        controls.check_interruption()?;
-        let document = document.document();
-        let scratch = crate::executor::retained_memory::add(
-            crate::executor::scan::projected_row_bytes(
-                document,
-                &spec.source_fields,
-                schema.as_ref(),
-            )?,
-            crate::executor::scan::projected_lookup_bytes(&spec.source_fields, schema.as_ref())?,
-        )?;
-        let _projection = controls.reserve_query_memory(scratch)?;
-        let row = crate::executor::scan::projected_document_to_row(
-            document,
-            &spec.source_fields,
-            schema.as_ref(),
-        );
-        let row = crate::executor::scan::hydrate_character_arrays(row, controls)?;
-        builder.try_push_values(portal_projection_values(select, &row, schema.as_ref()))?;
-    }
-    builder.finish()
-}
-
-fn portal_identifier_bytes(
-    spec: &PortalReadSpec,
-    select: &crate::sql::ast::SelectStatement,
-    schema: Option<&crate::catalog::CollectionSchema>,
-) -> Result<usize, CassieError> {
-    use crate::executor::retained_memory::{add, mul};
-
-    let catalog_longest = schema
-        .into_iter()
-        .flat_map(|schema| &schema.fields)
-        .map(|field| field.name.len())
-        .max()
-        .unwrap_or(0);
-    let source_longest = spec
-        .source_fields
-        .iter()
-        .map(String::len)
-        .max()
-        .unwrap_or(0);
-    let projection_longest = select
-        .projection
-        .iter()
-        .filter_map(|item| match item {
-            SelectItem::Column { name, .. }
-            | SelectItem::Expr {
-                expr: crate::sql::ast::Expr::Column(name),
-                ..
-            } => Some(name.len()),
-            _ => None,
-        })
-        .max()
-        .unwrap_or(0);
-    let longest = catalog_longest
-        .max(source_longest)
-        .max(projection_longest)
-        .max(ROW_IDENTITY_COLUMN.len());
-    add(512, add(mul(longest, 32)?, mul(catalog_longest, 8)?)?)
-}
-
-fn portal_projection_values<'a>(
-    select: &'a crate::sql::ast::SelectStatement,
-    row: &'a crate::executor::batch::BatchRow,
-    schema: Option<&'a crate::catalog::CollectionSchema>,
-) -> impl Iterator<Item = &'a Value> + Clone {
-    let schema_has_id = schema.is_some_and(crate::catalog::CollectionSchema::declares_id);
-    select.projection.iter().flat_map(move |item| {
-        let wildcard = matches!(item, SelectItem::Wildcard);
-        let column = match item {
-            SelectItem::Column { name, .. }
-            | SelectItem::Expr {
-                expr: crate::sql::ast::Expr::Column(name),
-                ..
-            } => Some(if is_identity_reference(name, schema_has_id) {
-                ROW_IDENTITY_COLUMN
-            } else {
-                name.as_str()
-            }),
-            _ => None,
-        };
-        // Match the RowDescription's declared schema order for wildcard fields.
-        (wildcard && !schema_has_id)
-            .then_some(ROW_IDENTITY_COLUMN)
-            .into_iter()
-            .chain(
-                schema
-                    .into_iter()
-                    .flat_map(|schema| &schema.fields)
-                    .filter(move |_| wildcard)
-                    .map(|field| field.name.as_str()),
-            )
-            .chain(column)
-            .map(move |name| row.get(name).unwrap_or(&Value::Null))
-    })
 }
 
 pub(super) fn streamable_portal_query(prepared: &PreparedStatement, max_rows: usize) -> bool {

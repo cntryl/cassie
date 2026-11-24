@@ -24,7 +24,7 @@ pub fn create_with_cancellation(
     body: &[u8],
     cancellation: &QueryCancellationHandle,
 ) -> Result<Value, CassieError> {
-    let limits = cassie.runtime.limits();
+    let limits = cassie.runtime().limits();
     let controls = QueryExecutionControls::with_cancellation(
         &limits,
         std::time::Instant::now(),

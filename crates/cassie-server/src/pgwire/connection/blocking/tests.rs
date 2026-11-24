@@ -166,7 +166,7 @@ fn should_leave_cleanup_debt_for_later_when_a_queued_worker_never_starts() {
             .unwrap();
         cassie
             .midge
-            .defer_drop_collection("queued_cleanup_debt", cassie.runtime.schema_epoch())
+            .defer_drop_collection("queued_cleanup_debt", cassie.runtime().schema_epoch())
             .unwrap();
         let debt = cassie.midge.pending_schema_cleanups().unwrap();
         assert_eq!(debt.len(), 1);

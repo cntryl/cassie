@@ -10,7 +10,7 @@ pub(crate) fn resolve_collection(
 ) -> Result<String, CassieError> {
     let database = session
         .current_database()
-        .unwrap_or(cassie.default_database.as_str());
+        .unwrap_or(cassie.default_database());
     let parts = split_identifier_path(requested)
         .map_err(|error| CassieError::Parse(format!("invalid collection name: {error}")))?;
     if parts.is_empty() || parts.len() > 3 {
@@ -61,7 +61,7 @@ pub(crate) fn resolve_collection(
 pub(crate) fn list_collections(cassie: &Cassie, session: &CassieSession) -> Vec<String> {
     let database = session
         .current_database()
-        .unwrap_or(cassie.default_database.as_str());
+        .unwrap_or(cassie.default_database());
     let search_path = cassie.binding_search_path(session);
     cassie
         .catalog

@@ -180,7 +180,7 @@ fn should_respect_query_admission_during_copy_where_evaluation() {
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let occupied = cassie
-        .runtime
+        .runtime()
         .try_begin_running_query()
         .expect("occupied slot");
     // Act

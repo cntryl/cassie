@@ -31,7 +31,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
     cassie
         .execute_sql(&session, "BEGIN", Vec::new())
         .expect("begin B");
-    let mut state = SessionState::new(&cassie.runtime.limits());
+    let mut state = SessionState::new(&cassie.runtime().limits());
     state.prepared_statements.insert(
         "source".to_owned(),
         PreparedStatement {
@@ -63,7 +63,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
             },
             current,
             None,
-            &cassie.runtime,
+            &cassie.runtime(),
             1,
         )
         .expect("portal B");
@@ -71,7 +71,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
     // Act
     let result = runtime().block_on(handle_bind(
         Arc::clone(&cassie),
-        &cassie.runtime,
+        &cassie.runtime(),
         &mut output,
         &mut state,
         &operation,
@@ -102,7 +102,7 @@ fn should_publish_an_idle_bind_without_starting_a_mutation_transaction() {
     let owner = FailureAuthority::capture_for_operation(&operation)
         .identity()
         .expect("idle owner");
-    let mut state = SessionState::new(&cassie.runtime.limits());
+    let mut state = SessionState::new(&cassie.runtime().limits());
     state.prepared_statements.insert(
         "source".to_owned(),
         PreparedStatement {
@@ -121,7 +121,7 @@ fn should_publish_an_idle_bind_without_starting_a_mutation_transaction() {
     runtime()
         .block_on(handle_bind(
             Arc::clone(&cassie),
-            &cassie.runtime,
+            &cassie.runtime(),
             &mut output,
             &mut state,
             &operation,

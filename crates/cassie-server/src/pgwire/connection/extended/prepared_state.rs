@@ -44,7 +44,7 @@ pub(super) fn with_function_input_scope<R>(
         let scope = crate::catalog::FunctionInputScope {
             database: session
                 .current_database()
-                .unwrap_or(&cassie.default_database),
+                .unwrap_or(cassie.default_database()),
             search_path,
             user: &session.user,
             enforce_database_scope: cassie.database_catalog_enforced(),

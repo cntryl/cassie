@@ -37,7 +37,7 @@ fn should_release_the_read_directory_when_its_last_portal_closes() {
     let frame = session
         .capture_bound_read_view(
             &cassie.midge,
-            &cassie.default_database,
+            cassie.default_database(),
             false,
             &query,
             &retention,
@@ -92,7 +92,7 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
     let measured = session
         .capture_bound_read_view(
             &cassie.midge,
-            &cassie.default_database,
+            cassie.default_database(),
             false,
             &current,
             &sizing,
@@ -111,7 +111,7 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
     let denied_frame = session
         .capture_bound_read_view(
             &cassie.midge,
-            &cassie.default_database,
+            cassie.default_database(),
             false,
             &current,
             &denied,
@@ -122,7 +122,7 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
     let exact_frame = session
         .capture_bound_read_view(
             &cassie.midge,
-            &cassie.default_database,
+            cassie.default_database(),
             false,
             &current,
             &exact,

@@ -51,7 +51,7 @@ fn registry() -> &'static Mutex<HashMap<usize, Registered>> {
 }
 
 pub(in crate::pgwire::connection) fn key(cassie: &Cassie) -> usize {
-    Arc::as_ptr(&cassie.runtime).cast::<()>() as usize
+    Arc::as_ptr(cassie.runtime()).cast::<()>() as usize
 }
 
 pub(in crate::pgwire::connection) fn install(cassie: &Cassie, abort_queued: bool) -> Control {

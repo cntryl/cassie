@@ -63,7 +63,7 @@ fn install(
     NEXT.with(|slot| {
         let old = slot.replace(Some(Hook {
             id,
-            runtime: Arc::as_ptr(&cassie.runtime) as usize,
+            runtime: Arc::as_ptr(cassie.runtime()) as usize,
             owner: session.transaction_unique_owner_id(),
             action,
             observed: sender,
@@ -112,7 +112,7 @@ pub(super) fn before_admission(
     let hook = NEXT.with(|slot| {
         let mut slot = slot.borrow_mut();
         if slot.as_ref().is_some_and(|hook| {
-            hook.runtime == Arc::as_ptr(&cassie.runtime) as usize
+            hook.runtime == Arc::as_ptr(cassie.runtime()) as usize
                 && hook.owner == session.transaction_unique_owner_id()
         }) {
             slot.take()

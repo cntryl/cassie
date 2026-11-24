@@ -41,7 +41,7 @@ pub(in crate::pgwire::connection::copy) fn install_after_owner_check(
     let id = Uuid::new_v4();
     let hook = Hook {
         id,
-        runtime: Arc::as_ptr(&cassie.runtime) as usize,
+        runtime: Arc::as_ptr(cassie.runtime()) as usize,
         session: FailureAuthority::capture(session),
         entered,
         resume,
@@ -54,7 +54,7 @@ pub(super) fn after_owner_check(cassie: &Cassie, session: &CassieSession) {
     let hook = NEXT.with(|slot| {
         let mut slot = slot.borrow_mut();
         if slot.as_ref().is_some_and(|hook| {
-            hook.runtime == Arc::as_ptr(&cassie.runtime) as usize
+            hook.runtime == Arc::as_ptr(cassie.runtime()) as usize
                 && hook.session.captures_session_for_test(session)
         }) {
             slot.take()

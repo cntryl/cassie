@@ -125,6 +125,63 @@ fn should_execute_sequence_predicate_with_current_copy_owner() {
     assert_eq!(rows.rows(), &[vec![Value::Int64(41)]]);
 }
 
+#[test]
+fn should_binary_copy_a_staged_enum_before_transaction_commit() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "BEGIN",
+        "CREATE TYPE copy_binary_mood AS ENUM ('sad', 'ok')",
+        "CREATE TABLE copy_binary_enum (mood copy_binary_mood)",
+    ] {
+        cassie.execute_sql(&session, sql, Vec::new()).expect("setup SQL");
+    }
+    let request = request::parse_copy_request(
+        "COPY copy_binary_enum (mood) FROM STDIN WITH (FORMAT BINARY)",
+    )
+    .expect("parse binary COPY")
+    .expect("COPY request");
+    let binding_sql = request.table_binding_sql().expect("table target");
+    let operation = crate::app::transport::copy::CopyFromOperation::bind(
+        std::sync::Arc::new(cassie.clone()),
+        &session,
+        &binding_sql,
+        &crate::app::transport::copy::CopyForceSelection::None,
+        &crate::app::transport::copy::CopyForceSelection::None,
+        None,
+    )
+    .expect("bind staged enum COPY");
+    let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&2_i32.to_be_bytes());
+    payload.extend_from_slice(b"ok");
+    payload.extend_from_slice(&(-1_i16).to_be_bytes());
+
+    // Act
+    let result = operation.with_publication_scope(|| {
+        execute::execute_decoded_operation(&session, &request, &operation, &payload, None)
+    });
+    let selected = cassie
+        .execute_sql(&session, "SELECT mood FROM copy_binary_enum", Vec::new())
+        .expect("read staged enum value");
+
+    // Assert
+    assert!(result.is_ok());
+    assert!(matches!(
+        selected.rows().first().and_then(|row| row.first()),
+        Some(crate::types::Value::Typed(crate::types::typed::TypedValue::Enum(value)))
+            if value.label() == "ok"
+    ));
+    cassie
+        .execute_sql(&session, "ROLLBACK", Vec::new())
+        .expect("rollback");
+}
+
 struct EntryFixture {
     cassie: Cassie,
     session: crate::app::CassieSession,

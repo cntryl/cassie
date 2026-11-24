@@ -1,8 +1,14 @@
-use crate::app::{Cassie, CassieError, CassieSession, CopyColumn};
+use crate::app::CassieError;
+#[cfg(test)]
+use crate::app::{Cassie, CassieSession, CopyColumn};
+#[cfg(test)]
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+#[cfg(test)]
 use crate::sql::ast::CopyStatement;
+#[cfg(test)]
 use crate::types::{DataType, Value};
 
+#[cfg(test)]
 type CopyRowsWithMemory = (Vec<Vec<Option<String>>>, QueryMemoryReservation);
 
 #[cfg(test)]
@@ -12,7 +18,7 @@ mod tests;
 #[derive(Debug)]
 pub(super) enum CopyWhereError {
     Cassie(CassieError),
-    Undefined(super::filter_text::WhereText),
+    Undefined(String),
     Jsonb(crate::runtime::accounted::json_arena::JsonbDiagnostic),
 }
 
@@ -28,6 +34,7 @@ impl From<crate::app::DiagnosticError> for CopyWhereError {
     }
 }
 
+#[cfg(test)]
 fn reserve_filter_rows(
     count: usize,
     controls: &QueryExecutionControls,
@@ -56,6 +63,7 @@ pub(super) fn filter_rows(
     )
 }
 
+#[cfg(test)]
 pub(super) fn filter_rows_for_operation(
     cassie: &Cassie,
     session: &CassieSession,
@@ -149,6 +157,7 @@ pub(super) fn filter_rows_for_operation(
     Ok((accepted, accepted_memory))
 }
 
+#[cfg(test)]
 fn copy_parameter(
     column: &CopyColumn,
     raw: Option<&str>,
@@ -185,6 +194,7 @@ fn copy_parameter(
     Ok((value, controls.reserve_query_memory(0)?))
 }
 
+#[cfg(test)]
 fn parameterize_columns(
     predicate: &str,
     columns: &[&str],
@@ -236,7 +246,7 @@ fn parameterize_columns(
                 }
                 let Some(parameter_index) = find_column(columns, name.as_str(), false, controls)?
                 else {
-                    return Err(CopyWhereError::Undefined(name));
+                    return Err(CopyWhereError::Undefined(name.into_parts().0));
                 };
                 output.push_parameter(parameter_index, controls)?;
                 parameter = true;
@@ -279,6 +289,7 @@ fn parameterize_columns(
     Ok(output.into_parts())
 }
 
+#[cfg(test)]
 fn check_scan(
     index: usize,
     next_check: &mut usize,
@@ -291,6 +302,7 @@ fn check_scan(
     Ok(())
 }
 
+#[cfg(test)]
 fn find_column(
     columns: &[&str],
     name: &str,

@@ -1,4 +1,7 @@
-use crate::app::{Cassie, CassieError};
+use crate::app::CassieError;
+#[cfg(test)]
+use crate::app::Cassie;
+#[cfg(test)]
 use crate::sql::ast::CopyStatement;
 use crate::types::{DataType, Value};
 
@@ -86,12 +89,7 @@ enum DecodedBinaryField {
     Text(String, crate::runtime::QueryMemoryReservation),
 }
 
-#[derive(Clone, Copy)]
-struct CopyColumnType {
-    oid: i64,
-    is_vector: bool,
-    expected_vector_dimensions: Option<usize>,
-}
+type CopyColumnType = crate::app::transport::copy::CopyBinaryColumn;
 
 #[cfg(test)]
 pub(super) fn parse_binary_payload(
@@ -109,6 +107,7 @@ pub(super) fn parse_binary_payload(
     )
 }
 
+#[cfg(test)]
 pub(super) fn parse_binary_payload_in_database(
     payload: &[u8],
     cassie: &Cassie,
@@ -130,9 +129,18 @@ pub(super) fn parse_binary_payload_in_database(
         controls,
     )?;
     drop(schema);
+    parse_binary_payload_with_columns(payload, &column_types, controls)
+}
+
+pub(super) fn parse_binary_payload_with_columns(
+    payload: &[u8],
+    column_types: &[CopyColumnType],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
+    controls.check_interruption()?;
     let mut cursor = 0_usize;
     parse_binary_header(payload, &mut cursor)?;
-    parse_binary_rows(payload, &mut cursor, &column_types, controls)
+    parse_binary_rows(payload, &mut cursor, column_types, controls)
 }
 
 fn parse_binary_header(
@@ -379,6 +387,7 @@ fn decode_json_binary_field(
 }
 
 #[cfg(test)]
+#[cfg(test)]
 fn copy_column_types(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],
@@ -387,6 +396,7 @@ fn copy_column_types(
     copy_column_types_for_database(statement, fields, None, controls)
 }
 
+#[cfg(test)]
 fn copy_column_types_for_database(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],
@@ -458,6 +468,7 @@ fn copy_column_types_for_database(
     Ok((types, memory))
 }
 
+#[cfg(test)]
 fn copy_column_type(
     data_type: &DataType,
     vector_context: Option<(&crate::catalog::Catalog, &str)>,

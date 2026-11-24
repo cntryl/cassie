@@ -269,7 +269,7 @@ fn should_retain_unknown_quoted_where_name_until_diagnostic_is_dropped() {
     let error = super::parameterize_columns("\"missing_é\" = 1", &["id"], &controls)
         .expect_err("unknown column");
     // Assert
-    assert!(matches!(&error, super::CopyWhereError::Undefined(name) if name.name() == "missing_é"));
+    assert!(matches!(&error, super::CopyWhereError::Undefined(name) if name == "missing_é"));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(error);
     assert_eq!(controls.current_query_memory_bytes(), 0);

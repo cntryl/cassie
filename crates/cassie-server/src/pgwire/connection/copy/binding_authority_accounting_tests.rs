@@ -33,13 +33,16 @@ fn fixture(active: bool) -> (Cassie, crate::app::CassieSession, request::CopyReq
 }
 
 fn expected_charge(active: bool) -> usize {
-    let binding = std::mem::size_of::<super::CopyFromBinding>();
+    let binding = std::mem::size_of::<crate::app::transport::copy::CopyFromOperation>();
     let owner = if active {
         std::mem::size_of::<crate::app::CopyCommandOwner>()
     } else {
         0
     };
-    binding.checked_sub(owner).expect("binding contains owner")
+    binding
+        .checked_sub(owner)
+        .and_then(|charge| charge.checked_add("postgres".len()))
+        .expect("operation contains owner and database")
 }
 
 #[test]
@@ -54,9 +57,7 @@ fn should_retain_shared_copy_owner_memory_until_the_outer_operation_retires() {
             panic!("COPY FROM binding");
         };
         let controls = binding.controls.clone();
-        assert!(binding
-            .authority
-            .shared_owner_reservation_matches_for_test(&controls));
+        assert!(binding.operation.shared_authority_reservation_matches_for_test());
 
         // Act
         drop(binding);
@@ -181,13 +182,14 @@ fn should_retain_copy_binding_authority_at_exact_remaining_budget() {
             panic!("COPY FROM binding")
         };
         let charged_tracker = binding
-            .authority_reservation_for_test()
-            .belongs_to(&binding.controls);
-        let retained_bytes = binding.authority_reservation_for_test().bytes_for_test();
+            .operation
+            .admission_reservation_belongs_to_for_test(&binding.controls);
+        let retained_bytes = binding
+            .operation
+            .admission_reservation_bytes_for_test();
         let owner_tracker = binding
-            .owner
-            .as_ref()
-            .map(|owner| owner.reservation_matches_for_test(&binding.controls));
+            .operation
+            .owner_reservation_matches_for_test();
         let before_drop = observation.controls.current_query_memory_bytes();
         drop(binding);
         let after_drop = observation.controls.current_query_memory_bytes();
@@ -337,11 +339,11 @@ fn should_charge_binding_tracker_with_distinct_ambient_controls() {
         panic!("COPY FROM binding")
     };
     let binding_tracker = binding
-        .authority_reservation_for_test()
-        .belongs_to(&binding.controls);
+        .operation
+        .admission_reservation_belongs_to_for_test(&binding.controls);
     let ambient_tracker = binding
-        .authority_reservation_for_test()
-        .belongs_to(&ambient);
+        .operation
+        .admission_reservation_belongs_to_for_test(&ambient);
     drop(binding);
     drop(ambient_scope);
     session.rollback_transaction();
@@ -391,10 +393,12 @@ fn should_retain_copy_binding_charge_until_blocking_worker_finishes() {
             cassie,
             "copy_authority_reservation_test",
             move |_| {
-                let retained = binding.authority_reservation_for_test().bytes_for_test();
+                let retained = binding
+                    .operation
+                    .admission_reservation_bytes_for_test();
                 let on_tracker = binding
-                    .authority_reservation_for_test()
-                    .belongs_to(&tracker);
+                    .operation
+                    .admission_reservation_belongs_to_for_test(&tracker);
                 entered_tx.send(()).expect("worker entered");
                 resume_rx
                     .recv_timeout(Duration::from_secs(5))
@@ -404,11 +408,11 @@ fn should_retain_copy_binding_charge_until_blocking_worker_finishes() {
                     owner,
                     controls,
                     authority,
-                    _authority_reservation: authority_reservation,
+                    operation,
                 } = *binding;
                 drop((cassie, owner, controls, authority));
                 let before = tracker.current_query_memory_bytes();
-                drop(authority_reservation);
+                drop(operation);
                 let after = tracker.current_query_memory_bytes();
                 Ok((retained, on_tracker, before, after))
             },

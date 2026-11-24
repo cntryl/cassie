@@ -1,27 +1,29 @@
 //! Owned COPY input authority and its query-memory reservation.
 
-use std::sync::Arc;
-
 pub(super) struct CopyFromBinding {
-    pub(super) cassie: Arc<crate::app::Cassie>,
     pub(super) operation: crate::app::transport::copy::CopyFromOperation,
+    #[cfg(test)]
+    pub(super) cassie: std::sync::Arc<crate::app::Cassie>,
+    #[cfg(test)]
+    pub(super) owner: Option<crate::app::CopyCommandOwner>,
+    #[cfg(test)]
     pub(super) controls: crate::runtime::QueryExecutionControls,
+    #[cfg(test)]
+    pub(super) authority: crate::app::FailureAuthority,
 }
 
-pub(super) fn charged_bytes(owner_present: bool) -> Result<usize, crate::app::CassieError> {
-    let owner_bytes = if owner_present { std::mem::size_of::<crate::app::CopyCommandOwner>() } else { 0 };
-    std::mem::size_of::<CopyFromBinding>()
-        .checked_sub(owner_bytes)
-        .ok_or_else(|| crate::app::CassieError::ResourceLimit("COPY binding size underflow".into()))
+impl CopyFromBinding {
+    pub(super) fn controls(&self) -> &crate::runtime::QueryExecutionControls {
+        self.operation.controls()
+    }
 }
 
 #[cfg(test)]
 impl CopyFromBinding {
     pub(super) fn failure_authority_owner_for_test(&self) -> Option<uuid::Uuid> {
-        self.operation.owner_for_test().map(|owner| owner.identity())
+        self.authority
+            .identity()
+            .and_then(|identity| identity.transaction)
     }
 
-    pub(super) fn authority_reservation_for_test(&self) -> &crate::runtime::QueryMemoryReservation {
-        self.operation.authority_reservation_for_test()
-    }
 }

@@ -5,9 +5,11 @@
 pub(super) mod authority_test_hooks;
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
 use super::{
-    filter, input, payload_owner, request, validation, Cassie, CassieError, CassieSession,
+    filter, input, payload_owner, request, Cassie, CassieError, CassieSession,
     CopyRequest, CopyStatement,
 };
+#[cfg(test)]
+use super::validation;
 
 pub(super) struct CopyCompletion {
     pub(super) command: String,
@@ -17,7 +19,6 @@ pub(super) struct CopyCompletion {
 /// Decodes the wire payload, then delegates row semantics and publication to
 /// the engine's admitted typed COPY operation.
 pub(super) fn execute_decoded_operation(
-    cassie: &Cassie,
     session: &CassieSession,
     request: &CopyRequest,
     operation: &crate::app::transport::copy::CopyFromOperation,
@@ -26,8 +27,7 @@ pub(super) fn execute_decoded_operation(
 ) -> Result<CopyCompletion, crate::app::transport::copy::CopyOperationError> {
     use crate::app::transport::copy::{CopyExecutionOptions, CopyHeaderMode};
 
-    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
-        .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
+    let controls = operation.controls();
     let decoded_payload = payload_owner::decode_copy_payload(
         payload,
         request.encoding.as_deref(),
@@ -69,17 +69,10 @@ pub(super) fn execute_decoded_operation(
             (rows, Some(memory))
         }
         CopyWireFormat::Binary => {
-            let database = session
-                .current_database()
-                .unwrap_or(cassie.default_database());
-            let (rows, memory) = input::parse_binary_payload_in_database(
-                payload,
-                cassie,
-                database,
-                statement,
-                &controls,
-            )
-            .map_err(copy_decode_error)?;
+            let decoded = operation.with_binary_columns(|columns| {
+                input::parse_binary_payload_with_columns(payload, columns, &controls)
+            })?;
+            let (rows, memory) = decoded.map_err(copy_decode_error)?;
             (rows, Some(memory))
         }
     };
@@ -136,7 +129,7 @@ fn copy_decode_error(
     match error {
         filter::CopyWhereError::Cassie(error) => CopyOperationError::Cassie(error),
         filter::CopyWhereError::Undefined(name) => {
-            CopyOperationError::Undefined(name.name().to_owned())
+            CopyOperationError::Undefined(name)
         }
         filter::CopyWhereError::Jsonb(error) => CopyOperationError::Jsonb(error),
     }
@@ -163,6 +156,7 @@ pub(super) fn execute_copy_payload(
     )
 }
 
+#[cfg(test)]
 pub(super) fn execute_copy_payload_for_operation(
     cassie: &Cassie,
     session: &CassieSession,
@@ -277,6 +271,7 @@ pub(super) fn execute_copy_payload_for_operation(
     })
 }
 
+#[cfg(test)]
 fn validate_and_strip_copy_header(
     cassie: &Cassie,
     request: &CopyRequest,
@@ -290,6 +285,7 @@ fn validate_and_strip_copy_header(
     Ok(())
 }
 
+#[cfg(test)]
 fn validate_copy_header(
     cassie: &Cassie,
     request: &CopyRequest,

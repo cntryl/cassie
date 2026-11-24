@@ -19,7 +19,7 @@ use tokio::sync::Notify;
 
 use crate::app::Cassie;
 use crate::app::CassieSession;
-use crate::catalog::RoleMeta;
+use crate::app::NetworkRole;
 use crate::rest::body::{full_body, RestBody};
 use crate::rest::static_files::AdminUiStaticFiles;
 
@@ -80,7 +80,7 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
 #[derive(Clone)]
 struct RestRequestContext {
     session: CassieSession,
-    role: Option<RoleMeta>,
+    role: Option<NetworkRole>,
     token: Option<String>,
 }
 
@@ -494,18 +494,17 @@ async fn dispatch_admin_routes(
 
     match (context.method.as_str(), context.segments) {
         ("GET", ["api", "v1", "admin", "databases"]) => {
-            let authenticated_user = context
+            let authenticated_role = context
                 .request_context
                 .role
-                .as_ref()
-                .map(|role| role.name.clone());
+                .clone();
             run_rest_blocking_route(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_list_databases",
-                move |cassie| crate::rest::databases::list(&cassie, authenticated_user.as_deref()),
+                move |cassie| crate::rest::databases::list(&cassie, authenticated_role.as_ref()),
             )
             .await
             .map(|databases| Some(json_response(StatusCode::OK, &databases)))

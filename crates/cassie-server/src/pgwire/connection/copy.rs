@@ -19,6 +19,7 @@ mod binding;
 mod execute;
 #[path = "copy/filter.rs"]
 mod filter;
+#[cfg(test)]
 #[path = "copy/filter_text.rs"]
 mod filter_text;
 #[path = "copy/input.rs"]
@@ -33,6 +34,7 @@ mod output;
 mod payload_owner;
 #[path = "copy/request.rs"]
 mod request;
+#[cfg(test)]
 #[path = "copy/validation.rs"]
 mod validation;
 
@@ -201,6 +203,7 @@ pub(super) async fn try_handle_simple_copy_query(
                 return SimpleCopyOutcome::ConnectionClosed;
             }
             if handle_simple_copy_from_stdin(
+                Arc::clone(&cassie),
                 *binding,
                 session,
                 request,
@@ -274,15 +277,27 @@ fn bind_copy_from_stdin(
         &force_not_null,
         cancellation,
     )?;
-    let controls = operation.controls().clone();
     let statement = operation.statement().clone();
+    #[cfg(test)]
+    let test_context = (
+        Arc::clone(operation.cassie_for_test()),
+        operation.owner_for_test(),
+        operation.controls().clone(),
+        operation.authority_for_test(),
+    );
     Ok(BoundCopyRequest::From(
         request,
         Box::new(statement),
         Box::new(CopyFromBinding {
-            cassie: Arc::new(cassie.clone()),
             operation,
-            controls,
+            #[cfg(test)]
+            cassie: test_context.0,
+            #[cfg(test)]
+            owner: test_context.1,
+            #[cfg(test)]
+            controls: test_context.2,
+            #[cfg(test)]
+            authority: test_context.3,
         }),
     ))
 }
@@ -729,6 +744,7 @@ async fn abort_database_restore(
 /// limit (`54000`), not a protocol violation. Returns `false` when the
 /// connection must close.
 async fn handle_simple_copy_from_stdin(
+    cassie: Arc<Cassie>,
     binding: CopyFromBinding,
     session: CassieSession,
     request: CopyRequest,
@@ -736,7 +752,7 @@ async fn handle_simple_copy_from_stdin(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> bool {
-    let mut payload = match CopyPayload::new(&binding.controls) {
+    let mut payload = match CopyPayload::new(&binding.controls()) {
         Ok(payload) => payload,
         Err(error) => {
             return matches!(
@@ -749,8 +765,8 @@ async fn handle_simple_copy_from_stdin(
     let error = loop {
         let (message, _frame_memory) = match read_admitted_copy_message(
             cancellation.as_ref(),
-            binding.controls.deadline,
-            &binding.controls,
+            binding.controls().deadline,
+            &binding.controls(),
             reader,
         )
         .await
@@ -783,7 +799,7 @@ async fn handle_simple_copy_from_stdin(
                         "COPY FROM STDIN payload exceeds {MAX_FRONTEND_MESSAGE_BYTES} bytes"
                     )));
                 }
-                if let Err(error) = payload.append(&chunk, &binding.controls) {
+                if let Err(error) = payload.append(&chunk, &binding.controls()) {
                     break cassie_pg_error(&error);
                 }
                 #[cfg(test)]
@@ -793,6 +809,7 @@ async fn handle_simple_copy_from_stdin(
             Ok(FrontendMessage::Flush | FrontendMessage::Sync) => {}
             Ok(FrontendMessage::CopyDone) => {
                 return finish_simple_copy(
+                    cassie,
                     binding,
                     session,
                     request,
@@ -804,7 +821,7 @@ async fn handle_simple_copy_from_stdin(
             }
             Ok(FrontendMessage::CopyFail(message)) => {
                 let (message, _error_memory) =
-                    match payload_owner::copy_fail_message(&message, &binding.controls) {
+                    match payload_owner::copy_fail_message(&message, &binding.controls()) {
                         Ok(value) => value,
                         Err(error) => {
                             return matches!(
@@ -837,6 +854,7 @@ async fn handle_simple_copy_from_stdin(
 }
 
 async fn finish_simple_copy(
+    cassie: Arc<Cassie>,
     binding: CopyFromBinding,
     session: CassieSession,
     request: CopyRequest,
@@ -845,22 +863,20 @@ async fn finish_simple_copy(
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> bool {
     let session_for_copy = session.clone();
-    let cassie = Arc::clone(&binding.cassie);
-    let controls_for_error = binding.controls.clone();
+    let controls_for_error = binding.controls().clone();
     let result = super::blocking::run_pgwire_blocking_with_error(
         Arc::clone(&cassie),
         "pgwire_copy_from_stdin",
         move |cassie| {
-            let _controls =
-                crate::midge::adapter::PublicationControlScope::enter(Some(&binding.controls));
-            execute::execute_decoded_operation(
-                &cassie,
-                &session_for_copy,
-                &request,
-                &binding.operation,
-                payload.as_slice(),
-                cancellation.as_ref(),
-            )
+            binding.operation.with_publication_scope(|| {
+                execute::execute_decoded_operation(
+                    &session_for_copy,
+                    &request,
+                    &binding.operation,
+                    payload.as_slice(),
+                    cancellation.as_ref(),
+                )
+            })
         },
     )
     .await;

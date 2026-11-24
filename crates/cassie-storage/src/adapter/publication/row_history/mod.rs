@@ -256,7 +256,7 @@ impl MutationKeys {
 impl RetainedRowHistory {
     pub(crate) fn check_row(
         &self,
-        midge: &crate::midge::Midge,
+        midge: &crate::adapter::Midge,
         database: &str,
         row: (&str, u64, &str),
         controls: &crate::adapter::StorageRequestContext<'_>,

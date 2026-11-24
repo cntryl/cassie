@@ -31,6 +31,10 @@ impl QueryCancellationHandle {
         Self::default()
     }
 
+    pub(crate) const fn request_cancellation(&self) -> &RequestCancellation {
+        &self.0
+    }
+
     pub(super) fn attach_aggregate_test_pause(
         &mut self,
         pause: Arc<super::aggregate_test_pause::QueryAggregateTestPause>,

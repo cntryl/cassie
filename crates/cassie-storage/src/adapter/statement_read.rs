@@ -68,6 +68,11 @@ impl<'a> StorageRequestContext<'a> {
     }
 
     #[must_use]
+    pub const fn interruption(&self) -> Interruption<'a> {
+        self.interruption
+    }
+
+    #[must_use]
     pub const fn deadline(&self) -> Option<Instant> {
         self.interruption.deadline()
     }

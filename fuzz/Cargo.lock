@@ -229,7 +229,6 @@ dependencies = [
  "cassie-vector",
  "chrono",
  "cntryl-lexkey",
- "cntryl-midge",
  "fancy-regex",
  "getrandom 0.4.3",
  "jiff",
@@ -300,6 +299,8 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+ "tracing",
+ "url",
  "uuid",
 ]
 

@@ -11,10 +11,10 @@ use sha2::{Digest, Sha256};
 
 use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
-use crate::adapter::{Midge, ScalarIndexScanRequest};
+use crate::midge::adapter::{Midge, ScalarIndexScanRequest};
 use cassie_core::types::Value;
 
-use super::replay_process_crash::{kill_test_child, wait_after_marker, OwnedDataDir};
+use super::replay_process_crash::{OwnedDataDir, kill_test_child, wait_after_marker};
 
 const CHILD_PROFILE: &str = "CASSIE_TEST_CLOUD_CACHE_LOSS_PROFILE";
 const CHILD_CACHE: &str = "CASSIE_TEST_CLOUD_CACHE_LOSS_PATH";
@@ -48,10 +48,18 @@ impl Profile {
 
     const fn test_name(self) -> &'static str {
         match self {
-            Self::ApiStrict => "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_recover_strict_api_acknowledgement_after_simulated_cloud_cache_loss",
-            Self::ApiReplayable => "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_reconcile_api_prefix_after_simulated_cloud_cache_loss",
-            Self::SqlStrict => "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_recover_strict_sql_acknowledgement_after_simulated_cloud_cache_loss",
-            Self::SqlReplayable => "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_reconcile_sql_prefix_after_simulated_cloud_cache_loss",
+            Self::ApiStrict => {
+                "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_recover_strict_api_acknowledgement_after_simulated_cloud_cache_loss"
+            }
+            Self::ApiReplayable => {
+                "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_reconcile_api_prefix_after_simulated_cloud_cache_loss"
+            }
+            Self::SqlStrict => {
+                "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_recover_strict_sql_acknowledgement_after_simulated_cloud_cache_loss"
+            }
+            Self::SqlReplayable => {
+                "midge::adapter::statement_read::tests::replay_cloud_cache_loss::should_reconcile_sql_prefix_after_simulated_cloud_cache_loss"
+            }
         }
     }
 
@@ -524,7 +532,7 @@ fn assert_state(cassie: &Cassie, profile: Profile, position: u64) {
                     equality_prefix: vec![serde_json::json!(title)],
                     ..Default::default()
                 },
-                &controls,
+                &controls.storage_request(),
             )
             .unwrap();
         assert_eq!(hits.as_slice().len(), expected_count);

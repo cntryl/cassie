@@ -3,9 +3,12 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::*;
 use crate::app::{Cassie, CassieSession, SessionReadScope};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
+use crate::midge::adapter::{
+    CassieError, Midge, ScalarIndexScanRequest, StatementDataRead, StatementReadScope,
+};
+use crate::runtime::{ExecutionMode, QueryExecutionControls};
 
 #[path = "tests/replay_cloud_cache_loss.rs"]
 mod replay_cloud_cache_loss;
@@ -122,8 +125,8 @@ fn should_keep_committed_data_frozen_across_command_overlays() {
         .expect("restored command");
 
     // Assert
-    assert!(Arc::ptr_eq(&first.snapshot, &second.snapshot));
-    assert!(Arc::ptr_eq(&second.snapshot, &third.snapshot));
+    assert!(first.shares_native_snapshot_for_test(&second));
+    assert!(second.shares_native_snapshot_for_test(&third));
     assert!(!Arc::ptr_eq(&first, &second));
     assert!(!Arc::ptr_eq(
         first.overlay().expect("first command overlay"),
@@ -344,13 +347,16 @@ fn replay_snapshot_batch(
     }
 }
 
-fn replay_snapshot_has_event(owner: &StatementDataRead, projection: &str, event: &str) -> bool {
-    owner
-        .snapshot
-        .tx
-        .get(&Midge::projection_event_key(projection, "stream", event))
-        .unwrap()
-        .is_some()
+fn replay_snapshot_has_event(
+    midge: &Midge,
+    owner: &StatementDataRead,
+    projection: &str,
+    event: &str,
+) -> bool {
+    let _scope = StatementReadScope::enter(Some(owner));
+    midge
+        .has_projection_event(projection, "stream", event)
+        .expect("read replay event")
 }
 
 fn replay_snapshot_index_ids(
@@ -361,13 +367,13 @@ fn replay_snapshot_index_ids(
     value: i64,
 ) -> Vec<String> {
     let _scope = StatementReadScope::enter(Some(owner));
-    let request =crate::adapter::ScalarIndexScanRequest {
+    let request = crate::midge::adapter::ScalarIndexScanRequest {
         equality_prefix: vec![serde_json::json!(value)],
         ..Default::default()
     };
     cassie
         .midge
-        .scan_scalar_index_controlled(index, &request, controls)
+        .scan_scalar_index_controlled(index, &request, &controls.storage_request())
         .unwrap()
         .as_slice()
         .iter()
@@ -418,11 +424,11 @@ fn should_preserve_atomic_replay_in_pinned_data_snapshot() {
         .join()
         .unwrap()
         .unwrap();
-    let old_checkpoint =
-        Midge::load_projection_metadata_from_tx(&retained.snapshot.tx, &projection)
-            .unwrap()
-            .unwrap()
-            .source_checkpoint;
+    let old_checkpoint = retained
+        .projection_metadata_for_test(&projection)
+        .unwrap()
+        .unwrap()
+        .source_checkpoint;
     let old_row = {
         let _scope = StatementReadScope::enter(Some(&retained));
         cassie
@@ -433,14 +439,15 @@ fn should_preserve_atomic_replay_in_pinned_data_snapshot() {
             .payload
     };
     let fresh = StatementDataRead::capture(&cassie.midge, "postgres", &query_controls).unwrap();
-    let old_event_1 = replay_snapshot_has_event(&retained, &projection, "event-1");
-    let old_event_2 = replay_snapshot_has_event(&retained, &projection, "event-2");
-    let new_event_2 = replay_snapshot_has_event(&fresh, &projection, "event-2");
+    let old_event_1 = replay_snapshot_has_event(&cassie.midge, &retained, &projection, "event-1");
+    let old_event_2 = replay_snapshot_has_event(&cassie.midge, &retained, &projection, "event-2");
+    let new_event_2 = replay_snapshot_has_event(&cassie.midge, &fresh, &projection, "event-2");
     let old_index_1 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &retained, 1);
     let old_index_2 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &retained, 2);
     let new_index_1 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &fresh, 1);
     let new_index_2 = replay_snapshot_index_ids(&cassie, &index, &query_controls, &fresh, 2);
-    let new_checkpoint = Midge::load_projection_metadata_from_tx(&fresh.snapshot.tx, &projection)
+    let new_checkpoint = fresh
+        .projection_metadata_for_test(&projection)
         .unwrap()
         .unwrap()
         .source_checkpoint;
@@ -548,7 +555,7 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
 
     let bind = |sql: &str| {
         let retention = controls(catalog.accounted_bytes() + data_budget);
-        let parsed = cassie_sql::parse_statement(sql).unwrap();
+        let parsed = crate::sql::parse_statement(sql).unwrap();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         cassie.validate_pgwire_bind(
             &session,

@@ -1,9 +1,9 @@
 //! Local persistence witness for a replay spanning retained Data snapshots.
 
 use super::{
-    controls, replay_snapshot_batch, replay_snapshot_has_event, replay_snapshot_index_ids, Arc,
-    Cassie, CassieRuntimeConfig, Midge, QueryExecutionControls, StatementDataRead,
-    StatementReadScope,
+    Arc, Cassie, CassieRuntimeConfig, QueryExecutionControls, StatementDataRead,
+    StatementReadScope, controls, replay_snapshot_batch, replay_snapshot_has_event,
+    replay_snapshot_index_ids,
 };
 use crate::catalog::IndexMeta;
 
@@ -37,11 +37,11 @@ impl ReplayFixture {
     }
 
     fn assert_snapshot(&self, owner: &Arc<StatementDataRead>, position: u64) {
-        let checkpoint =
-            Midge::load_projection_metadata_from_tx(&owner.snapshot.tx, &self.projection)
-                .unwrap()
-                .unwrap()
-                .source_checkpoint;
+        let checkpoint = owner
+            .projection_metadata_for_test(&self.projection)
+            .unwrap()
+            .unwrap()
+            .source_checkpoint;
         let row = {
             let _scope = StatementReadScope::enter(Some(owner));
             self.cassie

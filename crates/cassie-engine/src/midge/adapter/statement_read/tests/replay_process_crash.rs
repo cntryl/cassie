@@ -3,14 +3,14 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::{mpsc, Arc, Barrier};
+use std::sync::{Arc, Barrier, mpsc};
 use std::time::{Duration, Instant};
 
 use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
-use crate::adapter::{
-    schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
-    set_schema_write_commit_barriers, ScalarIndexScanRequest, SchemaWritePausePoint,
+use crate::midge::adapter::{
+    ScalarIndexScanRequest, SchemaWritePausePoint, schema_write_conflict_test_guard,
+    schema_write_conflict_worker_guard, set_schema_write_commit_barriers,
 };
 
 const CHILD_CASE: &str = "CASSIE_TEST_REPLAY_PROCESS_DEATH_CASE";
@@ -194,7 +194,7 @@ fn index_ids(cassie: &Cassie, projection: &str, title: &str) -> Vec<String> {
     };
     cassie
         .midge
-        .scan_scalar_index_controlled(&index, &request, &controls)
+        .scan_scalar_index_controlled(&index, &request, &controls.storage_request())
         .expect("scan persisted scalar index")
         .as_slice()
         .iter()
@@ -233,10 +233,12 @@ fn assert_recovered_state(cassie: &Cassie, projection: &str, expected_position: 
         metadata.last_applied_event_id,
         Some(format!("event-{expected_position}"))
     );
-    assert!(cassie
-        .midge
-        .has_projection_event(projection, "orders", "event-1")
-        .unwrap());
+    assert!(
+        cassie
+            .midge
+            .has_projection_event(projection, "orders", "event-1")
+            .unwrap()
+    );
     assert_eq!(
         cassie
             .midge
@@ -444,12 +446,12 @@ fn should_recover_acknowledged_replay_after_process_death() {
 fn should_retry_only_the_writer_lease_held_error_during_recovery() {
     // Arrange
     let errors = [
-crate::adapter::CassieError::from(cntryl_midge::MidgeError::LeaseHeld(
+        crate::app::CassieError::from(cntryl_midge::MidgeError::LeaseHeld(
             "other writer".to_owned(),
         )),
-crate::adapter::CassieError::Storage("another storage failure".to_owned()),
-crate::adapter::CassieError::Storage("Writer lease heldish: wrong prefix".to_owned()),
-crate::adapter::CassieError::StorageBootstrap("Writer lease held: wrong variant".to_owned()),
+        crate::app::CassieError::Storage("another storage failure".to_owned()),
+        crate::app::CassieError::Storage("Writer lease heldish: wrong prefix".to_owned()),
+        crate::app::CassieError::StorageBootstrap("Writer lease held: wrong variant".to_owned()),
     ];
 
     // Act

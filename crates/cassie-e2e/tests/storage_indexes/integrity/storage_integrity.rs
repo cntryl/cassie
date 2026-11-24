@@ -1,4 +1,4 @@
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieError};
 use cassie::catalog::canonical_relation_name;
 use cassie::midge::adapter::{
     document_write_storage_failures_remaining, set_document_write_conflicts_remaining,
@@ -145,18 +145,18 @@ fn should_leave_data_unchanged_when_write_conflict_retries_are_exhausted() {
     set_document_write_conflicts_remaining(8);
 
     // Act
-    let result = cassie.midge.put_document(
-        &collection,
-        Some("row-1".to_string()),
-        serde_json::json!({"title": "alpha"}),
-    );
+    let result = cassie
+        .midge
+        .put_document(
+            &collection,
+            Some("row-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .map_err(CassieError::from);
     set_document_write_conflicts_remaining(0);
 
     // Assert
-    assert!(matches!(
-        result,
-        Err(cassie::app::CassieError::StorageRetryable(_))
-    ));
+    assert!(matches!(result, Err(CassieError::StorageRetryable(_))));
     assert!(cassie
         .midge
         .get_document(&collection, "row-1")
@@ -209,18 +209,21 @@ fn should_not_retry_a_document_write_batch_after_the_writer_is_fenced() {
     set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 1);
 
     // Act
-    let result = cassie.midge.put_document(
-        &collection,
-        Some("row-1".to_string()),
-        serde_json::json!({"title": "alpha"}),
-    );
+    let result = cassie
+        .midge
+        .put_document(
+            &collection,
+            Some("row-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .map_err(CassieError::from);
     set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 0);
 
     // Assert
     assert!(
         matches!(
             &result,
-            Err(cassie::app::CassieError::StorageRetryable(message)) if message.contains("fenced")
+            Err(CassieError::StorageRetryable(message)) if message.contains("fenced")
         ),
         "fenced write should fail without an in-process retry: {result:?}"
     );

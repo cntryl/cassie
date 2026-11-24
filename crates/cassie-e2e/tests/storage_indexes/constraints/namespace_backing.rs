@@ -3,8 +3,21 @@ use crate::support_catalog_directory::CatalogDirectory;
 use crate::support_constraint_namespace::{
     fixture, local_unpublished_fixture, unpublished_fixture, CANONICAL,
 };
-use cassie::app::{Cassie, CassieError};
+use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
+use cassie::midge::adapter::StorageError;
+
+fn assert_same_constraint_metadata<A: serde::Serialize, E: serde::Serialize>(
+    actual: &[A],
+    expected: &[E],
+    message: &str,
+) {
+    assert_eq!(
+        serde_json::to_value(actual).expect("serialize stored constraint metadata"),
+        serde_json::to_value(expected).expect("serialize expected constraint metadata"),
+        "{message}"
+    );
+}
 
 #[test]
 fn should_resolve_constraint_metadata_given_unqualified_publication_when_writes_use_canonical_names(
@@ -14,10 +27,10 @@ fn should_resolve_constraint_metadata_given_unqualified_publication_when_writes_
     // Act
     let actual = cassie.midge.load_constraints(CANONICAL).unwrap();
     // Assert
-    assert_eq!(
-        actual,
-        vec![expected],
-        "metadata must describe the canonical write target"
+    assert_same_constraint_metadata(
+        &actual,
+        std::slice::from_ref(&expected),
+        "metadata must describe the canonical write target",
     );
 }
 
@@ -41,7 +54,7 @@ fn should_enforce_direct_unique_writes_given_unqualified_publication_when_commit
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "declared UNIQUE must reject the duplicate at direct storage ingress: {result:?}"
     );
 }
@@ -54,10 +67,10 @@ fn should_resolve_constraint_metadata_given_schema_qualified_publication_when_wr
     // Act
     let actual = cassie.midge.load_constraints(CANONICAL).unwrap();
     // Assert
-    assert_eq!(
-        actual,
-        vec![expected],
-        "metadata must describe the canonical write target"
+    assert_same_constraint_metadata(
+        &actual,
+        std::slice::from_ref(&expected),
+        "metadata must describe the canonical write target",
     );
 }
 
@@ -82,7 +95,7 @@ fn should_enforce_direct_unique_writes_given_schema_qualified_publication_when_c
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "declared UNIQUE must reject the duplicate at direct storage ingress: {result:?}"
     );
 }
@@ -95,10 +108,10 @@ fn should_resolve_constraint_metadata_given_database_qualified_publication_when_
     // Act
     let actual = cassie.midge.load_constraints(CANONICAL).unwrap();
     // Assert
-    assert_eq!(
-        actual,
-        vec![expected],
-        "metadata must describe the canonical write target"
+    assert_same_constraint_metadata(
+        &actual,
+        std::slice::from_ref(&expected),
+        "metadata must describe the canonical write target",
     );
 }
 
@@ -123,7 +136,7 @@ fn should_enforce_direct_unique_writes_given_database_qualified_publication_when
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "declared UNIQUE must reject the duplicate at direct storage ingress: {result:?}"
     );
 }
@@ -156,7 +169,7 @@ fn should_backfill_existing_owners_given_unqualified_publication_when_new_writes
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "backfilled committed owner must reject the duplicate: {result:?}"
     );
 }
@@ -189,7 +202,7 @@ fn should_backfill_existing_owners_given_schema_qualified_publication_when_new_w
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "backfilled committed owner must reject the duplicate: {result:?}"
     );
 }
@@ -222,7 +235,7 @@ fn should_backfill_existing_owners_given_database_qualified_publication_when_new
     );
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "backfilled committed owner must reject the duplicate: {result:?}"
     );
 }
@@ -259,13 +272,15 @@ fn should_preserve_unique_backing_given_unqualified_metadata_when_local_storage_
         serde_json::json!({"value":"same"}),
     );
     // Assert
-    assert_eq!(
-        metadata,
-        vec![expected],
-        "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+    assert_same_constraint_metadata(
+        &metadata,
+        std::slice::from_ref(&expected),
+        &format!(
+            "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+        ),
     );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "persisted owner must reject the duplicate: {duplicate:?}"
     );
 }
@@ -302,13 +317,15 @@ fn should_preserve_unique_backing_given_schema_qualified_metadata_when_local_sto
         serde_json::json!({"value":"same"}),
     );
     // Assert
-    assert_eq!(
-        metadata,
-        vec![expected],
-        "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+    assert_same_constraint_metadata(
+        &metadata,
+        std::slice::from_ref(&expected),
+        &format!(
+            "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+        ),
     );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "persisted owner must reject the duplicate: {duplicate:?}"
     );
 }
@@ -345,13 +362,15 @@ fn should_preserve_unique_backing_given_database_qualified_metadata_when_local_s
         serde_json::json!({"value":"same"}),
     );
     // Assert
-    assert_eq!(
-        metadata,
-        vec![expected],
-        "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+    assert_same_constraint_metadata(
+        &metadata,
+        std::slice::from_ref(&expected),
+        &format!(
+            "persisted metadata must qualify canonical writes; duplicate outcome: {duplicate:?}"
+        ),
     );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "persisted owner must reject the duplicate: {duplicate:?}"
     );
 }
@@ -380,7 +399,7 @@ fn should_backfill_public_metadata_saves_given_unqualified_names_when_committed_
     );
     // Assert
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "public metadata saves must publish committed owner backing: {duplicate:?}"
     );
 }
@@ -410,7 +429,7 @@ fn should_backfill_public_metadata_saves_given_schema_qualified_names_when_commi
     );
     // Assert
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "public metadata saves must publish committed owner backing: {duplicate:?}"
     );
 }
@@ -443,7 +462,7 @@ fn should_backfill_public_metadata_saves_given_database_qualified_names_when_com
     );
     // Assert
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "public metadata saves must publish committed owner backing: {duplicate:?}"
     );
 }
@@ -469,7 +488,7 @@ fn should_reject_unique_metadata_publication_given_duplicate_rows_when_public_sa
     let published = cassie.midge.load_constraints(CANONICAL).unwrap();
     // Assert
     assert!(
-        matches!(&result, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&result, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "invalid existing rows must reject publication: {result:?}"
     );
     assert!(
@@ -487,7 +506,11 @@ fn should_read_one_constraint_set_given_equivalent_names_when_metadata_is_publis
         .map(|name| cassie.midge.load_constraints(name).unwrap());
     // Assert
     for actual in sets {
-        assert_eq!(actual, vec![expected.clone()]);
+        assert_same_constraint_metadata(
+            &actual,
+            std::slice::from_ref(&expected),
+            "alias metadata must match",
+        );
     }
 }
 
@@ -527,12 +550,14 @@ fn should_release_alias_reservations_given_a_dropped_unique_when_the_key_is_repu
         inserted.is_ok(),
         "removed owner reservation must not survive: {inserted:?}"
     );
-    assert_eq!(
-        cassie
-            .midge
-            .load_constraints("public.namespace_probe")
-            .unwrap(),
-        vec![constraint]
+    let actual = cassie
+        .midge
+        .load_constraints("public.namespace_probe")
+        .unwrap();
+    assert_same_constraint_metadata(
+        &actual,
+        std::slice::from_ref(&constraint),
+        "metadata must match",
     );
 }
 
@@ -564,7 +589,7 @@ fn should_preserve_declared_primary_names_given_alias_publication_when_existing_
     );
     // Assert
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_primary"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_primary"),
         "named primary key must retain identity: {duplicate:?}"
     );
 }
@@ -618,7 +643,7 @@ fn should_isolate_constraint_owners_given_equal_relation_names_when_schemas_and_
             "equal values in different namespaces must be independent: {first:?}"
         );
         assert!(
-            matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == expected),
+            matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == expected),
             "the namespace's named owner must reject its duplicate: {duplicate:?}"
         );
     }
@@ -667,7 +692,7 @@ fn should_replay_canonical_cleanup_given_an_alias_drop_when_local_storage_restar
     );
     // Assert
     assert!(
-        matches!(interrupted, Err(CassieError::Execution(message)) if message.contains("injected test failure"))
+        matches!(interrupted, Err(StorageError::Execution(message)) if message.contains("injected test failure"))
     );
     assert!(
         metadata.is_empty(),
@@ -708,9 +733,13 @@ fn should_preserve_backing_given_repeated_publication_when_no_unique_field_is_ad
         serde_json::json!({"value":"same"}),
     );
     // Assert
-    assert_eq!(metadata, vec![constraint]);
+    assert_same_constraint_metadata(
+        &metadata,
+        std::slice::from_ref(&constraint),
+        "metadata must match",
+    );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "repeated metadata updates must retain the committed owner: {duplicate:?}"
     );
 }
@@ -743,9 +772,13 @@ fn should_preserve_backing_given_empty_cleanup_when_no_unique_field_is_removed()
         serde_json::json!({"value":"same"}),
     );
     // Assert
-    assert_eq!(metadata, vec![constraint]);
+    assert_same_constraint_metadata(
+        &metadata,
+        std::slice::from_ref(&constraint),
+        "metadata must match",
+    );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "empty cleanup must retain the committed owner: {duplicate:?}"
     );
 }
@@ -792,11 +825,11 @@ fn should_keep_unique_enforcement_given_concurrent_publication_and_direct_write(
     );
     assert!(
         inserted.is_ok()
-            || matches!(&inserted, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+            || matches!(&inserted, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "the concurrent write had an unexpected result: {inserted:?}"
     );
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "the completed publication must reject the next duplicate: {duplicate:?}"
     );
 }
@@ -829,7 +862,7 @@ fn should_backfill_new_unique_owners_given_empty_cleanup_when_existing_rows_are_
     );
     // Assert
     assert!(
-        matches!(&duplicate, Err(CassieError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
+        matches!(&duplicate, Err(StorageError::UniqueViolation { constraint, .. }) if constraint == "namespace_unique"),
         "empty cleanup must use the public validating/backfilling save: {duplicate:?}"
     );
 }

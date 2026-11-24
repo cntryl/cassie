@@ -3,7 +3,7 @@
 
 use super::{env, Env};
 use cassie::app::CassieError;
-use cassie::midge::adapter::StorageFamily;
+use cassie::midge::adapter::{StorageError, StorageFamily};
 
 const TABLE: &str = "victims";
 const ID_FIELD: u32 = 1;
@@ -31,6 +31,18 @@ fn seed(env: Env) -> Env {
 fn assert_corruption(error: &CassieError, row: &str) {
     assert_eq!(error.sql_state(), "XX001", "{error}");
     let message = error.to_string();
+    assert!(message.contains(TABLE), "{message}");
+    assert!(message.contains(row), "{message}");
+}
+
+fn assert_storage_corruption(error: &StorageError, row: &str) {
+    let StorageError::Diagnostic {
+        sql_state, message, ..
+    } = error
+    else {
+        panic!("expected a storage corruption diagnostic, got {error}");
+    };
+    assert_eq!(*sql_state, "XX001", "{error}");
     assert!(message.contains(TABLE), "{message}");
     assert!(message.contains(row), "{message}");
 }
@@ -67,7 +79,7 @@ fn should_fail_reads_when_a_live_marker_lacks_a_field_key() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.expect_err("point read fails"), "row-b");
+    assert_storage_corruption(&point.expect_err("point read fails"), "row-b");
     assert_corruption(&scan.expect_err("scan fails without partial rows"), "row-b");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("row-b"));
@@ -93,7 +105,7 @@ fn should_fail_reads_when_a_field_key_has_no_live_marker() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.expect_err("orphan read fails"), "ghost");
+    assert_storage_corruption(&point.expect_err("orphan read fails"), "ghost");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("ghost"));
 }
@@ -111,7 +123,7 @@ fn should_fail_reads_when_a_value_does_not_decode() {
         .execute_sql(&env.session, "SELECT name FROM victims", vec![]);
 
     // Assert
-    assert_corruption(&point.expect_err("point read fails"), "row-c");
+    assert_storage_corruption(&point.expect_err("point read fails"), "row-c");
     assert_corruption(&scan.expect_err("scan fails"), "row-c");
 }
 
@@ -135,7 +147,7 @@ fn should_fail_reads_when_a_value_has_the_wrong_type() {
         .expect("verifier");
 
     // Assert
-    assert_corruption(&point.expect_err("type mismatch fails"), "row-a");
+    assert_storage_corruption(&point.expect_err("type mismatch fails"), "row-a");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
 }
 
@@ -152,7 +164,7 @@ fn should_fail_reads_when_a_live_marker_is_malformed() {
         .execute_sql(&env.session, "SELECT id FROM victims", vec![]);
 
     // Assert
-    assert_corruption(&point.expect_err("malformed marker fails"), "row-a");
+    assert_storage_corruption(&point.expect_err("malformed marker fails"), "row-a");
     assert_corruption(&scan.expect_err("scan fails"), "row-a");
 }
 
@@ -267,7 +279,7 @@ fn should_reject_an_integer_field_outside_its_declared_width_with_the_correct_ta
                 .expect("maximum row");
             assert_eq!(lower.payload["id"].as_i64(), Some(minimum));
             assert_eq!(upper.payload["id"].as_i64(), Some(maximum));
-            assert_corruption(&point.expect_err("declared width is checked"), "row-c");
+            assert_storage_corruption(&point.expect_err("declared width is checked"), "row-c");
             assert_corruption(
                 &scan.expect_err("projection checks declared width"),
                 "row-c",
@@ -333,7 +345,7 @@ fn should_reject_an_extended_field_encoded_with_another_declared_type_oid() {
         &[vec![cassie::types::Value::String("12.50".to_owned())]]
     );
     assert_eq!(valid_scan.columns()[0].type_oid, 1700);
-    assert_corruption(&point.expect_err("declared OID is checked"), "row-a");
+    assert_storage_corruption(&point.expect_err("declared OID is checked"), "row-a");
     assert_corruption(&scan.expect_err("projection checks declared OID"), "row-a");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("row-a"), "{verifier:?}");
@@ -376,7 +388,7 @@ fn should_reject_trailing_bytes_after_json_sql_null_without_rejecting_valid_null
     assert!(sql_null.payload.get("id").is_none());
     assert_eq!(json_null.payload.get("id"), Some(&serde_json::Value::Null));
     assert_eq!(valid_scan, vec![vec![cassie::types::Value::Int64(2)]]);
-    assert_corruption(&point.expect_err("SQL NULL framing is exact"), "row-c");
+    assert_storage_corruption(&point.expect_err("SQL NULL framing is exact"), "row-c");
     assert_corruption(&scan.expect_err("projection checks NULL framing"), "row-c");
     assert_eq!(verifier.len(), 1, "{verifier:?}");
     assert!(verifier[0].contains("row-c"), "{verifier:?}");

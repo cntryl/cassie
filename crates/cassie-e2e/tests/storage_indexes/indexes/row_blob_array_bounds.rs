@@ -1,6 +1,5 @@
 use super::support_data_dir::data_dir;
-use cassie::app::CassieError;
-use cassie::midge::adapter::StorageFamily;
+use cassie::midge::adapter::{StorageError, StorageFamily};
 use cassie::types::{DataType, FieldSchema, Schema};
 
 #[test]
@@ -127,8 +126,12 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
 
         // Assert
         assert!(
-            matches!(decoded, Ok(Err(CassieError::Parse(_)))),
-            "invalid stored count must return a parse error without panicking"
+            matches!(
+                decoded,
+                Ok(Err(StorageError::Codec(error)))
+                    if error.to_string().contains("array count exceeds remaining payload in row blob")
+            ),
+            "invalid stored count must return a codec error without panicking"
         );
     });
     let _ = std::fs::remove_dir_all(path);

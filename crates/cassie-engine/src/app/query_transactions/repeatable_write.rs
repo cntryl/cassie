@@ -85,8 +85,9 @@ impl Cassie {
             self.apply_staged_write_batches(session, Some(controls), transactional_ddl)
         };
         if repeatable_write {
+            let request = controls.storage_request();
             self.midge
-                .with_database_publication(database, &controls.storage_request(), operation)
+                .with_database_publication(database, &request, operation)
         } else {
             operation()
         }

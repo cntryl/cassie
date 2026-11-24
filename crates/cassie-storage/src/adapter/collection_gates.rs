@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use parking_lot::{ReentrantMutex, ReentrantMutexGuard};
 
-use super::{CassieError, Midge, PublicationControlScope};
+use super::{CassieError, Midge, NativePublicationControlScope};
 use cassie_core::request::accounted::allocation::try_reserve_vec;
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
@@ -29,12 +29,12 @@ pub(super) fn with_controls<T, E>(
 where
     E: From<CassieError>,
 {
-    PublicationControlScope::check_interruption(controls)?;
+    NativePublicationControlScope::check_interruption(controls)?;
     let names = admitted_names(collections, controls)?;
     let (values, memory) = try_reserve_vec(names.values.len(), &names.memory)?;
     let mut gates = Directory { values, memory };
     for name in &names.values {
-        PublicationControlScope::check_interruption(controls)?;
+        NativePublicationControlScope::check_interruption(controls)?;
         gates.values.push(midge.collection_write_gate(name));
     }
     drop(names);
@@ -48,7 +48,7 @@ where
             .values
             .push(lock(gate, controls, WaitBoundary::Collection)?);
     }
-    PublicationControlScope::check_interruption(controls)?;
+    NativePublicationControlScope::check_interruption(controls)?;
     operation()
 }
 
@@ -66,7 +66,7 @@ fn admitted_names(
     memory.absorb(strings);
     let mut names = Directory { values, memory };
     for name in collections {
-        PublicationControlScope::check_interruption(controls)?;
+        NativePublicationControlScope::check_interruption(controls)?;
         names.values.push(name.to_ascii_lowercase());
     }
     names.values.sort_unstable();
@@ -80,9 +80,9 @@ fn lock<'a>(
     boundary: WaitBoundary,
 ) -> Result<ReentrantMutexGuard<'a, ()>, CassieError> {
     loop {
-        PublicationControlScope::check_interruption(controls)?;
+        NativePublicationControlScope::check_interruption(controls)?;
         if let Some(guard) = gate.try_lock_for(Duration::from_millis(2)) {
-            PublicationControlScope::check_interruption(controls)?;
+            NativePublicationControlScope::check_interruption(controls)?;
             return Ok(guard);
         }
         observe_wait_boundary(boundary);

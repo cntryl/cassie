@@ -163,14 +163,15 @@ impl Cassie {
             return Ok(());
         };
         let database = session.current_database().unwrap_or(&self.default_database);
+        let request = controls.storage_request();
         let (data, catalog, fence, history) =
             self.midge
-                .with_database_publication(database, &controls.storage_request(), || {
+                .with_database_publication(database, &request, || {
                     let history = session
                         .is_repeatable_read_write()
                         .then(|| {
                             self.midge
-                                .capture_repeatable_row_history(database, &controls.storage_request())
+                                .capture_repeatable_row_history(database, &request)
                         })
                         .transpose()?;
                     let fence = session
@@ -179,7 +180,7 @@ impl Cassie {
                             crate::midge::adapter::RetainedRowFence::capture(
                                 &self.midge,
                                 database,
-                                &controls.storage_request(),
+                                &request,
                             )
                         })
                         .transpose()?;

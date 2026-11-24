@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, ReentrantMutex, ReentrantMutexGuard};
 
-use super::{CassieError, Midge};
-use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+use super::{CassieError, Midge, NativeRequestControls, StorageRequestContext};
+use cassie_core::request::{Interruption, RequestCancellation};
 
 mod native_access;
 mod row_history;
@@ -32,7 +32,9 @@ impl From<AdapterCommitError> for CassieError {
         match error {
             AdapterCommitError::Native(error) => Self::from(error),
             AdapterCommitError::Cassie(error) => error,
-            AdapterCommitError::RecoveryRequired => Self::Storage(RECOVERY_REQUIRED.to_owned()),
+            AdapterCommitError::RecoveryRequired => {
+                Self::RecoveryRequired(RECOVERY_REQUIRED.to_owned())
+            }
         }
     }
 }
@@ -97,7 +99,7 @@ impl PublicationCoordinator {
 
     pub(super) fn ensure_recovered(&self) -> Result<(), CassieError> {
         if self.recovery_required.load(Ordering::Acquire) {
-            return Err(CassieError::Storage(RECOVERY_REQUIRED.to_owned()));
+            return Err(CassieError::RecoveryRequired(RECOVERY_REQUIRED.to_owned()));
         }
         Ok(())
     }
@@ -127,22 +129,24 @@ enum PublicationBoundary {
 
 #[derive(Clone, Default)]
 struct PublicationWaitControls {
-    query: Option<QueryExecutionControls>,
+    query: Option<NativeRequestControls>,
     rest: Option<RestWaitControls>,
     /// Explicit replay cancellation handles, combined with ambient authority.
-    replay: Vec<QueryCancellationHandle>,
+    replay: Vec<RequestCancellation>,
 }
 
 #[derive(Clone)]
 struct RestWaitControls {
-    cancellation: QueryCancellationHandle,
+    cancellation: RequestCancellation,
     deadline: Instant,
 }
 
 impl PublicationWaitControls {
     fn check_interruption(&self) -> Result<(), CassieError> {
         if let Some(controls) = &self.query {
-            controls.check_interruption()?;
+            controls
+                .context()
+                .check_interruption()?;
         }
         if let Some(controls) = &self.rest {
             if controls.cancellation.is_canceled() {
@@ -152,14 +156,20 @@ impl PublicationWaitControls {
                 return Err(CassieError::DeadlineExceeded);
             }
         }
-        if self.replay.iter().any(QueryCancellationHandle::is_canceled) {
+        if self.replay.iter().any(RequestCancellation::is_canceled) {
             return Err(CassieError::QueryCanceled);
         }
         Ok(())
     }
 
-    fn with_query(mut self, controls: &QueryExecutionControls) -> Self {
-        self.query.get_or_insert_with(|| controls.clone());
+    fn with_interruption(
+        mut self,
+        interruption: Interruption<'_>,
+        memory: &cassie_core::request::RequestMemory,
+    ) -> Self {
+        self.query.get_or_insert_with(|| {
+            NativeRequestControls::new(interruption, memory.clone())
+        });
         self
     }
 }
@@ -227,7 +237,7 @@ impl DatabasePublication {
     #[cfg(test)]
     fn publish_with(
         &self,
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
     ) -> Result<(), AdapterCommitError> {
         self.publish_with_observer(controls, operation, |_| {})
@@ -236,12 +246,14 @@ impl DatabasePublication {
     #[cfg(test)]
     fn publish_with_observer(
         &self,
-        controls: Option<&QueryExecutionControls>,
+        controls: Option<&StorageRequestContext<'_>>,
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
         observer: impl FnMut(PublicationBoundary),
     ) -> Result<(), AdapterCommitError> {
-        let controls =
-            controls.map(|controls| PublicationWaitControls::default().with_query(controls));
+        let controls = controls.map(|controls| {
+            PublicationWaitControls::default()
+                .with_interruption(controls.interruption(), controls.memory())
+        });
         self.publish_with_wait_observer(controls.as_ref(), operation, observer)
     }
 
@@ -291,18 +303,22 @@ impl DatabasePublication {
         operation()
     }
 
-    fn with_operation<T>(
+    fn with_operation<T, E>(
         &self,
-        controls: &QueryExecutionControls,
-        operation: impl FnOnce() -> Result<T, CassieError>,
-    ) -> Result<T, CassieError> {
+        controls: &StorageRequestContext<'_>,
+        operation: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<CassieError>,
+    {
         let controls = CURRENT_CONTROLS
             .with(|slot| slot.borrow().clone())
             .unwrap_or_default()
-            .with_query(controls);
+            .with_interruption(controls.interruption(), controls.memory());
         let _guard = self
             .lock(Some(&controls), &mut |_| {})
-            .map_err(CassieError::from)?;
+            .map_err(CassieError::from)
+            .map_err(E::from)?;
         operation()
     }
 }
@@ -313,13 +329,14 @@ thread_local! {
 
 /// A blocking call stack's current request, never a retained transaction token.
 #[doc(hidden)]
-pub struct PublicationControlScope {
+pub struct NativePublicationControlScope {
     previous: Option<PublicationWaitControls>,
     _thread: PhantomData<Rc<()>>,
 }
 
-impl PublicationControlScope {
-    pub(crate) fn check_interruption(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+impl NativePublicationControlScope {
+    #[doc(hidden)]
+    pub fn check_interruption(controls: &StorageRequestContext<'_>) -> Result<(), CassieError> {
         CURRENT_CONTROLS.with(|slot| {
             if let Some(current) = slot.borrow().as_ref() {
                 current.check_interruption()?;
@@ -328,29 +345,9 @@ impl PublicationControlScope {
         })
     }
 
-    pub(crate) fn for_request(
-        limits: &crate::config::CassieRuntimeLimits,
-        cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-    ) -> Self {
-        // Nested SQL/document calls keep the originating request's deadline
-        // and cancellation. Standalone administrative requests get one owner.
-        let controls = CURRENT_CONTROLS
-            .with(|slot| slot.borrow().clone())
-            .unwrap_or_else(|| {
-                PublicationWaitControls::default().with_query(
-                    &QueryExecutionControls::with_cancellation(
-                        limits,
-                        Instant::now(),
-                        cancellation.cloned().unwrap_or_default(),
-                    ),
-                )
-            });
-        Self::replace(Some(controls))
-    }
-
     #[doc(hidden)]
     pub fn enter_for_rest(
-        cancellation: &QueryCancellationHandle,
+        cancellation: &RequestCancellation,
         deadline: Instant,
     ) -> Self {
         let mut controls = CURRENT_CONTROLS
@@ -364,8 +361,8 @@ impl PublicationControlScope {
     }
 
     /// Adds an explicit replay cancellation handle to the ambient authority.
-    /// Unlike [`Self::for_request`], an enclosing request never discards it.
-    pub(crate) fn enter_for_replay(cancellation: &QueryCancellationHandle) -> Self {
+    #[doc(hidden)]
+    pub fn enter_for_replay(cancellation: &RequestCancellation) -> Self {
         let mut controls = CURRENT_CONTROLS
             .with(|slot| slot.borrow().clone())
             .unwrap_or_default();
@@ -374,7 +371,8 @@ impl PublicationControlScope {
     }
 
     /// Checks the current call stack's combined cancellation and deadline.
-    pub(crate) fn check_current() -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn check_current() -> Result<(), CassieError> {
         CURRENT_CONTROLS.with(|slot| {
             slot.borrow()
                 .as_ref()
@@ -382,18 +380,19 @@ impl PublicationControlScope {
         })
     }
 
-    pub(crate) fn current_query_controls() -> Option<QueryExecutionControls> {
-        CURRENT_CONTROLS.with(|slot| {
-            slot.borrow()
-                .as_ref()
-                .and_then(|controls| controls.query.clone())
-        })
+    pub(crate) fn current_request_controls() -> Option<NativeRequestControls> {
+        CURRENT_CONTROLS.with(|slot| slot.borrow().as_ref().and_then(|value| value.query.clone()))
     }
 
-    pub(crate) fn enter(controls: Option<&QueryExecutionControls>) -> Self {
+    #[doc(hidden)]
+    pub fn enter(controls: Option<&StorageRequestContext<'_>>) -> Self {
         let current = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
         Self::replace(match controls {
-            Some(controls) => Some(current.unwrap_or_default().with_query(controls)),
+            Some(controls) => Some(
+                current
+                    .unwrap_or_default()
+                    .with_interruption(controls.interruption(), controls.memory()),
+            ),
             None => current,
         })
     }
@@ -401,7 +400,8 @@ impl PublicationControlScope {
     /// Retire request cancellation/deadline authority only for terminal cleanup
     /// or completion after a confirmed publication. Storage quarantine remains
     /// enforced independently by every publishing path.
-    pub(crate) fn terminal_completion() -> Self {
+    #[doc(hidden)]
+    pub fn terminal_completion() -> Self {
         Self::replace(None)
     }
 
@@ -413,7 +413,7 @@ impl PublicationControlScope {
     }
 }
 
-impl Drop for PublicationControlScope {
+impl Drop for NativePublicationControlScope {
     fn drop(&mut self) {
         drop(CURRENT_CONTROLS.with(|slot| slot.replace(self.previous.take())));
     }
@@ -449,7 +449,7 @@ impl Midge {
     pub(crate) fn capture_repeatable_row_history(
         &self,
         database: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
     ) -> Result<Arc<RetainedRowHistory>, CassieError> {
         self.with_database_publication(database, controls, || {
             controls.check_interruption()?;
@@ -463,7 +463,7 @@ impl Midge {
     pub(crate) fn with_database_publication<T, E>(
         &self,
         database: &str,
-        controls: &QueryExecutionControls,
+        controls: &StorageRequestContext<'_>,
         operation: impl FnOnce() -> Result<T, E>,
     ) -> Result<T, E>
     where

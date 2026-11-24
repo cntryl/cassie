@@ -72,18 +72,19 @@ impl Midge {
         } else {
             self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?
         };
-        let controls = super::PublicationControlScope::current_query_controls();
+        let controls = super::NativePublicationControlScope::current_request_controls();
+        let request = controls.as_ref().map(super::NativeRequestControls::context);
         let scan = tx
             .scan(&super::Query::new().prefix(Self::schema_cleanup_prefix().into()))
             .map_err(CassieError::from)?;
         for entry in scan {
-            if let Some(controls) = controls.as_ref() {
+            if let Some(controls) = request.as_ref() {
                 controls.check_interruption()?;
             }
             let (_, raw) = entry.map_err(CassieError::from)?;
             let marker = guard_decode::decode::<PendingSchemaCleanup>(
                 &raw,
-                controls.as_ref(),
+                request.as_ref(),
                 "pending schema cleanup",
             )?;
             if let PendingSchemaCleanupAction::Index {
@@ -94,8 +95,8 @@ impl Midge {
                 if self
                     .canonical_collection_name(table)
                     .eq_ignore_ascii_case(&collection)
-                    && (guard_decode::names_match(pending, index, controls.as_ref())?
-                        || guard_decode::names_match(index, pending, controls.as_ref())?)
+                    && (guard_decode::names_match(pending, index, request.as_ref())?
+                        || guard_decode::names_match(index, pending, request.as_ref())?)
                 {
                     return Err(CassieError::Unsupported(format!(
                         "pending index cleanup prevents reusing index '{index}'"

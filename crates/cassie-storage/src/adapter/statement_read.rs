@@ -2,7 +2,7 @@
 
 use super::{CassieError, Midge, TransactionMode};
 use cassie_core::request::{
-    Interruption, InterruptionError, RequestMemory, RequestMemoryReservation,
+    Interruption, InterruptionError, RequestCancellation, RequestMemory, RequestMemoryReservation,
 };
 use std::cell::RefCell;
 use std::mem::size_of;
@@ -24,21 +24,78 @@ struct ScopedNativeRead {
 /// The concrete request boundary accepted by storage operations.
 pub struct StorageRequestContext<'a> {
     snapshot: Option<&'a NativeStatementSnapshot>,
-    interruption: Interruption<'a>,
-    memory: &'a RequestMemory,
+    cancellation: RequestCancellation,
+    deadline: Option<Instant>,
+    memory: RequestMemory,
     scan_control: Option<&'a super::QueryScanControlScope>,
 }
 
+/// Owned request authority retained by the native publication wait scope.
+#[derive(Clone)]
+#[doc(hidden)]
+pub struct NativeRequestControls {
+    cancellation: RequestCancellation,
+    deadline: Option<Instant>,
+    memory: RequestMemory,
+}
+
+impl NativeRequestControls {
+    /// Creates owned native request authority from a live core interruption.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn new(interruption: Interruption<'_>, memory: RequestMemory) -> Self {
+        Self {
+            cancellation: interruption.cancellation().clone(),
+            deadline: interruption.deadline(),
+            memory,
+        }
+    }
+
+    /// Creates a borrowed request context with the same cancellation and memory owners.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn context(&self) -> StorageRequestContext<'static> {
+        StorageRequestContext::new(
+            None,
+            Interruption::new(self.deadline, &self.cancellation),
+            &self.memory,
+        )
+    }
+
+    /// Checks this request's cancellation and deadline.
+    #[doc(hidden)]
+    pub fn check_interruption(&self) -> Result<(), CassieError> {
+        self.context().check_interruption()
+    }
+
+    /// Admits memory against the same request budget.
+    #[doc(hidden)]
+    pub fn reserve_query_memory(
+        &self,
+        bytes: usize,
+    ) -> Result<RequestMemoryReservation, CassieError> {
+        self.context().reserve_query_memory(bytes)
+    }
+
+    /// Returns the request's configured memory budget.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn query_memory_budget_bytes(&self) -> usize {
+        self.memory.budget()
+    }
+}
+
 impl<'a> StorageRequestContext<'a> {
-    pub const fn new(
+    pub fn new(
         snapshot: Option<&'a NativeStatementSnapshot>,
         interruption: Interruption<'a>,
         memory: &'a RequestMemory,
     ) -> Self {
         Self {
             snapshot,
-            interruption,
-            memory,
+            cancellation: interruption.cancellation().clone(),
+            deadline: interruption.deadline(),
+            memory: memory.clone(),
             scan_control: None,
         }
     }
@@ -63,23 +120,23 @@ impl<'a> StorageRequestContext<'a> {
     }
 
     #[must_use]
-    pub const fn memory(&self) -> &'a RequestMemory {
-        self.memory
+    pub const fn memory(&self) -> &RequestMemory {
+        &self.memory
     }
 
     #[must_use]
-    pub const fn interruption(&self) -> Interruption<'a> {
-        self.interruption
+    pub fn interruption(&self) -> Interruption<'_> {
+        Interruption::new(self.deadline, &self.cancellation)
     }
 
     #[must_use]
     pub const fn deadline(&self) -> Option<Instant> {
-        self.interruption.deadline()
+        self.deadline
     }
 
     #[must_use]
     pub fn is_canceled(&self) -> bool {
-        self.interruption.cancellation().is_canceled()
+        self.cancellation.is_canceled()
     }
 
     #[must_use]
@@ -98,7 +155,7 @@ impl<'a> StorageRequestContext<'a> {
     }
 
     pub fn check_interruption(&self) -> Result<(), CassieError> {
-        self.interruption.check().map_err(|error| match error {
+        self.interruption().check().map_err(|error| match error {
             InterruptionError::Canceled => CassieError::QueryCanceled,
             InterruptionError::DeadlineExceeded => CassieError::DeadlineExceeded,
         })

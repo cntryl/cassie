@@ -1,6 +1,6 @@
 use super::native_memory::NativeMemoryConfiguration;
 use super::{
-    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, PublicationControlScope,
+    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, NativePublicationControlScope,
     Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
@@ -683,8 +683,9 @@ impl Midge {
     ) -> Result<T, CassieError> {
         let canonical = self.canonical_collection_name(sequence);
         let sequences = [canonical];
-        if let Some(controls) = PublicationControlScope::current_query_controls() {
-            self.with_transaction_write_gates(&sequences, false, &controls, operation)
+        if let Some(controls) = NativePublicationControlScope::current_request_controls() {
+            let context = controls.context();
+            self.with_transaction_write_gates(&sequences, false, &context, operation)
         } else {
             self.with_collection_gates(&sequences, operation)
         }

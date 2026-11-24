@@ -21,7 +21,7 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {
-        let controls = super::PublicationControlScope::current_query_controls();
+        let controls = super::NativePublicationControlScope::current_request_controls();
         for database in self.database_names() {
             if let Some(controls) = controls.as_ref() {
                 controls.check_interruption()?;
@@ -93,18 +93,19 @@ impl Midge {
         } else {
             self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?
         };
-        let controls = super::PublicationControlScope::current_query_controls();
+        let controls = super::NativePublicationControlScope::current_request_controls();
+        let request = controls.as_ref().map(super::NativeRequestControls::context);
         let scan = tx
             .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
             .map_err(CassieError::from)?;
         for entry in scan {
-            if let Some(controls) = controls.as_ref() {
+            if let Some(controls) = request.as_ref() {
                 controls.check_interruption()?;
             }
             let (_, raw) = entry.map_err(CassieError::from)?;
             let pending = super::schema_cleanup::guard_decode::decode::<PendingIndexPublication>(
                 &raw,
-                controls.as_ref(),
+                request.as_ref(),
                 "index publication",
             )?;
             if self
@@ -113,11 +114,11 @@ impl Midge {
                 && (super::schema_cleanup::guard_decode::names_match(
                     &pending.value.index.name,
                     name,
-                    controls.as_ref(),
+                    request.as_ref(),
                 )? || super::schema_cleanup::guard_decode::names_match(
                     name,
                     &pending.value.index.name,
-                    controls.as_ref(),
+                    request.as_ref(),
                 )?)
             {
                 return Ok(true);

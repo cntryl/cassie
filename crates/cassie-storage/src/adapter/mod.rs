@@ -52,7 +52,7 @@ mod role_object_grants;
 pub(crate) use publication::RetainedRowHistory;
 mod raw_ops;
 #[doc(hidden)]
-pub use publication::PublicationControlScope;
+pub use publication::NativePublicationControlScope;
 mod transactions;
 pub use transactions::{
     AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
@@ -1089,7 +1089,8 @@ impl Midge {
 mod statement_read;
 use statement_read::DataReadTransaction;
 pub use statement_read::{
-    NativeStatementReadScope, NativeStatementSnapshot, StorageRequestContext,
+    NativeRequestControls, NativeStatementReadScope, NativeStatementSnapshot,
+    StorageRequestContext,
 };
 pub use cassie_core::request::RequestMemoryReservation as QueryMemoryReservation;
 

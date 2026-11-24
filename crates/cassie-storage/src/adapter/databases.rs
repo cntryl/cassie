@@ -499,7 +499,7 @@ impl Midge {
         &self,
         staged: &StagedDatabaseFamily,
     ) -> Result<(), CassieError> {
-        let _completion = super::PublicationControlScope::terminal_completion();
+        let _completion = super::NativePublicationControlScope::terminal_completion();
         self.drop_physical_family_if_present(&staged.metadata.physical_family)?;
         let mut tx = self.begin_schema_rw_tx()?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;

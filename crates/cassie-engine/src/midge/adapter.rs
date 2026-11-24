@@ -17,6 +17,117 @@ mod native_memory_tests;
 #[path = "adapter/legacy_graph_state_tests.rs"]
 mod legacy_graph_state_tests;
 
+use std::cell::RefCell;
+
+thread_local! {
+    static CURRENT_ENGINE_QUERY_CONTROLS: RefCell<Option<crate::runtime::QueryExecutionControls>> = const { RefCell::new(None) };
+}
+
+/// Engine compatibility scope that installs the same request authority in the
+/// Engine and the concrete storage publication coordinator.
+#[doc(hidden)]
+pub struct PublicationControlScope {
+    previous: Option<crate::runtime::QueryExecutionControls>,
+    restore_engine_controls: bool,
+    _storage: cassie_storage::adapter::NativePublicationControlScope,
+}
+
+impl PublicationControlScope {
+    pub(crate) fn check_interruption(
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<(), crate::app::CassieError> {
+        if let Some(current) = Self::current_query_controls() {
+            current.check_interruption()?;
+        }
+        controls.check_interruption()
+    }
+
+    pub(crate) fn for_request(
+        limits: &crate::config::CassieRuntimeLimits,
+        cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+    ) -> Self {
+        if let Some(controls) = Self::current_query_controls() {
+            return Self::enter(Some(&controls));
+        }
+        let controls = crate::runtime::QueryExecutionControls::with_cancellation(
+            limits,
+            std::time::Instant::now(),
+            cancellation.cloned().unwrap_or_default(),
+        );
+        Self::enter(Some(&controls))
+    }
+
+    #[doc(hidden)]
+    pub fn enter_for_rest(
+        cancellation: &crate::runtime::QueryCancellationHandle,
+        deadline: std::time::Instant,
+    ) -> Self {
+        Self {
+            previous: None,
+            restore_engine_controls: false,
+            _storage: cassie_storage::adapter::NativePublicationControlScope::enter_for_rest(
+                cancellation.request_cancellation(),
+                deadline,
+            ),
+        }
+    }
+
+    pub(crate) fn enter_for_replay(
+        cancellation: &crate::runtime::QueryCancellationHandle,
+    ) -> Self {
+        Self {
+            previous: None,
+            restore_engine_controls: false,
+            _storage: cassie_storage::adapter::NativePublicationControlScope::enter_for_replay(
+                cancellation.request_cancellation(),
+            ),
+        }
+    }
+
+    pub(crate) fn check_current() -> Result<(), crate::app::CassieError> {
+        if let Some(controls) = Self::current_query_controls() {
+            controls.check_interruption()?;
+        }
+        cassie_storage::adapter::NativePublicationControlScope::check_current().map_err(Into::into)
+    }
+
+    pub(crate) fn current_query_controls() -> Option<crate::runtime::QueryExecutionControls> {
+        CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone())
+    }
+
+    pub(crate) fn enter(controls: Option<&crate::runtime::QueryExecutionControls>) -> Self {
+        let previous = CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone());
+        let active = previous.clone().or_else(|| controls.cloned());
+        let storage_context = active.as_ref().map(crate::runtime::QueryExecutionControls::storage_request);
+        let storage = cassie_storage::adapter::NativePublicationControlScope::enter(
+            storage_context.as_ref(),
+        );
+        CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.replace(active));
+        Self {
+            previous,
+            restore_engine_controls: true,
+            _storage: storage,
+        }
+    }
+
+    pub(crate) fn terminal_completion() -> Self {
+        let previous = CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.replace(None));
+        Self {
+            previous,
+            restore_engine_controls: true,
+            _storage: cassie_storage::adapter::NativePublicationControlScope::terminal_completion(),
+        }
+    }
+}
+
+impl Drop for PublicationControlScope {
+    fn drop(&mut self) {
+        if self.restore_engine_controls {
+            CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.replace(self.previous.take()));
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod statement_read {
     #[path = "adapter/statement_read/tests.rs"]

@@ -130,8 +130,9 @@ pub(crate) enum SequenceTarget {
     Native,
 }
 
-fn controls() -> Result<StorageRequestContext, CassieError> {
-    super::super::publication::PublicationControlScope::current_query_controls()
+fn controls() -> Result<StorageRequestContext<'static>, CassieError> {
+    super::super::publication::NativePublicationControlScope::current_request_controls()
+        .map(|controls| controls.context())
         .ok_or_else(|| CassieError::Unsupported("staged sequence requires query controls".into()))
 }
 
@@ -390,18 +391,19 @@ impl SequenceOwner {
         if let Some(cursor) = state.cursors.get(&(metadata.object_id, epoch)) {
             metadata.set_cursor(*cursor);
         }
-        let controls = super::super::publication::PublicationControlScope::current_query_controls()
+        let controls = super::super::publication::NativePublicationControlScope::current_request_controls()
             .ok_or_else(|| {
                 CassieError::Unsupported("staged sequence requires query controls".into())
             })?;
-        controls.check_interruption()?;
+        let request = controls.context();
+        request.check_interruption()?;
         let is_new = !state.cursors.contains_key(&(metadata.object_id, epoch));
         if is_new {
             // Request admission remains separate from the transaction-owned aggregate bound.
-            let _request = controls.reserve_query_memory(CURSOR_BYTES)?;
+            let _request = request.reserve_query_memory(CURSOR_BYTES)?;
             if state.admission.is_none() {
                 state.admission = Some(QueryMemoryReservation::independent_budget(
-                    controls.query_memory_budget_bytes(),
+                    request.query_memory_budget_bytes(),
                     0,
                 )?);
             }
@@ -422,7 +424,7 @@ impl SequenceOwner {
             }
         };
         if let Some(fork) = fork {
-            if let Err(error) = fork.protect(&mut state, (metadata.object_id, epoch), &controls) {
+            if let Err(error) = fork.protect(&mut state, (metadata.object_id, epoch), &request) {
                 if is_new {
                     let admission = state.admission.as_mut().expect("owner admitted");
                     admission.shrink_to(admission.bytes() - CURSOR_BYTES);

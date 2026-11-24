@@ -120,7 +120,8 @@ fn should_latch_recovery_required_before_releasing_the_original_gate() {
         submitted.set(true);
         Ok(())
     });
-    let captured = second.with_operation(&TestRequest::default(), || {
+    let request = TestRequest::default();
+    let captured = second.with_operation(&request.context(), || {
         submitted.set(true);
         Ok(())
     });

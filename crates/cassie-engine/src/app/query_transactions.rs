@@ -263,9 +263,10 @@ impl Cassie {
             .map_or_default(|catalog| self.role_grant_targets_removed_by_transaction(catalog));
         if let Some(catalog) = &catalog_overlay {
             {
-                let (sequences, _memory) =
-                    storage_overlay.prepare_sequence_cursor_metadata(&controls.storage_request())?;
-                for sequence in sequences {
+                let (sequences, _directory) = storage_overlay
+                    .prepare_sequence_cursor_metadata(&controls.storage_request())?
+                    .into_parts();
+                for (sequence, _scratch) in sequences {
                     catalog.register_sequence(sequence);
                 }
             }

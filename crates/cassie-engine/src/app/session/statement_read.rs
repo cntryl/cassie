@@ -6,7 +6,9 @@ use super::{
     StagedWriteSnapshot, TransactionRowChange, TransactionWrites,
 };
 use crate::executor::retained_memory::add;
-use crate::midge::adapter::{Midge, NativeStatementReadContext, StatementDataRead};
+use crate::midge::adapter::{
+    Midge, NativeStatementReadScope, NativeStatementSnapshot, StorageRequestContext,
+};
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use std::cell::RefCell;
@@ -17,6 +19,232 @@ use std::sync::{Arc, Weak};
 
 thread_local! {
     static CURRENT_OVERLAY: RefCell<Option<Arc<StatementOverlay>>> = const { RefCell::new(None) };
+}
+
+/// Engine-owned command view over a storage-owned native snapshot.
+pub(crate) struct StatementDataRead {
+    snapshot: Arc<NativeStatementSnapshot>,
+    overlay: Option<Arc<StatementOverlay>>,
+    private_outputs: Option<MaterializedReads>,
+    memory: QueryMemoryReservation,
+}
+
+#[derive(Clone)]
+enum MaterializedReads {
+    All(Arc<crate::app::PrivateOutputs>),
+    One(Arc<PrivateOutput>),
+}
+
+impl MaterializedReads {
+    fn get(&self, logical: &str) -> Option<&Arc<PrivateOutput>> {
+        match self {
+            Self::All(outputs) => outputs.get(logical),
+            Self::One(output) => Some(output),
+        }
+    }
+
+    fn accounted_bytes(&self) -> Result<usize, CassieError> {
+        match self {
+            Self::All(outputs) => outputs.values().try_fold(0, |sum, output| {
+                cassie_core::request::accounted::retained::add(sum, output.accounted_bytes()?)
+                    .map_err(|error| CassieError::ResourceLimit(error.to_string()))
+            }),
+            Self::One(output) => output.accounted_bytes(),
+        }
+    }
+}
+
+impl std::fmt::Debug for StatementDataRead {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StatementDataRead")
+            .field("data_epoch", &self.snapshot.data_epoch())
+            .finish_non_exhaustive()
+    }
+}
+
+impl StatementDataRead {
+    pub(crate) fn from_native_snapshot(
+        snapshot: Arc<NativeStatementSnapshot>,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<Self>, CassieError> {
+        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        Ok(Arc::new(Self {
+            snapshot,
+            overlay: None,
+            private_outputs: None,
+            memory,
+        }))
+    }
+
+    pub(crate) fn capture(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<Self>, CassieError> {
+        Self::capture_with_overlay(midge, database, controls, None)
+    }
+
+    pub(crate) fn capture_with_overlay(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        overlay: Option<Arc<StatementOverlay>>,
+    ) -> Result<Arc<Self>, CassieError> {
+        Self::capture_with_authority(midge, database, controls, overlay, false)
+    }
+
+    pub(crate) fn capture_repeatable_read_with_overlay(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        overlay: Option<Arc<StatementOverlay>>,
+    ) -> Result<Arc<Self>, CassieError> {
+        Self::capture_with_authority(midge, database, controls, overlay, true)
+    }
+
+    fn capture_with_authority(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        overlay: Option<Arc<StatementOverlay>>,
+        current_catalog: bool,
+    ) -> Result<Arc<Self>, CassieError> {
+        let context = StorageRequestContext::new(
+            None,
+            controls.interruption(),
+            controls.request_memory(),
+        );
+        let snapshot = NativeStatementSnapshot::capture(midge, database, &context, current_catalog)?;
+        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        Ok(Arc::new(Self {
+            snapshot,
+            private_outputs: None,
+            overlay,
+            memory,
+        }))
+    }
+
+    pub(crate) fn with_overlay(
+        retained: &Self,
+        overlay: Option<Arc<StatementOverlay>>,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<Self>, CassieError> {
+        let context = StorageRequestContext::new(
+            Some(&retained.snapshot),
+            controls.interruption(),
+            controls.request_memory(),
+        );
+        context.check_interruption()?;
+        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        Ok(Arc::new(Self {
+            snapshot: Arc::clone(&retained.snapshot),
+            private_outputs: retained.private_outputs.clone(),
+            overlay,
+            memory,
+        }))
+    }
+
+    pub(crate) fn matches(&self, midge: &Arc<Midge>, database: &str) -> bool {
+        self.snapshot.matches(midge, database)
+    }
+
+    pub(crate) fn matches_current_family(
+        &self,
+        midge: &Arc<Midge>,
+        database: &str,
+    ) -> Result<bool, CassieError> {
+        Ok(self.snapshot.matches_current_family(midge, database)?)
+    }
+
+    pub(crate) fn data_epoch(&self) -> u64 {
+        self.snapshot.data_epoch()
+    }
+
+    pub(crate) fn overlay(&self) -> Option<&Arc<StatementOverlay>> {
+        self.overlay.as_ref()
+    }
+
+    pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
+        let command = cassie_core::request::accounted::retained::add(
+            self.memory.bytes(),
+            self.overlay.as_ref().map_or(0, |owner| owner.accounted_bytes()),
+        )
+        .map_err(|error| CassieError::ResourceLimit(error.to_string()))?;
+        cassie_core::request::accounted::retained::add(
+            command,
+            self.private_outputs
+                .as_ref()
+                .map_or(Ok(0), MaterializedReads::accounted_bytes)?,
+        )
+        .map_err(|error| CassieError::ResourceLimit(error.to_string()))
+    }
+
+    pub(crate) fn private_owner_accounted_bytes(&self) -> Result<usize, CassieError> {
+        cassie_core::request::accounted::retained::add(
+            self.memory.bytes(),
+            self.snapshot.accounted_bytes(),
+        )
+        .map_err(|error| CassieError::ResourceLimit(error.to_string()))
+    }
+
+    pub(crate) fn retain_bound_output(
+        owner: &mut Arc<Self>,
+        logical: &str,
+        private_outputs: Option<&Arc<crate::app::PrivateOutputs>>,
+    ) {
+        if let Some(outputs) = private_outputs {
+            Arc::get_mut(owner)
+                .expect("new private command owner")
+                .private_outputs = outputs
+                .get(logical)
+                .cloned()
+                .map(MaterializedReads::One);
+        }
+    }
+
+    pub(crate) fn with_materialized_outputs(
+        retained: &Self,
+        overlay: Arc<StatementOverlay>,
+        private_outputs: Option<&Arc<crate::app::PrivateOutputs>>,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<Self>, CassieError> {
+        let mut owner = Self::with_overlay(retained, Some(overlay), controls)?;
+        Arc::get_mut(&mut owner)
+            .expect("new command owner")
+            .private_outputs = private_outputs.map(|outputs| MaterializedReads::All(Arc::clone(outputs)));
+        Ok(owner)
+    }
+
+    pub(crate) fn enter_materialized_output(
+        controls: &QueryExecutionControls,
+        logical: &str,
+        output: &str,
+    ) -> Option<StatementReadScope> {
+        let private = controls.statement_read()?.private_outputs.as_ref()?.get(logical)?;
+        (private.name == output).then(|| StatementReadScope::enter(Some(&private.read)))
+    }
+}
+
+/// Engine session wrapper that also installs the matching storage snapshot scope.
+pub(crate) struct StatementReadScope {
+    _native: NativeStatementReadScope,
+}
+
+impl StatementReadScope {
+    pub(crate) fn enter(owner: Option<&Arc<StatementDataRead>>) -> Self {
+        let native = owner.map(|owner| {
+            NativeStatementReadScope::enter(
+                Some(&owner.snapshot),
+                owner
+                    .overlay()
+                    .and_then(|overlay| overlay.checkpoint_storage().cloned()),
+            )
+        });
+        Self {
+            _native: native.unwrap_or_else(|| NativeStatementReadScope::enter(None, None)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -40,10 +268,11 @@ pub(crate) type PrivateOutputs = std::collections::BTreeMap<String, Arc<PrivateO
 
 impl PrivateOutput {
     pub(crate) fn accounted_bytes(&self) -> Result<usize, CassieError> {
-        add(
+        cassie_core::request::accounted::retained::add(
             self.memory.bytes(),
             self.read.private_owner_accounted_bytes()?,
         )
+        .map_err(|error| CassieError::ResourceLimit(error.to_string()))
     }
 }
 
@@ -92,7 +321,7 @@ impl CassieSession {
         }
         let storage = Arc::clone(&transaction.storage_overlay);
         let database = self.current_database().unwrap_or(default_database);
-        let context = NativeStatementReadContext::new(
+        let context = StorageRequestContext::new(
             None,
             controls.interruption(),
             controls.request_memory(),

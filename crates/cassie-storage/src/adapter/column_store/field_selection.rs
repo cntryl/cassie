@@ -7,7 +7,7 @@
 //! separate from the ownership validation counted by
 //! `column_validation_reads_for_diagnostics`.
 
-use crate::midge::row_blob::{RowFieldMeta, RowSchema};
+use crate::row_blob::{RowFieldMeta, RowSchema};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -28,7 +28,7 @@ impl ColumnFieldSelection {
             .filter(|(_, field)| {
                 projection.is_none_or(|selected| {
                     selected.contains(
-                        &crate::sql::ColumnIdentifierPath::from_field_name(&field.name)
+                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name)
                             .lookup_key(),
                     )
                 })
@@ -95,7 +95,7 @@ pub(crate) struct ColumnRowRef<'a> {
     pub marker_version: u32,
 }
 
-impl crate::midge::adapter::Midge {
+implcrate::adapter::Midge {
     /// Reads and validates one selected field of a live column row, counting
     /// the fetched payload and its decode. Behaves exactly like
     /// `read_column_store_field` otherwise.
@@ -105,17 +105,17 @@ impl crate::midge::adapter::Midge {
     /// Returns `XX001` when a required field key is absent or does not decode.
     pub(crate) fn read_counted_column_store_field(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         row: ColumnRowRef<'_>,
         field: &RowFieldMeta,
-    ) -> Result<Option<serde_json::Value>, crate::app::CassieError> {
+    ) -> Result<Option<serde_json::Value>,crate::adapter::CassieError> {
         let raw = tx
             .get(&Self::column_store_field_key(
                 row.row_schema.relation_id,
                 field.field_id,
                 row.id,
             ))
-            .map_err(crate::app::CassieError::from)?;
+            .map_err( crate::adapter::CassieError::from)?;
         let counters = self.column_field_reads();
         match raw {
             Some(raw) => {

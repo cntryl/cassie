@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 
 use super::super::key_encoding;
 use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord};
-use crate::runtime::accounted::AccountedVec;
+use cassie_core::request::accounted::AccountedVec;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 #[path = "vector_retrieval/accounting.rs"]
@@ -109,7 +109,7 @@ impl PersistedIvfFlatCandidateBatch {
 
 struct ControlledIvfReadContext<'a> {
     midge: &'a Midge,
-    tx: &'a crate::midge::adapter::AdapterTransaction,
+    tx: &'acrate::adapter::AdapterTransaction,
     collection: &'a str,
     field: &'a str,
     relation_id: u64,
@@ -132,7 +132,7 @@ struct ControlledHnswHeader {
 
 fn load_controlled_hnsw_header(
     midge: &Midge,
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     collection: &str,
     relation_id: u64,
     field_id: u32,
@@ -915,7 +915,7 @@ impl Midge {
     }
 
     pub(super) fn write_hnsw_source_summary_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,
@@ -932,7 +932,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_source_summary_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         generation: u64,

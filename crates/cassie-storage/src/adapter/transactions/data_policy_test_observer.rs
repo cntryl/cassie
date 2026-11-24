@@ -1,6 +1,6 @@
 //! Test-only paired worker/native-Data observation; never product telemetry.
 use crate::app::Cassie;
-use crate::midge::adapter::{observe_native_commits, NativeCommitObservation};
+use crate::adapter::{observe_native_commits, NativeCommitObservation};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};

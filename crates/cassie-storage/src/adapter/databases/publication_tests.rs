@@ -1,7 +1,7 @@
 use super::super::Midge;
 use crate::app::{CassieError, StorageRetryKind};
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::PublicationControlScope;
+use crate::adapter::PublicationControlScope;
 use crate::runtime::QueryExecutionControls;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};

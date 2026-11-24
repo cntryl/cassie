@@ -1,4 +1,4 @@
-use crate::types::{Value, Vector};
+use cassie_core::types::{Value, Vector};
 
 impl From<&Value> for Vector {
     fn from(value: &Value) -> Self {

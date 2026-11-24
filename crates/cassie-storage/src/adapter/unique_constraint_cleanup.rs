@@ -28,10 +28,10 @@ impl Midge {
         self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);
         let mut fields = fields.to_vec();
-        fields.sort_by_key(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field));
+        fields.sort_by_key(|field| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field));
         fields.dedup_by(|left, right| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(left)
-                == crate::sql::ColumnIdentifierPath::stored_field_key(right)
+            cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(left)
+                == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(right)
         });
         self.with_collection_write_gates(std::slice::from_ref(&collection), || {
             if fields.is_empty() {

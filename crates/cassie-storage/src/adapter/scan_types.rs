@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::catalog::ColumnBatchMetadata;
-use crate::types::Value;
+use cassie_core::types::Value;
 
 #[derive(Debug, Clone)]
 pub struct DocumentRef {
@@ -31,7 +31,7 @@ fn canonical_projection(fields: Vec<String>) -> HashSet<String> {
     fields
         .into_iter()
         .map(|field| {
-            crate::sql::ColumnIdentifierPath::parse(&field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::parse(&field)
                 .map_or_else(|_| field.to_ascii_lowercase(), |column| column.lookup_key())
         })
         .collect()

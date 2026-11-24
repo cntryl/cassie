@@ -38,7 +38,7 @@ impl Midge {
     pub(super) fn save_initial_column_comments_to_tx(
         tx: &mut AdapterTransaction,
         target: &str,
-        schema: &crate::midge::row_blob::RowSchema,
+        schema: &crate::row_blob::RowSchema,
         comments: &[(String, String)],
     ) -> Result<Vec<ObjectCommentMeta>, CassieError> {
         if comments.is_empty() {

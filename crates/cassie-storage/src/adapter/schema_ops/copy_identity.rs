@@ -3,7 +3,7 @@
 use std::io::{self, Read};
 
 use super::{CassieError, Midge};
-use crate::midge::adapter::{StorageOverlay, TransactionMode};
+use crate::adapter::{StorageOverlay, TransactionMode};
 use crate::runtime::QueryExecutionControls;
 
 #[cfg(test)]
@@ -45,7 +45,7 @@ pub(super) fn decode_identity(
 ) -> Result<Option<u64>, CassieError> {
     controls.check_interruption()?;
     let _memory = controls.reserve_query_memory(
-        crate::runtime::accounted::json::serialized_decode_bytes(raw.len())?,
+        cassie_core::request::accounted::json::serialized_decode_bytes(raw.len())?,
     )?;
     let reader = CheckingReader {
         input: raw,

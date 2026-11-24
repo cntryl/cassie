@@ -4,7 +4,7 @@ use super::{key_encoding, CassieError, Midge};
 use crate::app::DiagnosticError;
 use crate::catalog::graph_schema::{build_graph_types, graph_schema_namespace};
 use crate::catalog::{CompositeTypeMeta, NamespaceMeta};
-use crate::types::graph::GRAPH_SCHEMA_OWNER;
+use cassie_core::types::graph_identity::GRAPH_SCHEMA_OWNER;
 
 impl Midge {
     /// Creates the system-owned `cassie_graph` namespace and its three
@@ -31,7 +31,7 @@ impl Midge {
                 "42710",
                 format!(
                     "schema \"{}\" already exists",
-                    crate::types::graph::GRAPH_SCHEMA
+                    cassie_core::types::graph_identity::GRAPH_SCHEMA
                 ),
             )
             .into());

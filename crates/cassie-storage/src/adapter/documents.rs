@@ -402,7 +402,7 @@ impl Midge {
 
     fn apply_prepared_document_write_batches(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         prepared_writes: Vec<(String, DocumentWriteBatchContext, Vec<PreparedWrite>)>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<PreparedDocumentWriteBatches, CassieError> {
@@ -438,7 +438,7 @@ impl Midge {
     }
 
     fn apply_storage_overlay_to_transaction(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         overlay: &super::StorageOverlay,
     ) -> Result<(), CassieError> {
         for (key, change) in &overlay.changes {
@@ -458,7 +458,7 @@ impl Midge {
 
     fn apply_prepared_collection_writes(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared_collection: Vec<PreparedWrite>,
@@ -642,7 +642,7 @@ impl Midge {
     }
 
     fn apply_prepared_document_write(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: PreparedWrite,
@@ -678,7 +678,7 @@ impl Midge {
     }
 
     fn existing_document_state_for_prepared_write(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         id: &str,
@@ -728,7 +728,7 @@ impl Midge {
     }
 
     fn apply_prepared_put(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         mut prepared: PreparedWrite,
@@ -836,7 +836,7 @@ impl Midge {
     }
 
     fn apply_prepared_delete(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         context: &DocumentWriteBatchContext,
         prepared: &PreparedWrite,
@@ -899,7 +899,7 @@ impl Midge {
     }
 
     fn sync_secondary_indexes_for_write(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         context: &DocumentWriteBatchContext,
         id: &str,
         previous: Option<&serde_json::Value>,

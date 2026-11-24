@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::{
+use crate::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries, StorageFamily,
 };
-use crate::types::{DataType, FieldSchema, Schema};
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
 use super::{CassieError, Midge, QueryExecutionControls, RowDecode};
 

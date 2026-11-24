@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use crate::catalog::{ColumnBatchMetadata, ColumnBatchRow, IndexKind, IndexMeta};
-use crate::midge::adapter::ColumnBatchSummaryDecision;
+use crate::adapter::ColumnBatchSummaryDecision;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 use super::{
@@ -30,7 +30,7 @@ pub(crate) struct ControlledColumnBatchMetadata {
 
 pub(crate) enum ControlledColumnBatchSummaryDecision {
     Ready(ControlledColumnBatchMetadata),
-    Fallback(crate::midge::adapter::ColumnBatchScanFallbackReason),
+    Fallback( crate::adapter::ColumnBatchScanFallbackReason),
 }
 
 type ValidationResult<T> = Result<T, ColumnBatchScanFallbackReason>;
@@ -119,7 +119,7 @@ impl Midge {
             let fields = index
                 .normalized_fields()
                 .iter()
-                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+                .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field))
                 .collect::<Vec<_>>();
             let valid = matches!(
                 self.validate_column_batch_index(
@@ -331,16 +331,16 @@ impl Midge {
                     .fields
                     .iter()
                     .find(|stored| {
-                        crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored)
+                        cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored)
                     })
-                    .map(|stored| crate::sql::ColumnIdentifierPath::stored_field_key(stored))
+                    .map(|stored| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(stored))
             })
             .collect::<BTreeSet<_>>();
         if requested_fields.iter().any(|field| {
             !metadata
                 .fields
                 .iter()
-                .any(|stored| crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored))
+                .any(|stored| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored))
         }) || !requested.is_subset(&metadata_fields)
         {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
@@ -352,7 +352,7 @@ impl Midge {
     }
 
     fn validate_column_batch_keys(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         metadata: &ColumnBatchMetadata,
         relation_id: u64,
         index_id: u64,
@@ -375,7 +375,7 @@ impl Midge {
 
     fn validate_column_batch_segments(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         metadata: &ColumnBatchMetadata,
@@ -398,8 +398,8 @@ impl Midge {
             previous_end = segment.row_id_end.as_deref();
             if metadata.fields.iter().any(|field| {
                 !segment.summaries.keys().any(|stored| {
-                    crate::sql::ColumnIdentifierPath::stored_field_key(stored)
-                        == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(stored)
+                        == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field)
                 })
             }) {
                 return Ok(Err(ColumnBatchScanFallbackReason::SummaryMissing));
@@ -457,7 +457,7 @@ impl Midge {
 }
 
 fn decode_latest_column_batch_metadata(raw: &[u8]) -> ValidationResult<ColumnBatchMetadata> {
-    if !crate::midge::adapter::column_batch_format_v1::has_current_header(raw) {
+    if !crate::column_batch_format_v1::has_current_header(raw) {
         return Err(ColumnBatchScanFallbackReason::MetadataFormatMismatch);
     }
     let summary_version = raw
@@ -468,7 +468,7 @@ fn decode_latest_column_batch_metadata(raw: &[u8]) -> ValidationResult<ColumnBat
     if summary_version != current_summary_version {
         return Err(ColumnBatchScanFallbackReason::SummaryFormatMismatch);
     }
-    crate::midge::adapter::column_batch_format_v1::decode_manifest(raw)
+    crate::column_batch_format_v1::decode_manifest(raw)
         .map_err(|_| ColumnBatchScanFallbackReason::InvalidMetadata)
 }
 
@@ -525,7 +525,7 @@ fn controlled_segment_retained_bytes(
 fn stored_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
-        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+        .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(field))
         .collect()
 }
 

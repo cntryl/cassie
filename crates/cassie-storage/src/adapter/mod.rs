@@ -7,7 +7,12 @@ use std::time::Instant;
 use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOptions};
 use uuid::Uuid;
 
-use crate::app::CassieError;
+pub mod error;
+pub use error::{
+    CatalogObjectKind, RetryableStorageError, StorageError, StorageRetryKind,
+    TransactionErrorKind,
+};
+pub(crate) use error::StorageError as CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
     CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchChunkMeta,
@@ -17,11 +22,11 @@ use crate::catalog::{
     RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
-use crate::midge::row_blob::{
+use crate::row_blob::{
     decode_projected_row, decode_projected_row_matching_with_aliases,
     decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
 };
-use crate::types::{DataType, FieldSchema, Schema};
+use cassie_core::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
 mod column_batch_format_v1;
@@ -44,7 +49,7 @@ mod raw_ops;
 #[doc(hidden)]
 pub use publication::PublicationControlScope;
 mod transactions;
-pub(crate) use transactions::{
+pub use transactions::{
     AdapterTransaction, CheckpointStorageSnapshot, CopyStorageSnapshot, IndexCleanupCommitGuard,
     RetainedRowFence, StagedCheckpointChange, StorageOverlay,
 };
@@ -829,7 +834,7 @@ impl Midge {
     }
 
     fn load_schema_epoch_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let Some(raw) = tx
             .get(&Self::schema_epoch_key())
@@ -843,7 +848,7 @@ impl Midge {
     }
 
     fn save_schema_epoch_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         schema_epoch: u64,
     ) -> Result<(), CassieError> {
         let value = serde_json::to_vec(&schema_epoch)
@@ -874,7 +879,7 @@ impl Midge {
     }
 
     fn load_collections(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
     ) -> Result<Vec<String>, CassieError> {
         let Some(raw) = tx
             .get(&Self::collections_key())
@@ -897,7 +902,7 @@ impl Midge {
     }
 
     fn load_namespaces(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
     ) -> Result<Vec<String>, CassieError> {
         let Some(raw) = tx.get(&Self::namespaces_key()).map_err(CassieError::from)? else {
             return Ok(Vec::new());
@@ -908,7 +913,7 @@ impl Midge {
     }
 
     fn save_collections(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collections: &[String],
     ) -> Result<(), CassieError> {
         let value = serde_json::to_vec(collections)
@@ -919,7 +924,7 @@ impl Midge {
     }
 
     fn save_databases(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         databases: &[String],
     ) -> Result<(), CassieError> {
         let value =
@@ -930,7 +935,7 @@ impl Midge {
     }
 
     fn save_namespaces(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         namespaces: &[String],
     ) -> Result<(), CassieError> {
         let value = serde_json::to_vec(namespaces)
@@ -941,7 +946,7 @@ impl Midge {
     }
 
     fn load_row_schema_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<Option<RowSchema>, CassieError> {
         let raw = tx
@@ -957,14 +962,14 @@ impl Midge {
         for field in &mut row_schema.fields {
             if field.normalized_name.is_empty() {
                 field.normalized_name =
-                    crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
+                    cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&field.name);
             }
         }
         Ok(Some(row_schema))
     }
 
     fn save_row_schema_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
     ) -> Result<(), CassieError> {
@@ -976,7 +981,7 @@ impl Midge {
     }
 
     fn load_projection_metadata_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<Option<ProjectionMeta>, CassieError> {
         let Some(raw) = tx
@@ -993,11 +998,11 @@ impl Midge {
     }
 
     fn save_projection_metadata_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         metadata: &ProjectionMeta,
     ) -> Result<(), CassieError> {
         if let Some(definition) = &metadata.materialized {
-            crate::sql::definition_guard::projection(definition)?;
+            cassie_sql::definition_guard::projection(definition)?;
         }
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -1023,7 +1028,7 @@ impl Midge {
     }
 
     fn load_cardinality_stats_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<Option<CollectionCardinalityStats>, CassieError> {
         let Some(raw) = tx
@@ -1040,7 +1045,7 @@ impl Midge {
     }
 
     fn save_cardinality_stats_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         stats: &CollectionCardinalityStats,
     ) -> Result<(), CassieError> {
@@ -1054,7 +1059,7 @@ impl Midge {
     }
 
     fn update_projection_schema_version_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         schema_version: u32,
     ) -> Result<(), CassieError> {
@@ -1067,8 +1072,8 @@ impl Midge {
 
 mod statement_read;
 use statement_read::DataReadTransaction;
-pub(crate) use statement_read::{
-    NativeStatementReadContext, NativeStatementSnapshot, StatementDataRead, StatementReadScope,
+pub use statement_read::{
+    NativeStatementReadScope, NativeStatementSnapshot, StorageRequestContext,
 };
 
 #[cfg(all(test, feature = "replay-benchmark-observation"))]

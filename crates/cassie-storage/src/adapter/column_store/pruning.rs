@@ -151,7 +151,7 @@ pub(super) struct LoadedRecord {
 /// does not decode, does not match its key, or has an unknown version keeps its
 /// place with `record: None`, so neighbouring ranges are never extended over it.
 pub(super) fn load_records(
-    tx: &crate::midge::adapter::DataReadTransaction,
+    tx: & crate::adapter::DataReadTransaction,
     relation_id: u64,
 ) -> Result<Vec<LoadedRecord>, CassieError> {
     let prefix = Midge::column_store_summary_prefix(relation_id);
@@ -217,7 +217,7 @@ impl ColumnPruning {
     pub(crate) fn resolve(
         collection: &str,
         row_schema: &RowSchema,
-        filter: &crate::midge::adapter::ColumnBatchScanFilter,
+        filter: & crate::adapter::ColumnBatchScanFilter,
     ) -> Option<Self> {
         let predicates = filter
             .predicates
@@ -239,10 +239,10 @@ impl ColumnPruning {
     /// Returns the key of the segment's last live marker when the whole segment
     /// is excluded and its markers still match the record exactly; the scan
     /// resumes after it. `None` means the scan reads the segment normally.
-    pub(in crate::midge::adapter) fn skip_to(
+    pub(incrate::adapter) fn skip_to(
         &mut self,
         midge: &Midge,
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         marker_key: &[u8],
         controls: &QueryExecutionControls,
     ) -> Result<Option<Vec<u8>>, CassieError> {
@@ -284,7 +284,7 @@ impl ColumnPruning {
     fn verified_last_key(
         &self,
         midge: &Midge,
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         segment: usize,
         controls: &QueryExecutionControls,
     ) -> Result<Option<Vec<u8>>, CassieError> {
@@ -325,10 +325,10 @@ impl ColumnPruning {
     /// an id the open transaction staged is never omitted, and a summary that
     /// cannot be trusted leaves its segment in. `None` means the table has no
     /// summaries, so the scan reads one whole range.
-    pub(in crate::midge::adapter) fn plan_ranges(
+    pub(incrate::adapter) fn plan_ranges(
         &mut self,
         midge: &Midge,
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         staged: &[&str],
         controls: &QueryExecutionControls,
     ) -> Result<Option<Vec<super::ColumnIdRange>>, CassieError> {
@@ -379,7 +379,7 @@ impl ColumnPruning {
     fn load_index(
         &self,
         midge: &Midge,
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         controls: &QueryExecutionControls,
     ) -> Result<SegmentIndex, CassieError> {
         let loaded = load_records(tx, self.relation_id)?;
@@ -409,10 +409,10 @@ impl ColumnPruning {
 
 fn resolve_predicate(
     row_schema: &RowSchema,
-    predicate: &crate::midge::adapter::ColumnBatchScanPredicate,
+    predicate: & crate::adapter::ColumnBatchScanPredicate,
 ) -> Option<PrunePredicate> {
-    use crate::midge::adapter::ColumnBatchScanOp as Op;
-    let reference = crate::sql::ColumnIdentifierPath::parse(&predicate.field).ok()?;
+    use crate::adapter::ColumnBatchScanOp as Op;
+    let reference = cassie_sql::column_identifier::ColumnIdentifierPath::parse(&predicate.field).ok()?;
     let field = row_schema
         .fields
         .iter()

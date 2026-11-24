@@ -72,7 +72,7 @@ pub(super) struct DroppedCollectionIndexes {
 }
 
 pub(super) fn drop_referencing_indexes_in_tx(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     collection: &str,
     field: &str,
 ) -> Result<DroppedCollectionIndexes, CassieError> {
@@ -260,7 +260,7 @@ pub(super) fn delete_dropped_field_data(
 }
 
 pub(super) fn rename_constraints_in_tx(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     collection: &str,
     current_name: &str,
     next_name: &str,
@@ -297,7 +297,7 @@ pub(super) fn rename_constraints_in_tx(
 }
 
 pub(super) fn rename_indexes_in_tx(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     collection: &str,
     current_name: &str,
     next_name: &str,
@@ -352,7 +352,7 @@ pub(super) fn rename_indexes_in_tx(
 }
 
 pub(super) fn rename_vector_indexes_in_tx(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     collection: &str,
     current_name: &str,
     next_name: &str,
@@ -411,7 +411,7 @@ pub(super) fn rename_normalized_vector_records(
 }
 
 pub(super) fn rename_collection_projection_metadata(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -435,7 +435,7 @@ pub(super) fn rename_collection_projection_metadata(
 }
 
 pub(super) fn rename_collection_schema_entries(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -485,7 +485,7 @@ pub(super) fn rename_collection_schema_entries(
 }
 
 pub(super) fn transfer_collection_sidecars(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -514,7 +514,7 @@ pub(super) fn transfer_collection_sidecars(
 }
 
 pub(super) fn rename_collection_vector_indexes(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -548,7 +548,7 @@ pub(super) fn rename_collection_vector_indexes(
 }
 
 pub(super) fn rename_collection_indexes(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -586,11 +586,11 @@ pub(super) fn rename_collection_indexes(
 /// Moves deferred `DROP INDEX` cleanups along with the renamed table so they
 /// still find the index metadata that rename carried to the new name.
 pub(super) fn rename_collection_pending_index_cleanups(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
-    use crate::midge::adapter::schema_cleanup::{PendingSchemaCleanup, PendingSchemaCleanupAction};
+    use crate::adapter::schema_cleanup::{PendingSchemaCleanup, PendingSchemaCleanupAction};
     let entries = collect_scan(
         tx.scan(&Query::new().prefix(Midge::schema_cleanup_prefix().into()))
             .map_err(CassieError::from)?,
@@ -619,7 +619,7 @@ pub(super) fn rename_collection_pending_index_cleanups(
 }
 
 pub(super) fn rename_collection_retention_policies(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
 ) -> Result<(), CassieError> {
@@ -648,7 +648,7 @@ pub(super) fn rename_collection_retention_policies(
 }
 
 pub(super) fn rename_collection_column_batch_metadata(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
     relation_id: u64,
@@ -659,7 +659,7 @@ pub(super) fn rename_collection_column_batch_metadata(
     )?;
     for (key, value) in entries {
         let Ok(mut metadata) =
-            crate::midge::adapter::column_batch_format_v1::decode_manifest(&value)
+            crate::column_batch_format_v1::decode_manifest(&value)
         else {
             continue;
         };
@@ -669,7 +669,7 @@ pub(super) fn rename_collection_column_batch_metadata(
         metadata.index_name.clone_from(&next_index_name);
         tx.put(
             key,
-            crate::midge::adapter::column_batch_format_v1::encode_manifest(&metadata)?,
+            crate::column_batch_format_v1::encode_manifest(&metadata)?,
             None,
         )
         .map_err(CassieError::from)?;
@@ -789,7 +789,7 @@ fn collection_rename_prefixes(
 }
 
 pub(super) fn rename_collection_prefixed_data(
-    data_tx: &mut crate::midge::adapter::AdapterTransaction,
+    data_tx: &mutcrate::adapter::AdapterTransaction,
     current_name: &str,
     next_name: &str,
     relation_id: u64,

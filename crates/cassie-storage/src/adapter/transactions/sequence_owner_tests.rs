@@ -3,9 +3,9 @@
 use super::{decode, CheckingReader, StorageOverlay, CURSOR_BYTES};
 use crate::catalog::SequenceMeta;
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::PublicationControlScope;
+use crate::adapter::PublicationControlScope;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
-use crate::types::DataType;
+use cassie_core::types::DataType;
 use std::time::Instant;
 
 fn controls() -> QueryExecutionControls {
@@ -92,7 +92,7 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     let metadata = SequenceMeta::new("sequence", DataType::BigInt);
     let raw = serde_json::to_vec(&metadata).expect("sequence metadata");
     let bytes =
-        crate::runtime::accounted::json::serialized_decode_bytes(raw.len()).expect("decode bound");
+        cassie_core::request::accounted::json::serialized_decode_bytes(raw.len()).expect("decode bound");
     let limits = |budget| CassieRuntimeLimits {
         query_memory_budget_bytes: budget,
         ..CassieRuntimeLimits::default()
@@ -118,7 +118,7 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     assert!(rejected.is_err());
     assert!(matches!(
         canceled,
-        Err(crate::app::CassieError::QueryCanceled)
+        Err( crate::adapter::CassieError::QueryCanceled)
     ));
     assert_eq!(held, bytes);
     assert_eq!(exact.current_query_memory_bytes(), 0);
@@ -514,7 +514,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() 
     // Assert
     assert!(matches!(
         canceled,
-        Err(crate::app::CassieError::QueryCanceled)
+        Err( crate::adapter::CassieError::QueryCanceled)
     ));
     assert_eq!(next.expect("original epoch").0, 2);
     assert!(parent.lock().sequence_epochs.is_none());
@@ -763,7 +763,7 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCanceled)
+        Err( crate::adapter::CassieError::QueryCanceled)
     ));
     assert!(writer.bytes < metadata.name.len());
 }

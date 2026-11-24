@@ -1,7 +1,7 @@
 use std::sync::{Arc, Barrier};
 
 use super::super::Midge;
-use crate::midge::adapter::{key_encoding, StorageFamily};
+use crate::adapter::{key_encoding, StorageFamily};
 
 const V1: &str = "cassie-midge-layout-v1-0.1.0";
 const V2: &str = "cassie-midge-layout-v2-0.2.0";
@@ -175,7 +175,7 @@ fn should_reassert_an_existing_v2_marker_with_a_new_durability_barrier() {
 #[test]
 fn should_require_strict_durability_for_compatibility_anchors_in_every_storage_mode() {
     // Arrange
-    use crate::midge::adapter::storage_config::WritePolicy;
+    use crate::adapter::storage_config::WritePolicy;
     let cases = [
         (WritePolicy::Local, cntryl_midge::WriteOptions::sync()),
         (
@@ -256,7 +256,7 @@ fn should_reopen_an_upgraded_store_after_no_feature_was_published() {
                 .build()
                 .expect("local options"),
             "postgres",
-            crate::midge::adapter::storage_config::WritePolicy::Local,
+crate::adapter::storage_config::WritePolicy::Local,
         )
         .expect("local store")
     };
@@ -409,7 +409,7 @@ fn should_recheck_recovery_at_marker_publication_gate() {
                     std::time::Instant::now(),
                     crate::runtime::QueryCancellationHandle::new(),
                 );
-                let _scope = crate::midge::adapter::publication::PublicationControlScope::enter(
+                let _scope =crate::adapter::publication::PublicationControlScope::enter(
                     Some(&controls),
                 );
                 let _observer = Midge::observe_next_publication_wait_for_test(move || {
@@ -446,7 +446,7 @@ fn should_acknowledge_v2_before_publishing_selected_definition_records() {
     let mut view = crate::catalog::ViewMeta::new(
         "versioned_view",
         "SELECT NULL IS NOT DISTINCT FROM NULL AS same",
-        crate::types::Schema { fields: Vec::new() },
+        cassie_core::types::Schema { fields: Vec::new() },
     );
     view.definition_semantics_version = 1;
     assert_eq!(marker(&store), V1.as_bytes());
@@ -470,7 +470,7 @@ fn should_stop_definition_publication_when_minimum_reader_admission_fails() {
     let mut view = crate::catalog::ViewMeta::new(
         "unpublished_view",
         "SELECT NULL IS NOT DISTINCT FROM NULL AS same",
-        crate::types::Schema { fields: Vec::new() },
+        cassie_core::types::Schema { fields: Vec::new() },
     );
     view.definition_semantics_version = 1;
     store

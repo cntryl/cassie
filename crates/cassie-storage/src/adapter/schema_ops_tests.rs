@@ -11,7 +11,7 @@ fn should_decode_pending_field_add_without_default_from_legacy_record() {
         collection: "postgres.public.records".to_string(),
         field: FieldSchema {
             name: "added".to_string(),
-            data_type: crate::types::DataType::Int,
+            data_type: cassie_core::types::DataType::Int,
             nullable: true,
         },
         default_value: Some(serde_json::json!(7)),
@@ -47,12 +47,12 @@ fn should_recover_the_exact_recorded_legacy_timestamp_default() {
                 fields: vec![
                     FieldSchema {
                         name: "keep".to_owned(),
-                        data_type: crate::types::DataType::Text,
+                        data_type: cassie_core::types::DataType::Text,
                         nullable: true,
                     },
                     FieldSchema {
                         name: "added".to_owned(),
-                        data_type: crate::types::DataType::Text,
+                        data_type: cassie_core::types::DataType::Text,
                         nullable: true,
                     },
                 ],
@@ -72,7 +72,7 @@ fn should_recover_the_exact_recorded_legacy_timestamp_default() {
         collection: collection.clone(),
         field: FieldSchema {
             name: "added".to_owned(),
-            data_type: crate::types::DataType::Text,
+            data_type: cassie_core::types::DataType::Text,
             nullable: true,
         },
         default_value: Some(serde_json::json!(recorded_default)),
@@ -121,7 +121,7 @@ fn should_serialize_field_rename_with_collection_writes() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "before".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: true,
                 }],
             },
@@ -185,7 +185,7 @@ fn should_serialize_collection_rename_with_collection_writes() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: true,
                 }],
             },
@@ -247,7 +247,7 @@ fn should_serialize_collection_drop_with_collection_writes() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: true,
                 }],
             },
@@ -303,7 +303,7 @@ fn should_serialize_index_drop_with_collection_writes() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: true,
                 }],
             },

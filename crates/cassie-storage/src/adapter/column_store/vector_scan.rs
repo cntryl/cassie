@@ -25,11 +25,11 @@ pub(crate) use partitions::ColumnPartitionReader;
 
 use super::validation::decode_marker;
 use super::{CassieError, Midge, Query, RowSchema};
-use crate::midge::adapter::ColumnFieldSelection;
-use crate::midge::adapter::{key_encoding, DataReadTransaction, RowTraversal};
-use crate::midge::row_blob::RowFieldMeta;
+use crate::adapter::ColumnFieldSelection;
+use crate::adapter::{key_encoding, DataReadTransaction, RowTraversal};
+use crate::row_blob::RowFieldMeta;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::lanes::{LaneValidity, RawLanes};
+use cassie_core::types::lanes::{LaneValidity, RawLanes};
 use decode::{LaneBuilder, LaneKind};
 use merge::{merge_batch, FieldStream, MergeInput};
 use std::mem::size_of;
@@ -175,7 +175,7 @@ impl ColumnVectorScan {
     ///
     /// Returns `XX001` for corrupt column data, a resource-limit error when the
     /// query budget cannot hold the batch, and cancellation errors.
-    pub(in crate::midge::adapter) fn next_batch(
+    pub(incrate::adapter) fn next_batch(
         &mut self,
         midge: &Midge,
         tx: &DataReadTransaction,
@@ -290,7 +290,7 @@ impl ColumnVectorScan {
             let (key, value) = entry.map_err(CassieError::from)?;
             seen += 1;
             midge.record_query_scan_entry();
-            if crate::midge::adapter::query_scan_control::should_cancel_controlled_query_scan(
+            ifcrate::adapter::query_scan_control::should_cancel_controlled_query_scan(
                 controls,
             ) {
                 return Err(CassieError::QueryCanceled);
@@ -370,7 +370,7 @@ impl ColumnVectorReader {
     pub(crate) fn set_pruning(
         &mut self,
         midge: &Midge,
-        filter: &crate::midge::adapter::ColumnBatchScanFilter,
+        filter: & crate::adapter::ColumnBatchScanFilter,
         staged: &[&str],
         controls: &QueryExecutionControls,
     ) {
@@ -435,7 +435,7 @@ impl Midge {
                 outputs.push(ColumnVectorOutput::Identity);
                 continue;
             };
-            let Ok(reference) = crate::sql::ColumnIdentifierPath::parse(name) else {
+            let Ok(reference) = cassie_sql::column_identifier::ColumnIdentifierPath::parse(name) else {
                 return Ok(None);
             };
             let Some(index) = row_schema
@@ -465,7 +465,7 @@ impl Midge {
         let projection = order
             .iter()
             .map(|index| {
-                crate::sql::ColumnIdentifierPath::from_field_name(&row_schema.fields[*index].name)
+                cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&row_schema.fields[*index].name)
                     .lookup_key()
             })
             .collect::<std::collections::HashSet<String>>();

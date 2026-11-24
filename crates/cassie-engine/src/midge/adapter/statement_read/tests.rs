@@ -361,7 +361,7 @@ fn replay_snapshot_index_ids(
     value: i64,
 ) -> Vec<String> {
     let _scope = StatementReadScope::enter(Some(owner));
-    let request = crate::midge::adapter::ScalarIndexScanRequest {
+    let request =crate::adapter::ScalarIndexScanRequest {
         equality_prefix: vec![serde_json::json!(value)],
         ..Default::default()
     };
@@ -548,7 +548,7 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
 
     let bind = |sql: &str| {
         let retention = controls(catalog.accounted_bytes() + data_budget);
-        let parsed = crate::sql::parse_statement(sql).unwrap();
+        let parsed = cassie_sql::parse_statement(sql).unwrap();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
         cassie.validate_pgwire_bind(
             &session,
@@ -565,7 +565,7 @@ fn should_read_an_unrelated_table_with_a_small_budget_after_private_refreshes() 
     // Assert
     assert_eq!(
         result.unwrap().rows(),
-        vec![vec![crate::types::Value::Int64(7)]]
+        vec![vec![cassie_core::types::Value::Int64(7)]]
     );
     assert!(unrelated.expect("unrelated portal fits").is_some());
     assert!(matches!(relevant, Err(CassieError::ResourceLimit(_))));

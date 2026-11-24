@@ -481,7 +481,7 @@ impl Midge {
 mod tests {
     use super::{key_encoding, Midge, PendingSchemaCleanup, PendingSchemaCleanupAction, Uuid};
     use crate::catalog::{IndexKind, IndexMeta};
-    use crate::midge::adapter::StorageFamily;
+    use crate::adapter::StorageFamily;
 
     #[test]
     fn should_preserve_ambiguous_cleanup_publication_pair_after_restart() {
@@ -492,10 +492,10 @@ mod tests {
         midge
             .create_collection(
                 "cleanup_pair",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_owned(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },
@@ -515,9 +515,9 @@ mod tests {
             options: std::collections::BTreeMap::new(),
         };
         midge.put_index(&index).expect("index");
-        crate::midge::adapter::set_index_publication_failure_point(true);
+crate::adapter::set_index_publication_failure_point(true);
         let prepared = midge.put_index(&index);
-        crate::midge::adapter::set_index_publication_failure_point(false);
+crate::adapter::set_index_publication_failure_point(false);
         assert!(prepared.is_err(), "leave journal for recovery");
         let collection = midge.canonical_collection_name(&index.collection);
         let cleanup = PendingSchemaCleanup {
@@ -576,10 +576,10 @@ mod tests {
         midge
             .create_collection(
                 "cleanup_twice",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_owned(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },
@@ -634,10 +634,10 @@ mod tests {
         midge
             .create_collection(
                 "cleanup_snapshot",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_owned(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },
@@ -656,7 +656,7 @@ mod tests {
             crate::runtime::QueryCancellationHandle::new(),
         );
         let snapshot =
-            crate::midge::adapter::StatementDataRead::capture(&midge, "postgres", &controls)
+crate::adapter::StatementDataRead::capture(&midge, "postgres", &controls)
                 .expect("old snapshot");
         let index = IndexMeta {
             definition_semantics_version: 0,
@@ -697,7 +697,7 @@ mod tests {
 
         // Act
         {
-            let _scope = crate::midge::adapter::StatementReadScope::enter(Some(&snapshot));
+            let _scope =crate::adapter::StatementReadScope::enter(Some(&snapshot));
             midge
                 .complete_pending_schema_cleanup(&cleanup)
                 .expect("current cleanup");
@@ -723,10 +723,10 @@ mod tests {
         midge
             .create_collection(
                 "cleanup_stale",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_string(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },
@@ -755,7 +755,7 @@ mod tests {
             .pop()
             .expect("cleanup");
         let overlay = std::sync::Arc::new(parking_lot::Mutex::new(
-            crate::midge::adapter::StorageOverlay::default(),
+crate::adapter::StorageOverlay::default(),
         ));
         let scoped = {
             let _scope = midge
@@ -796,10 +796,10 @@ mod tests {
     fn should_preserve_shared_relation_zero_rows_when_reaping_a_retired_collection() {
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("create Midge");
-        let schema = crate::types::Schema {
-            fields: vec![crate::types::FieldSchema {
+        let schema = cassie_core::types::Schema {
+            fields: vec![cassie_core::types::FieldSchema {
                 name: "id".to_owned(),
-                data_type: crate::types::DataType::Int,
+                data_type: cassie_core::types::DataType::Int,
                 nullable: false,
             }],
         };
@@ -894,10 +894,10 @@ mod tests {
         midge
             .create_collection(
                 "cleanup_unreadable",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_owned(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },
@@ -990,10 +990,10 @@ mod tests {
         midge
             .create_collection(
                 "schema_cleanup_family",
-                crate::types::Schema {
-                    fields: vec![crate::types::FieldSchema {
+                cassie_core::types::Schema {
+                    fields: vec![cassie_core::types::FieldSchema {
                         name: "id".to_string(),
-                        data_type: crate::types::DataType::Int,
+                        data_type: cassie_core::types::DataType::Int,
                         nullable: false,
                     }],
                 },

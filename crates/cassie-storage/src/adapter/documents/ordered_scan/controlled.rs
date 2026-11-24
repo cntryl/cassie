@@ -3,12 +3,12 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::midge::adapter::streaming_scans::provisional_controlled_document_bytes;
-use crate::midge::adapter::AccountedDocument;
-use crate::midge::row_blob::{RowFieldMeta, RowSchema};
-use crate::runtime::accounted::Accounted;
+use crate::adapter::streaming_scans::provisional_controlled_document_bytes;
+use crate::adapter::AccountedDocument;
+use crate::row_blob::{RowFieldMeta, RowSchema};
+use cassie_core::request::accounted::Accounted;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::DataType;
+use cassie_core::types::DataType;
 
 use super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, CassieError, DocumentRef,
@@ -20,7 +20,7 @@ use super::{
 mod tests;
 
 pub(crate) struct ControlledOrderedRowCursor {
-    tx: crate::midge::adapter::DataReadTransaction,
+    tx:crate::adapter::DataReadTransaction,
     row_schema: RowSchema,
     projection: Option<HashSet<String>>,
     include_historical_aliases: bool,
@@ -67,9 +67,9 @@ impl Midge {
         let row_schema = descriptor.clone();
         drop(descriptor);
         let projection_bytes = match &request.decode {
-            crate::midge::adapter::RowDecode::Full => 0,
-            crate::midge::adapter::RowDecode::Projected(fields)
-            | crate::midge::adapter::RowDecode::ProjectedHistorical(fields) => {
+crate::adapter::RowDecode::Full => 0,
+crate::adapter::RowDecode::Projected(fields)
+            |crate::adapter::RowDecode::ProjectedHistorical(fields) => {
                 fields.iter().try_fold(0usize, |bytes, field| {
                     add(
                         bytes,
@@ -199,7 +199,7 @@ impl OrderedSource {
 
     fn fill(
         &mut self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         midge: &Midge,
         reverse: bool,
         controls: &QueryExecutionControls,
@@ -262,7 +262,7 @@ impl OrderedSource {
             };
             check_controls(controls)?;
             midge.record_query_scan_entry();
-            if crate::midge::adapter::query_scan_control::should_cancel_controlled_query_scan(
+            ifcrate::adapter::query_scan_control::should_cancel_controlled_query_scan(
                 controls,
             ) {
                 return Err(CassieError::QueryCanceled);

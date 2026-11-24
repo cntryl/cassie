@@ -3,7 +3,7 @@ use super::{
 };
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
-use crate::types::Value;
+use cassie_core::types::Value;
 use std::path::Path;
 
 const DATABASE: &str = "retry_db";
@@ -244,7 +244,7 @@ fn should_preserve_durable_state_when_create_retry_cannot_be_proven() {
 
         // Assert
         assert!(
-            matches!(attempted, Err(crate::app::CassieError::StorageBootstrap(_))),
+            matches!(attempted, Err( crate::adapter::CassieError::StorageBootstrap(_))),
             "{problem:?}: {attempted:?}"
         );
         drop(restarted);
@@ -291,7 +291,7 @@ fn should_reject_overlapping_journal_ownership_before_either_entry_is_replayed()
         // Assert
         assert!(matches!(
             result,
-            Err(crate::app::CassieError::StorageBootstrap(_))
+            Err( crate::adapter::CassieError::StorageBootstrap(_))
         ));
         drop(reopened);
         let retained = open(&path);

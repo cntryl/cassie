@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 use std::mem::size_of;
 use std::sync::Arc;
 
-use crate::executor::retained_memory::{add, mul};
-use crate::runtime::accounted::Accounted;
+use cassie_core::request::accounted::retained::{add, mul};
+use cassie_core::request::accounted::Accounted;
 use crate::runtime::column_batch_metrics::ColumnBatchScanMetrics;
 
 use super::{
@@ -166,7 +166,7 @@ impl Midge {
             for wanted in wanted {
                 check_column_batch_controls(self, controls)?;
                 let Some((field, chunk)) = segment.field_chunks.iter().find(|(field, _)| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(wanted, field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted, field)
                 }) else {
                     return Ok(EncodedSourceDecision::Fallback(
                         ColumnBatchScanFallbackReason::FieldCoverageMismatch,
@@ -176,7 +176,7 @@ impl Midge {
                 let field_memory = controls.reserve_query_memory(bytes)?;
                 let loaded = if chunk.logical_type == "boolean"
                     && chunk.codec_id
-                        == crate::midge::adapter::column_batch_format_v1::Codec::Plain as u8
+                        == crate::column_batch_format_v1::Codec::Plain as u8
                 {
                     boolean::load(&tx, relation_id, index_id, segment, field, chunk)?
                 } else {
@@ -238,7 +238,7 @@ fn source_retained_bytes(
         )?;
         for name in wanted {
             let Some((field, chunk)) = segment.field_chunks.iter().find(|(field, _)| {
-                crate::sql::ColumnIdentifierPath::matches_stored_field(name, field)
+                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(name, field)
             }) else {
                 return Ok(None);
             };

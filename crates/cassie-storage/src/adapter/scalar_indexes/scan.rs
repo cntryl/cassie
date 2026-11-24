@@ -1,12 +1,12 @@
 use cntryl_midge::Query;
 
 use crate::catalog::IndexMeta;
-use crate::runtime::accounted::AccountedVec;
+use cassie_core::request::accounted::AccountedVec;
 use crate::runtime::QueryExecutionControls;
 
 use super::codec::{covering_fields_retained_bytes, decode_covering_fields};
 use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
-use crate::midge::adapter::key_encoding;
+use crate::adapter::key_encoding;
 
 impl Midge {
     pub(crate) fn scan_scalar_index_controlled(
@@ -31,13 +31,13 @@ impl Midge {
         index: &IndexMeta,
         request: &ScalarIndexScanRequest,
         controls: &QueryExecutionControls,
-        mut visit: impl FnMut(crate::midge::adapter::DocumentRef) -> Result<bool, E>,
+        mut visit: impl FnMut( crate::adapter::DocumentRef) -> Result<bool, E>,
     ) -> Result<(), E> {
         self.visit_scalar_entries(index, request, controls, |index, key, raw_value| {
             let _memory =
                 controls.reserve_query_memory(scalar_index_hit_variable_bytes(key, raw_value)?)?;
             let hit = decode_scalar_index_hit(index, key, raw_value)?;
-            visit(crate::midge::adapter::DocumentRef {
+            visit( crate::adapter::DocumentRef {
                 id: hit.id,
                 payload: serde_json::Value::Object(hit.fields),
             })

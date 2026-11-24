@@ -108,7 +108,8 @@ pub use session::CassieSession;
 pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
 pub(crate) use session::{
     CommandCatalogScope, CopyBindingContext, SessionRandom, SessionReadScope, StagedWriteSnapshot,
-    StatementMutationBatch, StatementOverlay, TransactionConflictIntent, TransactionRowChange,
+    StatementDataRead, StatementMutationBatch, StatementOverlay, StatementReadScope,
+    TransactionConflictIntent, TransactionRowChange,
 };
 #[doc(hidden)]
 pub use session::{BoundReadScope, BoundReadView, SessionTransactionStatus};

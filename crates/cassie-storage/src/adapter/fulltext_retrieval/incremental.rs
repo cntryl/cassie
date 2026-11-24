@@ -39,7 +39,7 @@ struct StagedIndexWrites {
 impl StagedIndexWrites {
     fn apply(
         mut self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         documents: usize,
     ) -> Result<FulltextWriteTally, CassieError> {
         let rewritten = self
@@ -95,7 +95,7 @@ impl BlockGroup {
 }
 
 struct TermScope<'a> {
-    tx: &'a crate::midge::adapter::AdapterTransaction,
+    tx: &'acrate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     term: &'a str,
@@ -259,7 +259,7 @@ impl Midge {
     /// after it.
     pub(crate) fn maintain_fulltext_index_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
@@ -279,9 +279,9 @@ impl Midge {
 
     fn load_fulltext_document_from_tx(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
-        row_schema: &crate::midge::row_blob::RowSchema,
+        row_schema: &crate::row_blob::RowSchema,
         id: &str,
     ) -> Result<Option<serde_json::Value>, CassieError> {
         if self.collection_uses_column_store(collection)? {
@@ -301,7 +301,7 @@ impl Midge {
 
     fn stage_incremental_fulltext_writes(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         index: &IndexMeta,
         generation: u64,
@@ -428,7 +428,7 @@ fn stage_document(
 /// Stages the block and term-record rewrites for one term and returns the change
 /// in the number of indexed terms (`-1`, `0` or `1`).
 fn stage_term(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     staged: &mut StagedIndexWrites,
     relation_id: u64,
     index_id: u64,

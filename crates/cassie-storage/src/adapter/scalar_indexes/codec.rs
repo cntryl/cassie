@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::mem::size_of;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 const MAGIC: &[u8; 4] = b"SIC1";
 

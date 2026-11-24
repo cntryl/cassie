@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use super::{CassieError, ColumnBatchRow, DocumentRef};
 use crate::runtime::QueryMemoryReservation;
-use crate::types::row_identity::is_row_identity_column;
+use cassie_core::types::row_identity::is_row_identity_column;
 
 const OBJECT_ENTRY_OVERHEAD: usize = 4 * size_of::<usize>();
 
@@ -72,7 +72,7 @@ fn projected_value<'a>(row: &'a ColumnBatchRow, field: &str) -> &'a serde_json::
     static NULL: serde_json::Value = serde_json::Value::Null;
     row.values
         .iter()
-        .find(|(name, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, name))
+        .find(|(name, _)| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, name))
         .map_or(&NULL, |(_, value)| value)
 }
 
@@ -150,7 +150,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(crate::app::CassieError::ResourceLimit(_))
+            Err( crate::adapter::CassieError::ResourceLimit(_))
         ));
         assert_eq!(projection_calls.get(), 0);
         assert_eq!(memory.bytes(), 0);

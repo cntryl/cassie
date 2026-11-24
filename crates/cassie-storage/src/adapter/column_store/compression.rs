@@ -12,9 +12,9 @@
 //! The tag is outside the `TYPE_*` range, so a build that predates it reads a
 //! compressed value as a type-tag mismatch (`XX001`) instead of wrong data.
 
-use crate::app::CassieError;
-use crate::midge::row_blob::{encode_compact_sql_null, encode_compact_value};
-use crate::types::DataType;
+use crate::adapter::CassieError;
+use crate::row_blob::{encode_compact_sql_null, encode_compact_value};
+use cassie_core::types::DataType;
 use std::borrow::Cow;
 
 /// First byte of a compressed field value; no `TYPE_*` tag uses it.

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use super::*;
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::publication::PublicationCoordinator;
+use crate::adapter::publication::PublicationCoordinator;
 use crate::midge::Midge;
 use crate::runtime::QueryExecutionControls;
 
@@ -366,13 +366,13 @@ fn should_classify_binary_relation_boundaries_before_column_row_markers() {
     let relation = 0x0072_0000_0000_0000;
     let modern = Midge::row_key(relation, "one");
     let column = Midge::column_store_row_key(relation, "one");
-    let field = crate::midge::adapter::key_encoding::column_store_field_key(relation, 3, "one");
+    let field =crate::adapter::key_encoding::column_store_field_key(relation, 3, "one");
     let legacy = Midge::doc_key("postgres.public.items", "one");
     let epoch = Midge::data_epoch_key();
 
     // Act
     let actual = [modern, column, field, legacy, epoch]
-        .map(|key| crate::midge::adapter::key_encoding::is_authoritative_row_key(&key));
+        .map(|key|crate::adapter::key_encoding::is_authoritative_row_key(&key));
 
     // Assert
     assert_eq!(actual, [true, true, false, true, false]);

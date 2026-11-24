@@ -3,13 +3,13 @@
 use super::{ColumnVectorBatch, ColumnVectorOutput, COLUMN_VECTOR_BATCH_ROWS};
 use crate::app::{Cassie, CassieError, CassieSession};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
-use crate::midge::adapter::{
+use crate::adapter::{
     query_scan_control_test_guard, RowDecode, RowTraversal, StorageFamily,
 };
-use crate::midge::adapter::{ColumnVectorReadSnapshot, Midge};
+use crate::adapter::{ColumnVectorReadSnapshot, Midge};
 use crate::runtime::QueryExecutionControls;
-use crate::types::lanes::{LaneValidity, RawLanes};
-use crate::types::{DataType, Value};
+use cassie_core::types::lanes::{LaneValidity, RawLanes};
+use cassie_core::types::{DataType, Value};
 use std::time::Instant;
 
 const ALL_TYPES: &str = "s SMALLINT, i INT, b BIGINT, f FLOAT, t BOOLEAN, x TEXT, v VARCHAR(8), \

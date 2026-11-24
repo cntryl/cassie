@@ -3,17 +3,17 @@ use std::time::Duration;
 
 use super::super::{CassieError, Midge};
 use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
-use crate::app::StorageRetryKind;
-use crate::midge::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
-use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
-use crate::midge::adapter::vector_indexes::{VectorBatchWork, VectorFieldWrites};
+use crate::adapter::StorageRetryKind;
+use crate::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
+use crate::adapter::maintenance::check_fulltext_maintenance_failure_point;
+use crate::adapter::vector_indexes::{VectorBatchWork, VectorFieldWrites};
 
 impl Midge {
     /// Maintains each full-text index of a changed collection, or records
     /// durable debt when the maintenance failpoint is armed.
     fn maintain_fulltext_indexes_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         indexes: &[crate::catalog::IndexMeta],
         generation: u64,
@@ -67,7 +67,7 @@ impl Midge {
 
     fn stamp_vector_generations_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         generation: u64,
         writes: Option<&Vec<VectorFieldWrites>>,
@@ -99,7 +99,7 @@ impl Midge {
     pub(super) fn finish_document_write_batches(
         &self,
         options: &DocumentWriteBatchOptions,
-        mut tx: crate::midge::adapter::AdapterTransaction,
+        mut tx:crate::adapter::AdapterTransaction,
         mut reports: BTreeMap<String, DocumentWriteBatchReport>,
         changed_collections: Vec<String>,
         vector: &VectorBatchWork,
@@ -222,7 +222,7 @@ const WRITE_STALL_BACKOFF_STEP: Duration = Duration::from_millis(2);
 /// writer now owns the lease epoch, and retrying in-process cannot regain it and
 /// risks acting as a stale leader. Unknown commit outcomes are terminal and
 /// require reconciliation after recovery before the caller considers a retry.
-pub(in crate::midge::adapter) fn document_write_retry_delay(
+pub(incrate::adapter) fn document_write_retry_delay(
     error: &CassieError,
     attempts: u8,
 ) -> Option<Duration> {
@@ -241,7 +241,7 @@ pub(in crate::midge::adapter) fn document_write_retry_delay(
 #[cfg(test)]
 mod tests {
     use super::{document_write_retry_delay, Duration, DOCUMENT_WRITE_BATCH_ATTEMPTS};
-    use crate::app::CassieError;
+    use crate::adapter::CassieError;
 
     #[test]
     fn should_retry_a_write_conflict_immediately() {
@@ -297,7 +297,7 @@ mod tests {
 #[cfg(test)]
 mod outcome_tests {
     use super::document_write_retry_delay;
-    use crate::app::CassieError;
+    use crate::adapter::CassieError;
 
     #[test]
     fn should_not_retry_an_unknown_commit_given_conflict_text_when_write_retry_is_considered() {

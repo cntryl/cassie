@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use super::{find_field_chunk, valid_chunk_bytes};
-use crate::midge::adapter::column_batch_format_v1::{
+use crate::column_batch_format_v1::{
     alp_scaled_to_f64, decode_alp_scaled, scale_alp_value, Codec, LogicalType,
 };
-use crate::midge::adapter::column_batches::{
+use crate::adapter::column_batches::{
     CassieError, ColumnBatchChunkMeta, ColumnBatchRow, ColumnBatchScanFallbackReason,
     ColumnBatchScanFilter, ColumnBatchScanOp, ColumnBatchSegmentMeta, Midge,
     CURRENT_COLUMN_BATCH_CODEC_VERSION,
@@ -23,8 +23,8 @@ pub(super) fn single_alp_predicate_field<'a>(
 ) -> Option<(&'a String, &'a ColumnBatchChunkMeta)> {
     let first = filter.predicates.first()?;
     if !filter.predicates.iter().all(|predicate| {
-        crate::sql::ColumnIdentifierPath::reference_field_key(&predicate.field)
-            == crate::sql::ColumnIdentifierPath::reference_field_key(&first.field)
+        cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(&predicate.field)
+            == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(&first.field)
     }) {
         return None;
     }
@@ -36,7 +36,7 @@ pub(super) fn single_alp_predicate_field<'a>(
 }
 
 pub(super) fn load_alp_field_chunk(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -180,7 +180,7 @@ pub(super) fn materialize_selected_alp_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::midge::adapter::ColumnBatchScanPredicate;
+    use crate::adapter::ColumnBatchScanPredicate;
 
     fn selection(op: ColumnBatchScanOp, value: Option<serde_json::Value>) -> Vec<bool> {
         let filter = ColumnBatchScanFilter {

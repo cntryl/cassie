@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use crate::catalog::collections::{CollectionMeta, CollectionStorageMode};
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::{query_scan_control_test_guard, StorageFamily};
-use crate::types::{DataType, FieldSchema, Schema};
+use crate::adapter::{query_scan_control_test_guard, StorageFamily};
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
 use super::{CassieError, Midge, QueryExecutionControls, RowDecode};
 
@@ -42,7 +42,7 @@ fn should_reserve_sparse_column_store_json_before_decoding_a_compact_field() {
         nested = serde_json::json!({"a": nested});
     }
     let serialized = serde_json::to_vec(&nested).expect("serialized nested JSON");
-    let mut compact = crate::midge::row_blob::encode_compact_value(&DataType::Json, &nested)
+    let mut compact =crate::row_blob::encode_compact_value(&DataType::Json, &nested)
         .expect("compact JSON");
     let start = compact
         .windows(serialized.len())

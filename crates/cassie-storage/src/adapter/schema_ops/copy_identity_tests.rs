@@ -5,10 +5,10 @@ use std::time::Instant;
 
 use crate::app::{Cassie, CassieSession};
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::{
+use crate::adapter::{
     key_encoding, Midge, StatementDataRead, StatementReadScope, StorageFamily,
 };
-use crate::midge::row_blob::encode_row;
+use crate::row_blob::encode_row;
 
 struct ReplacementFixture {
     cassie: Cassie,

@@ -1,7 +1,7 @@
 //! Deferred index durable-expression readback witnesses.
 use super::*;
 use crate::catalog::IndexKind;
-use crate::types::{DataType, FieldSchema};
+use cassie_core::types::{DataType, FieldSchema};
 use std::collections::BTreeMap;
 
 fn fixture() -> Midge {
@@ -36,7 +36,7 @@ fn index(midge: &Midge) -> IndexMeta {
     }
 }
 fn encoded(sql: &str) -> String {
-    let expr = crate::sql::parser::parse_expression(sql).expect("expression");
+    let expr = cassie_sql::parser::parse_expression(sql).expect("expression");
     serde_json::to_string(&expr).expect("encoded expression")
 }
 fn seed(midge: &Midge, meta: &IndexMeta, stored_name: &str) {

@@ -1,8 +1,8 @@
 #[cfg(feature = "replay-benchmark-observation")]
 use super::{observe_native_commits, NativeCommitObservation};
-use crate::midge::adapter::Midge;
+use crate::adapter::Midge;
 #[cfg(feature = "replay-benchmark-observation")]
-use crate::midge::adapter::StorageFamily;
+use crate::adapter::StorageFamily;
 
 #[cfg(feature = "replay-benchmark-observation")]
 #[test]
@@ -151,7 +151,7 @@ fn should_report_native_commit_attempts_by_selected_policy() {
 fn should_attribute_native_commits_to_the_outermost_maintenance_scope() {
     // Arrange
     use super::observe_native_commit;
-    use crate::midge::adapter::commit_source::{CommitSource, CommitSourceScope};
+    use crate::adapter::commit_source::{CommitSource, CommitSourceScope};
     use cntryl_midge::WriteOptions;
     let commit = |options| observe_native_commit(options, || Ok::<_, cntryl_midge::MidgeError>(()));
 
@@ -188,7 +188,7 @@ fn should_attribute_native_commits_to_the_outermost_maintenance_scope() {
 #[test]
 fn should_buffer_hash_rebuild_commits_before_synchronous_root_publication() {
     // Arrange
-    use crate::types::{DataType, FieldSchema, Schema};
+    use cassie_core::types::{DataType, FieldSchema, Schema};
     let path = std::env::temp_dir().join(format!(
         "cassie_hash_rebuild_policy_{}",
         uuid::Uuid::new_v4()

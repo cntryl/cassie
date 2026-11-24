@@ -39,7 +39,7 @@ impl Midge {
         let key = Self::index_key(&collection, name);
         let raw = tx.get(&key).map_err(CassieError::from)?.ok_or_else(|| {
             CassieError::CatalogObjectNotFound {
-                kind: crate::app::CatalogObjectKind::Index,
+                kind:crate::adapter::CatalogObjectKind::Index,
                 name: name.to_string(),
             }
         })?;
@@ -62,7 +62,7 @@ impl Midge {
             version.saturating_add(1).to_string(),
         );
         metadata.options = options;
-        crate::sql::definition_guard::index(&metadata)?;
+        cassie_sql::definition_guard::index(&metadata)?;
         drop(tx);
         let published =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;

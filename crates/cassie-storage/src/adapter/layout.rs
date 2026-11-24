@@ -1,7 +1,7 @@
 use cntryl_midge::ColumnFamilyHandle;
 use std::collections::BTreeMap;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 pub(crate) const SCHEMA_FAMILY_NAME: &str = "cf0";
 pub(crate) const TEMP_FAMILY_NAME: &str = "cf1";

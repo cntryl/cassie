@@ -18,7 +18,7 @@ impl Midge {
     ///
     /// Returns `XX001` when the row's field keys contradict its marker.
     pub(crate) fn load_column_store_document_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -54,7 +54,7 @@ impl Midge {
     /// non-retired field. A field the document omits is stored as explicit
     /// SQL NULL so every required field key exists. Never writes a row blob.
     pub(crate) fn write_column_store_document_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         id: &str,
         payload: &serde_json::Value,
@@ -87,7 +87,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_column_store_document_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -116,7 +116,7 @@ impl Midge {
     /// marker's revision, or past the delete marker's when the row is absent,
     /// so a delete followed by a re-insert never repeats a marker value.
     fn next_column_store_revision(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -138,7 +138,7 @@ impl Midge {
 
     pub(crate) fn scan_column_store_rows_batched(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         request: ColumnStoreScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let scan_started = Instant::now();
@@ -159,7 +159,7 @@ impl Midge {
             // D1: validate the fields this scan reads (selection plus the
             // filter field) and the markers, not every field of the table.
             let filter_field = request.filter.and_then(|filter| {
-                let reference = crate::sql::ColumnIdentifierPath::parse(&filter.field).ok()?;
+                let reference = cassie_sql::column_identifier::ColumnIdentifierPath::parse(&filter.field).ok()?;
                 request
                     .row_schema
                     .fields
@@ -222,7 +222,7 @@ impl Midge {
 
     fn project_column_store_document(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         id: &str,
         raw_marker: &[u8],
         request: &ColumnStoreScanRequest<'_>,
@@ -254,13 +254,13 @@ impl Midge {
 
     fn column_store_row_matches_filter(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         row: ColumnRowRef<'_>,
         filter: &RowFilter,
     ) -> Result<bool, CassieError> {
         let Some(filter_field) = row.row_schema.fields.iter().find(|field| {
             !field.retired
-                && crate::sql::ColumnIdentifierPath::parse(&filter.field)
+                && cassie_sql::column_identifier::ColumnIdentifierPath::parse(&filter.field)
                     .is_ok_and(|reference| reference.matches_field_name(&field.name))
         }) else {
             return Ok(false);

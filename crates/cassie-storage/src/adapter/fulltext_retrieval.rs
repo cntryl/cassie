@@ -200,7 +200,7 @@ struct LoadedCandidatePostings {
 }
 
 fn load_complete_fulltext_postings(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
 ) -> Result<LoadedFulltextPostings, CassieError> {
@@ -272,7 +272,7 @@ fn validate_complete_artifact_counts(
 }
 
 fn load_candidate_postings(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     terms: &[String],
@@ -562,7 +562,7 @@ impl Midge {
 
     fn fulltext_source_document_exists(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         id: &str,
@@ -585,7 +585,7 @@ impl Midge {
 
     fn load_documents_from_tx(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
@@ -631,7 +631,7 @@ impl Midge {
     ///
     /// Returns an error when the persisted full-text state is missing, corrupt, or unreadable.
     fn delete_fulltext_artifacts_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         index: &IndexMeta,
     ) -> Result<usize, CassieError> {
         let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;

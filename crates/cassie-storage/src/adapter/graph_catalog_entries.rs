@@ -4,7 +4,7 @@
 use super::database_catalog_rewrite::key_family;
 use super::RawStorageEntry;
 use crate::catalog::{CompositeTypeMeta, NamespaceMeta};
-use crate::types::graph::GRAPH_SCHEMA_OWNER;
+use cassie_core::types::graph_identity::GRAPH_SCHEMA_OWNER;
 
 pub(crate) fn owns_reserved_schema(entries: &[RawStorageEntry]) -> bool {
     entries

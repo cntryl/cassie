@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::sync::OnceLock;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
 
@@ -149,7 +149,7 @@ mod tests {
         check_document_write_failure_point, set_document_write_failure_point,
         DocumentWriteFailurePoint,
     };
-    use crate::midge::adapter::{
+    use crate::adapter::{
         check_index_publication_failure_point, set_index_publication_failure_point,
     };
 

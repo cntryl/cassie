@@ -1,11 +1,11 @@
 //! Query-owned decoding for deferred index guard records.
 use std::io::{self, Read};
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-pub(in crate::midge::adapter) struct Decoded<T> {
-    pub(in crate::midge::adapter) value: T,
+pub(incrate::adapter) struct Decoded<T> {
+    pub(incrate::adapter) value: T,
     _memory: Option<QueryMemoryReservation>,
 }
 
@@ -35,7 +35,7 @@ impl Read for CheckingReader<'_> {
     }
 }
 
-pub(in crate::midge::adapter) fn decode<T: serde::de::DeserializeOwned>(
+pub(incrate::adapter) fn decode<T: serde::de::DeserializeOwned>(
     raw: &[u8],
     controls: Option<&QueryExecutionControls>,
     label: &str,
@@ -43,7 +43,7 @@ pub(in crate::midge::adapter) fn decode<T: serde::de::DeserializeOwned>(
     let memory = controls
         .map(|controls| {
             controls.check_interruption()?;
-            controls.reserve_query_memory(crate::runtime::accounted::json::serialized_decode_bytes(
+            controls.reserve_query_memory(cassie_core::request::accounted::json::serialized_decode_bytes(
                 raw.len(),
             )?)
         })
@@ -67,7 +67,7 @@ pub(in crate::midge::adapter) fn decode<T: serde::de::DeserializeOwned>(
     })
 }
 
-pub(in crate::midge::adapter) fn names_match(
+pub(incrate::adapter) fn names_match(
     stored: &str,
     requested: &str,
     controls: Option<&QueryExecutionControls>,

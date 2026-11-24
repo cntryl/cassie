@@ -2,13 +2,13 @@
 use super::super::storage_v1;
 use super::super::CURRENT_COLUMN_BATCH_CODEC_VERSION;
 use super::numeric::Loaded;
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 use crate::catalog::{ColumnBatchChunkMeta, ColumnBatchSegmentMeta};
-use crate::midge::adapter::column_batch_format_v1::decode_boolean_column_chunk;
-use crate::midge::adapter::{ColumnBatchScanFallbackReason, Midge};
+use crate::column_batch_format_v1::decode_boolean_column_chunk;
+use crate::adapter::{ColumnBatchScanFallbackReason, Midge};
 
 pub(super) fn load(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

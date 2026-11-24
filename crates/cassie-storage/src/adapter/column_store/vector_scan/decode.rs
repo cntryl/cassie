@@ -4,12 +4,12 @@
 //! Booleans and text never become JSON, and every other type goes through the
 //! same JSON-to-`Value` conversion the row path uses, one value per cell.
 
-use crate::app::CassieError;
-use crate::midge::adapter::column_store::compression::expand_column_field;
-use crate::midge::adapter::column_store::validation::corrupt_row;
-use crate::midge::row_blob::{decode_compact_scalar, CompactScalar, RowFieldMeta};
-use crate::types::lanes::{LaneValidity, RawLanes};
-use crate::types::{DataType, Value};
+use crate::adapter::CassieError;
+use crate::adapter::column_store::compression::expand_column_field;
+use crate::adapter::column_store::validation::corrupt_row;
+use crate::row_blob::{decode_compact_scalar, CompactScalar, RowFieldMeta};
+use cassie_core::types::lanes::{LaneValidity, RawLanes};
+use cassie_core::types::{DataType, Value};
 
 /// The lane carrier a declared column type decodes into.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

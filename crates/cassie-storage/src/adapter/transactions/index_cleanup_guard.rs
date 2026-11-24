@@ -1,8 +1,8 @@
 //! Commit-owned index and cleanup targets for transactional DDL.
 use super::{ExpectedStorageValue, Midge, StorageMutation, StorageOverlay};
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 use crate::catalog::IndexMeta;
-use crate::midge::adapter::schema_cleanup::{
+use crate::adapter::schema_cleanup::{
     guard_decode, PendingSchemaCleanup, PendingSchemaCleanupAction,
 };
 use crate::runtime::owned_memory::try_reserve_vec;

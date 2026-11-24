@@ -55,7 +55,7 @@ fn should_leave_batched_projection_hash_rebuild_unpublished_until_retry_complete
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: false,
                 }],
             },
@@ -116,7 +116,7 @@ fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: false,
                 }],
             },
@@ -177,7 +177,7 @@ fn should_retry_fresh_projection_output_after_a_transient_write_stall() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: false,
                 }],
             },
@@ -235,7 +235,7 @@ fn should_serialize_projection_hash_repair_with_collection_writes() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: true,
                 }],
             },
@@ -292,7 +292,7 @@ fn hash_rebuild_fixture(name: &str, rows: usize) -> (std::path::PathBuf, Midge) 
             Schema {
                 fields: vec![FieldSchema {
                     name: "value".to_string(),
-                    data_type: crate::types::DataType::Text,
+                    data_type: cassie_core::types::DataType::Text,
                     nullable: false,
                 }],
             },

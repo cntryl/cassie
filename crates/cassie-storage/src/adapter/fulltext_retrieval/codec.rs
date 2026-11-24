@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 use super::{
     FulltextIndexMetadata, FulltextTermRecord, PersistedFulltextDocumentStats,

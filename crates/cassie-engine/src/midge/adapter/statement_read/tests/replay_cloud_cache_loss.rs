@@ -11,8 +11,8 @@ use sha2::{Digest, Sha256};
 
 use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::{Midge, ScalarIndexScanRequest};
-use crate::types::Value;
+use crate::adapter::{Midge, ScalarIndexScanRequest};
+use cassie_core::types::Value;
 
 use super::replay_process_crash::{kill_test_child, wait_after_marker, OwnedDataDir};
 

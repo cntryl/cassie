@@ -17,7 +17,7 @@ const BULK_WRITE_STALL_MAX_DELAY: Duration = Duration::from_millis(250);
 /// How long to wait before retrying a bulk index write, or `None` when the error is returned.
 /// Only write stalls retry: they were refused before apply, so the retried transaction is the
 /// first one to take effect.
-pub(in crate::midge::adapter) fn bulk_write_stall_delay(
+pub(incrate::adapter) fn bulk_write_stall_delay(
     error: &CassieError,
     attempts: u32,
 ) -> Option<Duration> {
@@ -35,7 +35,7 @@ pub(in crate::midge::adapter) fn bulk_write_stall_delay(
 
 /// Runs `write`, which must build and commit one whole transaction, until it succeeds or fails
 /// with an error [`bulk_write_stall_delay`] does not retry.
-pub(in crate::midge::adapter) fn retry_bulk_write_stall(
+pub(incrate::adapter) fn retry_bulk_write_stall(
     mut write: impl FnMut() -> Result<(), CassieError>,
 ) -> Result<(), CassieError> {
     let mut attempts = 1_u32;
@@ -56,7 +56,7 @@ pub(in crate::midge::adapter) fn retry_bulk_write_stall(
 #[cfg(test)]
 mod tests {
     use super::{bulk_write_stall_delay, retry_bulk_write_stall, BULK_WRITE_STALL_ATTEMPTS};
-    use crate::app::CassieError;
+    use crate::adapter::CassieError;
     use std::time::Duration;
 
     fn stall() -> CassieError {

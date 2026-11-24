@@ -10,7 +10,7 @@ use std::time::Duration;
 struct RowBlobScanRequest<'a> {
     collection: &'a str,
     row_schema: &'a RowSchema,
-    tx: &'a crate::midge::adapter::AdapterTransaction,
+    tx: &'acrate::adapter::AdapterTransaction,
     batch_size: usize,
     projection: Option<&'a std::collections::HashSet<String>>,
     filter: Option<&'a RowFilter>,
@@ -40,8 +40,8 @@ impl Midge {
         Self::load_data_epoch_from_tx(&tx)
     }
 
-    pub(in crate::midge::adapter) fn load_data_epoch_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+    pub(incrate::adapter) fn load_data_epoch_from_tx(
+        tx: & crate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
             return Ok(0);
@@ -74,7 +74,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_data_epoch_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let next = match tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? {
             Some(raw) => {
@@ -92,7 +92,7 @@ impl Midge {
     }
 
     pub(crate) fn increment_collection_generation_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
     ) -> Result<u64, CassieError> {
         let key = Self::collection_generation_key(collection);

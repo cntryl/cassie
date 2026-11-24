@@ -6,7 +6,7 @@ use cntryl_midge::{
     GcsCredentialSource, OpenOptions, S3CompatibleConfig, S3CredentialSource, WriteOptions,
 };
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 const DEFAULT_CLOUD_CACHE_PATH: &str = "./.cassie-cloud-cache";
 const DEFAULT_SQRZL_ENDPOINT: &str = "http://127.0.0.1:9000";

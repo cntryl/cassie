@@ -12,7 +12,7 @@ impl Midge {
     /// The durable identity of `canonical_name`'s database, allocated on first
     /// use and never changed afterwards.
     fn ensure_database_identity(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
     ) -> Result<String, CassieError> {
         let key = key_encoding::database_identity_key();
         if let Some(raw) = tx.get(&key).map_err(CassieError::from)? {
@@ -49,7 +49,7 @@ impl Midge {
     }
 
     fn write_property_graph(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         metadata: &PropertyGraphMeta,
     ) -> Result<(), CassieError> {
         let value =

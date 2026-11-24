@@ -8,12 +8,12 @@ use super::{
     codec, LoadedCandidatePostings, PersistedFulltextCandidateSet, PersistedFulltextDocumentStats,
     STATE_VERSION,
 };
-use crate::app::CassieError;
-use crate::midge::adapter::column_store::validation as column_validation;
-use crate::midge::adapter::{DocumentRef, Midge};
-use crate::runtime::accounted::json;
+use crate::adapter::CassieError;
+use crate::adapter::column_store::validation as column_validation;
+use crate::adapter::{DocumentRef, Midge};
+use cassie_core::request::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::DataType;
+use cassie_core::types::DataType;
 use cassie_search::query::{CompiledQuery, ResolvedQuery};
 
 pub(crate) struct ControlledFulltextCandidateSet {
@@ -120,7 +120,7 @@ fn record_controlled_read(
 
 struct ControlledPostingReadContext<'a> {
     midge: &'a Midge,
-    tx: &'a crate::midge::adapter::AdapterTransaction,
+    tx: &'acrate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     allowed_ids: Option<&'a BTreeSet<String>>,
@@ -129,9 +129,9 @@ struct ControlledPostingReadContext<'a> {
 
 struct ControlledCandidateDocumentContext<'a> {
     midge: &'a Midge,
-    tx: &'a crate::midge::adapter::AdapterTransaction,
+    tx: &'acrate::adapter::AdapterTransaction,
     collection: &'a str,
-    row_schema: &'a crate::midge::row_blob::RowSchema,
+    row_schema: &'acrate::row_blob::RowSchema,
     relation_id: u64,
     index_id: u64,
     column_store: bool,
@@ -586,7 +586,7 @@ mod tests {
     use super::{CassieError, Midge, QueryExecutionControls};
     use crate::catalog::{CollectionMeta, CollectionStorageMode};
     use crate::config::CassieRuntimeLimits;
-    use crate::types::{DataType, FieldSchema, Schema};
+    use cassie_core::types::{DataType, FieldSchema, Schema};
 
     #[test]
     fn should_reserve_before_decoding_a_column_retrieval_document_given_low_memory() {

@@ -1,7 +1,7 @@
 //! Admitted immutable storage overlay for a COPY command owner.
 
 use super::{Arc, CassieError, ExpectedStorageValue, StorageMutation, StorageOverlay};
-use crate::executor::retained_memory::{add, mul};
+use cassie_core::request::accounted::retained::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use std::collections::BTreeMap;
 use std::mem::size_of;
@@ -17,7 +17,7 @@ pub(crate) struct CopyStorageSnapshot {
 
 /// Checkpoint-visible subset of one command's immutable storage overlay.
 #[derive(Debug)]
-pub(crate) struct CheckpointStorageSnapshot {
+pub struct CheckpointStorageSnapshot {
     changes: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
     _memory: QueryMemoryReservation,
 }

@@ -358,7 +358,7 @@ fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
         .expect("relation identity");
     let origin = controls(QueryCancellationHandle::new());
     let fence =
-        crate::midge::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
+crate::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
             .expect("old row fence");
     let request = controls(QueryCancellationHandle::new());
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -490,7 +490,7 @@ fn should_capture_matching_validation_views_while_a_publisher_waits() {
     fence
         .assert_expected_value(
             key.to_vec(),
-            &crate::midge::adapter::transactions::ExpectedStorageValue::Present(visible.to_vec()),
+            & crate::adapter::transactions::ExpectedStorageValue::Present(visible.to_vec()),
         )
         .expect("assert retained view");
     let validation = fence.commit(midge.write_options_sync());

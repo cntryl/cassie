@@ -116,7 +116,7 @@ impl Midge {
                 Err(error @ CassieError::StorageRetryable(_))
                     if attempt < MAX_ATTEMPTS
                         && error.storage_retry_kind()
-                            != Some(crate::app::StorageRetryKind::Fenced) =>
+                            != Some( crate::adapter::StorageRetryKind::Fenced) =>
                 {
                     attempt += 1;
                 }
@@ -159,7 +159,7 @@ impl Midge {
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind: crate::app::CatalogObjectKind::Sequence,
+                kind:crate::adapter::CatalogObjectKind::Sequence,
                 name: name.to_string(),
             })?
             .name;
@@ -168,7 +168,7 @@ impl Midge {
             .get(&key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind: crate::app::CatalogObjectKind::Sequence,
+                kind:crate::adapter::CatalogObjectKind::Sequence,
                 name: name.to_string(),
             })?;
         let mut metadata: crate::catalog::SequenceMeta =
@@ -194,7 +194,7 @@ mod retry_tests {
     use super::Midge;
     use crate::app::{CassieError, RetryableStorageError, StorageRetryKind};
     use crate::catalog::SequenceMeta;
-    use crate::types::DataType;
+    use cassie_core::types::DataType;
 
     fn fixture() -> Midge {
         let midge = Midge::new_in_memory("postgres").expect("memory Midge");

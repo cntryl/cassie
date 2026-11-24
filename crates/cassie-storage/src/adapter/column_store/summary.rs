@@ -9,8 +9,8 @@
 //! while its marker fingerprint, schema version, format version and checksum
 //! all match what a reader sees now.
 
-use crate::types::semantic::compare_values;
-use crate::types::{DataType, Value};
+use cassie_core::types::semantic::compare_values;
+use cassie_core::types::{DataType, Value};
 use sha2::{Digest, Sha256};
 
 /// Rows per segment when summaries are built.

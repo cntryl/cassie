@@ -33,18 +33,18 @@ impl Midge {
             .get(&current_key)
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind: crate::app::CatalogObjectKind::Index,
+                kind:crate::adapter::CatalogObjectKind::Index,
                 name: current_name.to_string(),
             })?;
         if current_key != next_key && tx.get(&next_key).map_err(CassieError::from)?.is_some() {
             return Err(CassieError::CatalogObjectAlreadyExists {
-                kind: crate::app::CatalogObjectKind::Index,
+                kind:crate::adapter::CatalogObjectKind::Index,
                 name: next_name.to_string(),
             });
         }
         let mut metadata: IndexMeta = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
-        crate::sql::definition_guard::index(&metadata)?;
+        cassie_sql::definition_guard::index(&metadata)?;
         metadata.preserve_identity_before_name_change();
         metadata.name = next_name.to_string();
         if current_key != next_key {
@@ -110,14 +110,14 @@ impl Midge {
         let raw = tx.get(&key).map_err(CassieError::from)?;
         let mut metadata: IndexMeta = raw
             .ok_or_else(|| CassieError::CatalogObjectNotFound {
-                kind: crate::app::CatalogObjectKind::Index,
+                kind:crate::adapter::CatalogObjectKind::Index,
                 name: name.to_string(),
             })
             .and_then(|raw| {
                 serde_json::from_slice(&raw)
                     .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
             })?;
-        crate::sql::definition_guard::index(&metadata)?;
+        cassie_sql::definition_guard::index(&metadata)?;
         let identity = (
             metadata.kind.clone(),
             metadata.collection.clone(),
@@ -139,7 +139,7 @@ impl Midge {
                 "index metadata replacement cannot change index identity".to_string(),
             ));
         }
-        crate::sql::definition_guard::index(&metadata)?;
+        cassie_sql::definition_guard::index(&metadata)?;
         if metadata.definition_semantics_version != definition_version {
             return Err(CassieError::Unsupported(
                 "index metadata update cannot change index definition version".to_string(),
@@ -187,11 +187,11 @@ impl Midge {
         self.prepare_index_publication(&metadata)
     }
 
-    pub(in crate::midge::adapter) fn prepare_index_metadata(
+    pub(incrate::adapter) fn prepare_index_metadata(
         &self,
         metadata: &IndexMeta,
     ) -> Result<IndexMeta, CassieError> {
-        crate::sql::definition_guard::index(metadata)?;
+        cassie_sql::definition_guard::index(metadata)?;
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         self.ensure_no_pending_index_cleanup(&metadata.collection, &metadata.name)?;

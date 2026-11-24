@@ -145,7 +145,7 @@ fn decode(
 ) -> Result<(SequenceMeta, QueryMemoryReservation), CassieError> {
     controls.check_interruption()?;
     let memory = controls.reserve_query_memory(
-        crate::runtime::accounted::json::serialized_decode_bytes(raw.len())?,
+        cassie_core::request::accounted::json::serialized_decode_bytes(raw.len())?,
     )?;
     let reader = CheckingReader {
         bytes: raw,
@@ -267,7 +267,7 @@ fn encode_sequence_metadata(
     controls: &QueryExecutionControls,
 ) -> Result<(), CassieError> {
     use crate::catalog::SequencePersistence;
-    use crate::types::DataType;
+    use cassie_core::types::DataType;
     let SequenceMeta {
         name: _,
         data_type: _,

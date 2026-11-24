@@ -160,7 +160,7 @@ impl Midge {
     }
 
     fn rewrite_rows_to_columns(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         charge: RewriteCharge<'_>,
@@ -202,7 +202,7 @@ impl Midge {
 
     fn rewrite_columns_to_rows(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &mut RowSchema,
         charge: RewriteCharge<'_>,

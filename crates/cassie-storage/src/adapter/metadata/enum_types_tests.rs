@@ -1,7 +1,7 @@
 use super::validate_enum_type;
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 use crate::catalog::{EnumTypeMeta, ENUM_TYPE_FORMAT_VERSION};
-use crate::types::EnumMember;
+use cassie_core::types::EnumMember;
 
 fn member(member_id: u64, label: &str, sort_order: f32) -> EnumMember {
     EnumMember {

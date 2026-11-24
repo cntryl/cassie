@@ -250,7 +250,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::super::{key_encoding, Midge, StorageFamily};
-    use crate::app::CassieError;
+    use crate::adapter::CassieError;
     use crate::catalog::{RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege};
 
     fn grant(

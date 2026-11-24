@@ -28,13 +28,13 @@ use self::output::project_column_batch_document;
 use self::storage_v1::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
 use self::summary::{column_batch_summaries, column_values, compare_summary_to_json};
 pub(crate) use self::validation::ControlledColumnBatchSummaryDecision;
-use crate::midge::adapter::column_batch_format_v1::{
+use crate::column_batch_format_v1::{
     decode_manifest, encode_manifest, summary_checksum, MANIFEST_FORMAT_VERSION,
     MANIFEST_SUMMARY_VERSION,
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::row_identity::is_row_identity_column;
-use crate::types::DataType;
+use cassie_core::types::row_identity::is_row_identity_column;
+use cassie_core::types::DataType;
 
 pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = MANIFEST_FORMAT_VERSION as u32;
 pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = MANIFEST_SUMMARY_VERSION as u32;
@@ -219,7 +219,7 @@ impl Midge {
                     .field_chunks
                     .iter()
                     .find(|(name, _)| {
-                        crate::sql::ColumnIdentifierPath::matches_stored_field(field, name)
+                        cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, name)
                     })
                     .is_some_and(|(_, chunk)| {
                         matches!(chunk.logical_type.as_str(), "int64" | "float64")
@@ -234,7 +234,7 @@ impl Midge {
         let data_tx = self.begin_data_readonly_tx_for(&collection)?;
         let wanted = fields
             .iter()
-            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
             .collect::<BTreeSet<_>>();
         let mut accumulators = specs
             .iter()
@@ -260,7 +260,7 @@ impl Midge {
                     continue;
                 };
                 let Some((_, values)) = loaded.values.iter().find(|(name, _)| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(field, name)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, name)
                 }) else {
                     return Ok(ColumnBatchAggregateDecision::Fallback(
                         ColumnBatchScanFallbackReason::FieldCoverageMismatch,
@@ -627,7 +627,7 @@ impl Midge {
         let schema = self.row_schema(collection)?;
         let is_json_field = |name: &str| {
             schema.fields.iter().any(|field| {
-                crate::sql::ColumnIdentifierPath::matches_stored_field(name, &field.name)
+                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(name, &field.name)
                     && matches!(field.data_type, DataType::Json | DataType::Jsonb)
             })
         };
@@ -692,7 +692,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_keys_with_prefix(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -717,7 +717,7 @@ impl Midge {
         let wanted = fields
             .iter()
             .filter(|field| !is_row_identity_column(field))
-            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
             .collect::<BTreeSet<_>>();
         if wanted.is_empty() {
             return Ok(None);
@@ -731,7 +731,7 @@ impl Midge {
                 let available = index
                     .normalized_fields()
                     .into_iter()
-                    .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
+                    .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&field))
                     .collect::<BTreeSet<_>>();
                 wanted.is_subset(&available)
             }))
@@ -838,7 +838,7 @@ fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
         .filter(|field| !is_row_identity_column(field))
-        .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+        .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
         .collect()
 }
 
@@ -850,7 +850,7 @@ fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<S
                 .field_chunks
                 .iter()
                 .find(|(field, _)| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
                 })
                 .map_or(0, |(_, chunk)| chunk.decoded_len.max(chunk.encoded_len));
             bytes.saturating_add(retained)
@@ -859,7 +859,7 @@ fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<S
 }
 
 fn load_column_batch_segment(
-    data_tx: &crate::midge::adapter::AdapterTransaction,
+    data_tx: & crate::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {
@@ -900,7 +900,7 @@ fn segment_may_match_predicate(
         .summaries
         .iter()
         .find(|(field, _)| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
         })
         .map(|(_, summary)| summary)
     else {

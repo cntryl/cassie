@@ -136,7 +136,7 @@ impl Midge {
             Self::stage_column_type(&mut tx, &table, &column.column, column.data_type.clone())?;
         }
         for view in &group.views {
-            crate::sql::definition_guard::view(view)?;
+            cassie_sql::definition_guard::view(view)?;
             self.require_definition_version(view.definition_semantics_version)?;
             let mut view = view.clone();
             view.name = self.canonical_collection_name(&view.name);

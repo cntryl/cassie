@@ -11,7 +11,7 @@ use super::{
     check_controls, CassieError, ColumnIdRange, ColumnVectorBatch, ColumnVectorReader,
     ColumnVectorScan, Midge,
 };
-use crate::midge::adapter::DataReadTransaction;
+use crate::adapter::DataReadTransaction;
 use crate::runtime::QueryExecutionControls;
 
 impl ColumnVectorScan {

@@ -10,8 +10,8 @@ use super::{
     check_controls, key_encoding, CassieError, CursorStorage, Midge, MidgeRowCursor, Query,
     STORAGE_SCAN_PAGE_ENTRIES,
 };
-use crate::midge::row_blob::{split_vector_row, PackedVector, VectorColumn};
-use crate::runtime::accounted::json;
+use crate::row_blob::{split_vector_row, PackedVector, VectorColumn};
+use cassie_core::request::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 /// One row read for vector ranking, with the reservation that covers what it retains.
@@ -123,7 +123,7 @@ impl MidgeRowCursor {
 
 fn build_vector_row(
     controls: &QueryExecutionControls,
-    schema: &crate::midge::row_blob::RowSchema,
+    schema: &crate::row_blob::RowSchema,
     column: &VectorColumn,
     id: String,
     raw_value: &[u8],

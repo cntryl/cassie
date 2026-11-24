@@ -17,7 +17,7 @@ use super::{
     codec, collect_scan, key_encoding, CassieError, FulltextIndexMetadata, FulltextTermRecord,
     IndexMeta, Midge, PersistedFulltextIndexState, PersistedFulltextPosting, Query, STATE_VERSION,
 };
-use crate::types::numeric::usize_to_f64;
+use cassie_core::types::numeric::usize_to_f64;
 
 /// Fill level used when packing blocks during a full build, leaving room for
 /// later in-place growth before a block has to split.
@@ -116,7 +116,7 @@ impl Midge {
     ///
     /// Returns an error when a term record is unreadable or corrupt.
     pub(crate) fn fulltext_index_terms_in_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation_id: u64,
         index_id: u64,
         term_prefix: &str,
@@ -259,7 +259,7 @@ impl<'a> TermBlockValidator<'a> {
 
 /// Reads and decodes the term record for `term`, if any.
 pub(super) fn read_term_record(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     term: &str,
@@ -276,7 +276,7 @@ pub(super) fn read_term_record(
 
 /// All term records of an index, keyed by term.
 pub(super) fn load_term_records(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
 ) -> Result<BTreeMap<String, FulltextTermRecord>, CassieError> {

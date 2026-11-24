@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
 
 const FORMAT_VERSION: u8 = 1;

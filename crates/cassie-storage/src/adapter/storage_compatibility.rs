@@ -1,7 +1,7 @@
 //! Monotonic minimum-reader admission using the existing schema-family marker.
 use super::Midge;
-use crate::app::CassieError;
-use crate::midge::adapter::key_encoding;
+use crate::adapter::CassieError;
+use crate::adapter::key_encoding;
 use cntryl_midge::TransactionMode;
 
 pub(super) const V020_LAYOUT_VERSION: &str = "cassie-midge-layout-v2-0.2.0";
@@ -46,7 +46,7 @@ impl Midge {
     /// A new pinned expression contract requires a reader that understands it.
     /// Validate the record before calling; this fence precedes feature mutation.
     pub(crate) fn require_definition_version(&self, version: u32) -> Result<(), CassieError> {
-        crate::sql::definition_guard::version(version)?;
+        cassie_sql::definition_guard::version(version)?;
         if version == 1 {
             self.require_storage_layout_version(V020_LAYOUT_VERSION)?;
         }
@@ -70,11 +70,11 @@ impl Midge {
         self.require_storage_layout_version(V050_COLUMNAR_LAYOUT_VERSION)
     }
 
-    pub(in crate::midge::adapter) fn require_constraint_definitions(
+    pub(incrate::adapter) fn require_constraint_definitions(
         &self,
         constraints: &[crate::catalog::FieldConstraint],
     ) -> Result<(), CassieError> {
-        crate::sql::definition_guard::constraints(constraints)?;
+        cassie_sql::definition_guard::constraints(constraints)?;
         if constraints
             .iter()
             .any(|constraint| constraint.definition_semantics_version == 1)
@@ -84,12 +84,12 @@ impl Midge {
         Ok(())
     }
 
-    pub(in crate::midge::adapter) fn require_projection_definition(
+    pub(incrate::adapter) fn require_projection_definition(
         &self,
         metadata: &crate::catalog::ProjectionMeta,
     ) -> Result<(), CassieError> {
         if let Some(definition) = &metadata.materialized {
-            crate::sql::definition_guard::projection(definition)?;
+            cassie_sql::definition_guard::projection(definition)?;
             self.require_definition_version(definition.definition_semantics_version)?;
         }
         Ok(())
@@ -115,7 +115,7 @@ impl Midge {
             .get(&key_encoding::layout_marker_key())
             .map_err(CassieError::from)?
             .ok_or_else(|| {
-                Self::missing_layout_marker(crate::midge::adapter::SCHEMA_FAMILY_NAME)
+                Self::missing_layout_marker( crate::adapter::SCHEMA_FAMILY_NAME)
             })?;
         Compatibility::parse(&marker)
             .map(Compatibility::as_str)
@@ -140,7 +140,7 @@ impl Midge {
             .get(&key)
             .map_err(CassieError::from)?
             .ok_or_else(|| {
-                Self::missing_layout_marker(crate::midge::adapter::SCHEMA_FAMILY_NAME)
+                Self::missing_layout_marker( crate::adapter::SCHEMA_FAMILY_NAME)
             })?;
         let current = Compatibility::parse(&marker)
             .ok_or_else(|| Self::incompatible_layout_marker(&marker))?;

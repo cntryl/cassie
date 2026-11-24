@@ -25,7 +25,7 @@ impl Midge {
     }
 
     pub(super) fn allocate_object_id_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
     ) -> Result<u64, CassieError> {
         let key = key_encoding::object_id_counter_key();
         let current = tx
@@ -58,7 +58,7 @@ impl Midge {
             match self.allocate_object_id_once() {
                 Err(error)
                     if error.storage_retry_kind()
-                        == Some(crate::app::StorageRetryKind::WriteConflict)
+                        == Some( crate::adapter::StorageRetryKind::WriteConflict)
                         && attempt < MAX_ATTEMPTS =>
                 {
                     attempt += 1;
@@ -92,8 +92,8 @@ impl Midge {
         if let Some(raw) = raw {
             let record: IndexMeta = serde_json::from_slice(&raw)
                 .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
-            crate::sql::definition_guard::version(record.definition_semantics_version)?;
-            crate::sql::definition_guard::index(&record)?;
+            cassie_sql::definition_guard::version(record.definition_semantics_version)?;
+            cassie_sql::definition_guard::index(&record)?;
             return Ok(Some(record));
         }
 
@@ -106,8 +106,8 @@ impl Midge {
                 continue;
             };
             if name_matches(&record.collection, &collection) && name_matches(&record.name, name) {
-                crate::sql::definition_guard::version(record.definition_semantics_version)?;
-                crate::sql::definition_guard::index(&record)?;
+                cassie_sql::definition_guard::version(record.definition_semantics_version)?;
+                cassie_sql::definition_guard::index(&record)?;
                 return Ok(Some(record));
             }
         }
@@ -126,8 +126,8 @@ impl Midge {
             let Ok(record) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
                 continue;
             };
-            crate::sql::definition_guard::version(record.definition_semantics_version)?;
-            crate::sql::definition_guard::index(&record)?;
+            cassie_sql::definition_guard::version(record.definition_semantics_version)?;
+            cassie_sql::definition_guard::index(&record)?;
             out.push(record);
         }
 
@@ -188,7 +188,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_rollup(&self, metadata: &RollupMeta) -> Result<(), CassieError> {
-        crate::sql::definition_guard::rollup(metadata)?;
+        cassie_sql::definition_guard::rollup(metadata)?;
         self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
@@ -229,7 +229,7 @@ impl Midge {
             let Ok(record) = serde_json::from_slice::<RollupMeta>(&raw_value) else {
                 continue;
             };
-            crate::sql::definition_guard::version(record.definition_semantics_version)?;
+            cassie_sql::definition_guard::version(record.definition_semantics_version)?;
             out.push(record);
         }
         Ok(out)
@@ -494,7 +494,7 @@ impl Midge {
         let constraints: Vec<FieldConstraint> = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))?;
         for constraint in &constraints {
-            crate::sql::definition_guard::version(constraint.definition_semantics_version)?;
+            cassie_sql::definition_guard::version(constraint.definition_semantics_version)?;
         }
         Ok(constraints)
     }
@@ -631,7 +631,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_function(&self, metadata: &crate::catalog::FunctionMeta) -> Result<(), CassieError> {
-        crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
+        cassie_sql::definition_guard::legacy_expression_sql(&metadata.body)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
@@ -701,7 +701,7 @@ impl Midge {
         &self,
         metadata: &crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
-        crate::sql::definition_guard::legacy_query_sql(&metadata.body)?;
+        cassie_sql::definition_guard::legacy_query_sql(&metadata.body)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
@@ -768,7 +768,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
-        crate::sql::definition_guard::view(metadata)?;
+        cassie_sql::definition_guard::view(metadata)?;
         self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
@@ -797,7 +797,7 @@ impl Midge {
 
         let record: crate::catalog::ViewMeta = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid view metadata: {error}")))?;
-        crate::sql::definition_guard::version(record.definition_semantics_version)?;
+        cassie_sql::definition_guard::version(record.definition_semantics_version)?;
         Ok(Some(record))
     }
 
@@ -811,7 +811,7 @@ impl Midge {
             let Ok(record) = serde_json::from_slice::<crate::catalog::ViewMeta>(&raw_value) else {
                 continue;
             };
-            crate::sql::definition_guard::version(record.definition_semantics_version)?;
+            cassie_sql::definition_guard::version(record.definition_semantics_version)?;
             out.push(record);
         }
         out.sort_by_key(|metadata| metadata.name.to_ascii_lowercase());
@@ -966,11 +966,11 @@ fn next_catalog_object_id(current: u64) -> Result<u64, CassieError> {
     let next = current
         .checked_add(1)
         .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
-    let oid = u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID)
+    let oid = u64::from(cassie_core::types::object_id::FIRST_NORMAL_OBJECT_ID)
         .checked_add(next)
         .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
     if LEGACY_VECTOR_OID_RANGE.contains(&oid) {
-        return Ok(132_767 - u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID) + 1);
+        return Ok(132_767 - u64::from(cassie_core::types::object_id::FIRST_NORMAL_OBJECT_ID) + 1);
     }
     Ok(next)
 }

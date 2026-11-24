@@ -55,10 +55,10 @@ impl CursorStorage {
 }
 
 pub(crate) struct MidgeRowCursor {
-    tx: crate::midge::adapter::DataReadTransaction,
+    tx:crate::adapter::DataReadTransaction,
     prefix: Vec<u8>,
     last_key: Option<Vec<u8>>,
-    row_schema: crate::midge::row_blob::RowSchema,
+    row_schema:crate::row_blob::RowSchema,
     projection: Option<HashSet<String>>,
     column_fields: super::ColumnFieldSelection,
     include_historical_aliases: bool,

@@ -8,7 +8,7 @@ use super::*;
 use crate::catalog::{Catalog, SequenceMeta};
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
-use crate::types::DataType;
+use cassie_core::types::DataType;
 
 thread_local! {
     static WAITING: RefCell<Option<mpsc::Sender<WaitBoundary>>> = const { RefCell::new(None) };

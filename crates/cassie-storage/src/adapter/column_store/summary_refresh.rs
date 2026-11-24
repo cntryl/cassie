@@ -12,8 +12,8 @@ use super::summary::{
 };
 use super::validation::{decode_field, decode_marker_parts, field_is_required, missing_field};
 use super::{CassieError, Midge, Query, RowSchema};
-use crate::types::semantic::compare_values;
-use crate::types::Value;
+use cassie_core::types::semantic::compare_values;
+use cassie_core::types::Value;
 use std::collections::BTreeSet;
 
 type Marker = (Vec<u8>, Vec<u8>);
@@ -119,7 +119,7 @@ impl Midge {
     }
 
     fn build_segment_records(
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
         range: (Option<&str>, Option<&str>),
@@ -172,7 +172,7 @@ impl Midge {
     }
 
     fn build_record(
-        tx: &crate::midge::adapter::DataReadTransaction,
+        tx: & crate::adapter::DataReadTransaction,
         collection: &str,
         row_schema: &RowSchema,
         start: String,

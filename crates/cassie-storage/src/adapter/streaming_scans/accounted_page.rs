@@ -1,11 +1,11 @@
 use std::collections::{HashSet, VecDeque};
 use std::mem::size_of;
 
-use crate::app::CassieError;
-use crate::midge::row_blob::RowSchema;
-use crate::runtime::accounted::json;
+use crate::adapter::CassieError;
+use crate::row_blob::RowSchema;
+use cassie_core::request::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::DataType;
+use cassie_core::types::DataType;
 
 use super::DocumentRef;
 
@@ -193,7 +193,7 @@ pub(crate) fn provisional_document_bytes(
                 .filter(|alias| {
                     projection.is_some_and(|fields| {
                         fields.contains(
-                            &crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                            &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
                         )
                     })
                 })
@@ -219,14 +219,14 @@ pub(crate) fn provisional_document_bytes(
 }
 
 fn decoded_field_name_count(
-    field: &crate::midge::row_blob::RowFieldMeta,
+    field: &crate::row_blob::RowFieldMeta,
     projection: Option<&HashSet<String>>,
     include_historical_aliases: bool,
 ) -> usize {
     let Some(projection) = projection else {
         return usize::from(!field.retired);
     };
-    let current_key = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+    let current_key = cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
     let current_name = usize::from(!field.retired && projection.contains(&current_key));
     let aliases = if include_historical_aliases {
         field
@@ -234,7 +234,7 @@ fn decoded_field_name_count(
             .iter()
             .filter(|alias| {
                 projection.contains(
-                    &crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                    &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
                 )
             })
             .count()
@@ -244,7 +244,7 @@ fn decoded_field_name_count(
     current_name.saturating_add(aliases)
 }
 
-pub(in crate::midge::adapter) fn decode_expansion_factor(data_type: &DataType) -> usize {
+pub(incrate::adapter) fn decode_expansion_factor(data_type: &DataType) -> usize {
     match data_type {
         DataType::Array(inner) => {
             let inner_factor = decode_expansion_factor(inner);

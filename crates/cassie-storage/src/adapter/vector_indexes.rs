@@ -57,7 +57,7 @@ fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, Ca
         .fields
         .iter()
         .find(|candidate| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(field, &candidate.name)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, &candidate.name)
         })
         .map(|candidate| candidate.field_id)
         .ok_or_else(|| CassieError::Parse(format!("missing vector field storage id: {field}")))
@@ -255,7 +255,7 @@ impl Midge {
     }
 
     pub(super) fn write_vector_index_state_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -353,7 +353,7 @@ impl Midge {
     }
 
     fn write_vector_index_manifest_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         relation_id: u64,
         field_id: u32,
         state: &VectorIndexState,
@@ -407,7 +407,7 @@ impl Midge {
 
     pub(super) fn stamp_vector_index_states_generation_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         collection: &str,
         built_generation: u64,
     ) -> Result<(), CassieError> {
@@ -608,7 +608,7 @@ impl Midge {
     }
 
     pub(super) fn write_normalized_vector_records(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
@@ -626,7 +626,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_with_prefix(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         prefix: Vec<u8>,
     ) -> Result<(), CassieError> {
         let scan = collect_scan(
@@ -646,7 +646,7 @@ impl Midge {
     }
 
     pub(super) fn delete_normalized_vector_keys_for_document(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         row_schema: &super::RowSchema,
         id: &str,
         fields: &[String],
@@ -855,7 +855,7 @@ impl Midge {
 }
 
 fn load_hnsw_manifest(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     field_id: u32,
     manifest: PersistedHnswManifest,

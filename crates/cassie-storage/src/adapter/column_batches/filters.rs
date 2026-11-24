@@ -5,7 +5,7 @@ pub(super) fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&Row
     row.values
         .iter()
         .find(|(field, _)| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(&filter.field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&filter.field, field)
         })
         .is_some_and(|(_, value)| value == &filter.value)
 }
@@ -14,7 +14,7 @@ pub(super) fn column_batch_summary_supports_ordering(summary: &ColumnBatchFieldS
     summary.min.iter().chain(summary.max.iter()).all(|value| {
         !matches!(
             value,
-            crate::types::Value::Vector(_) | crate::types::Value::Json(_)
+            cassie_core::types::Value::Vector(_) | cassie_core::types::Value::Json(_)
         )
     })
 }

@@ -2,7 +2,7 @@
 use super::*;
 use crate::app::{Cassie, CassieSession};
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::column_batch_format_v1::{self as format, Codec};
+use crate::column_batch_format_v1::{self as format, Codec};
 
 fn fixture(
     codec: Option<Codec>,
@@ -199,8 +199,8 @@ fn should_discard_a_checksum_consistent_malformed_boolean_chunk() {
     assert_eq!(
         public.rows(),
         &[vec![
-            crate::types::Value::Int64(1),
-            crate::types::Value::Int64(1)
+            cassie_core::types::Value::Int64(1),
+            cassie_core::types::Value::Int64(1)
         ]]
     );
 }

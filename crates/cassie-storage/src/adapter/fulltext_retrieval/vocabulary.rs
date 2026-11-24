@@ -2,8 +2,8 @@
 
 use cntryl_midge::Query;
 
-use crate::app::CassieError;
-use crate::midge::adapter::{key_encoding, AdapterTransaction};
+use crate::adapter::CassieError;
+use crate::adapter::{key_encoding, AdapterTransaction};
 use crate::runtime::QueryExecutionControls;
 use cassie_search::query::{TermMatcher, Vocabulary};
 

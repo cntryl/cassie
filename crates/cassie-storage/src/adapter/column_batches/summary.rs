@@ -1,10 +1,10 @@
-use crate::types::numeric::i64_to_f64;
+use cassie_core::types::numeric::i64_to_f64;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::catalog::{ColumnBatchFieldSummary, ColumnBatchNumericSum, ColumnBatchRow};
-use crate::midge::row_blob::RowSchema;
-use crate::types::semantic::compare_values;
-use crate::types::{DataType, Value, Vector};
+use crate::row_blob::RowSchema;
+use cassie_core::types::semantic::compare_values;
+use cassie_core::types::{DataType, Value, Vector};
 
 pub(super) fn column_values(
     payload: &serde_json::Value,

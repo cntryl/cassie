@@ -6,9 +6,9 @@ use std::time::Instant;
 use super::{CassieError, CollectionStorageMode, Midge};
 use crate::catalog::CollectionMeta;
 use crate::config::CassieRuntimeLimits;
-use crate::midge::adapter::{RawStorageEntry, StorageFamily};
+use crate::adapter::{RawStorageEntry, StorageFamily};
 use crate::runtime::QueryExecutionControls;
-use crate::types::{DataType, FieldSchema, Schema};
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct ScanCounts {

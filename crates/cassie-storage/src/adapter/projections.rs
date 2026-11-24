@@ -230,7 +230,7 @@ impl Midge {
             ))
         })?;
         if let Some(definition) = &entry.materialized {
-            crate::sql::definition_guard::version(definition.definition_semantics_version)?;
+            cassie_sql::definition_guard::version(definition.definition_semantics_version)?;
         }
         if !crate::catalog::relation_belongs_to_database(&entry.collection, database) {
             return Ok(());
@@ -359,7 +359,7 @@ impl Midge {
                 continue;
             };
             if let Some(definition) = &record.materialized {
-                crate::sql::definition_guard::version(definition.definition_semantics_version)?;
+                cassie_sql::definition_guard::version(definition.definition_semantics_version)?;
             }
             out.push(record);
         }
@@ -514,10 +514,10 @@ impl Midge {
 #[cfg(test)]
 mod checkpoint_snapshot_tests {
     use super::Midge;
-    use crate::app::CassieError;
+    use crate::adapter::CassieError;
     use crate::config::CassieRuntimeLimits;
     use crate::runtime::QueryExecutionControls;
-    use crate::types::Schema;
+    use cassie_core::types::Schema;
     use std::time::Instant;
 
     fn fixture() -> Midge {

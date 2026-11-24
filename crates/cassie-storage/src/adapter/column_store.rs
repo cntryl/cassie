@@ -183,7 +183,7 @@ impl Midge {
 
     /// Writes the row schema, projection and cardinality records that are not stored yet.
     fn save_missing_collection_state(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         name: &str,
         row_schema: &RowSchema,
     ) -> Result<(), CassieError> {
@@ -326,14 +326,14 @@ impl Midge {
             self.require_constraint_definitions(constraints)?;
         }
         for index in initial.indexes.unwrap_or(&[]) {
-            crate::sql::definition_guard::index(index)?;
+            cassie_sql::definition_guard::index(index)?;
             self.require_definition_version(index.definition_semantics_version)?;
         }
         Ok(())
     }
 
     fn save_initial_indexes_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         name: &str,
         relation_id: u64,
         indexes: &[IndexMeta],
@@ -343,7 +343,7 @@ impl Midge {
             let index = index.clone_for_relation(name, &index.name);
             if !seen_names.insert(index.name.to_ascii_lowercase()) {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind: crate::app::CatalogObjectKind::Index,
+                    kind:crate::adapter::CatalogObjectKind::Index,
                     name: index.name,
                 });
             }
@@ -356,11 +356,11 @@ impl Midge {
                         .to_string(),
                 ));
             }
-            crate::sql::definition_guard::index(&index)?;
+            cassie_sql::definition_guard::index(&index)?;
             let index_key = Self::index_key(name, &index.name);
             if tx.get(&index_key).map_err(CassieError::from)?.is_some() {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind: crate::app::CatalogObjectKind::Index,
+                    kind:crate::adapter::CatalogObjectKind::Index,
                     name: index.name,
                 });
             }
@@ -370,7 +370,7 @@ impl Midge {
     }
 
     fn write_initial_index_metadata(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         index_key: &[u8],
         relation_id: u64,
         mut index: IndexMeta,
@@ -416,7 +416,7 @@ impl Midge {
         constraints: &[FieldConstraint],
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
-        crate::sql::definition_guard::constraints(constraints)?;
+        cassie_sql::definition_guard::constraints(constraints)?;
         if constraints.iter().any(|constraint| {
             constraint.primary_key
                 || constraint.primary_key_name.is_some()
@@ -447,9 +447,9 @@ impl Midge {
                             && sequence.owned_by.as_ref().is_some_and(|owner| {
                                 self.canonical_collection_name(&owner.table)
                                     == self.canonical_collection_name(table)
-                                    && crate::sql::ColumnIdentifierPath::stored_field_key(
+                                    && cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
                                         &owner.column,
-                                    ) == crate::sql::ColumnIdentifierPath::stored_field_key(
+                                    ) == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(
                                         &constraint.field,
                                     )
                             })
@@ -555,7 +555,7 @@ impl Midge {
 
     fn validate_initial_sequences_absent(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         let mut sequence_names = std::collections::HashSet::new();
@@ -568,7 +568,7 @@ impl Midge {
                     .is_some()
             {
                 return Err(CassieError::CatalogObjectAlreadyExists {
-                    kind: crate::app::CatalogObjectKind::Sequence,
+                    kind:crate::adapter::CatalogObjectKind::Sequence,
                     name: sequence_name,
                 });
             }
@@ -578,7 +578,7 @@ impl Midge {
 
     fn save_initial_sequences_to_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         for sequence in sequences {
@@ -596,7 +596,7 @@ impl Midge {
     }
 
     fn storage_relation_exists_case_insensitively(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<bool, CassieError> {
         let collections = Self::load_collections(tx)?;
@@ -655,7 +655,7 @@ impl Midge {
     }
 
     pub(crate) fn load_collection_metadata_from_tx(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<Option<CollectionMeta>, CassieError> {
         let Some(raw) = tx
@@ -671,7 +671,7 @@ impl Midge {
     }
 
     pub(crate) fn save_collection_metadata_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
         let value =
@@ -682,7 +682,7 @@ impl Midge {
     }
 
     pub(crate) fn delete_collection_metadata_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         name: &str,
     ) -> Result<(), CassieError> {
         tx.delete(Self::collection_metadata_key(name))
@@ -691,7 +691,7 @@ impl Midge {
     }
 
     pub(crate) fn rename_collection_metadata_to_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {

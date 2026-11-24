@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 use super::super::codec::PersistedVectorIndexState;
 use super::HnswSourceSummary;

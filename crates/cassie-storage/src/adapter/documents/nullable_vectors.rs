@@ -1,8 +1,8 @@
 //! Nullable vector shape rules at the direct Midge boundary.
 
 use super::Midge;
-use crate::app::CassieError;
-use crate::types::{DataType, FieldSchema, Schema};
+use crate::adapter::CassieError;
+use cassie_core::types::{DataType, FieldSchema, Schema};
 
 fn vector_schema(nullable: bool) -> Schema {
     Schema {

@@ -18,8 +18,8 @@ use super::{
     check_document_write_failure_point, collect_scan, CassieError, DocumentWriteFailurePoint,
     Midge, NormalizedVectorRecord, Query, VectorIndexState,
 };
-use crate::midge::adapter::check_document_write_storage_failure_injection;
-use crate::midge::adapter::schema_write_control::{
+use crate::adapter::check_document_write_storage_failure_injection;
+use crate::adapter::schema_write_control::{
     pause_before_schema_write_commit, SchemaWritePausePoint,
 };
 

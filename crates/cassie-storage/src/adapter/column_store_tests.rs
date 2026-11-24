@@ -19,7 +19,7 @@ fn should_persist_relation_catalog_in_database_family() {
             Schema {
                 fields: vec![FieldSchema {
                     name: "id".to_string(),
-                    data_type: crate::types::DataType::Int,
+                    data_type: cassie_core::types::DataType::Int,
                     nullable: false,
                 }],
             },
@@ -43,7 +43,7 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
     let midge = Midge::new_in_memory("postgres").expect("create in-memory Midge");
     let table = "identity_sequence_collision";
     let sequence_name = "identity_sequence_collision_id_seq";
-    let mut existing_sequence = SequenceMeta::new(sequence_name, crate::types::DataType::Int);
+    let mut existing_sequence = SequenceMeta::new(sequence_name, cassie_core::types::DataType::Int);
     existing_sequence.object_id = 42;
     midge
         .put_sequence(&existing_sequence)
@@ -56,7 +56,7 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
     constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
     constraint.default_expression =
         Some(crate::catalog::canonical_nextval_expression(sequence_name));
-    let mut sequence = SequenceMeta::new(sequence_name, crate::types::DataType::Int);
+    let mut sequence = SequenceMeta::new(sequence_name, cassie_core::types::DataType::Int);
     sequence.owned_by = Some(crate::catalog::SequenceOwner {
         table: table.to_string(),
         column: "id".to_string(),
@@ -64,7 +64,7 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "id".to_string(),
-            data_type: crate::types::DataType::Int,
+            data_type: cassie_core::types::DataType::Int,
             nullable: false,
         }],
     };
@@ -86,8 +86,8 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
     let constraint_key = Midge::constraints_key(&midge.canonical_collection_name(table));
     assert!(matches!(
         create_error,
-        crate::app::CassieError::CatalogObjectAlreadyExists {
-            kind: crate::app::CatalogObjectKind::Sequence,
+crate::adapter::CassieError::CatalogObjectAlreadyExists {
+            kind:crate::adapter::CatalogObjectKind::Sequence,
             ..
         }
     ));

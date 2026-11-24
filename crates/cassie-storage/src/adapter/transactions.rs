@@ -66,7 +66,7 @@ pub(super) use row_fence::admitted_row_keys;
 pub(crate) use row_fence::RetainedRowFence;
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct StorageOverlay {
+pub struct StorageOverlay {
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
     sequence_cursors: Arc<sequence_owner::SequenceOwner>,
     sequence_epochs: Option<Arc<sequence_owner::EpochSelections>>,

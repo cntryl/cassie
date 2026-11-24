@@ -13,7 +13,7 @@ use super::{
     build_state, fulltext_build_ranges, CassieError, FulltextWriteTally, IndexMeta, Midge,
     FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE,
 };
-use crate::midge::adapter::AdapterTransaction;
+use crate::adapter::AdapterTransaction;
 
 /// Largest rebuilt index, in key plus value bytes, that a document commit
 /// writes inside its own transaction. A larger one is rebuilt after the commit.

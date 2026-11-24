@@ -38,9 +38,9 @@ type Deltas = [(String, Option<NormalizedVectorRecord>)];
 /// Final normalized-vector state of every document one batch wrote, for one
 /// indexed field. `None` means the document no longer has an eligible vector.
 #[derive(Debug, Clone)]
-pub(in crate::midge::adapter) struct VectorFieldWrites {
-    pub(in crate::midge::adapter) field: String,
-    pub(in crate::midge::adapter) deltas: Vec<(String, Option<NormalizedVectorRecord>)>,
+pub(incrate::adapter) struct VectorFieldWrites {
+    pub(incrate::adapter) field: String,
+    pub(incrate::adapter) deltas: Vec<(String, Option<NormalizedVectorRecord>)>,
 }
 
 /// Cost of the maintenance one commit performed for one index.
@@ -54,7 +54,7 @@ pub(crate) struct VectorMaintenanceTally {
 }
 
 #[derive(Debug, Clone)]
-pub(in crate::midge::adapter) struct DeferredVectorRebuild {
+pub(incrate::adapter) struct DeferredVectorRebuild {
     collection: String,
     field: String,
     generation: u64,
@@ -62,16 +62,16 @@ pub(in crate::midge::adapter) struct DeferredVectorRebuild {
 
 /// Maintenance a batch staged, applied to the metrics only once it commits.
 #[derive(Debug, Default)]
-pub(in crate::midge::adapter) struct VectorMaintenanceOutcome {
+pub(incrate::adapter) struct VectorMaintenanceOutcome {
     tallies: Vec<VectorMaintenanceTally>,
     deferred: Vec<DeferredVectorRebuild>,
 }
 
 /// Vector work of one document write batch.
 #[derive(Debug, Default)]
-pub(in crate::midge::adapter) struct VectorBatchWork {
-    pub(in crate::midge::adapter) writes_by_collection: BTreeMap<String, Vec<VectorFieldWrites>>,
-    pub(in crate::midge::adapter) maintenance: VectorMaintenanceOutcome,
+pub(incrate::adapter) struct VectorBatchWork {
+    pub(incrate::adapter) writes_by_collection: BTreeMap<String, Vec<VectorFieldWrites>>,
+    pub(incrate::adapter) maintenance: VectorMaintenanceOutcome,
 }
 
 enum Incremental {
@@ -81,7 +81,7 @@ enum Incremental {
 
 impl Midge {
     /// Final normalized-vector state of each written document, per indexed field.
-    pub(in crate::midge::adapter) fn vector_field_writes(
+    pub(incrate::adapter) fn vector_field_writes(
         indexes: &[VectorIndexRecord],
         writes: &[(String, Vec<NormalizedVectorRecord>)],
         display_collection: Option<&str>,
@@ -126,9 +126,9 @@ impl Midge {
 
     /// Brings every vector index of a changed collection up to date with the
     /// batch's document writes, inside the writing transaction.
-    pub(in crate::midge::adapter) fn refresh_vector_index_states_in_tx(
+    pub(incrate::adapter) fn refresh_vector_index_states_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         row_schema: &super::super::RowSchema,
         indexes: &[VectorIndexRecord],
         writes: &[VectorFieldWrites],
@@ -182,7 +182,7 @@ impl Midge {
 
     fn maintain_hnsw_in_tx(
         &self,
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         ids: (u64, u32),
         index: &VectorIndexRecord,
         deltas: &Deltas,
@@ -247,7 +247,7 @@ impl Midge {
     /// Deletes the manifest and source summary so readers take the exact
     /// fallback, and records the durable debt that a rebuild repays.
     fn unpublish_hnsw_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         (relation_id, field_id): (u64, u32),
         (collection, field): (&str, &str),
         target_generation: u64,
@@ -265,7 +265,7 @@ impl Midge {
     /// Applies `deltas` to the persisted graph node by node, or reports that
     /// the graph must be rebuilt instead.
     fn apply_hnsw_deltas(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         (relation_id, field_id): (u64, u32),
         index: &VectorIndexRecord,
         deltas: &Deltas,
@@ -294,7 +294,7 @@ impl Midge {
             return Ok(Incremental::Rebuild { rows_hint });
         }
         let (maintained, documents) = {
-            let reader: &crate::midge::adapter::AdapterTransaction = tx;
+            let reader: & crate::adapter::AdapterTransaction = tx;
             let mut maintainer = GraphMaintainer::new(
                 MaintainerSeed {
                     entry_point: manifest.entry_point.clone(),
@@ -346,7 +346,7 @@ impl Midge {
 
     /// Stages the changed nodes and the new manifest and summary.
     fn write_maintained_graph(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         (relation_id, field_id): (u64, u32),
         manifest: &super::codec::PersistedHnswManifest,
         maintained: crate::vector::hnsw::MaintainedGraph,
@@ -428,7 +428,7 @@ impl Midge {
     /// Rebuilds one HNSW index from the committed documents and republishes it
     /// in bounded transactions. Repays maintenance debt after a commit left the
     /// index unpublished.
-    pub(in crate::midge::adapter) fn rebuild_hnsw_index_for_repair(
+    pub(incrate::adapter) fn rebuild_hnsw_index_for_repair(
         &self,
         collection: &str,
         field: &str,
@@ -450,7 +450,7 @@ impl Midge {
 
     /// Records a durable commit's maintenance costs, then repairs the indexes
     /// the commit unpublished because they were too large to rebuild inside it.
-    pub(in crate::midge::adapter) fn publish_vector_maintenance(
+    pub(incrate::adapter) fn publish_vector_maintenance(
         &self,
         outcome: &VectorMaintenanceOutcome,
     ) {
@@ -469,8 +469,8 @@ impl Midge {
 
     /// Stamps the batch's changed normalized vectors with the new generation.
     /// Unchanged records keep the generation they were last written at.
-    pub(in crate::midge::adapter) fn stamp_normalized_vectors_generation_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+    pub(incrate::adapter) fn stamp_normalized_vectors_generation_in_tx(
+        tx: &mutcrate::adapter::AdapterTransaction,
         row_schema: &super::super::RowSchema,
         built_generation: u64,
         writes: &[VectorFieldWrites],

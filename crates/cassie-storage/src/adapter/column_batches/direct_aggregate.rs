@@ -4,11 +4,11 @@
 //! input is classified exactly like the executor's own aggregate errors.
 
 use super::{CassieError, ColumnBatchAggregateSpec};
-use crate::types::extended::numeric::{math as numeric_math, Numeric};
-use crate::types::numeric::{self, i64_to_f64, usize_to_f64};
-use crate::types::semantic::compare_values;
-use crate::types::typed::TypedValue;
-use crate::types::Value;
+use cassie_core::types::extended::numeric::{math as numeric_math, Numeric};
+use cassie_core::types::numeric::{self, i64_to_f64, usize_to_f64};
+use cassie_core::types::semantic::compare_values;
+use cassie_core::types::typed::TypedValue;
+use cassie_core::types::Value;
 
 fn exact_numeric(total: i128) -> Value {
     Value::Typed(TypedValue::Numeric(Numeric::from_i128(total)))

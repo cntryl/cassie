@@ -8,12 +8,12 @@ use super::{
     ColumnBatchScanOp, ColumnBatchSegmentMeta, IndexMeta, Midge,
     CURRENT_COLUMN_BATCH_CODEC_VERSION,
 };
-use crate::midge::adapter::column_batch_format_v1::{
+use crate::column_batch_format_v1::{
     checksum_hex, decode_column_chunk, decode_row_ids, decode_selected_column_chunk,
     encode_column_chunk, encode_plain_column_chunk, encode_row_ids, summary_checksum, LogicalType,
 };
-use crate::midge::row_blob::RowSchema;
-use crate::types::semantic::compare_values;
+use crate::row_blob::RowSchema;
+use cassie_core::types::semantic::compare_values;
 use alp_scan::{
     alp_selection_for_filter, load_alp_field_chunk, materialize_selected_alp_rows,
     selected_alp_json_values, single_alp_predicate_field,
@@ -37,7 +37,7 @@ pub(super) struct LoadedSegment {
 }
 
 pub(super) struct AggregateSegment {
-    pub(super) values: BTreeMap<String, Vec<crate::types::Value>>,
+    pub(super) values: BTreeMap<String, Vec<cassie_core::types::Value>>,
     pub(super) selected_rows: usize,
 }
 
@@ -54,7 +54,7 @@ struct LoadedPredicateFields {
 /// Loads only field chunks for a filtered aggregate.  In particular, this deliberately does not
 /// validate or read the row-id chunk: aggregate results have no row identity observable to SQL.
 pub(super) fn scan_aggregate_segment(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     fields: &BTreeSet<String>,
@@ -95,7 +95,7 @@ pub(super) fn scan_aggregate_segment(
             let (_, values) = decoded
                 .iter()
                 .find(|(stored, _)| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored)
                 })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             Ok((
@@ -226,7 +226,7 @@ fn encode_segment_with_policy(
 }
 
 pub(super) fn write_segment(
-    tx: &mut crate::midge::adapter::AdapterTransaction,
+    tx: &mutcrate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &EncodedSegment,
@@ -260,7 +260,7 @@ pub(super) fn write_segment(
 }
 
 pub(super) fn load_segment(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     wanted: &BTreeSet<String>,
@@ -309,7 +309,7 @@ pub(super) fn load_segment(
     let mut values_decoded = 0usize;
     for wanted_field in wanted {
         let Some((field, chunk_meta)) = segment.field_chunks.iter().find(|(field, _)| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
         }) else {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         };
@@ -364,7 +364,7 @@ pub(super) fn load_segment(
 }
 
 pub(super) fn scan_segment(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
     wanted: &BTreeSet<String>,
@@ -448,7 +448,7 @@ pub(super) fn scan_segment(
 }
 
 fn load_predicate_fields(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -468,8 +468,8 @@ fn load_predicate_fields(
             alp_selection_for_filter(&loaded.values, loaded.scale, filter)
         {
             let projects_alp_field = wanted.iter().any(|wanted_field| {
-                crate::sql::ColumnIdentifierPath::reference_field_key(wanted_field)
-                    == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(wanted_field)
+                    == cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field)
             });
             if wanted.len() == 1 && projects_alp_field {
                 result.alp_projection = Some((field.clone(), loaded.scale, loaded.values));
@@ -497,7 +497,7 @@ fn load_predicate_fields(
     }
     for predicate in &filter.predicates {
         if result.decoded.keys().any(|field| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
         }) {
             continue;
         }
@@ -534,7 +534,7 @@ fn materialize_selected_rows(
                         decoded_fields
                             .iter()
                             .find(|(field, _)| {
-                                crate::sql::ColumnIdentifierPath::matches_stored_field(
+                                cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
                                     wanted_field,
                                     field,
                                 )
@@ -573,7 +573,7 @@ fn empty_loaded_segment(
 }
 
 fn load_projection_fields(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -586,7 +586,7 @@ fn load_projection_fields(
     let mut chunks_read = 0usize;
     for wanted_field in wanted {
         if decoded_fields.keys().any(|field| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
         }) {
             continue;
         }
@@ -625,7 +625,7 @@ fn encoded_selection(
             let (_, values) = decoded_fields
                 .iter()
                 .find(|(field, _)| {
-                    crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+                    cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
                 })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             for (selected, value) in selection.iter_mut().zip(values) {
@@ -686,11 +686,11 @@ fn find_field_chunk<'a>(
     segment
         .field_chunks
         .iter()
-        .find(|(stored, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored))
+        .find(|(stored, _)| cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(field, stored))
 }
 
 pub(super) fn load_field_chunk(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -701,7 +701,7 @@ pub(super) fn load_field_chunk(
 }
 
 fn load_field_chunk_selected(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -721,7 +721,7 @@ fn load_field_chunk_selected(
 }
 
 fn load_field_chunk_with_selection(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
@@ -772,7 +772,7 @@ fn load_field_chunk_with_selection(
 }
 
 pub(super) fn load_row_ids(
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     relation_id: u64,
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,

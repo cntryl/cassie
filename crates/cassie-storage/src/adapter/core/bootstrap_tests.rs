@@ -1,7 +1,7 @@
 use std::sync::{Arc, Barrier};
 
 use super::Midge;
-use crate::midge::adapter::schema_write_control::{
+use crate::adapter::schema_write_control::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_schema_write_commit_barriers, SchemaWritePausePoint,
 };
@@ -60,7 +60,7 @@ fn should_leave_a_live_database_creation_untouched_by_repeated_bootstrap() {
 #[test]
 fn should_retry_bootstrap_after_initial_layout_admission_fails() {
     // Arrange
-    use crate::midge::adapter::{key_encoding, StorageFamily};
+    use crate::adapter::{key_encoding, StorageFamily};
     let store = Midge::new_in_memory("postgres").expect("memory store");
     let schema = store
         .get_or_create_family(StorageFamily::Schema)

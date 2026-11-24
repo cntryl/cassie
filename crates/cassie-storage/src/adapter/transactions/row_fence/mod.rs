@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use super::{AdapterTransaction, CassieError, Midge, TransactionMode};
-use crate::app::TransactionErrorKind;
+use crate::adapter::TransactionErrorKind;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(crate) struct RetainedRowFence {
@@ -148,7 +148,7 @@ impl RetainedRowFence {
     }
 }
 
-pub(in crate::midge::adapter) fn admitted_row_keys(
+pub(incrate::adapter) fn admitted_row_keys(
     midge: &Midge,
     database: &str,
     collection: &str,

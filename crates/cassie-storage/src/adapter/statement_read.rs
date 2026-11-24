@@ -1,7 +1,6 @@
-//! Private same-database statement Data ownership. Write transactions remain fresh.
+//! Opaque native snapshots and their per-thread read scope.
 
 use super::{CassieError, Midge, TransactionMode};
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use cassie_core::request::{
     Interruption, InterruptionError, RequestMemory, RequestMemoryReservation,
 };
@@ -21,16 +20,15 @@ struct ScopedNativeRead {
     checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,
 }
 
-/// Concrete storage request boundary. It carries only native snapshot authority,
-/// live interruption state, and the request-wide memory reservation source.
-pub(crate) struct NativeStatementReadContext<'a> {
+/// The concrete request boundary accepted by storage operations.
+pub struct StorageRequestContext<'a> {
     snapshot: Option<&'a NativeStatementSnapshot>,
     interruption: Interruption<'a>,
     memory: &'a RequestMemory,
 }
 
-impl<'a> NativeStatementReadContext<'a> {
-    pub(crate) const fn new(
+impl<'a> StorageRequestContext<'a> {
+    pub const fn new(
         snapshot: Option<&'a NativeStatementSnapshot>,
         interruption: Interruption<'a>,
         memory: &'a RequestMemory,
@@ -42,24 +40,28 @@ impl<'a> NativeStatementReadContext<'a> {
         }
     }
 
-    pub(crate) const fn snapshot(&self) -> Option<&'a NativeStatementSnapshot> {
+    #[must_use]
+    pub const fn snapshot(&self) -> Option<&'a NativeStatementSnapshot> {
         self.snapshot
     }
 
-    pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {
+    #[must_use]
+    pub const fn memory(&self) -> &'a RequestMemory {
+        self.memory
+    }
+
+    pub fn check_interruption(&self) -> Result<(), CassieError> {
         self.interruption.check().map_err(|error| match error {
             InterruptionError::Canceled => CassieError::QueryCanceled,
             InterruptionError::DeadlineExceeded => CassieError::DeadlineExceeded,
         })
     }
 
-    pub(crate) fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
-        self.memory
-            .reserve(bytes)
-            .map_err(native_memory_limit_error)
+    pub fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
+        self.memory.reserve(bytes).map_err(native_memory_limit_error)
     }
 
-    pub(crate) fn grow(
+    pub fn grow(
         &self,
         reservation: &mut RequestMemoryReservation,
         bytes: usize,
@@ -83,12 +85,9 @@ enum DescriptorAuthority {
     CurrentCatalog,
 }
 
-/// Opaque native read authority retained independently from the engine's
-/// command overlay. The storage relocation can move this owner without moving
-/// `StatementDataRead` or the session COW state it wraps.
-pub(crate) struct NativeStatementSnapshot {
-    // Release the snapshot before its engine owner, then its admitted metadata.
-    tx: crate::midge::adapter::AdapterTransaction,
+/// Opaque native read authority retained independently from engine session state.
+pub struct NativeStatementSnapshot {
+    tx: super::AdapterTransaction,
     midge: Arc<Midge>,
     database: String,
     family_id: cntryl_midge::ColumnFamilyId,
@@ -97,215 +96,115 @@ pub(crate) struct NativeStatementSnapshot {
     memory: RequestMemoryReservation,
 }
 
-pub(crate) struct StatementDataRead {
-    snapshot: Arc<NativeStatementSnapshot>,
-    overlay: Option<Arc<crate::app::StatementOverlay>>,
-    private_outputs: Option<materialized_outputs::MaterializedReads>,
-    memory: QueryMemoryReservation,
-}
-
-impl std::fmt::Debug for StatementDataRead {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("StatementDataRead")
-            .field("database", &self.snapshot.database)
-            .finish_non_exhaustive()
-    }
-}
-
-impl StatementDataRead {
-    pub(crate) fn from_native_snapshot(
-        snapshot: Arc<NativeStatementSnapshot>,
-        controls: &QueryExecutionControls,
-    ) -> Result<Arc<Self>, CassieError> {
-        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
-        Ok(Arc::new(Self {
-            snapshot,
-            overlay: None,
-            private_outputs: None,
-            memory,
-        }))
-    }
-
-    /// Additional per-command retained backing; the immutable transaction core
-    /// is shared with the transaction owner and is admitted there once.
-    pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
-        let command = crate::executor::retained_memory::add(
-            self.memory.bytes(),
-            self.overlay
-                .as_ref()
-                .map_or(0, |owner| owner.accounted_bytes()),
-        )?;
-        crate::executor::retained_memory::add(
-            command,
-            self.private_outputs.as_ref().map_or(
-                Ok(0),
-                materialized_outputs::MaterializedReads::accounted_bytes,
-            )?,
-        )
-    }
-
-    pub(crate) fn private_owner_accounted_bytes(&self) -> Result<usize, CassieError> {
-        crate::executor::retained_memory::add(self.memory.bytes(), self.snapshot.memory.bytes())
-    }
-
-    pub(crate) fn capture(
+impl NativeStatementSnapshot {
+    pub fn capture(
         midge: &Arc<Midge>,
         database: &str,
-        controls: &QueryExecutionControls,
+        context: &StorageRequestContext<'_>,
+        current_catalog: bool,
     ) -> Result<Arc<Self>, CassieError> {
-        Self::capture_with_overlay(midge, database, controls, None)
-    }
-
-    pub(crate) fn matches(&self, midge: &Arc<Midge>, database: &str) -> bool {
-        Arc::ptr_eq(&self.snapshot.midge, midge)
-            && self.snapshot.database.eq_ignore_ascii_case(database)
-    }
-
-    pub(crate) fn matches_current_family(
-        &self,
-        midge: &Arc<Midge>,
-        database: &str,
-    ) -> Result<bool, CassieError> {
-        Ok(self.matches(midge, database)
-            && midge.database_family(database)?.id() == self.snapshot.family_id)
-    }
-
-    pub(crate) fn data_epoch(&self) -> u64 {
-        self.snapshot.data_epoch
-    }
-
-    pub(crate) fn overlay(&self) -> Option<&Arc<crate::app::StatementOverlay>> {
-        self.overlay.as_ref()
-    }
-
-    pub(crate) fn with_overlay(
-        retained: &Self,
-        overlay: Option<Arc<crate::app::StatementOverlay>>,
-        controls: &QueryExecutionControls,
-    ) -> Result<Arc<Self>, CassieError> {
-        let context = NativeStatementReadContext::new(
-            Some(&retained.snapshot),
-            controls.interruption(),
-            controls.request_memory(),
-        );
         context.check_interruption()?;
-        let native_snapshot = context.snapshot().ok_or_else(|| {
-            CassieError::Execution("retained native statement snapshot is missing".to_owned())
-        })?;
-        if !std::ptr::eq(native_snapshot, Arc::as_ptr(&retained.snapshot)) {
-            return Err(CassieError::Execution(
-                "retained native statement snapshot changed while rebinding".to_owned(),
-            ));
-        }
-        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
-        Ok(Arc::new(Self {
-            snapshot: Arc::clone(&retained.snapshot),
-            private_outputs: retained.private_outputs.clone(),
-            overlay,
-            memory,
-        }))
-    }
-
-    pub(crate) fn capture_with_overlay(
-        midge: &Arc<Midge>,
-        database: &str,
-        controls: &QueryExecutionControls,
-        overlay: Option<Arc<crate::app::StatementOverlay>>,
-    ) -> Result<Arc<Self>, CassieError> {
-        Self::capture_with_authority(
-            midge,
-            database,
-            controls,
-            overlay,
-            DescriptorAuthority::StatementSnapshot,
-        )
-    }
-
-    pub(crate) fn capture_repeatable_read_with_overlay(
-        midge: &Arc<Midge>,
-        database: &str,
-        controls: &QueryExecutionControls,
-        overlay: Option<Arc<crate::app::StatementOverlay>>,
-    ) -> Result<Arc<Self>, CassieError> {
-        Self::capture_with_authority(
-            midge,
-            database,
-            controls,
-            overlay,
-            DescriptorAuthority::CurrentCatalog,
-        )
-    }
-
-    fn capture_with_authority(
-        midge: &Arc<Midge>,
-        database: &str,
-        controls: &QueryExecutionControls,
-        overlay: Option<Arc<crate::app::StatementOverlay>>,
-        descriptor_authority: DescriptorAuthority,
-    ) -> Result<Arc<Self>, CassieError> {
-        let context = NativeStatementReadContext::new(
-            None,
-            controls.interruption(),
-            controls.request_memory(),
-        );
-        context.check_interruption()?;
-        // Midge owns transaction-internal snapshot retention. Cassie owns this
-        // Arc allocation, its inline transaction and copied database identity.
-        let bytes = size_of::<NativeStatementSnapshot>()
+        let bytes = size_of::<Self>()
             .checked_add(2 * size_of::<usize>())
             .and_then(|bytes| bytes.checked_add(database.len()))
             .ok_or_else(|| {
                 CassieError::ResourceLimit("statement read owner size overflow".to_string())
             })?;
         let memory = context.reserve(bytes)?;
-        let command_memory =
-            controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
         let family = midge.database_family(database)?;
         let family_id = family.id();
-        let tx = if descriptor_authority == DescriptorAuthority::CurrentCatalog {
+        let tx = if current_catalog {
             midge.begin_committed_read_adapter_tx(family_id)?
         } else {
             midge.begin_adapter_tx(family_id, TransactionMode::ReadOnly)?
         };
-        // The temporary family handle does not become statement-owned backing.
         drop(family);
         let epoch_scratch = context.reserve(super::key_encoding::data_epoch_key_scratch_bytes())?;
         let data_epoch = Midge::load_data_epoch_from_tx(&tx)?;
         drop(epoch_scratch);
-        let snapshot = Arc::new(NativeStatementSnapshot {
+        Ok(Arc::new(Self {
             tx,
             midge: Arc::clone(midge),
             database: database.to_owned(),
             family_id,
             data_epoch,
-            descriptor_authority,
+            descriptor_authority: if current_catalog {
+                DescriptorAuthority::CurrentCatalog
+            } else {
+                DescriptorAuthority::StatementSnapshot
+            },
             memory,
-        });
-        Ok(Arc::new(Self {
-            snapshot,
-            private_outputs: None,
-            overlay,
-            memory: command_memory,
         }))
+    }
+
+    #[must_use]
+    pub fn data_epoch(&self) -> u64 {
+        self.data_epoch
+    }
+
+    #[must_use]
+    pub fn matches(&self, midge: &Arc<Midge>, database: &str) -> bool {
+        Arc::ptr_eq(&self.midge, midge) && self.database.eq_ignore_ascii_case(database)
+    }
+
+    pub fn matches_current_family(
+        &self,
+        midge: &Arc<Midge>,
+        database: &str,
+    ) -> Result<bool, CassieError> {
+        Ok(self.matches(midge, database)
+            && midge.database_family(database)?.id() == self.family_id)
+    }
+
+    #[must_use]
+    pub fn accounted_bytes(&self) -> usize {
+        self.memory.bytes()
     }
 }
 
-/// Standalone reads retain their existing inline transaction. Shared reads
-/// retain the entire admitted owner, including its engine and snapshot charge.
-/// Private constructors enforce exactly one populated owner without adding a
-/// heap allocation to previously standalone readonly calls.
+/// Installs a native snapshot in the current thread for existing storage reads.
+pub struct NativeStatementReadScope {
+    previous: Option<ScopedNativeRead>,
+    _thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+impl NativeStatementReadScope {
+    pub fn enter(
+        snapshot: Option<&Arc<NativeStatementSnapshot>>,
+        checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,
+    ) -> Self {
+        let next = snapshot.map(|snapshot| ScopedNativeRead {
+            snapshot: Arc::clone(snapshot),
+            checkpoint_storage,
+        });
+        let previous = CURRENT_READ.with(|current| current.replace(next));
+        Self {
+            previous,
+            _thread: std::marker::PhantomData,
+        }
+    }
+}
+
+impl Drop for NativeStatementReadScope {
+    fn drop(&mut self) {
+        CURRENT_READ.with(|current| current.replace(self.previous.take()));
+    }
+}
+
+/// A read transaction is either freshly owned or shares an installed snapshot.
 pub(super) struct DataReadTransaction {
-    fresh: Option<crate::midge::adapter::AdapterTransaction>,
+    fresh: Option<super::AdapterTransaction>,
     shared: Option<ScopedNativeRead>,
 }
 
 impl DataReadTransaction {
-    pub(super) fn checkpoint_storage(&self) -> Option<&Arc<super::CheckpointStorageSnapshot>> {
+    pub(super) fn checkpoint_storage(
+        &self,
+    ) -> Option<&Arc<super::CheckpointStorageSnapshot>> {
         self.shared.as_ref()?.checkpoint_storage.as_ref()
     }
 
-    pub(super) fn fresh(tx: crate::midge::adapter::AdapterTransaction) -> Self {
+    pub(super) fn fresh(tx: super::AdapterTransaction) -> Self {
         Self {
             fresh: Some(tx),
             shared: None,
@@ -327,7 +226,7 @@ impl DataReadTransaction {
 }
 
 impl std::ops::Deref for DataReadTransaction {
-    type Target = crate::midge::adapter::AdapterTransaction;
+    type Target = super::AdapterTransaction;
 
     fn deref(&self) -> &Self::Target {
         if let Some(owner) = &self.shared {
@@ -337,33 +236,6 @@ impl std::ops::Deref for DataReadTransaction {
                 .as_ref()
                 .expect("private constructor provides a readonly owner")
         }
-    }
-}
-
-pub(crate) struct StatementReadScope {
-    previous: Option<ScopedNativeRead>,
-    _thread: std::marker::PhantomData<std::rc::Rc<()>>,
-}
-
-impl StatementReadScope {
-    pub(crate) fn enter(owner: Option<&Arc<StatementDataRead>>) -> Self {
-        let next = owner.map(|owner| ScopedNativeRead {
-            snapshot: Arc::clone(&owner.snapshot),
-            checkpoint_storage: owner
-                .overlay()
-                .and_then(|overlay| overlay.checkpoint_storage().cloned()),
-        });
-        let previous = CURRENT_READ.with(|current| current.replace(next));
-        Self {
-            previous,
-            _thread: std::marker::PhantomData,
-        }
-    }
-}
-
-impl Drop for StatementReadScope {
-    fn drop(&mut self) {
-        CURRENT_READ.with(|current| current.replace(self.previous.take()));
     }
 }
 
@@ -397,6 +269,3 @@ impl Midge {
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

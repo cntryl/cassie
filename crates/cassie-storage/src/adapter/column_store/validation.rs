@@ -6,7 +6,7 @@
 //! violation is data corruption (`XX001`) that names the relation and row id.
 
 use super::{collect_scan, key_encoding, CassieError, Midge, Query};
-use crate::midge::row_blob::{RowFieldMeta, RowSchema};
+use crate::row_blob::{RowFieldMeta, RowSchema};
 
 const VERSION_LEN: usize = 4;
 const REVISION_LEN: usize = 8;
@@ -124,7 +124,7 @@ pub(crate) fn decode_field(
         }
         Err(other) => return Err(other),
     };
-    match crate::midge::row_blob::decode_compact_field_value(&field.data_type, &expanded) {
+    matchcrate::row_blob::decode_compact_field_value(&field.data_type, &expanded) {
         Err(CassieError::Parse(detail)) => Err(corrupt_row(
             relation,
             id,
@@ -139,7 +139,7 @@ impl Midge {
     /// Reads from the caller's transaction so markers and fields share a snapshot.
     pub(crate) fn validate_column_store_field_markers(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         check: impl FnMut() -> Result<(), CassieError>,
@@ -159,7 +159,7 @@ impl Midge {
     /// is read and by `cassie verify`.
     pub(crate) fn validate_selected_column_store_field_markers(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         selection: &super::field_selection::ColumnFieldSelection,
@@ -174,9 +174,9 @@ impl Midge {
         )
     }
 
-    pub(in crate::midge::adapter) fn validate_field_markers<'a>(
+    pub(incrate::adapter) fn validate_field_markers<'a>(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation: &str,
         row_schema: &RowSchema,
         fields: impl Iterator<Item = &'a RowFieldMeta>,
@@ -228,7 +228,7 @@ impl Midge {
     ///
     /// Returns `XX001` when a required field key is absent or does not decode.
     pub(crate) fn read_column_store_field(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -258,7 +258,7 @@ impl Midge {
     ///
     /// Returns `XX001` for an orphan field key and storage errors otherwise.
     pub(crate) fn reject_orphan_column_store_fields(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         relation: &str,
         id: &str,
         row_schema: &RowSchema,
@@ -313,7 +313,7 @@ impl Midge {
 
     /// Collects the live rows and the schema version each was written at.
     fn verify_column_markers(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         violations: &mut Vec<String>,
@@ -339,7 +339,7 @@ impl Midge {
 
     /// Reads every field of every live row, recording each `XX001` failure.
     fn verify_column_values(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         live: &std::collections::BTreeMap<String, u32>,
@@ -368,7 +368,7 @@ impl Midge {
 
     /// Records every field key whose row has no live marker.
     fn verify_column_orphans(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         live: &std::collections::BTreeMap<String, u32>,
@@ -398,7 +398,7 @@ impl Midge {
 
     /// Records a row blob or legacy document key, which column tables never own.
     fn verify_no_row_store_keys(
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         row_schema: &RowSchema,
         violations: &mut Vec<String>,
@@ -466,10 +466,10 @@ mod tests {
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("memory Midge");
         midge.ensure_families_ready().expect("families");
-        let schema = crate::types::Schema {
-            fields: vec![crate::types::FieldSchema {
+        let schema = cassie_core::types::Schema {
+            fields: vec![cassie_core::types::FieldSchema {
                 name: "label".to_owned(),
-                data_type: crate::types::DataType::Text,
+                data_type: cassie_core::types::DataType::Text,
                 nullable: true,
             }],
         };
@@ -516,10 +516,10 @@ mod tests {
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("memory Midge");
         midge.ensure_families_ready().expect("families");
-        let schema = crate::types::Schema {
-            fields: vec![crate::types::FieldSchema {
+        let schema = cassie_core::types::Schema {
+            fields: vec![cassie_core::types::FieldSchema {
                 name: "label".to_owned(),
-                data_type: crate::types::DataType::Text,
+                data_type: cassie_core::types::DataType::Text,
                 nullable: true,
             }],
         };
@@ -543,7 +543,7 @@ mod tests {
         let schema = midge.row_schema("bounded_callback").expect("row schema");
         midge
             .raw_put(
-                crate::midge::adapter::StorageFamily::Data,
+crate::adapter::StorageFamily::Data,
                 &Midge::column_store_field_key(
                     schema.relation_id,
                     schema.fields[0].field_id,
@@ -562,8 +562,8 @@ mod tests {
         // Act
         let emitted = midge.scan_rows_until_with_traversal::<CassieError, _>(
             "bounded_callback",
-            crate::midge::adapter::RowDecode::Full,
-            crate::midge::adapter::RowTraversal::VisitedRows,
+crate::adapter::RowDecode::Full,
+crate::adapter::RowTraversal::VisitedRows,
             &controls,
             |_| Ok(false),
         );
@@ -583,10 +583,10 @@ mod tests {
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("memory Midge");
         midge.ensure_families_ready().expect("families");
-        let schema = crate::types::Schema {
-            fields: vec![crate::types::FieldSchema {
+        let schema = cassie_core::types::Schema {
+            fields: vec![cassie_core::types::FieldSchema {
                 name: "label".to_owned(),
-                data_type: crate::types::DataType::Text,
+                data_type: cassie_core::types::DataType::Text,
                 nullable: true,
             }],
         };
@@ -608,7 +608,7 @@ mod tests {
         let schema = midge.row_schema("complete_cursor").expect("row schema");
         midge
             .raw_put(
-                crate::midge::adapter::StorageFamily::Data,
+crate::adapter::StorageFamily::Data,
                 &Midge::column_store_field_key(schema.relation_id, schema.fields[0].field_id, "z"),
                 b"\x05orphan",
             )
@@ -619,7 +619,7 @@ mod tests {
         );
         let before = midge.column_validation_reads_for_diagnostics();
         let mut cursor = midge
-            .open_row_cursor("complete_cursor", crate::midge::adapter::RowDecode::Full)
+            .open_row_cursor("complete_cursor",crate::adapter::RowDecode::Full)
             .expect("open")
             .expect("cursor");
 

@@ -9,7 +9,7 @@ use super::{
     CORRUPT_BUCKET_METADATA, DANGLING_BUCKET_MEMBERSHIP, INCOMPLETE_BUCKET_MEMBERSHIP,
     MISSING_BUCKET_METADATA, STALE_BUCKET_METADATA,
 };
-use crate::midge::adapter::column_store::validation as column_validation;
+use crate::adapter::column_store::validation as column_validation;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 const CONTROLLED_PAGE_ENTRIES: usize = 128;
@@ -145,7 +145,7 @@ impl Midge {
 
     fn load_controlled_integrity(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,
@@ -253,7 +253,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut memory = controls.reserve_query_memory(0)?;
@@ -321,7 +321,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut memory = controls.reserve_query_memory(0)?;
@@ -349,7 +349,7 @@ impl Midge {
             for field in row_schema.fields.iter().filter(|field| {
                 !field.retired
                     && projection.contains(
-                        &crate::sql::ColumnIdentifierPath::from_field_name(&field.name)
+                        &cassie_sql::column_identifier::ColumnIdentifierPath::from_field_name(&field.name)
                             .lookup_key(),
                     )
             }) {
@@ -405,7 +405,7 @@ impl Midge {
 }
 
 fn column_candidate_field_bytes(
-    field: &crate::midge::row_blob::RowFieldMeta,
+    field: &crate::row_blob::RowFieldMeta,
     key_bytes: usize,
     raw_value_bytes: usize,
 ) -> Result<usize, CassieError> {
@@ -419,7 +419,7 @@ fn column_candidate_field_bytes(
     checked_column_candidate_bytes(&[
         key_bytes,
         raw_value_bytes,
-        crate::runtime::accounted::json::JSON_MAP_ENTRY_BYTES,
+        cassie_core::request::accounted::json::JSON_MAP_ENTRY_BYTES,
         field.name.len(),
         size_of::<serde_json::Value>(),
         decoded_bytes,
@@ -455,7 +455,7 @@ fn requested_counts_match(
 
 fn load_controlled_hits(
     midge: &Midge,
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     request: &ControlledIndexRequest<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<ControlledHits, CassieError> {
@@ -529,7 +529,7 @@ fn controlled_hit_query(request: &ControlledIndexRequest<'_>, start_key: Option<
 
 fn controlled_scan_pages(
     midge: &Midge,
-    tx: &crate::midge::adapter::AdapterTransaction,
+    tx: & crate::adapter::AdapterTransaction,
     controls: &QueryExecutionControls,
     mut query_for_page: impl FnMut(Option<Vec<u8>>) -> Query,
     mut visit: impl FnMut(&[u8], &[u8]) -> Result<(), CassieError>,

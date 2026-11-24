@@ -1,6 +1,6 @@
 //! Row id admission for writers.
 
-use crate::app::CassieError;
+use crate::adapter::CassieError;
 
 /// Rejects a row id holding a NUL byte.
 ///

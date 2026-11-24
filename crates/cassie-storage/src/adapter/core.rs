@@ -665,7 +665,7 @@ mod tests {
     use cntryl_midge::{OpenOptions, WriteOptions};
 
     use super::Midge;
-    use crate::midge::adapter::storage_config::WritePolicy;
+    use crate::adapter::storage_config::WritePolicy;
 
     #[test]
     fn should_bootstrap_a_fresh_cloud_backed_namespace() {
@@ -691,10 +691,10 @@ mod tests {
             .expect("schema transaction");
         assert_eq!(
             schema_tx
-                .get(&crate::midge::adapter::key_encoding::layout_marker_key())
+                .get(& crate::adapter::key_encoding::layout_marker_key())
                 .expect("read layout marker"),
             Some(
-                crate::midge::adapter::key_encoding::LAYOUT_MARKER_VALUE
+crate::adapter::key_encoding::LAYOUT_MARKER_VALUE
                     .to_vec()
                     .into()
             )

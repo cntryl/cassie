@@ -1,7 +1,7 @@
 use cntryl_midge::Query;
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
-use crate::types::temporal::parse_timestamp_utc;
+use cassie_core::types::temporal::parse_timestamp_utc;
 
 use super::{
     check_document_write_failure_point, collect_scan, decode_projected_row, decode_row, encode_row,
@@ -282,7 +282,7 @@ impl Midge {
     }
 
     pub(crate) fn sync_time_series_indexes_for_document(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         id: &str,
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
@@ -331,7 +331,7 @@ impl Midge {
     }
 
     fn update_time_series_metadata_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         index: &IndexMeta,
         old_entry: Option<&TimeSeriesIndexEntry>,
         new_entry: Option<&TimeSeriesIndexEntry>,
@@ -389,7 +389,7 @@ impl Midge {
     }
 
     fn adjust_time_series_bucket_count_in_tx(
-        tx: &mut crate::midge::adapter::AdapterTransaction,
+        tx: &mutcrate::adapter::AdapterTransaction,
         relation_id: u64,
         index_id: u64,
         bucket: &BucketIdentity,
@@ -620,7 +620,7 @@ impl Midge {
 
     fn load_time_series_integrity(
         &self,
-        tx: &crate::midge::adapter::AdapterTransaction,
+        tx: & crate::adapter::AdapterTransaction,
         collection: &str,
         relation_id: u64,
         index_id: u64,
@@ -716,7 +716,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
+            .map(|field| cassie_sql::column_identifier::ColumnIdentifierPath::reference_field_key(field))
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut documents = Vec::with_capacity(hits.len());

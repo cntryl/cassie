@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::{
+use crate::adapter::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
     set_schema_write_commit_barriers, ScalarIndexScanRequest, SchemaWritePausePoint,
 };
@@ -444,12 +444,12 @@ fn should_recover_acknowledged_replay_after_process_death() {
 fn should_retry_only_the_writer_lease_held_error_during_recovery() {
     // Arrange
     let errors = [
-        crate::app::CassieError::from(cntryl_midge::MidgeError::LeaseHeld(
+crate::adapter::CassieError::from(cntryl_midge::MidgeError::LeaseHeld(
             "other writer".to_owned(),
         )),
-        crate::app::CassieError::Storage("another storage failure".to_owned()),
-        crate::app::CassieError::Storage("Writer lease heldish: wrong prefix".to_owned()),
-        crate::app::CassieError::StorageBootstrap("Writer lease held: wrong variant".to_owned()),
+crate::adapter::CassieError::Storage("another storage failure".to_owned()),
+crate::adapter::CassieError::Storage("Writer lease heldish: wrong prefix".to_owned()),
+crate::adapter::CassieError::StorageBootstrap("Writer lease held: wrong variant".to_owned()),
     ];
 
     // Act

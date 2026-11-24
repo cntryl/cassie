@@ -94,8 +94,8 @@ impl Midge {
             .filter(|constraint| {
                 crate::catalog::enforces_single_column_uniqueness(constraint, constraints)
                     && !previous.iter().any(|existing| {
-                        crate::sql::ColumnIdentifierPath::stored_field_key(&existing.field)
-                            == crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                        cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&existing.field)
+                            == cassie_sql::column_identifier::ColumnIdentifierPath::stored_field_key(&constraint.field)
                             && crate::catalog::enforces_single_column_uniqueness(
                                 existing, &previous,
                             )
@@ -145,7 +145,7 @@ impl Midge {
                             field_meta.name == constraint.field
                                 && matches!(
                                     field_meta.data_type,
-                                    crate::types::DataType::Json | crate::types::DataType::Jsonb
+                                    cassie_core::types::DataType::Json | cassie_core::types::DataType::Jsonb
                                 )
                         })
                     {
@@ -197,7 +197,7 @@ impl Midge {
                         field_meta.name == constraint.field
                             && matches!(
                                 field_meta.data_type,
-                                crate::types::DataType::Json | crate::types::DataType::Jsonb
+                                cassie_core::types::DataType::Json | cassie_core::types::DataType::Jsonb
                             )
                     })
                 {
@@ -227,8 +227,8 @@ mod tests {
     use crate::app::{Cassie, CassieError};
     use crate::catalog::FieldConstraint;
     use crate::config::CassieRuntimeConfig;
-    use crate::midge::adapter::{key_encoding, StorageFamily};
-    use crate::types::{DataType, FieldSchema, Schema};
+    use crate::adapter::{key_encoding, StorageFamily};
+    use cassie_core::types::{DataType, FieldSchema, Schema};
 
     const CANONICAL: &str = "postgres.public.unique_publication_recovery";
 

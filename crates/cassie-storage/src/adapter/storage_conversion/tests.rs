@@ -1,13 +1,11 @@
 //! Admission and cancellation at the native conversion scan boundary.
 
 use std::cell::RefCell;
-use std::time::Instant;
 
 use super::{CassieError, CollectionStorageMode, Midge};
 use crate::catalog::CollectionMeta;
-use crate::config::CassieRuntimeLimits;
+use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::{RawStorageEntry, StorageFamily};
-use crate::runtime::QueryExecutionControls;
 use cassie_core::types::{DataType, FieldSchema, Schema};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -134,12 +132,8 @@ impl Fixture {
     }
 }
 
-fn tiny_controls() -> QueryExecutionControls {
-    let limits = CassieRuntimeLimits {
-        query_memory_budget_bytes: 1,
-        ..CassieRuntimeLimits::default()
-    };
-    QueryExecutionControls::from_limits(&limits, Instant::now())
+fn tiny_controls() -> TestRequest {
+    TestRequest::with_budget(1)
 }
 
 #[test]
@@ -155,7 +149,7 @@ fn should_admit_row_source_entries_before_copying_or_advancing_conversion() {
     let result = fixture.midge.convert_collection_storage_mode(
         "conversion_admission",
         CollectionStorageMode::ColumnStore,
-        &mut |bytes| controls.reserve_query_memory(bytes).map(drop),
+        &mut |bytes| controls.context().reserve_query_memory(bytes).map(drop),
     );
 
     // Assert
@@ -184,7 +178,7 @@ fn should_admit_column_markers_before_copying_or_advancing_conversion() {
     let result = fixture.midge.convert_collection_storage_mode(
         "conversion_admission",
         CollectionStorageMode::RowStore,
-        &mut |bytes| controls.reserve_query_memory(bytes).map(drop),
+        &mut |bytes| controls.context().reserve_query_memory(bytes).map(drop),
     );
 
     // Assert
@@ -216,7 +210,7 @@ fn should_admit_deleted_column_cleanup_before_copying_or_removing_residue() {
     let result = fixture.midge.convert_collection_storage_mode(
         "conversion_admission",
         CollectionStorageMode::RowStore,
-        &mut |bytes| controls.reserve_query_memory(bytes).map(drop),
+        &mut |bytes| controls.context().reserve_query_memory(bytes).map(drop),
     );
 
     // Assert

@@ -109,24 +109,15 @@ fn checked_add(left: usize, right: usize) -> Result<usize, CassieError> {
 mod tests {
     use std::cell::Cell;
     use std::collections::BTreeMap;
-    use std::time::Instant;
-
-    use crate::config::CassieRuntimeLimits;
-    use crate::runtime::QueryExecutionControls;
+    use crate::adapter::request_test_support::TestRequest;
 
     use super::{project_column_batch_document, reserve_before_projecting, ColumnBatchRow};
 
     #[test]
     fn should_reject_projected_column_row_before_building_segment_output_given_low_memory() {
         // Arrange
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes: 1,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        );
-        let mut memory = controls.reserve_query_memory(0).expect("empty reservation");
+        let controls = TestRequest::with_budget(1);
+        let mut memory = controls.context().reserve_query_memory(0).expect("empty reservation");
         let projection_calls = Cell::new(0);
         let row = ColumnBatchRow {
             row_id: "row-0001".to_string(),

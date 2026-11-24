@@ -3,7 +3,8 @@
 use std::sync::{Arc, Barrier};
 
 use super::*;
-use crate::midge::{Midge, StorageFamily};
+use crate::adapter::request_test_support::TestRequest;
+use crate::adapter::{CassieError, Midge, StorageFamily};
 use cntryl_midge::TransactionMode;
 
 fn fixture() -> Midge {
@@ -34,7 +35,7 @@ fn should_keep_tracked_mode_after_the_last_registration_retires() {
     // Assert
     for result in results {
         let error = result.err().expect("native writable factory blocked");
-        assert_eq!(error.descriptor().sql_state, "0A000");
+        assert!(matches!(error, CassieError::Unsupported(_)));
     }
 }
 
@@ -51,13 +52,10 @@ fn should_remember_a_returned_native_writer_after_rollback() {
     let result = midge.publication.admit_tracked_write(|| Ok(()));
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("unobservable native capability was issued")
-            .descriptor()
-            .sql_state,
-        "0A000"
-    );
+    assert!(matches!(
+        result.expect_err("unobservable native capability was issued"),
+        CassieError::Unsupported(_)
+    ));
 }
 
 #[test]
@@ -157,20 +155,14 @@ fn should_reject_tracked_capture_after_each_native_writable_factory() {
         let retired = midge.publication.admit_tracked_write(|| Ok(()));
 
         // Assert
-        assert_eq!(
-            retained
-                .expect_err("still-live writable handle")
-                .descriptor()
-                .sql_state,
-            "0A000"
-        );
-        assert_eq!(
-            retired
-                .expect_err("unobservable completed writable handle")
-                .descriptor()
-                .sql_state,
-            "0A000"
-        );
+        assert!(matches!(
+            retained.expect_err("still-live writable handle"),
+            CassieError::Unsupported(_)
+        ));
+        assert!(matches!(
+            retired.expect_err("unobservable completed writable handle"),
+            CassieError::Unsupported(_)
+        ));
     }
 }
 
@@ -224,11 +216,8 @@ fn should_fence_local_reopen_until_returned_native_handles_retire() {
     reopened
         .ensure_families_ready()
         .expect("recovered families");
-    let controls = crate::runtime::QueryExecutionControls::from_limits(
-        &crate::config::CassieRuntimeLimits::default(),
-        std::time::Instant::now(),
-    );
-    let tracked = reopened.capture_repeatable_row_history("postgres", &controls);
+    let controls = TestRequest::default();
+    let tracked = reopened.capture_repeatable_row_history("postgres", &controls.context());
 
     // Assert
     assert!(

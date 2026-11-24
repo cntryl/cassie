@@ -2,13 +2,12 @@
 
 use std::cell::{Cell, RefCell};
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::*;
-use crate::config::CassieRuntimeLimits;
 use crate::adapter::publication::PublicationCoordinator;
-use crate::midge::Midge;
-use crate::runtime::QueryExecutionControls;
+use crate::adapter::Midge;
+use crate::adapter::request_test_support::TestRequest;
 
 thread_local! {
     static RETIRING: RefCell<Option<mpsc::Sender<()>>> = const { RefCell::new(None) };
@@ -22,8 +21,8 @@ pub(super) fn observe_retirement() {
     });
 }
 
-fn controls() -> QueryExecutionControls {
-    QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now())
+fn controls() -> TestRequest {
+    TestRequest::default()
 }
 
 fn publication(budget: usize) -> Arc<DatabasePublication> {
@@ -54,23 +53,20 @@ fn should_track_a_writer_staged_before_the_first_repeatable_capture() {
         .put(key.clone(), b"same".to_vec(), None)
         .expect("staged before snapshot");
     let owner = midge
-        .capture_repeatable_row_history("postgres", &controls())
+        .capture_repeatable_row_history("postgres", &controls().context())
         .expect("capture");
 
     // Act
     writer
         .commit(midge.write_options_sync())
         .expect("confirmed publication");
-    let result = owner.check_keys([key.as_slice()], &controls());
+    let result = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("newer current conflict target")
-            .descriptor()
-            .sql_state,
-        "40001"
-    );
+    assert!(matches!(
+        result.expect_err("newer current conflict target"),
+        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+    ));
 }
 
 #[test]
@@ -93,23 +89,20 @@ fn should_track_same_value_writes_for_each_authoritative_representation() {
             .commit(midge.write_options_sync())
             .expect("seed commit");
         let owner = midge
-            .capture_repeatable_row_history("postgres", &controls())
+            .capture_repeatable_row_history("postgres", &controls().context())
             .expect("capture");
 
         // Act
         midge
-            .raw_put(crate::midge::StorageFamily::Data, &key, b"same")
+            .raw_put(crate::adapter::StorageFamily::Data, &key, b"same")
             .expect("observed public raw rewrite");
-        let result = owner.check_keys([key.as_slice()], &controls());
+        let result = owner.check_keys([key.as_slice()], &controls().context());
 
         // Assert
-        assert_eq!(
-            result
-                .expect_err("same payload still mutated")
-                .descriptor()
-                .sql_state,
-            "40001"
-        );
+        assert!(matches!(
+            result.expect_err("same payload still mutated"),
+            CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+        ));
     }
 }
 
@@ -119,7 +112,7 @@ fn should_ignore_a_native_stage_that_failed_before_recording_the_key() {
     let midge = Midge::new_in_memory("postgres").expect("memory engine");
     midge.ensure_families_ready().expect("families");
     let owner = midge
-        .capture_repeatable_row_history("postgres", &controls())
+        .capture_repeatable_row_history("postgres", &controls().context())
         .expect("capture");
     let key = Midge::row_key(17, "one");
     let mut writer = midge
@@ -131,7 +124,7 @@ fn should_ignore_a_native_stage_that_failed_before_recording_the_key() {
     writer
         .commit(midge.write_options_sync())
         .expect("read-only commit");
-    let result = owner.check_keys([key.as_slice()], &controls());
+    let result = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
     assert!(stage.is_err());
@@ -155,8 +148,8 @@ fn should_preserve_only_history_needed_by_the_oldest_remaining_owner() {
 
     // Act
     drop(first);
-    let first_key = second.check_keys([one.as_slice()], &controls());
-    let second_key = second.check_keys([two.as_slice()], &controls());
+    let first_key = second.check_keys([one.as_slice()], &controls().context());
+    let second_key = second.check_keys([two.as_slice()], &controls().context());
     let retained = publication.row_history.state.lock().entries.len();
     drop(second);
 
@@ -233,7 +226,7 @@ fn should_serialize_owner_retirement_with_native_confirmation() {
 
     // Assert
     assert_eq!(newer.sequence, 1);
-    assert!(newer.check_keys([key.as_slice()], &controls()).is_ok());
+    assert!(newer.check_keys([key.as_slice()], &controls().context()).is_ok());
 }
 
 fn admitted_publication(budget: usize) -> Result<(usize, Arc<DatabasePublication>), CassieError> {
@@ -298,14 +291,12 @@ fn should_reject_sequence_exhaustion_before_native_submission() {
     });
 
     // Assert
-    assert_eq!(
-        CassieError::from(result.expect_err("checked local counter"))
-            .descriptor()
-            .sql_state,
-        "54000"
-    );
+    assert!(matches!(
+        CassieError::from(result.expect_err("checked local counter")),
+        CassieError::ResourceLimit(_)
+    ));
     assert!(!submitted.get());
-    assert!(owner.check_keys([key.as_slice()], &controls()).is_ok());
+    assert!(owner.check_keys([key.as_slice()], &controls().context()).is_ok());
 }
 
 #[test]
@@ -321,7 +312,7 @@ fn should_install_no_history_after_a_known_failed_native_publication() {
             "known not applied".to_owned(),
         ))
     });
-    let result = owner.check_keys([key.as_slice()], &controls());
+    let result = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
     assert!(failed.is_err());
@@ -342,7 +333,7 @@ fn should_quarantine_history_after_an_unconfirmed_native_publication() {
             "may apply".to_owned(),
         ))
     });
-    let result = owner.check_keys([key.as_slice()], &controls());
+    let result = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
     assert!(matches!(
@@ -351,13 +342,10 @@ fn should_quarantine_history_after_an_unconfirmed_native_publication() {
             cntryl_midge::MidgeError::OutcomeUnknown(_)
         ))
     ));
-    assert_eq!(
-        result
-            .expect_err("history is no longer authoritative")
-            .descriptor()
-            .sql_state,
-        "58030"
-    );
+    assert!(matches!(
+        result.expect_err("history is no longer authoritative"),
+        CassieError::RecoveryRequired(_)
+    ));
 }
 
 #[test]
@@ -423,29 +411,26 @@ fn should_remember_a_delete_reinsert_of_the_same_payload() {
     midge.ensure_families_ready().expect("families");
     let key = Midge::row_key(17, "one");
     midge
-        .raw_put(crate::midge::StorageFamily::Data, &key, b"same")
+        .raw_put(crate::adapter::StorageFamily::Data, &key, b"same")
         .expect("seed");
     let owner = midge
-        .capture_repeatable_row_history("postgres", &controls())
+        .capture_repeatable_row_history("postgres", &controls().context())
         .expect("capture");
 
     // Act
     midge
-        .raw_delete(crate::midge::StorageFamily::Data, &key)
+        .raw_delete(crate::adapter::StorageFamily::Data, &key)
         .expect("delete");
     midge
-        .raw_put(crate::midge::StorageFamily::Data, &key, b"same")
+        .raw_put(crate::adapter::StorageFamily::Data, &key, b"same")
         .expect("same-payload reinsert");
-    let result = owner.check_keys([key.as_slice()], &controls());
+    let result = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("ABA is a mutation")
-            .descriptor()
-            .sql_state,
-        "40001"
-    );
+    assert!(matches!(
+        result.expect_err("ABA is a mutation"),
+        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+    ));
 }
 
 #[test]
@@ -457,13 +442,10 @@ fn should_reject_the_initial_header_before_creating_a_memory_tracker() {
     let registered = RowHistory::register(&publication);
 
     // Assert
-    assert_eq!(
-        registered
-            .expect_err("header exceeds budget")
-            .descriptor()
-            .sql_state,
-        "54000"
-    );
+    assert!(matches!(
+        registered.expect_err("header exceeds budget"),
+        CassieError::ResourceLimit(_)
+    ));
     let state = publication.row_history.state.lock();
     assert!(state.admission.is_none());
     assert!(state.active_memory.is_none());
@@ -499,15 +481,12 @@ fn should_complete_confirmed_history_with_no_remaining_admission() {
         assert_eq!(pressure.tracker_used_bytes(), budget);
         Ok(())
     });
-    let changed = owner.check_keys([key.as_slice()], &controls());
+    let changed = owner.check_keys([key.as_slice()], &controls().context());
 
     // Assert
     assert!(published.is_ok());
-    assert_eq!(
-        changed
-            .expect_err("confirmed history installed without another reservation")
-            .descriptor()
-            .sql_state,
-        "40001"
-    );
+    assert!(matches!(
+        changed.expect_err("confirmed history installed without another reservation"),
+        CassieError::Transaction { kind: crate::adapter::TransactionErrorKind::SerializationFailure, .. }
+    ));
 }

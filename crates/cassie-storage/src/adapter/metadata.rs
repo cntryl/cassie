@@ -93,7 +93,11 @@ impl Midge {
             let record: IndexMeta = serde_json::from_slice(&raw)
                 .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
             cassie_sql::definition_guard::version(record.definition_semantics_version)?;
-            cassie_sql::definition_guard::index(&record)?;
+            cassie_sql::definition_guard::index(
+                record.definition_semantics_version,
+                &record.expressions,
+                record.predicate.as_deref(),
+            )?;
             return Ok(Some(record));
         }
 
@@ -107,7 +111,11 @@ impl Midge {
             };
             if name_matches(&record.collection, &collection) && name_matches(&record.name, name) {
                 cassie_sql::definition_guard::version(record.definition_semantics_version)?;
-                cassie_sql::definition_guard::index(&record)?;
+                cassie_sql::definition_guard::index(
+                    record.definition_semantics_version,
+                    &record.expressions,
+                    record.predicate.as_deref(),
+                )?;
                 return Ok(Some(record));
             }
         }
@@ -127,7 +135,11 @@ impl Midge {
                 continue;
             };
             cassie_sql::definition_guard::version(record.definition_semantics_version)?;
-            cassie_sql::definition_guard::index(&record)?;
+            cassie_sql::definition_guard::index(
+                record.definition_semantics_version,
+                &record.expressions,
+                record.predicate.as_deref(),
+            )?;
             out.push(record);
         }
 
@@ -188,7 +200,17 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_rollup(&self, metadata: &RollupMeta) -> Result<(), CassieError> {
-        cassie_sql::definition_guard::rollup(metadata)?;
+        let expressions = metadata
+            .group_keys
+            .iter()
+            .chain(metadata.aggregates.iter().map(|aggregate| &aggregate.expression))
+            .chain(&metadata.filter_expr)
+            .map(String::as_str);
+        cassie_sql::definition_guard::rollup(
+            metadata.definition_semantics_version,
+            &metadata.bucket_expr,
+            expressions,
+        )?;
         self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
@@ -768,7 +790,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
-        cassie_sql::definition_guard::view(metadata)?;
+        cassie_sql::definition_guard::query(metadata.definition_semantics_version, &metadata.query)?;
         self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);

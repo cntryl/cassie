@@ -136,7 +136,7 @@ crate::adapter::set_index_publication_failure_point(false);
         let guard = gate.lock();
 
         // Act
-        let renamed = midge.rename_index_and_constraints_with_held_collection_gate(
+        let renamed = midge.rename_index_and_constraints_with_held_collection_gate::<()>(
             &collection,
             &name,
             destination,
@@ -295,7 +295,7 @@ fn should_reject_unsafe_index_metadata_before_lifecycle_mutation() {
     let mut published = false;
 
     // Act
-    let rename = midge.rename_index_and_constraints_with_held_collection_gate(
+    let rename = midge.rename_index_and_constraints_with_held_collection_gate::<()>(
         &collection,
         &name,
         "renamed_idx",
@@ -399,7 +399,7 @@ crate::adapter::StorageFamily::Data,
     let gate = midge.collection_write_gate(&collection);
     let guard = gate.lock();
     // Act
-    let collision = midge.rename_index_and_constraints_with_held_collection_gate(
+    let collision = midge.rename_index_and_constraints_with_held_collection_gate::<()>(
         &collection,
         &name,
         "occupied_idx",
@@ -484,7 +484,7 @@ fn should_reject_unknown_index_definition_version_before_rename_or_update() {
     let gate = midge.collection_write_gate(&collection);
     let guard = gate.lock();
     // Act
-    let rename = midge.rename_index_and_constraints_with_held_collection_gate(
+    let rename = midge.rename_index_and_constraints_with_held_collection_gate::<()>(
         &collection,
         &name,
         "next_idx",

@@ -15,10 +15,6 @@ pub(crate) trait EngineIndexMetaExt {
     fn reservation_identity(&self) -> Result<ReservationIdentity<'_>, crate::app::CassieError>;
     fn unique_violation(&self, collection: &str) -> crate::app::CassieError;
     fn preserve_identity_before_name_change(&mut self);
-    fn references_field_checked(
-        &self,
-        field: &str,
-    ) -> Result<bool, crate::app::CassieError>;
 }
 
 impl EngineIndexMetaExt for IndexMeta {
@@ -44,13 +40,6 @@ impl EngineIndexMetaExt for IndexMeta {
         }
     }
 
-    fn references_field_checked(
-        &self,
-        field: &str,
-    ) -> Result<bool, crate::app::CassieError> {
-        cassie_sql::catalog_declarations::IndexMeta::references_field_checked(self, field)
-            .map_err(crate::app::CassieError::Parse)
-    }
 }
 
 

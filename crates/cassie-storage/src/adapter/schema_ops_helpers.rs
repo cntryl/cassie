@@ -94,7 +94,9 @@ pub(super) fn drop_referencing_indexes_in_tx(
                 "invalid index metadata for collection '{collection}': {error}"
             ))
         })?;
-        let references_field = metadata.references_field_checked(field)?;
+        let references_field = metadata
+            .references_field_checked(field)
+            .map_err(CassieError::Parse)?;
         if !references_field {
             continue;
         }
@@ -196,7 +198,9 @@ pub(super) fn validate_drop_column_index_metadata(
                 "invalid index metadata for collection '{collection}': {error}"
             ))
         })?;
-        metadata.references_field_checked(field)?;
+        metadata
+            .references_field_checked(field)
+            .map_err(CassieError::Parse)?;
     }
     Ok(())
 }

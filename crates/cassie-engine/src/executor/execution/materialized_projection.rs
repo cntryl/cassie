@@ -440,7 +440,7 @@ fn is_sql_materialized_view(cassie: &Cassie, name: &str) -> bool {
             projection
                 .materialized
                 .as_ref()
-                .is_some_and(catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+                .is_some_and(catalog::is_sql_materialized_view)
         })
 }
 
@@ -455,7 +455,7 @@ fn sql_materialized_view_metadata(
             projection
                 .materialized
                 .as_ref()
-                .is_some_and(catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+                .is_some_and(catalog::is_sql_materialized_view)
         })
         .ok_or_else(|| QueryError::General(format!("materialized view '{name}' does not exist")))
 }

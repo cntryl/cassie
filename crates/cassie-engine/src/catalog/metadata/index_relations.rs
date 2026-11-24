@@ -59,7 +59,7 @@ impl Catalog {
         self.get_materialized_projection(relation)
             .and_then(|projection| projection.materialized)
             .as_ref()
-            .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+            .is_some_and(crate::catalog::is_sql_materialized_view)
     }
 
     pub(crate) fn materialized_view_output_collection(&self, relation: &str) -> Option<String> {
@@ -67,7 +67,7 @@ impl Catalog {
         projection
             .materialized
             .as_ref()
-            .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+            .is_some_and(crate::catalog::is_sql_materialized_view)
             .then(|| projection.active_output_collection().map(str::to_string))
             .flatten()
     }
@@ -83,7 +83,7 @@ impl Catalog {
             let is_sql_view = projection
                 .materialized
                 .as_ref()
-                .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view);
+                .is_some_and(crate::catalog::is_sql_materialized_view);
             if !is_sql_view {
                 out.push(index);
                 continue;

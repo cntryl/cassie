@@ -119,7 +119,7 @@ pub(in crate::executor::execution) fn execute(
     let Some(definition) = publication
         .materialized
         .as_ref()
-        .filter(|d| d.is_sql_materialized_view())
+        .filter(|metadata| crate::catalog::is_sql_materialized_view(metadata))
     else {
         return Ok(None);
     };

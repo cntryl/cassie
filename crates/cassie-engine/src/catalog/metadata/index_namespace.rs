@@ -257,7 +257,7 @@ fn index_owner_name<'a>(
     if !projection
         .materialized
         .as_ref()
-        .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        .is_some_and(crate::catalog::is_sql_materialized_view)
     {
         return Ok(Some(index_collection));
     }

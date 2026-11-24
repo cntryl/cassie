@@ -1,6 +1,13 @@
 //! SQL-aware persisted index declaration and portable metadata operations.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
+use cassie_core::catalog::projection::{
+    MaterializedProjectionState, ProjectionFreshness, ProjectionHashMeta, ProjectionIntegrityReportMeta,
+    ProjectionKind, ProjectionRebuildState, ProjectionRebuildVerificationMeta, ProjectionSwapMeta,
+    ProjectionVerificationState, ProjectionVersionMeta, ProjectionVersionState,
+};
 
 pub use cassie_core::catalog::declarations::IndexKind;
 
@@ -323,9 +330,234 @@ impl IndexMeta {
     }
 }
 
+
+
+/// Option key marking a materialized projection created by SQL materialized-view DDL.
+pub const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaterializedProjectionMeta {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
+    pub name: String,
+    pub query: String,
+    #[serde(default)]
+    pub options: std::collections::BTreeMap<String, String>,
+    pub output_collection: String,
+    pub source_collections: Vec<String>,
+    pub schema_epoch: u64,
+    pub output_schema: cassie_core::types::Schema,
+    pub state: MaterializedProjectionState,
+    pub definition_fingerprint: u64,
+    pub refresh_cursor: Option<String>,
+    pub last_built_ms: Option<u64>,
+}
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionMeta {
+    #[serde(default)]
+    pub projection_id: String,
+    pub collection: String,
+    #[serde(default)]
+    pub kind: ProjectionKind,
+    pub schema_version: u32,
+    pub offset: u64,
+    pub lag: u64,
+    pub rebuild_state: ProjectionRebuildState,
+    #[serde(default)]
+    pub source_identity: Option<String>,
+    #[serde(default)]
+    pub source_generations: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub source_checkpoint: Option<String>,
+    #[serde(default)]
+    pub source_position: Option<u64>,
+    #[serde(default)]
+    pub last_applied_event_id: Option<String>,
+    #[serde(default)]
+    pub replay_batch_id: Option<String>,
+    #[serde(default)]
+    pub applied_event_count: u64,
+    #[serde(default)]
+    pub skipped_duplicate_count: u64,
+    #[serde(default)]
+    pub freshness: ProjectionFreshness,
+    #[serde(default)]
+    pub last_error: Option<String>,
+    #[serde(default)]
+    pub materialized: Option<MaterializedProjectionMeta>,
+    #[serde(default)]
+    pub versions: Vec<ProjectionVersionMeta>,
+    #[serde(default)]
+    pub active_version: Option<String>,
+    #[serde(default)]
+    pub swap: ProjectionSwapMeta,
+    #[serde(default)]
+    pub hashes: ProjectionHashMeta,
+    #[serde(default)]
+    pub verification: ProjectionRebuildVerificationMeta,
+    #[serde(default)]
+    pub integrity: ProjectionIntegrityReportMeta,
+    /// Highest version ordinal ever allocated, so dropped version ids are never
+    /// reused. Metadata written before this field existed reads as zero.
+    #[serde(default)]
+    pub version_high_water: u64,
+}
+
+impl ProjectionMeta {
+    pub fn new(collection: impl Into<String>, schema_version: u32) -> Self {
+        let collection = collection.into();
+        Self {
+            projection_id: collection.clone(),
+            collection,
+            kind: ProjectionKind::Collection,
+            schema_version,
+            offset: 0,
+            lag: 0,
+            rebuild_state: ProjectionRebuildState::Idle,
+            source_identity: None,
+            source_generations: BTreeMap::new(),
+            source_checkpoint: None,
+            source_position: None,
+            last_applied_event_id: None,
+            replay_batch_id: None,
+            applied_event_count: 0,
+            skipped_duplicate_count: 0,
+            freshness: ProjectionFreshness::Unknown,
+            last_error: None,
+            materialized: None,
+            versions: Vec::new(),
+            active_version: None,
+            swap: ProjectionSwapMeta::default(),
+            hashes: ProjectionHashMeta::default(),
+            verification: ProjectionRebuildVerificationMeta::default(),
+            integrity: ProjectionIntegrityReportMeta::default(),
+            version_high_water: 0,
+        }
+    }
+
+    #[must_use]
+    pub fn materialized(spec: MaterializedProjectionSpec) -> Self {
+        let name = spec.name;
+        let version_id = "v1".to_string();
+        let output_collection = materialized_output_collection(&name, &version_id);
+        Self {
+            projection_id: name.clone(),
+            collection: name.clone(),
+            kind: ProjectionKind::Materialized,
+            schema_version: 1,
+            offset: 0,
+            lag: 0,
+            rebuild_state: ProjectionRebuildState::Rebuilding,
+            source_identity: spec.source_collections.first().cloned(),
+            source_generations: BTreeMap::new(),
+            source_checkpoint: None,
+            source_position: None,
+            last_applied_event_id: None,
+            replay_batch_id: None,
+            applied_event_count: 0,
+            skipped_duplicate_count: 0,
+            freshness: ProjectionFreshness::Rebuilding,
+            last_error: None,
+            materialized: Some(MaterializedProjectionMeta {
+                definition_semantics_version: 1,
+                name: name.clone(),
+                query: spec.query,
+                options: spec.options,
+                output_collection: output_collection.clone(),
+                source_collections: spec.source_collections,
+                schema_epoch: spec.schema_epoch,
+                output_schema: spec.output_schema,
+                state: MaterializedProjectionState::Building,
+                definition_fingerprint: spec.definition_fingerprint,
+                refresh_cursor: None,
+                last_built_ms: None,
+            }),
+            versions: vec![ProjectionVersionMeta {
+                version_id: version_id.clone(),
+                output_collection,
+                definition_fingerprint: spec.definition_fingerprint,
+                source_schema_epoch: spec.schema_epoch,
+                state: ProjectionVersionState::Building,
+                created_ms: spec.created_ms,
+                activated_ms: None,
+                retired_ms: None,
+                last_error: None,
+                verification: ProjectionRebuildVerificationMeta::default(),
+            }],
+            active_version: None,
+            swap: ProjectionSwapMeta::default(),
+            hashes: ProjectionHashMeta::default(),
+            verification: ProjectionRebuildVerificationMeta::default(),
+            integrity: ProjectionIntegrityReportMeta::default(),
+            version_high_water: 1,
+        }
+    }
+
+    /// Allocates the next `v<N>` version id past both the persisted high-water
+    /// ordinal and every live version, and records it as the new high water.
+    pub fn allocate_version_id(&mut self) -> String {
+        let live = self
+            .versions
+            .iter()
+            .map(|version| version.version_id.as_str())
+            .chain(self.active_version.as_deref())
+            .filter_map(|version_id| version_id.strip_prefix('v')?.parse::<u64>().ok())
+            .max()
+            .unwrap_or(0);
+        self.version_high_water = self.version_high_water.max(live) + 1;
+        format!("v{}", self.version_high_water)
+    }
+
+    #[must_use]
+    pub fn projection_id(&self) -> &str {
+        if self.projection_id.is_empty() {
+            &self.collection
+        } else {
+            &self.projection_id
+        }
+    }
+
+    #[must_use]
+    pub fn active_output_collection(&self) -> Option<&str> {
+        let active = self.active_version.as_ref()?;
+        self.versions
+            .iter()
+            .find(|version| &version.version_id == active)
+            .map(|version| version.output_collection.as_str())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MaterializedProjectionSpec {
+    pub name: String,
+    pub query: String,
+    pub source_collections: Vec<String>,
+    pub output_schema: cassie_core::types::Schema,
+    pub options: std::collections::BTreeMap<String, String>,
+    pub schema_epoch: u64,
+    pub definition_fingerprint: u64,
+    pub created_ms: u64,
+}
+
+#[must_use]
+pub fn materialized_output_collection(name: &str, version_id: &str) -> String {
+    cassie_core::catalog::scope::derive_scoped_name(name, |local| {
+        format!("__cassie_projection_{local}_{version_id}")
+    })
+}
+
+
 #[cfg(test)]
 mod tests {
-    use super::{IndexKind, IndexMeta};
+    use super::{IndexKind, IndexMeta, MaterializedProjectionSpec, ProjectionMeta};
+    use cassie_core::types::Schema;
     use std::collections::BTreeMap;
 
     #[test]
@@ -355,6 +587,37 @@ mod tests {
         assert_eq!(versioned["definition_semantics_version"], 1);
         assert_eq!(versioned["expressions"], serde_json::json!([]));
         assert_eq!(versioned["predicate"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn should_preserve_projection_metadata_and_materialized_definition_encoding() {
+        // Arrange
+        let projection = ProjectionMeta::new("public.events", 3);
+        let materialized = ProjectionMeta::materialized(MaterializedProjectionSpec {
+            name: "public.events_view".to_owned(),
+            query: "SELECT id FROM public.events".to_owned(),
+            source_collections: vec!["public.events".to_owned()],
+            output_schema: Schema { fields: Vec::new() },
+            options: BTreeMap::new(),
+            schema_epoch: 8,
+            definition_fingerprint: 9,
+            created_ms: 10,
+        });
+
+        // Act
+        let projection_bytes = serde_json::to_value(&projection).expect("serialize projection");
+        let materialized_bytes =
+            serde_json::to_value(&materialized).expect("serialize materialized projection");
+
+        // Assert
+        assert_eq!(projection_bytes["projection_id"], "public.events");
+        assert_eq!(projection_bytes["version_high_water"], 0);
+        assert_eq!(
+            materialized_bytes["materialized"]["definition_semantics_version"],
+            1
+        );
+        assert_eq!(materialized_bytes["materialized"]["query"], "SELECT id FROM public.events");
+        assert_eq!(materialized_bytes["versions"][0]["version_id"], "v1");
     }
 }
 

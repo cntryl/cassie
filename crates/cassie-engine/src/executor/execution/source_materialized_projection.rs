@@ -13,7 +13,7 @@ pub(super) fn execute(
     let projection = if projection
         .materialized
         .as_ref()
-        .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        .is_some_and(crate::catalog::is_sql_materialized_view)
     {
         visible = env.cassie.midge.statement_materialized_view(name)?;
         visible.as_ref().ok_or_else(|| {
@@ -35,7 +35,7 @@ pub(super) fn execute(
         let is_materialized_view = projection
             .materialized
             .as_ref()
-            .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view);
+            .is_some_and(crate::catalog::is_sql_materialized_view);
         if is_materialized_view {
             return Err(QueryError::Cassie(
                 crate::app::DiagnosticError::new(

@@ -161,7 +161,7 @@ fn materialized_view_rows(catalog: &Catalog, database: Option<&str>) -> Vec<Virt
         .filter(|projection| {
             projection.kind == crate::catalog::ProjectionKind::Materialized
                 && projection.materialized.as_ref().is_some_and(
-                    crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                    crate::catalog::is_sql_materialized_view,
                 )
                 && visible(&projection.collection, database)
         })

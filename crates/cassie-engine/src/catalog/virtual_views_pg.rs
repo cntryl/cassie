@@ -194,7 +194,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             .filter(|projection| {
                 projection.kind == crate::catalog::ProjectionKind::Materialized
                     && projection.materialized.as_ref().is_some_and(
-                        crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                        crate::catalog::is_sql_materialized_view,
                     )
                     && current_database.is_none_or(|database| {
                         relation_belongs_to_database(&projection.collection, database)
@@ -306,7 +306,7 @@ pub(super) fn pg_attribute(
         }
         let Some(materialized) = projection
             .materialized
-            .filter(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+            .filter(|metadata| crate::catalog::is_sql_materialized_view(metadata))
         else {
             continue;
         };

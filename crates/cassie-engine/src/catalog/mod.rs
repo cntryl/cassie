@@ -55,6 +55,7 @@ pub use collections::{
     ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
     ProjectionVersionMeta, ProjectionVersionState,
 };
+pub(crate) use collections::is_sql_materialized_view;
 pub use column_defaults::{
     coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
     volatile_default_accepts,

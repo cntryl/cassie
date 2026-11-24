@@ -149,7 +149,7 @@ fn is_sql_materialized_view(catalog: &Catalog, name: &str) -> bool {
             projection
                 .materialized
                 .as_ref()
-                .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+                .is_some_and(crate::catalog::is_sql_materialized_view)
         })
 }
 

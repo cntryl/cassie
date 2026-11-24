@@ -381,7 +381,7 @@ fn vector_extension_dependents(cassie: &Cassie, database: &str) -> Vec<String> {
                 .materialized_projection_for_output(&collection.name)
                 .filter(|projection| {
                     projection.materialized.as_ref().is_some_and(
-                        crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                        crate::catalog::is_sql_materialized_view,
                     )
                 })
                 .map_or_else(

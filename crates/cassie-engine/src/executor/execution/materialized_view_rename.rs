@@ -23,7 +23,7 @@ pub(super) fn rename(
                 .get_materialized_projection(&statement.name)
                 .filter(|projection| {
                     projection.materialized.as_ref().is_some_and(
-                        crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                        crate::catalog::is_sql_materialized_view,
                     )
                 })
                 .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?;

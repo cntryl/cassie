@@ -23,12 +23,12 @@ impl Midge {
         super::super::FIELD_ADD_FAILPOINT.get() || super::super::FIELD_ADD_BACKFILL_FAILPOINT.get()
     }
 
-    pub(crate) fn alter_collection_add_column_atomically(
+    pub(crate) fn alter_collection_add_column_atomically<A: Clone>(
         &self,
         collection: &str,
         field: FieldSchema,
         default_value: Option<serde_json::Value>,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
@@ -132,11 +132,11 @@ impl Midge {
         Ok(())
     }
 
-    fn stage_add_column_constraints_and_sequences(
+    fn stage_add_column_constraints_and_sequences<A: Clone>(
         &self,
         overlay: &mut StorageOverlay,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         self.require_constraint_definitions(constraints)?;

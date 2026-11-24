@@ -47,14 +47,14 @@ struct PreparedWrite {
 
 use super::vector_indexes::{VectorBatchWork, VectorFieldWrites};
 
-struct DocumentWriteBatchContext {
+struct DocumentWriteBatchContext<A = ()> {
     schema: Schema,
     row_schema: RowSchema,
     target_generation: u64,
     uses_column_store: bool,
     vector_indexes: Vec<crate::embeddings::VectorIndexRecord>,
     vector_fields: Vec<String>,
-    unique_constraints: Vec<FieldConstraint>,
+    unique_constraints: Vec<FieldConstraint<A>>,
     unique_scalar_indexes: Vec<IndexMeta>,
     scalar_indexes: Vec<super::IndexMeta>,
     time_series_indexes: Vec<super::IndexMeta>,
@@ -253,7 +253,12 @@ impl Midge {
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        self.apply_document_write_batches_with_storage_overlay(writes, options, None, None)
+        self.apply_document_write_batches_with_storage_overlay::<()>(
+            writes,
+            options,
+            None,
+            None,
+        )
     }
 
     pub(crate) fn apply_document_write_batches_with_transactional_ddl(
@@ -262,17 +267,22 @@ impl Midge {
         options: &DocumentWriteBatchOptions,
         overlay: &super::StorageOverlay,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        self.apply_document_write_batches_with_storage_overlay(writes, options, Some(overlay), None)
+        self.apply_document_write_batches_with_storage_overlay::<()>(
+            writes,
+            options,
+            Some(overlay),
+            None,
+        )
     }
 
-    pub(crate) fn apply_document_write_batches_with_transactional_ddl_and_schema(
+    pub(crate) fn apply_document_write_batches_with_transactional_ddl_and_schema<A: Clone>(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
         overlay: &super::StorageOverlay,
         schema: &Schema,
         row_schema: &RowSchema,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         self.apply_document_write_batches_with_storage_overlay(
             writes,
@@ -282,12 +292,12 @@ impl Midge {
         )
     }
 
-    fn apply_document_write_batches_with_storage_overlay(
+    fn apply_document_write_batches_with_storage_overlay<A: Clone>(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
         options: &DocumentWriteBatchOptions,
         overlay: Option<&super::StorageOverlay>,
-        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint])>,
+        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint<A>])>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if writes.is_empty() && options.additional_data_writes.is_empty() {
             if let Some(overlay) = overlay {
@@ -405,10 +415,10 @@ impl Midge {
         }
     }
 
-    fn apply_prepared_document_write_batches(
+    fn apply_prepared_document_write_batches<A>(
         &self,
         tx: &mut crate::adapter::AdapterTransaction,
-        prepared_writes: Vec<(String, DocumentWriteBatchContext, Vec<PreparedWrite>)>,
+        prepared_writes: Vec<(String, DocumentWriteBatchContext<A>, Vec<PreparedWrite>)>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<PreparedDocumentWriteBatches, CassieError> {
         let mut applied = PreparedDocumentWriteBatches::default();
@@ -461,11 +471,11 @@ impl Midge {
         Ok(())
     }
 
-    fn apply_prepared_collection_writes(
+    fn apply_prepared_collection_writes<A>(
         &self,
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         prepared_collection: Vec<PreparedWrite>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<(DocumentWriteBatchReport, Vec<VectorFieldWrites>), CassieError> {
@@ -502,12 +512,12 @@ impl Midge {
         Ok((report, vector_writes))
     }
 
-    fn document_write_batch_context_with_schema_override(
+    fn document_write_batch_context_with_schema_override<A: Clone>(
         &self,
         collection: &str,
         options: &DocumentWriteBatchOptions,
-        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint])>,
-    ) -> Result<DocumentWriteBatchContext, CassieError> {
+        schema_override: Option<(&Schema, &RowSchema, &[FieldConstraint<A>])>,
+    ) -> Result<DocumentWriteBatchContext<A>, CassieError> {
         let mut context = self.document_write_batch_context(collection, options)?;
         if let Some((schema, row_schema, constraints)) = schema_override {
             context.schema = schema.clone();
@@ -523,11 +533,11 @@ impl Midge {
         Ok(context)
     }
 
-    fn document_write_batch_context(
+    fn document_write_batch_context<A: Clone>(
         &self,
         collection: &str,
         options: &DocumentWriteBatchOptions,
-    ) -> Result<DocumentWriteBatchContext, CassieError> {
+    ) -> Result<DocumentWriteBatchContext<A>, CassieError> {
         let capture_rollup_changes = !options.rollup_change_fields.is_empty();
         let schema = self
             .collection_schema(collection)
@@ -575,6 +585,7 @@ impl Midge {
             })
             .cloned()
             .collect::<Vec<_>>();
+        let constraints = cassie_sql::attachment::rebind_attachment::<A, _>(constraints);
         let needs_existing_payload = !constraints.is_empty()
             || !unique_scalar_indexes.is_empty()
             || !scalar_indexes.is_empty()
@@ -596,10 +607,10 @@ impl Midge {
         })
     }
 
-    fn prepare_document_writes(
+    fn prepare_document_writes<A>(
         collection: &str,
         operations: Vec<DocumentWriteOp>,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         value_hooks: &super::StorageValueHooks,
     ) -> Result<Vec<PreparedWrite>, CassieError> {
         let mut prepared = Vec::with_capacity(operations.len());
@@ -647,10 +658,10 @@ impl Midge {
         Ok(prepared)
     }
 
-    fn apply_prepared_document_write(
+    fn apply_prepared_document_write<A>(
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         prepared: PreparedWrite,
         normalized_vector_collection: Option<&str>,
         rollup_change_fields: &[String],
@@ -683,10 +694,10 @@ impl Midge {
         Self::apply_prepared_delete(tx, collection, context, &prepared, &existing, report)
     }
 
-    fn existing_document_state_for_prepared_write(
+    fn existing_document_state_for_prepared_write<A>(
         tx: &crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         id: &str,
     ) -> Result<ExistingDocumentState, CassieError> {
         let legacy_key = Self::doc_key(collection, id);
@@ -735,10 +746,10 @@ impl Midge {
         })
     }
 
-    fn apply_prepared_put(
+    fn apply_prepared_put<A>(
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         mut prepared: PreparedWrite,
         normalized_vector_collection: Option<&str>,
         existing: &ExistingDocumentState,
@@ -843,10 +854,10 @@ impl Midge {
         Ok(())
     }
 
-    fn apply_prepared_delete(
+    fn apply_prepared_delete<A>(
         tx: &mut crate::adapter::AdapterTransaction,
         collection: &str,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         prepared: &PreparedWrite,
         existing: &ExistingDocumentState,
         report: &mut DocumentWriteBatchReport,
@@ -906,9 +917,9 @@ impl Midge {
         Ok(())
     }
 
-    fn sync_secondary_indexes_for_write(
+    fn sync_secondary_indexes_for_write<A>(
         tx: &mut crate::adapter::AdapterTransaction,
-        context: &DocumentWriteBatchContext,
+        context: &DocumentWriteBatchContext<A>,
         id: &str,
         previous: Option<&serde_json::Value>,
         next: Option<&serde_json::Value>,

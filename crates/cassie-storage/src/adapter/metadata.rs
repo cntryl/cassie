@@ -453,18 +453,18 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn save_constraints(
+    pub fn save_constraints<A: Clone>(
         &self,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
     ) -> Result<(), CassieError> {
         self.save_constraints_with_unique_reservations(collection, constraints)
     }
 
-    pub(super) fn save_constraints_metadata(
+    pub(super) fn save_constraints_metadata<A>(
         &self,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
     ) -> Result<(), CassieError> {
         self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);

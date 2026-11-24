@@ -19,10 +19,10 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when schema metadata or reservation cleanup cannot be persisted.
-    pub fn save_constraints_and_release_unique_reservations(
+    pub fn save_constraints_and_release_unique_reservations<A: Clone>(
         &self,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         fields: &[String],
     ) -> Result<(), CassieError> {
         self.require_constraint_definitions(constraints)?;

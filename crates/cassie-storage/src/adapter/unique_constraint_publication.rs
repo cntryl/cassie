@@ -5,10 +5,11 @@ use super::{key_encoding, CassieError, FieldConstraint, Midge, RowDecode};
 const UNIQUE_BACKFILL_BATCH_SIZE: usize = 5_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PendingUniqueConstraintPublication {
+#[serde(bound(serialize = "", deserialize = ""))]
+struct PendingUniqueConstraintPublication<A = ()> {
     collection: String,
-    constraints: Vec<FieldConstraint>,
-    fields: Vec<FieldConstraint>,
+    constraints: Vec<FieldConstraint<A>>,
+    fields: Vec<FieldConstraint<A>>,
 }
 
 impl Midge {
@@ -17,10 +18,10 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error if existing rows violate uniqueness or storage work fails.
-    pub fn save_constraints_with_unique_reservations(
+    pub fn save_constraints_with_unique_reservations<A: Clone>(
         &self,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
     ) -> Result<(), CassieError> {
         self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);
@@ -83,12 +84,14 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    fn prepare_unique_constraint_publication(
+    fn prepare_unique_constraint_publication<A: Clone>(
         &self,
         collection: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
     ) -> Result<(), CassieError> {
-        let previous = self.load_constraints(collection)?;
+        let previous = cassie_sql::attachment::rebind_attachment::<A, _>(
+            self.load_constraints(collection)?,
+        );
         let fields = constraints
             .iter()
             .filter(|constraint| {
@@ -126,9 +129,9 @@ impl Midge {
         self.publish_unique_constraint_publication(&publication)
     }
 
-    fn publish_unique_constraint_publication(
+    fn publish_unique_constraint_publication<A>(
         &self,
-        publication: &PendingUniqueConstraintPublication,
+        publication: &PendingUniqueConstraintPublication<A>,
     ) -> Result<(), CassieError> {
         self.validate_unique_constraint_rows(publication)?;
         let row_schema = self.row_schema(&publication.collection)?;
@@ -180,9 +183,9 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    fn validate_unique_constraint_rows(
+    fn validate_unique_constraint_rows<A>(
         &self,
-        publication: &PendingUniqueConstraintPublication,
+        publication: &PendingUniqueConstraintPublication<A>,
     ) -> Result<(), CassieError> {
         let rows = self.scan_rows_for_rebuild(&publication.collection, RowDecode::Full)?;
         let row_schema = self.row_schema(&publication.collection)?;
@@ -299,6 +302,52 @@ mod tests {
         );
         drop(restarted);
         std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn should_preserve_pending_publication_bytes_for_non_serde_attachment_type() {
+        // Arrange
+        #[derive(Clone)]
+        struct RuntimeAttachment;
+
+        let mut storage_constraint = FieldConstraint::new("value");
+        storage_constraint.unique = true;
+        storage_constraint.unique_name = Some("value_unique".into());
+        storage_constraint.check = Some(cassie_sql::declarations::ConstraintCheck {
+            field: "value".into(),
+            operator: cassie_sql::declarations::ConstraintOperator::Eq,
+            value: serde_json::Value::from(1),
+            bound_expression: Some(Box::new(cassie_sql::ast::Expr::IntegerLiteral(1))),
+        });
+        let runtime_constraint =
+            cassie_sql::declarations::FieldConstraint::<RuntimeAttachment>::new("value");
+        let mut runtime_constraint = runtime_constraint;
+        runtime_constraint.unique = true;
+        runtime_constraint.unique_name = Some("value_unique".into());
+        runtime_constraint.check = Some(cassie_sql::declarations::ConstraintCheck {
+            field: "value".into(),
+            operator: cassie_sql::declarations::ConstraintOperator::Eq,
+            value: serde_json::Value::from(1),
+            bound_expression: Some(Box::new(cassie_sql::ast::Expr::IntegerLiteral(1))),
+        });
+
+        let storage_publication = PendingUniqueConstraintPublication {
+            collection: CANONICAL.into(),
+            constraints: vec![storage_constraint.clone()],
+            fields: vec![storage_constraint],
+        };
+        let runtime_publication = PendingUniqueConstraintPublication {
+            collection: CANONICAL.into(),
+            constraints: vec![runtime_constraint.clone()],
+            fields: vec![runtime_constraint],
+        };
+
+        // Act
+        let storage_bytes = serde_json::to_vec(&storage_publication).unwrap();
+        let runtime_bytes = serde_json::to_vec(&runtime_publication).unwrap();
+
+        // Assert
+        assert_eq!(runtime_bytes, storage_bytes);
     }
 
     #[test]

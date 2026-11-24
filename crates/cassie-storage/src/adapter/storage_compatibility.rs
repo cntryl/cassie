@@ -70,9 +70,9 @@ impl Midge {
         self.require_storage_layout_version(V050_COLUMNAR_LAYOUT_VERSION)
     }
 
-    pub(in crate::adapter) fn require_constraint_definitions(
+    pub(in crate::adapter) fn require_constraint_definitions<A>(
         &self,
-        constraints: &[crate::catalog::FieldConstraint],
+        constraints: &[crate::catalog::FieldConstraint<A>],
     ) -> Result<(), CassieError> {
         cassie_sql::definition_guard::constraints(constraints)?;
         if constraints

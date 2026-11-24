@@ -27,12 +27,30 @@ type InitialCollectionPublication = (bool, u64, Vec<crate::catalog::ObjectCommen
 type ClonePublication = (u64, Vec<crate::catalog::ObjectCommentMeta>);
 type IndexesAndComments<'a> = (&'a [IndexMeta], &'a [(String, String)]);
 
-#[derive(Clone, Copy, Default)]
-struct InitialCollectionContents<'a> {
-    constraints: Option<&'a [FieldConstraint]>,
+struct InitialCollectionContents<'a, A = ()> {
+    constraints: Option<&'a [FieldConstraint<A>]>,
     sequences: Option<&'a [crate::catalog::SequenceMeta]>,
     indexes: Option<&'a [IndexMeta]>,
     comments: Option<&'a [(String, String)]>,
+}
+
+impl<'a, A> Copy for InitialCollectionContents<'a, A> {}
+
+impl<'a, A> Clone for InitialCollectionContents<'a, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'a, A> Default for InitialCollectionContents<'a, A> {
+    fn default() -> Self {
+        Self {
+            constraints: None,
+            sequences: None,
+            indexes: None,
+            comments: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -115,12 +133,12 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation or storage fails.
-    pub(crate) fn create_collection_with_meta_and_constraints_and_sequences_if_absent(
+    pub(crate) fn create_collection_with_meta_and_constraints_and_sequences_if_absent<A>(
         &self,
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<Option<u64>, CassieError> {
         self.validate_initial_column_constraints(name, constraints, sequences)?;
@@ -143,12 +161,12 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when the initial metadata is invalid or storage fails.
-    pub(crate) fn create_collection_with_meta_constraints_sequences_and_indexes_if_absent(
+    pub(crate) fn create_collection_with_meta_constraints_sequences_and_indexes_if_absent<A: Clone>(
         &self,
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
         indexes_and_comments: IndexesAndComments<'_>,
     ) -> Result<Option<ClonePublication>, CassieError> {
@@ -214,13 +232,13 @@ impl Midge {
         Ok(())
     }
 
-    fn create_collection_with_meta_inner(
+    fn create_collection_with_meta_inner<A>(
         &self,
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
         require_absent: bool,
-        initial: InitialCollectionContents<'_>,
+        initial: InitialCollectionContents<'_, A>,
     ) -> Result<InitialCollectionPublication, CassieError> {
         self.admit_initial_definitions(initial)?;
         self.require_collection_storage_layout(metadata)?;
@@ -318,9 +336,9 @@ impl Midge {
         ))
     }
 
-    fn admit_initial_definitions(
+    fn admit_initial_definitions<A>(
         &self,
-        initial: InitialCollectionContents<'_>,
+        initial: InitialCollectionContents<'_, A>,
     ) -> Result<(), CassieError> {
         if let Some(constraints) = initial.constraints {
             self.require_constraint_definitions(constraints)?;
@@ -410,10 +428,10 @@ impl Midge {
         Ok(Some(existing_metadata.is_none()))
     }
 
-    fn validate_initial_column_constraints(
+    fn validate_initial_column_constraints<A>(
         &self,
         table: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         cassie_sql::definition_guard::constraints(constraints)?;
@@ -439,7 +457,7 @@ impl Midge {
             ));
         }
         let matches_sequence =
-            |constraint: &FieldConstraint, sequence: &crate::catalog::SequenceMeta| {
+            |constraint: &FieldConstraint<A>, sequence: &crate::catalog::SequenceMeta| {
                 constraint.identity.is_some()
                     && constraint.default_sequence.as_deref().is_some_and(|name| {
                         self.canonical_collection_name(&sequence.name)
@@ -476,10 +494,10 @@ impl Midge {
         Ok(())
     }
 
-    fn validate_initial_clone_constraints(
+    fn validate_initial_clone_constraints<A: Clone>(
         &self,
         table: &str,
-        constraints: &[FieldConstraint],
+        constraints: &[FieldConstraint<A>],
         sequences: &[crate::catalog::SequenceMeta],
         indexes: &[IndexMeta],
     ) -> Result<(), CassieError> {

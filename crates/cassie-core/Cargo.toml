@@ -4,6 +4,9 @@ version = "0.2.0"
 edition = "2021"
 publish = false
 
+[features]
+numeric-test-hooks = []
+
 [dependencies]
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 num-bigint = "0.5.1"

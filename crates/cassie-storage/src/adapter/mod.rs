@@ -417,10 +417,8 @@ pub use databases::StagedDatabaseFamily;
 pub mod documents;
 #[cfg(feature = "storage-test-hooks")]
 pub use databases::create_retry_test_hooks;
-#[cfg(all(
-    feature = "replay-benchmark-observation",
-    any(test, feature = "storage-test-hooks")
-))]
+#[cfg(any(test, feature = "storage-test-hooks"))]
+#[doc(hidden)]
 pub use transactions::{
     inject_native_commit_unknown_after_success, inject_native_commit_unknown_before_commit,
 };

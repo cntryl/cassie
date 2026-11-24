@@ -1,7 +1,9 @@
 //! Decoding and executing a single buffered COPY input.
 
 use super::request::{CopyHeader, CopyLogVerbosity, CopyOnError, CopyWireFormat};
-use super::{filter, input, payload_owner, request, CassieSession, CopyRequest};
+#[cfg(test)]
+use super::filter;
+use super::{input, payload_owner, request, CassieSession, CopyRequest};
 
 pub(super) struct CopyCompletion {
     pub(super) command: String,

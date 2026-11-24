@@ -64,6 +64,19 @@ impl std::fmt::Debug for StatementDataRead {
 }
 
 impl StatementDataRead {
+    #[cfg(test)]
+    pub(crate) fn shares_native_snapshot_for_test(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.snapshot, &other.snapshot)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn projection_metadata_for_test(
+        &self,
+        projection: &str,
+    ) -> Result<Option<cassie_sql::catalog_declarations::ProjectionMeta>, CassieError> {
+        self.snapshot.projection_metadata_for_test(projection)
+    }
+
     pub(crate) fn from_native_snapshot(
         snapshot: Arc<NativeStatementSnapshot>,
         controls: &QueryExecutionControls,

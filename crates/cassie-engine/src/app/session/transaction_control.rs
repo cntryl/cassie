@@ -59,7 +59,7 @@ impl CassieSession {
         self.begin_transaction_with_origin_for_operation(isolation, modes, false, authority)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(super) fn begin_transaction_with_origin(
         &self,
         isolation: Option<TransactionIsolation>,

@@ -219,7 +219,7 @@ impl HistoryState {
 }
 
 impl MutationKeys {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
     pub(in crate::adapter) fn has_keys(&self) -> bool {
         !self.values.is_empty()
     }

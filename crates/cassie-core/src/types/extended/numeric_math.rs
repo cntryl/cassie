@@ -12,23 +12,25 @@ const MIN_SIG_DIGITS: i64 = 16;
 /// scale: three times `NUMERIC_MAX_RESULT_SCALE` (twice the display-scale cap).
 const MAX_EXP_ARGUMENT: u32 = MAX_DISPLAY_SCALE * 6;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "numeric-test-hooks"))]
 thread_local! {
     static ADD_ALIGNMENT_OBSERVER: std::cell::Cell<Option<fn(usize)>> = const { std::cell::Cell::new(None) };
 }
 
-#[cfg(test)]
-pub(crate) struct AddAlignmentObservation(Option<fn(usize)>);
+#[cfg(any(test, feature = "numeric-test-hooks"))]
+#[doc(hidden)]
+pub struct AddAlignmentObservation(Option<fn(usize)>);
 
-#[cfg(test)]
+#[cfg(any(test, feature = "numeric-test-hooks"))]
 impl Drop for AddAlignmentObservation {
     fn drop(&mut self) {
         ADD_ALIGNMENT_OBSERVER.with(|observer| observer.set(self.0));
     }
 }
 
-#[cfg(test)]
-pub(crate) fn observe_add_alignment(observer: fn(usize)) -> AddAlignmentObservation {
+#[cfg(any(test, feature = "numeric-test-hooks"))]
+#[doc(hidden)]
+pub fn observe_add_alignment(observer: fn(usize)) -> AddAlignmentObservation {
     AddAlignmentObservation(ADD_ALIGNMENT_OBSERVER.with(|slot| slot.replace(Some(observer))))
 }
 
@@ -83,7 +85,7 @@ pub fn add(left: &Numeric, right: &Numeric) -> Result<Numeric, TypeInputError> {
             },
         ) => {
             let (a, b, scale) = aligned(a, *a_scale, b, *b_scale);
-            #[cfg(test)]
+            #[cfg(any(test, feature = "numeric-test-hooks"))]
             ADD_ALIGNMENT_OBSERVER.with(|observer| {
                 if let Some(observer) = observer.get() {
                     observer(

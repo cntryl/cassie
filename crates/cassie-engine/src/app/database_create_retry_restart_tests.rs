@@ -30,11 +30,11 @@ fn retry_create(cassie: &Cassie) -> (CreateRetrySeed, crate::catalog::DatabaseMe
     let replacement = cassie.midge.get_database(DATABASE).unwrap().unwrap();
     assert_ne!(replacement.physical_family, seed.staged_family);
     assert_owner_and_row(cassie, &replacement);
-    let families = cassie.midge.engine.list_column_families().unwrap();
-    assert!(!families.iter().any(|family| family.name() == seed.staged_family));
+    let families = cassie.midge.physical_family_names_for_test().unwrap();
+    assert!(!families.iter().any(|family| *family == seed.staged_family));
     assert!(families
         .iter()
-        .any(|family| family.name() == replacement.physical_family));
+        .any(|family| *family == replacement.physical_family));
     assert!(hooks::has_seeded_create_retry(&cassie.midge, &seed));
     (seed, replacement)
 }
@@ -185,11 +185,10 @@ fn should_replay_independent_intents_alongside_a_valid_create_retry() {
     assert_owner_and_row(&restarted, &replacement);
     assert!(!restarted
         .midge
-        .engine
-        .list_column_families()
+        .physical_family_names_for_test()
         .unwrap()
         .iter()
-        .any(|family| family.name() == orphan_family));
+        .any(|family| *family == orphan_family));
     assert!(hooks::lifecycle_journal_is_empty(&restarted.midge));
     drop(restarted);
     std::fs::remove_dir_all(path).unwrap();

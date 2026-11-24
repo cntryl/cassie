@@ -1,19 +1,13 @@
 //! Submit one native transaction, retaining existing unknown-outcome probes.
 use super::WriteOptions;
-#[cfg(all(
-    feature = "replay-benchmark-observation",
-    any(test, feature = "storage-test-hooks")
-))]
+#[cfg(any(test, feature = "storage-test-hooks"))]
 use super::{INJECT_NATIVE_ABORT_UNKNOWN, INJECT_NATIVE_COMMIT_UNKNOWN};
 
 pub(super) fn commit_native_transaction(
     transaction: cntryl_midge::Transaction,
     options: WriteOptions,
 ) -> Result<(), cntryl_midge::MidgeError> {
-    #[cfg(all(
-        feature = "replay-benchmark-observation",
-        any(test, feature = "storage-test-hooks")
-    ))]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
     if INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.replace(false)) {
         drop(transaction);
         return Err(cntryl_midge::MidgeError::OutcomeUnknown(
@@ -26,10 +20,7 @@ pub(super) fn commit_native_transaction(
     });
     #[cfg(not(feature = "replay-benchmark-observation"))]
     let result = transaction.commit(options);
-    #[cfg(all(
-        feature = "replay-benchmark-observation",
-        any(test, feature = "storage-test-hooks")
-    ))]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
     if result.is_ok() && INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.replace(false)) {
         return Err(cntryl_midge::MidgeError::OutcomeUnknown(
             "injected native commit response after actual successful commit".to_owned(),

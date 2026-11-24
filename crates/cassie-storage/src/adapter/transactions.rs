@@ -15,32 +15,23 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "storage-test-hooks"))]
 thread_local! {
     static COLLECTION_FLUSH_FAMILY: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
 }
 
-#[cfg(all(
-    feature = "replay-benchmark-observation",
-    any(test, feature = "storage-test-hooks")
-))]
+#[cfg(any(test, feature = "storage-test-hooks"))]
 thread_local! {
     static INJECT_NATIVE_COMMIT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static INJECT_NATIVE_ABORT_UNKNOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-#[cfg(all(
-    feature = "replay-benchmark-observation",
-    any(test, feature = "storage-test-hooks")
-))]
+#[cfg(any(test, feature = "storage-test-hooks"))]
 pub fn inject_native_commit_unknown_after_success() {
     INJECT_NATIVE_COMMIT_UNKNOWN.with(|flag| flag.set(true));
 }
 
-#[cfg(all(
-    feature = "replay-benchmark-observation",
-    any(test, feature = "storage-test-hooks")
-))]
+#[cfg(any(test, feature = "storage-test-hooks"))]
 pub fn inject_native_commit_unknown_before_commit() {
     INJECT_NATIVE_ABORT_UNKNOWN.with(|flag| flag.set(true));
 }
@@ -817,7 +808,8 @@ impl Midge {
         Ok(tx)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
     pub fn take_collection_flush_family_for_test() -> Option<u32> {
         COLLECTION_FLUSH_FAMILY.take()
     }
@@ -830,7 +822,7 @@ impl Midge {
         let database =
             relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
         let family = self.database_family(&database)?;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "storage-test-hooks"))]
         COLLECTION_FLUSH_FAMILY.set(Some(family.id()));
         self.engine.flush_cf(&family).map_err(CassieError::from)
     }

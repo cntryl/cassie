@@ -13,6 +13,8 @@ use parking_lot::{Mutex, ReentrantMutex, ReentrantMutexGuard};
 use super::{CassieError, Midge, NativeRequestControls, StorageRequestContext};
 use cassie_core::request::{Interruption, RequestCancellation};
 
+#[cfg(any(test, feature = "storage-test-hooks"))]
+mod confirmation_test_hook;
 mod native_access;
 mod row_history;
 pub use row_history::RetainedRowHistory;
@@ -219,15 +221,15 @@ impl DatabasePublication {
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
     ) -> Result<(), AdapterCommitError> {
         let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "storage-test-hooks"))]
         let row_write = keys.has_keys();
         self.publish_controlled(
             controls.as_ref(),
             || {
                 let result = self.row_history.publish(keys, operation);
-                #[cfg(test)]
+                #[cfg(any(test, feature = "storage-test-hooks"))]
                 if row_write && result.is_ok() {
-                    tests::observe_confirmation();
+                    confirmation_test_hook::observe_confirmation();
                 }
                 result
             },
@@ -432,9 +434,10 @@ impl Midge {
         tests::next_wait(callback)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
     pub fn observe_next_row_commit_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
-        tests::next_confirmation(callback)
+        confirmation_test_hook::next_confirmation(callback)
     }
 
     #[cfg(any(test, feature = "storage-test-hooks"))]

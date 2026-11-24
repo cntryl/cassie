@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::app::CassieError;
 #[cfg(test)]
 use crate::app::{Cassie, CassieSession, CopyColumn};

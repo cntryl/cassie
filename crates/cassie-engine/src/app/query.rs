@@ -383,7 +383,7 @@ impl Cassie {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     pub(super) fn execute_sql_core(
         &self,
         session: &CassieSession,

@@ -1,6 +1,6 @@
 use super::*;
-use crate::midge::row_blob::{decode_row, encode_row};
-use crate::types::{FieldSchema, Schema};
+use crate::midge::row_blob::{decode_row, encode_row, RowSchema};
+use crate::types::{DataType, FieldSchema, Schema};
 
 fn schema() -> RowSchema {
     RowSchema::from_schema(&Schema {

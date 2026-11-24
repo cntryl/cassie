@@ -592,5 +592,9 @@ fn encode_bytea(value: &[u8]) -> String {
 }
 
 #[cfg(any(test, feature = "transport-test-hooks"))]
+#[path = "row_blob/test_fixtures.rs"]
+pub(super) mod test_fixtures;
+
+#[cfg(test)]
 #[path = "row_blob/tests.rs"]
-pub(crate) mod tests;
+mod tests;

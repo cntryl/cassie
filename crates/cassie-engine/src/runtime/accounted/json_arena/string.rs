@@ -24,7 +24,7 @@ enum ErrorKind {
     InvalidEscape,
     LoneSurrogate,
     UnexpectedHexEnd,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport-test-hooks"))]
     InvalidUnicode,
 }
 
@@ -48,7 +48,7 @@ impl Diagnostic {
             ErrorKind::InvalidEscape => "invalid escape",
             ErrorKind::LoneSurrogate => "lone leading surrogate in hex escape",
             ErrorKind::UnexpectedHexEnd => "unexpected end of hex escape",
-            #[cfg(test)]
+            #[cfg(any(test, feature = "transport-test-hooks"))]
             ErrorKind::InvalidUnicode => "invalid unicode code point",
         };
         write!(

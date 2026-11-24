@@ -257,7 +257,8 @@ impl Midge {
         self.value_hooks.get().copied().unwrap_or_default()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
     pub fn new_cloud_simulated_for_test(
         cache_path: impl AsRef<Path>,
         default_database: impl Into<String>,
@@ -271,8 +272,9 @@ impl Midge {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_cloud_simulated_with_lease_for_test(
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
+    pub fn new_cloud_simulated_with_lease_for_test(
         cache_path: impl AsRef<Path>,
         default_database: impl Into<String>,
         strict: bool,
@@ -294,8 +296,9 @@ impl Midge {
         Self::open_with_write_policy(options, default_database, write_policy)
     }
 
-    #[cfg(test)]
-    pub(crate) fn shutdown_owned_for_test(
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
+    pub fn shutdown_owned_for_test(
         self: Arc<Self>,
         timeout: Duration,
     ) -> Result<(), cntryl_midge::MidgeError> {
@@ -332,10 +335,26 @@ impl Midge {
         )
     }
 
+    /// Lists physical family names for recovery fixture assertions.
+    ///
+    /// # Errors
+    /// Returns the native catalog read error.
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
+    pub fn physical_family_names_for_test(&self) -> Result<Vec<String>, CassieError> {
+        Ok(self
+            .engine
+            .list_column_families()?
+            .iter()
+            .map(|family| family.name().to_owned())
+            .collect())
+    }
+
     /// Opens local storage whose writer lease expires quickly, so a test that
     /// kills a child process can reopen the store without waiting out the
     /// default 30 second lease.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
     pub fn new_local_short_lease_for_test(
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,

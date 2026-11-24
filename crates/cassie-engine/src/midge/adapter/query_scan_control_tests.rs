@@ -2,7 +2,7 @@
 mod tests {
     use std::sync::{Arc, Barrier};
 
-    use super::{
+    use super::super::{
         query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
         should_cancel_controlled_query_scan,
     };
@@ -175,7 +175,7 @@ mod tests {
             .expect("late unguarded scanner");
         let new = (hook(&new), hook(&new));
         set_query_scan_cancellation_after_entries(None);
-        let cleared = super::current_query_scan_control_scope().is_none();
+        let cleared = super::super::current_query_scan_control_scope().is_none();
 
         // Assert
         assert_eq!(old, (false, false));

@@ -198,6 +198,19 @@ pub struct NativeStatementSnapshot {
 }
 
 impl NativeStatementSnapshot {
+    /// Reads the projection descriptor from this fixture's pinned transaction.
+    ///
+    /// # Errors
+    /// Returns the original transaction or projection decoding error.
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
+    pub fn projection_metadata_for_test(
+        &self,
+        projection: &str,
+    ) -> Result<Option<super::ProjectionMeta>, CassieError> {
+        Midge::load_projection_metadata_from_tx(&self.tx, projection)
+    }
+
     pub fn capture(
         midge: &Arc<Midge>,
         database: &str,

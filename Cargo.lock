@@ -260,9 +260,9 @@ dependencies = [
  "sha2",
  "sql-json-path",
  "thiserror",
+ "time",
  "tokio",
  "tokio-rustls",
- "time",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -272,8 +272,15 @@ dependencies = [
 name = "cassie-core"
 version = "0.2.0"
 dependencies = [
+ "jiff",
+ "jiff-tzdb",
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
  "serde",
+ "serde_json",
  "thiserror",
+ "time",
  "tokio",
  "uuid",
 ]

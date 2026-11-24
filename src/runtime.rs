@@ -72,6 +72,8 @@ mod join_metrics;
 mod operator_feedback_state;
 #[path = "runtime/operator_workers.rs"]
 mod operator_workers;
+#[doc(hidden)]
+pub mod test_sync;
 pub(crate) use operator_workers::OperatorWorkerGuard;
 #[path = "runtime/owned_memory.rs"]
 pub(crate) mod owned_memory;

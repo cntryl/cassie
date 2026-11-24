@@ -322,6 +322,10 @@ fn should_reject_replay_prepared_before_checkpoint_changed() {
     let cassie = Arc::new(cassie);
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     cassie::app::set_projection_replay_prepare_barriers(
         Some("batch-1".to_string()),
         Some(Arc::clone(&ready)),
@@ -330,7 +334,10 @@ fn should_reject_replay_prepared_before_checkpoint_changed() {
     let worker_cassie = Arc::clone(&cassie);
     let batch = projection_replay_retry_batch(&projection);
     let worker = std::thread::spawn(move || worker_cassie.replay_projection_batch(batch));
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(
+        &ready,
+        "projection prepare ready",
+    );
 
     // Act
     let mut changed = cassie
@@ -341,8 +348,13 @@ fn should_reject_replay_prepared_before_checkpoint_changed() {
     changed.source_position = Some(9);
     changed.source_checkpoint = Some("checkpoint-9".to_string());
     cassie.midge.put_projection_metadata(&changed).unwrap();
-    resume.wait();
-    let result = worker.join().expect("replay worker");
+    cassie::runtime::test_sync::wait_for_test_barrier(
+        &resume,
+        "projection prepare resume",
+    );
+    let result =
+        cassie::runtime::test_sync::join_test_thread(worker, "projection replay worker");
+    cleanup.disarm();
     let rows = query_rows(
         &cassie,
         &session,
@@ -549,6 +561,10 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
     let batch = projection_replay_retry_batch(&projection);
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::ProjectionReplayMetadataCommit),
         Some(Arc::clone(&ready)),
@@ -560,7 +576,10 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         let _worker_guard = schema_write_conflict_worker_guard();
         replay_cassie.replay_projection_batch(replay_batch)
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(
+        &ready,
+        "projection metadata commit ready",
+    );
 
     // Act
     let rows_before_commit = query_rows(
@@ -576,8 +595,13 @@ fn should_retry_projection_replay_after_metadata_commit_conflict() {
         .midge
         .put_projection_metadata(&competing_metadata)
         .unwrap();
-    resume.wait();
-    let failed = replay.join().expect("join replay worker");
+    cassie::runtime::test_sync::wait_for_test_barrier(
+        &resume,
+        "projection metadata commit resume",
+    );
+    let failed =
+        cassie::runtime::test_sync::join_test_thread(replay, "projection replay worker");
+    cleanup.disarm();
     let rows_after_conflict = query_rows(
         &cassie,
         &session,

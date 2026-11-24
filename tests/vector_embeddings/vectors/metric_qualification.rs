@@ -119,7 +119,10 @@ fn should_match_zero_vector_order_across_query_paths() {
                     for (row,(id,distance)) in result.rows().iter().zip(&expected) {
                         assert_eq!(row[0], Value::String(id.clone()), "{metric} {options:?} {name} {direction}");
                         let Value::Float64(actual) = row[1] else { panic!("distance must be f64") };
-                        assert!((actual-distance).abs() < 1e-12, "{actual} != {distance}");
+                        assert!(
+                            (actual - distance).abs() < 1e-12,
+                            "{actual} != {distance}: {metric} {options:?} {name} {direction} {id}"
+                        );
                     }
                 }
                 if options.is_some() {

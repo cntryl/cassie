@@ -445,6 +445,13 @@ impl Walk<'_> {
             Ok(())
         } else {
             let qualifier = qualifier.as_deref().unwrap_or(folded);
+            if visible
+                .aliases
+                .iter()
+                .any(|visible| visible.eq_ignore_ascii_case(qualifier))
+            {
+                return Err(CassieError::UndefinedColumn(name.to_string()));
+            }
             Err(CassieError::DeferredCorrelatedResolution {
                 name: name.to_string(),
                 qualifier: qualifier.to_string(),

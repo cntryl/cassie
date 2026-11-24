@@ -19,9 +19,17 @@ const QUERIES: [&str; 3] = ["alpha", "beta", "gamma"];
 fn pause_at(
     point: SchemaWritePausePoint,
     work: impl FnOnce() + Send + 'static,
-) -> (std::thread::JoinHandle<()>, Arc<Barrier>) {
+) -> (
+    std::thread::JoinHandle<()>,
+    Arc<Barrier>,
+    cassie::runtime::test_sync::TestBarrierCleanup,
+) {
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(point),
         Some(Arc::clone(&ready)),
@@ -31,9 +39,9 @@ fn pause_at(
         let _worker_guard = schema_write_conflict_worker_guard();
         work();
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(&ready, "fulltext publication ready");
     set_schema_write_commit_barriers(None, None, None);
-    (worker, resume)
+    (worker, resume, cleanup)
 }
 
 fn read_on_another_thread<T: Send + 'static>(read: impl FnOnce() -> T + Send + 'static) -> T {
@@ -42,7 +50,7 @@ fn read_on_another_thread<T: Send + 'static>(read: impl FnOnce() -> T + Send + '
     let observation = receiver
         .recv_timeout(Duration::from_secs(60))
         .expect("reader must not wait on the paused publication");
-    reader.join().expect("join reader");
+    let () = cassie::runtime::test_sync::join_test_thread(reader, "fulltext reader");
     observation
 }
 
@@ -55,7 +63,7 @@ fn should_serve_the_previous_consistent_result_while_postings_are_published() {
     upsert(&cassie, "pub_pause", 1, "alpha beta");
     let before = persisted_state(&cassie, "pub_pause");
     let writer_cassie = Arc::clone(&cassie);
-    let (worker, resume) = pause_at(
+    let (worker, resume, mut cleanup) = pause_at(
         SchemaWritePausePoint::FulltextPostingPublication,
         move || {
             upsert(&writer_cassie, "pub_pause", 2, "alpha gamma");
@@ -73,8 +81,9 @@ fn should_serve_the_previous_consistent_result_while_postings_are_published() {
         )
     });
     let fallbacks_during = fallback_total(&cassie);
-    resume.wait();
-    worker.join().expect("join writer");
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "fulltext publication resume");
+    let () = cassie::runtime::test_sync::join_test_thread(worker, "fulltext writer");
+    cleanup.disarm();
 
     // Assert
     assert_eq!(during.0, vec![1]);
@@ -104,20 +113,22 @@ fn should_fall_back_with_a_label_while_an_interrupted_rebuild_is_paused_then_ser
         .has_fulltext_maintenance_debt(collection, &maintenance::index_name("pub_rebuild"))
         .expect("read fulltext debt"));
     let retry_cassie = Arc::clone(&cassie);
-    let (worker, resume) = pause_at(SchemaWritePausePoint::FulltextRebuildCommit, move || {
-        retry_cassie
-            .midge
-            .retry_maintenance_debt()
-            .expect("retry maintenance debt");
-    });
+    let (worker, resume, mut cleanup) =
+        pause_at(SchemaWritePausePoint::FulltextRebuildCommit, move || {
+            retry_cassie
+                .midge
+                .retry_maintenance_debt()
+                .expect("retry maintenance debt");
+        });
     let fallbacks = fallback_total(&cassie);
     let reader_cassie = Arc::clone(&cassie);
 
     // Act
     let during = read_on_another_thread(move || ids(&reader_cassie, "pub_rebuild", "gamma"));
     let fallbacks_during = fallback_total(&cassie);
-    resume.wait();
-    worker.join().expect("join retry");
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "fulltext rebuild resume");
+    let () = cassie::runtime::test_sync::join_test_thread(worker, "fulltext rebuild retry");
+    cleanup.disarm();
     let after = ids(&cassie, "pub_rebuild", "gamma");
 
     // Assert

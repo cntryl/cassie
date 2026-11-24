@@ -17,6 +17,10 @@ fn should_leave_a_live_database_creation_untouched_by_repeated_bootstrap() {
         .expect("existing database");
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let mut cleanup = crate::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::DatabaseCreateFinalize),
         Some(Arc::clone(&ready)),
@@ -29,13 +33,14 @@ fn should_leave_a_live_database_creation_untouched_by_repeated_bootstrap() {
         worker_guard.complete(SchemaWritePausePoint::DatabaseCreateFinalize);
         result
     });
-    ready.wait();
+    crate::runtime::test_sync::wait_for_test_barrier(&ready, "database create finalize ready");
 
     // Act
     let during = store.bootstrap_families();
     set_schema_write_commit_barriers(None, None, None);
-    resume.wait();
-    let result = worker.join().expect("database worker");
+    crate::runtime::test_sync::wait_for_test_barrier(&resume, "database create finalize resume");
+    let result = crate::runtime::test_sync::join_test_thread(worker, "database worker");
+    cleanup.disarm();
     let after = store.bootstrap_families();
 
     // Assert

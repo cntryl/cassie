@@ -93,6 +93,18 @@ pub(crate) fn observe_worker<T>(cassie: &Cassie, name: &str, operation: impl FnO
     output
 }
 
+pub(crate) fn blocking_report_timeout(report: oneshot::Receiver<Report>, label: &str) -> Report {
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let result = report.blocking_recv();
+        let _ = sender.send(result);
+    });
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(120))
+        .unwrap_or_else(|error| panic!("{label} receive deadline: {error}"))
+        .unwrap_or_else(|_| panic!("{label} report sender dropped"))
+}
+
 pub(crate) fn current_data_submission_count() -> Option<usize> {
     DATA.with(|slot| slot.borrow().as_ref().map(Vec::len))
 }

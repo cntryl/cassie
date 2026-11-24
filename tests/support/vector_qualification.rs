@@ -147,9 +147,9 @@ fn zero_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)>
         ("l2", false) => vec![
             ("A", 0.0),
             ("a", 0.0),
-            ("positive", 1.0),
             ("negative", 1.0),
             ("orthogonal", 1.0),
+            ("positive", 1.0),
         ],
         ("l2", true) => vec![
             ("negative", 1.0),
@@ -178,14 +178,28 @@ fn zero_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)>
 
 fn positive_query_oracle(metric: &str, descending: bool) -> Vec<(&'static str, f64)> {
     match (metric, descending) {
-        ("l2" | "cosine", false) => vec![
+        ("l2", false) => vec![
+            ("positive", 0.0),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("orthogonal", std::f64::consts::SQRT_2),
+            ("negative", 2.0),
+        ],
+        ("cosine", false) => vec![
             ("positive", 0.0),
             ("A", 1.0),
             ("a", 1.0),
             ("orthogonal", 1.0),
             ("negative", 2.0),
         ],
-        ("l2" | "cosine", true) => vec![
+        ("l2", true) => vec![
+            ("negative", 2.0),
+            ("orthogonal", std::f64::consts::SQRT_2),
+            ("A", 1.0),
+            ("a", 1.0),
+            ("positive", 0.0),
+        ],
+        ("cosine", true) => vec![
             ("negative", 2.0),
             ("A", 1.0),
             ("a", 1.0),

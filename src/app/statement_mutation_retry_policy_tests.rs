@@ -133,7 +133,9 @@ struct Fixture {
 }
 
 fn fixture(sequence_effect: bool, competitor: bool) -> Fixture {
-    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.query_timeout_ms = 120_000;
+    let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("retry_witness", None);
     let other = cassie.create_session("competitor", None);
@@ -160,11 +162,13 @@ fn fixture(sequence_effect: bool, competitor: bool) -> Fixture {
         )
         .unwrap();
     if competitor {
+        assert_eq!(session.transaction_conflict_intents().len(), 1);
         cassie
-            .execute_sql(
-                &other,
-                "INSERT INTO retry_witness_rows (email, value) VALUES ('a', 9)",
-                vec![],
+            .midge
+            .inject_committed_document_for_test(
+                "retry_witness_rows",
+                "committed-competitor",
+                &serde_json::json!({"email": "a", "value": 9}),
             )
             .unwrap();
     }
@@ -236,7 +240,10 @@ fn commit(
                 .cassie
                 .execute_sql(&fixture.session, "COMMIT", vec![])
         });
-    let report = observation.report.blocking_recv().unwrap();
+    let report = data_policy_test_observer::blocking_report_timeout(
+        observation.report,
+        "retry policy observation",
+    );
     let events = WITNESS.with(|slot| slot.borrow_mut().take().unwrap().events);
     (result, report, events)
 }

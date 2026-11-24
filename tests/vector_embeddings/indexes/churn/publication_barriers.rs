@@ -84,16 +84,27 @@ fn should_label_a_paused_reader_with_the_generation_it_read_after_each_committed
                     Some(Arc::clone(&selected)),
                     Some(Arc::clone(&resume)),
                 );
+                let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+                    Arc::clone(&selected),
+                    Arc::clone(&resume),
+                ]);
 
                 // Act
                 let paused = std::thread::scope(|scope| {
                     let reader = scope
                         .spawn(|| run_query(cassie, &cassie.create_session("reader", None), table));
-                    selected.wait();
+                    cassie::runtime::test_sync::wait_for_test_barrier(
+                        &selected,
+                        "vector reader selection",
+                    );
                     apply(cassie, table, &mut population, write);
-                    resume.wait();
+                    cassie::runtime::test_sync::wait_for_test_barrier(
+                        &resume,
+                        "vector reader resume",
+                    );
                     reader.join().expect("reader thread")
                 });
+                cleanup.disarm();
                 let during = counters(cassie, algorithm);
                 let committed = cassie
                     .midge
@@ -210,12 +221,19 @@ fn should_serve_the_attempt_when_an_aborted_write_leaves_the_generation_unchange
                 Some(Arc::clone(&selected)),
                 Some(Arc::clone(&resume)),
             );
+            let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+                Arc::clone(&selected),
+                Arc::clone(&resume),
+            ]);
 
             // Act
             let (rows, aborted) = std::thread::scope(|scope| {
                 let reader = scope
                     .spawn(|| run_query(cassie, &cassie.create_session("reader", None), table));
-                selected.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(
+                    &selected,
+                    "aborted generation reader selection",
+                );
                 set_document_write_failure_point(Some(DocumentWriteFailurePoint::VectorState));
                 let aborted = cassie.midge.put_document(
                     table,
@@ -223,9 +241,13 @@ fn should_serve_the_attempt_when_an_aborted_write_leaves_the_generation_unchange
                     payload("never", QUERY),
                 );
                 set_document_write_failure_point(None);
-                resume.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(
+                    &resume,
+                    "aborted generation reader resume",
+                );
                 (reader.join().expect("reader thread"), aborted)
             });
+            cleanup.disarm();
             let after = counters(cassie, algorithm);
 
             // Assert
@@ -269,6 +291,10 @@ fn should_serve_the_previous_generation_while_a_write_waits_at_index_publication
                 Some(Arc::clone(&ready)),
                 Some(Arc::clone(&resume)),
             );
+            let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+                Arc::clone(&ready),
+                Arc::clone(&resume),
+            ]);
 
             // Act
             let (during, finished) = std::thread::scope(|scope| {
@@ -276,7 +302,10 @@ fn should_serve_the_previous_generation_while_a_write_waits_at_index_publication
                     let _worker = schema_write_conflict_worker_guard();
                     upsert(cassie, table, "closest", QUERY);
                 });
-                ready.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(
+                    &ready,
+                    "vector publication ready",
+                );
                 set_schema_write_commit_barriers(None, None, None);
                 let during = read_on_another_thread(|| {
                     (
@@ -288,10 +317,14 @@ fn should_serve_the_previous_generation_while_a_write_waits_at_index_publication
                             .expect("generation"),
                     )
                 });
-                resume.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(
+                    &resume,
+                    "vector publication resume",
+                );
                 write.join().expect("writer thread");
                 (during, counters(cassie, algorithm))
             });
+            cleanup.disarm();
             let committed = cassie
                 .midge
                 .collection_generation(table)
@@ -335,6 +368,10 @@ fn should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish() {
                 Some(Arc::clone(&ready)),
                 Some(Arc::clone(&resume)),
             );
+            let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+                Arc::clone(&ready),
+                Arc::clone(&resume),
+            ]);
 
             // Act
             let (during, mid_rebuilds) = std::thread::scope(|scope| {
@@ -342,7 +379,7 @@ fn should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish() {
                     let _worker = schema_write_conflict_worker_guard();
                     rebuild(cassie, table, algorithm);
                 });
-                ready.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(&ready, "vector rebuild ready");
                 set_schema_write_commit_barriers(None, None, None);
                 let during = read_on_another_thread(|| {
                     (
@@ -351,10 +388,11 @@ fn should_keep_serving_the_published_index_while_a_rebuild_waits_to_publish() {
                     )
                 });
                 let mid_rebuilds = vector_metric(cassie, "index_rebuilds_total");
-                resume.wait();
+                cassie::runtime::test_sync::wait_for_test_barrier(&resume, "vector rebuild resume");
                 rebuild_worker.join().expect("rebuild thread");
                 (during, mid_rebuilds)
             });
+            cleanup.disarm();
             let published = cassie
                 .midge
                 .collection_generation(table)

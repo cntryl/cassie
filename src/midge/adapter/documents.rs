@@ -77,6 +77,39 @@ struct ExistingDocumentState {
 }
 
 impl Midge {
+    #[cfg(all(test, feature = "replay-benchmark-observation"))]
+    pub(crate) fn inject_committed_document_for_test(
+        &self,
+        collection: &str,
+        id: &str,
+        payload: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let row_schema = self.row_schema(&collection)?;
+        let schema = self
+            .collection_schema(&collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
+        Self::validate_document(&schema, payload)?;
+        let encoded = encode_row(&row_schema, payload)?;
+        let context = self.document_write_batch_context(
+            &collection,
+            &DocumentWriteBatchOptions::sync(self.write_options_sync()),
+        )?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        tx.put(Self::row_key(row_schema.relation_id, id), encoded, None)
+            .map_err(CassieError::from)?;
+        Self::sync_unique_reservations_for_document(
+            &mut tx,
+            &collection,
+            &context,
+            id,
+            None,
+            Some(payload),
+        )?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

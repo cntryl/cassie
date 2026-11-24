@@ -20,6 +20,10 @@ fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
     cassie.startup().expect("start Cassie");
     let ready = Arc::new(Barrier::new(3));
     let resume = Arc::new(Barrier::new(3));
+    let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::CollectionCreate),
         Some(Arc::clone(&ready)),
@@ -43,12 +47,14 @@ fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
             (table, sql, worker_cassie.execute_sql(&session, sql, vec![]))
         })
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(&ready, "collection create ready");
     set_schema_write_commit_barriers(None, None, None);
 
     // Act
-    resume.wait();
-    let outcomes = workers.map(|worker| worker.join().expect("join schema worker"));
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "collection create resume");
+    let outcomes =
+        workers.map(|worker| cassie::runtime::test_sync::join_test_thread(worker, "schema worker"));
+    cleanup.disarm();
     let mut successes = 0_usize;
     let mut retryable_conflicts = 0_usize;
     let mut losing_statement = None;
@@ -113,6 +119,10 @@ fn should_retry_one_conflicting_nextval_before_returning_unique_values() {
         .expect("create sequence");
     let ready = Arc::new(Barrier::new(3));
     let resume = Arc::new(Barrier::new(3));
+    let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::SequenceNextValue),
         Some(Arc::clone(&ready)),
@@ -127,12 +137,14 @@ fn should_retry_one_conflicting_nextval_before_returning_unique_values() {
                 .next_sequence_value("sequence_conflict_ids")
         })
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(&ready, "sequence next-value ready");
     set_schema_write_commit_barriers(None, None, None);
 
     // Act
-    resume.wait();
-    let outcomes = workers.map(|worker| worker.join().expect("join sequence worker"));
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "sequence next-value resume");
+    let outcomes = workers
+        .map(|worker| cassie::runtime::test_sync::join_test_thread(worker, "sequence worker"));
+    cleanup.disarm();
     let mut returned_ids = Vec::with_capacity(outcomes.len());
     for result in outcomes {
         match result {
@@ -169,6 +181,10 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
     cassie.startup().expect("start Cassie");
     let ready = Arc::new(Barrier::new(3));
     let resume = Arc::new(Barrier::new(3));
+    let mut cleanup = cassie::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::DatabaseCreateFinalize),
         Some(Arc::clone(&ready)),
@@ -183,12 +199,14 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
             (database, result)
         })
     });
-    ready.wait();
+    cassie::runtime::test_sync::wait_for_test_barrier(&ready, "database create ready");
     set_schema_write_commit_barriers(None, None, None);
 
     // Act
-    resume.wait();
-    let outcomes = workers.map(|worker| worker.join().expect("join database worker"));
+    cassie::runtime::test_sync::wait_for_test_barrier(&resume, "database create resume");
+    let outcomes = workers
+        .map(|worker| cassie::runtime::test_sync::join_test_thread(worker, "database worker"));
+    cleanup.disarm();
     let (winner, loser, error) = match outcomes {
         [(winner, Ok(())), (loser, Err(error))] | [(loser, Err(error)), (winner, Ok(()))] => {
             (winner, loser, error)

@@ -117,6 +117,10 @@ fn should_abort_without_publication_when_canceled_after_staging() {
     let cancellation = QueryCancellationHandle::new();
     let ready = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
+    let mut cleanup = crate::runtime::test_sync::TestBarrierCleanup::arm([
+        Arc::clone(&ready),
+        Arc::clone(&resume),
+    ]);
     set_schema_write_commit_barriers(
         Some(SchemaWritePausePoint::ProjectionReplayMetadataCommit),
         Some(Arc::clone(&ready)),
@@ -129,13 +133,14 @@ fn should_abort_without_publication_when_canceled_after_staging() {
         let _worker_guard = schema_write_conflict_worker_guard();
         worker_cassie.replay_projection_batch_cancellable(worker_batch, &worker_cancellation)
     });
-    ready.wait();
+    crate::runtime::test_sync::wait_for_test_barrier(&ready, "staged replay ready");
 
     // Act
     set_schema_write_commit_barriers(None, None, None);
     cancellation.cancel();
-    resume.wait();
-    let canceled = worker.join().unwrap();
+    crate::runtime::test_sync::wait_for_test_barrier(&resume, "staged replay resume");
+    let canceled = crate::runtime::test_sync::join_test_thread(worker, "staged replay worker");
+    cleanup.disarm();
     let state_after_cancel = replay_state(&cassie, &projection);
     let retry = cassie
         .replay_projection_batch_cancellable(batch(&projection), &QueryCancellationHandle::new())

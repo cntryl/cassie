@@ -514,10 +514,8 @@ impl Midge {
 mod checkpoint_snapshot_tests {
     use super::Midge;
     use crate::adapter::CassieError;
-    use crate::config::CassieRuntimeLimits;
-    use crate::adapter::StorageRequestContext;
+    use crate::adapter::request_test_support::TestRequest;
     use cassie_core::types::Schema;
-    use std::time::Instant;
 
     fn fixture() -> Midge {
         let midge = Midge::new_in_memory("postgres").unwrap();
@@ -536,10 +534,10 @@ mod checkpoint_snapshot_tests {
         tx.delete(Midge::projection_key(&collection)).unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
         let controls =
-            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+            TestRequest::default();
 
         // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
 
         // Assert
         assert!(
@@ -561,10 +559,10 @@ mod checkpoint_snapshot_tests {
             .unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
         let controls =
-            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+            TestRequest::default();
 
         // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
 
         // Assert
         assert!(
@@ -577,14 +575,10 @@ mod checkpoint_snapshot_tests {
     fn should_enforce_checkpoint_scan_memory_budget() {
         // Arrange
         let midge = fixture();
-        let limits = CassieRuntimeLimits {
-            query_memory_budget_bytes: 1,
-            ..CassieRuntimeLimits::default()
-        };
-        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+        let controls = TestRequest::with_budget(1);
 
         // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
 
         // Assert
         assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
@@ -598,10 +592,10 @@ mod checkpoint_snapshot_tests {
         let midge = fixture();
         super::super::query_scan_control::set_query_scan_cancellation_after_entries(Some(1));
         let controls =
-            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+            TestRequest::default();
 
         // Act
-        let result = midge.checkpoint_rows_for_statement("postgres", &controls);
+        let result = midge.checkpoint_rows_for_statement("postgres", &controls.context());
 
         // Assert
         assert!(matches!(result, Err(CassieError::QueryCanceled)));
@@ -630,11 +624,11 @@ mod checkpoint_snapshot_tests {
         .unwrap();
         tx.commit(midge.write_options_sync()).unwrap();
         let controls =
-            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+            TestRequest::default();
 
         // Act
         let rows = midge
-            .checkpoint_rows_for_statement("postgres", &controls)
+            .checkpoint_rows_for_statement("postgres", &controls.context())
             .unwrap();
 
         // Assert

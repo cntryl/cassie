@@ -26,6 +26,8 @@ pub enum StorageError {
     ResourceLimit(String),
     #[error("query canceled")]
     QueryCanceled,
+    #[error(transparent)]
+    Sequence(#[from] cassie_core::catalog::SequenceError),
     #[error("query timeout exceeded")]
     DeadlineExceeded,
     #[error("collection not found: {0}")]
@@ -97,6 +99,15 @@ impl StorageError {
             Self::StorageRetryable(error) => Some(error.kind()),
             _ => None,
         }
+    }
+}
+
+impl From<cassie_core::request::MemoryBudgetError> for StorageError {
+    fn from(error: cassie_core::request::MemoryBudgetError) -> Self {
+        Self::ResourceLimit(format!(
+            "query memory budget exceeded: {} > {}",
+            error.requested, error.budget
+        ))
     }
 }
 

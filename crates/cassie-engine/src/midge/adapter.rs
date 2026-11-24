@@ -183,6 +183,7 @@ impl From<cassie_storage::StorageError> for crate::app::CassieError {
             StorageError::InvalidVector(message) => Self::InvalidVector(message),
             StorageError::ResourceLimit(message) => Self::ResourceLimit(message),
             StorageError::QueryCanceled => Self::QueryCanceled,
+            StorageError::Sequence(error) => Self::Sequence(error),
             StorageError::DeadlineExceeded => Self::DeadlineExceeded,
             StorageError::CollectionNotFound(name) => Self::CollectionNotFound(name),
             StorageError::NotFound(message) => Self::NotFound(message),

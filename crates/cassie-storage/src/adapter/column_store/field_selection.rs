@@ -121,7 +121,7 @@ implcrate::adapter::Midge {
             Some(raw) => {
                 counters.record_payload(raw.len());
                 counters.record_decode();
-                super::validation::decode_field(row.relation, row.id, field, &raw)
+                super::validation::decode_field(row.relation, row.id, field, &raw, tx.value_hooks())
             }
             None if super::validation::field_is_required(field, row.marker_version) => Err(
                 super::validation::missing_field(row.relation, row.id, field),

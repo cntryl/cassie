@@ -112,6 +112,7 @@ pub(crate) fn decode_field(
     id: &str,
     field: &RowFieldMeta,
     raw: &[u8],
+    hooks: &crate::adapter::StorageValueHooks,
 ) -> Result<Option<serde_json::Value>, CassieError> {
     let expanded = match super::compression::expand_column_field(raw) {
         Ok(expanded) => expanded,
@@ -124,8 +125,12 @@ pub(crate) fn decode_field(
         }
         Err(other) => return Err(other),
     };
-    matchcrate::row_blob::decode_compact_field_value(&field.data_type, &expanded) {
-        Err(CassieError::Parse(detail)) => Err(corrupt_row(
+    let decoded = crate::row_blob::decode_compact_field_value(
+        &field.data_type, &expanded, hooks.decode_json,
+    )
+    .map_err(CassieError::from);
+    match decoded {
+        Err(CassieError::Parse(detail) | CassieError::Codec(crate::StorageCodecError::InvalidEncoding(detail))) => Err(corrupt_row(
             relation,
             id,
             &format!("field '{}' does not decode: {detail}", field.name),
@@ -243,7 +248,7 @@ impl Midge {
             ))
             .map_err(CassieError::from)?;
         match raw {
-            Some(raw) => decode_field(relation, id, field, &raw),
+            Some(raw) => decode_field(relation, id, field, &raw, tx.value_hooks()),
             None if field_is_required(field, marker_version) => {
                 Err(missing_field(relation, id, field))
             }
@@ -356,7 +361,7 @@ impl Midge {
                     field,
                 ) {
                     Ok(_) => {}
-                    Err(error) if error.sql_state() == CORRUPTION_SQLSTATE => {
+                    Err(error @ CassieError::Diagnostic { sql_state: CORRUPTION_SQLSTATE, .. }) => {
                         violations.push(error.to_string());
                     }
                     Err(error) => return Err(error),
@@ -552,10 +557,7 @@ crate::adapter::StorageFamily::Data,
                 b"\x05orphan",
             )
             .expect("unvisited orphan");
-        let controls = crate::runtime::QueryExecutionControls::from_limits(
-            &crate::config::CassieRuntimeLimits::default(),
-            std::time::Instant::now(),
-        );
+        let controls = crate::adapter::request_test_support::TestRequest::default();
         let marker_reads = midge.query_scan_entries_for_diagnostics();
         let validation_reads = midge.column_validation_reads_for_diagnostics();
 
@@ -564,7 +566,7 @@ crate::adapter::StorageFamily::Data,
             "bounded_callback",
 crate::adapter::RowDecode::Full,
 crate::adapter::RowTraversal::VisitedRows,
-            &controls,
+            &controls.context(),
             |_| Ok(false),
         );
 
@@ -613,10 +615,7 @@ crate::adapter::StorageFamily::Data,
                 b"\x05orphan",
             )
             .expect("unvisited orphan");
-        let controls = crate::runtime::QueryExecutionControls::from_limits(
-            &crate::config::CassieRuntimeLimits::default(),
-            std::time::Instant::now(),
-        );
+        let controls = crate::adapter::request_test_support::TestRequest::default();
         let before = midge.column_validation_reads_for_diagnostics();
         let mut cursor = midge
             .open_row_cursor("complete_cursor",crate::adapter::RowDecode::Full)
@@ -624,15 +623,10 @@ crate::adapter::StorageFamily::Data,
             .expect("cursor");
 
         // Act
-        let result = cursor.next_accounted_document(&midge, &controls);
+        let result = cursor.next_accounted_document(&midge, &controls.context());
 
         // Assert
-        assert_eq!(
-            result
-                .expect_err("no first row may escape complete validation")
-                .sql_state(),
-            "XX001"
-        );
+        assert!(matches!(result, Err(CassieError::Diagnostic { sql_state: "XX001", .. })));
         assert_eq!(
             midge.column_validation_reads_for_diagnostics() - before,
             4,

@@ -651,13 +651,10 @@ crate::adapter::set_index_publication_failure_point(false);
                 serde_json::json!({"id": 1}),
             )
             .expect("row");
-        let controls = crate::runtime::QueryExecutionControls::with_cancellation(
-            &crate::config::CassieRuntimeLimits::default(),
-            std::time::Instant::now(),
-            crate::runtime::QueryCancellationHandle::new(),
-        );
-        let snapshot =
-crate::adapter::StatementDataRead::capture(&midge, "postgres", &controls)
+        let controls = crate::adapter::request_test_support::TestRequest::default();
+        let snapshot = crate::adapter::NativeStatementSnapshot::capture(
+            &midge, "postgres", &controls.context(), false,
+        )
                 .expect("old snapshot");
         let index = IndexMeta {
             definition_semantics_version: 0,
@@ -698,7 +695,7 @@ crate::adapter::StatementDataRead::capture(&midge, "postgres", &controls)
 
         // Act
         {
-            let _scope =crate::adapter::StatementReadScope::enter(Some(&snapshot));
+            let _scope =crate::adapter::NativeStatementReadScope::enter(Some(&snapshot), None);
             midge
                 .complete_pending_schema_cleanup(&cleanup)
                 .expect("current cleanup");

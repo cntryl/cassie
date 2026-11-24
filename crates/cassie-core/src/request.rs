@@ -8,6 +8,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Default request budget shared by execution and standalone native owners.
+pub const DEFAULT_QUERY_MEMORY_BUDGET_BYTES: usize = 10 * 1024 * 1024;
+
 /// Shared cancellation state for one request.
 #[derive(Debug, Clone)]
 pub struct RequestCancellation {

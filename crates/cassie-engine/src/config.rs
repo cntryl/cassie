@@ -226,7 +226,7 @@ impl Default for CassieRuntimeLimits {
             query_timeout_ms: 30_000,
             max_result_rows: 100_000,
             cte_recursion_depth: 64,
-            query_memory_budget_bytes: 10 * 1024 * 1024,
+            query_memory_budget_bytes: cassie_core::request::DEFAULT_QUERY_MEMORY_BUDGET_BYTES,
             repeatable_read_history_memory_budget_bytes: 10 * 1024 * 1024,
             execution_result_cache_enabled: ExecutionResultCacheEnabled::enabled(),
             execution_result_cache_max_entries: 64,

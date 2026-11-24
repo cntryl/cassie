@@ -347,13 +347,10 @@ fn should_reject_marker_admission_after_storage_requires_recovery() {
 
     // Assert
     for result in [read.map(|_| ()), baseline, upgrade] {
-        assert_eq!(
-            result
-                .expect_err("already quarantined")
-                .descriptor()
-                .sql_state,
-            "58030"
-        );
+        assert!(matches!(
+            result         .expect_err("already quarantined"),
+            CassieError::RecoveryRequired(_)
+        ));
     }
     assert_eq!(retained, V1.as_bytes());
 }
@@ -381,13 +378,10 @@ fn should_recheck_recovery_after_waiting_for_marker_admission() {
     let retained = raw_marker_after_quarantine(&store);
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("latched while waiting")
-            .descriptor()
-            .sql_state,
-        "58030"
-    );
+    assert!(matches!(
+        result       .expect_err("latched while waiting"),
+        CassieError::RecoveryRequired(_)
+    ));
     assert_eq!(retained, V1.as_bytes());
 }
 
@@ -404,13 +398,9 @@ fn should_recheck_recovery_at_marker_publication_gate() {
     let worker = gate
         .with_current_operation(|| {
             let worker = std::thread::spawn(move || {
-                let controls = crate::runtime::QueryExecutionControls::with_cancellation(
-                    &crate::config::CassieRuntimeLimits::default(),
-                    std::time::Instant::now(),
-                    crate::runtime::QueryCancellationHandle::new(),
-                );
-                let _scope =crate::adapter::publication::PublicationControlScope::enter(
-                    Some(&controls),
+                let controls = crate::adapter::request_test_support::TestRequest::default();
+                let _scope =crate::adapter::NativePublicationControlScope::enter(
+                    Some(&controls.context()),
                 );
                 let _observer = Midge::observe_next_publication_wait_for_test(move || {
                     waiting_tx
@@ -429,13 +419,10 @@ fn should_recheck_recovery_at_marker_publication_gate() {
     let result = worker.join().expect("marker worker");
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("recovery latched before publication")
-            .descriptor()
-            .sql_state,
-        "58030"
-    );
+    assert!(matches!(
+        result       .expect_err("recovery latched before publication"),
+        CassieError::RecoveryRequired(_)
+    ));
     assert_eq!(raw_marker_after_quarantine(&store), V1.as_bytes());
 }
 

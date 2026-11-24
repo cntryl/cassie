@@ -197,11 +197,8 @@ fn should_reject_repeated_bootstrap_after_recovery_is_required() {
     let result = store.bootstrap_families();
 
     // Assert
-    assert_eq!(
-        result
-            .expect_err("quarantined storage")
-            .descriptor()
-            .sql_state,
-        "58030"
-    );
+    assert!(matches!(
+        result       .expect_err("quarantined storage"),
+        CassieError::RecoveryRequired(_)
+    ));
 }

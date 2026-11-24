@@ -219,7 +219,7 @@ impl Midge {
                     complete = false;
                     break;
                 };
-                match decode_field(collection, id, field, &raw)? {
+                match decode_field(collection, id, field, &raw, tx.value_hooks())? {
                     None => {}
                     Some(value) if value.is_null() => {}
                     Some(value) => {

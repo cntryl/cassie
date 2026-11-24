@@ -58,9 +58,10 @@ impl PublicationCoordinator {
             mutex: ReentrantMutex::new(()),
             recovery_required: Arc::clone(&self.recovery_required),
             row_history: row_history::RowHistory::new(
-                self.history_budget.get().copied().unwrap_or_else(|| {
-                    crate::config::CassieRuntimeLimits::default().query_memory_budget_bytes
-                }),
+                self.history_budget
+                    .get()
+                    .copied()
+                    .unwrap_or(cassie_core::request::DEFAULT_QUERY_MEMORY_BUDGET_BYTES),
             ),
         });
         families.insert(family, Arc::downgrade(&gate));

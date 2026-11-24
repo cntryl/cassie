@@ -162,7 +162,7 @@ impl<'a> StorageRequestContext<'a> {
     }
 
     pub fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
-        self.memory.reserve(bytes).map_err(native_memory_limit_error)
+        self.memory.reserve(bytes).map_err(CassieError::from)
     }
 
     pub fn reserve_query_memory(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
@@ -176,15 +176,8 @@ impl<'a> StorageRequestContext<'a> {
     ) -> Result<(), CassieError> {
         reservation
             .try_grow(bytes)
-            .map_err(native_memory_limit_error)
+            .map_err(CassieError::from)
     }
-}
-
-fn native_memory_limit_error(error: cassie_core::request::MemoryBudgetError) -> CassieError {
-    CassieError::ResourceLimit(format!(
-        "query memory budget exceeded: {} > {}",
-        error.requested, error.budget
-    ))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

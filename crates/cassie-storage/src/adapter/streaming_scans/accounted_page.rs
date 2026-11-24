@@ -290,22 +290,15 @@ fn accounting_overflow() -> CassieError {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
-    use std::time::Instant;
 
     use serde_json::json;
 
-    use crate::config::CassieRuntimeLimits;
+    use crate::adapter::request_test_support::TestRequest;
 
-    use super::{AccountedDocument, AccountedDocumentPage, DocumentRef, QueryExecutionControls};
+    use super::{AccountedDocument, AccountedDocumentPage, DocumentRef};
 
-    fn controls_with_budget(query_memory_budget_bytes: usize) -> QueryExecutionControls {
-        QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        )
+    fn controls_with_budget(query_memory_budget_bytes: usize) -> TestRequest {
+        TestRequest::with_budget(query_memory_budget_bytes)
     }
 
     #[test]
@@ -315,7 +308,7 @@ mod tests {
         let decode_calls = Cell::new(0);
 
         // Act
-        let result = AccountedDocument::try_build(&controls, 8, || {
+        let result = AccountedDocument::try_build(&controls.context(), 8, || {
             decode_calls.set(decode_calls.get() + 1);
             Ok(DocumentRef {
                 id: "one".to_owned(),
@@ -333,7 +326,7 @@ mod tests {
     fn should_keep_a_popped_document_accounted_until_its_owner_drops_it() {
         // Arrange
         let controls = controls_with_budget(4096);
-        let document = AccountedDocument::try_build(&controls, 1024, || {
+        let document = AccountedDocument::try_build(&controls.context(), 1024, || {
             Ok(DocumentRef {
                 id: "one".to_owned(),
                 payload: json!({"value": 1}),

@@ -550,7 +550,7 @@ impl Midge {
                     field_key.len(),
                     super::super::column_store::column_payload_logical_len(&raw),
                 )?)?;
-                let Some(value) = column_validation::decode_field(&collection, id, field, &raw)?
+                let Some(value) = column_validation::decode_field(&collection, id, field, &raw, tx.value_hooks())?
                 else {
                     continue;
                 };

@@ -60,7 +60,8 @@ impl CassieSession {
             )
     }
 
-    pub(crate) fn repeatable_read_capture_generation(&self) -> Option<u64> {
+    #[doc(hidden)]
+    pub fn repeatable_read_capture_generation(&self) -> Option<u64> {
         let transaction = self.transaction.lock();
         (transaction.status == SessionTransactionStatus::InTransaction
             && !transaction.implicit

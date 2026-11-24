@@ -23,7 +23,8 @@ impl CassieSession {
         operation(Some(transaction.status))
     }
 
-    pub(crate) fn transaction_relation_exists(&self, catalog: &Catalog, relation: &str) -> bool {
+    #[doc(hidden)]
+    pub fn transaction_relation_exists(&self, catalog: &Catalog, relation: &str) -> bool {
         let transaction = self.transaction.lock();
         transaction.catalog_overlay.as_ref().map_or_else(
             || catalog.relation_exists(relation),
@@ -230,11 +231,13 @@ impl CassieSession {
         (transaction.isolation, transaction.modes)
     }
 
-    pub(crate) fn transaction_generation(&self) -> u64 {
+    #[doc(hidden)]
+    pub fn transaction_generation(&self) -> u64 {
         self.transaction.lock().generation
     }
 
-    pub(crate) fn mark_transaction_query(&self) {
+    #[doc(hidden)]
+    pub fn mark_transaction_query(&self) {
         let mut transaction = self.transaction.lock();
         if self.ensure_operation_current_locked(&transaction).is_err() {
             return;
@@ -361,7 +364,8 @@ impl CassieSession {
         }
     }
 
-    pub(crate) fn commit_transaction(&self) {
+    #[doc(hidden)]
+    pub fn commit_transaction(&self) {
         let transaction = self.transaction.lock();
         self.retire_committed_locked(transaction);
     }
@@ -511,7 +515,8 @@ impl CassieSession {
     /// The transaction status a client should be told. While a COMMIT runs on
     /// another thread the transaction is not usable, so it reads as failed
     /// until that COMMIT retires it (#1290).
-    pub(crate) fn ready_for_query_status(&self) -> SessionTransactionStatus {
+    #[doc(hidden)]
+    pub fn ready_for_query_status(&self) -> SessionTransactionStatus {
         let transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::InTransaction
             && !transaction.may_be_failed_by_current_thread()

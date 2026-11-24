@@ -8,7 +8,8 @@ mod repeatable_write;
 
 impl CassieError {
     /// `PostgreSQL` 25P02 for work attempted inside a failed transaction block.
-    pub(crate) fn failed_transaction() -> Self {
+    #[doc(hidden)]
+    pub fn failed_transaction() -> Self {
         Self::Transaction {
             kind: TransactionErrorKind::FailedTransaction,
             message:
@@ -35,7 +36,8 @@ impl CassieError {
 }
 
 impl Cassie {
-    pub(crate) fn ensure_transaction_recovery(
+    #[doc(hidden)]
+    pub fn ensure_transaction_recovery(
         session: &CassieSession,
         parsed: &crate::sql::ast::ParsedStatement,
     ) -> Result<(), CassieError> {
@@ -157,7 +159,8 @@ impl Cassie {
         Ok(output)
     }
 
-    pub(crate) fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
         let controls = self.runtime.query_controls(std::time::Instant::now());
         self.commit_transaction_with_controls(session, &controls)
     }

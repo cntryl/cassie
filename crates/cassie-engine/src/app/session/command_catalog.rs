@@ -26,7 +26,8 @@ pub(crate) struct CommandCatalogScope {
 }
 
 impl CommandCatalogScope {
-    pub(crate) fn enter(
+    #[doc(hidden)]
+    pub fn enter(
         session: &CassieSession,
         owner: Option<Arc<ControlledCatalogSnapshot>>,
     ) -> Self {

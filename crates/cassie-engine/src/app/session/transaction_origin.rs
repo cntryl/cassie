@@ -13,7 +13,8 @@ impl CassieSession {
         self.begin_implicit_transaction_for_operation(None)
     }
 
-    pub(crate) fn begin_implicit_transaction_for_operation(
+    #[doc(hidden)]
+    pub fn begin_implicit_transaction_for_operation(
         &self,
         authority: Option<&super::FailureAuthority>,
     ) -> Result<(), CassieError> {
@@ -28,7 +29,8 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) fn is_implicit_transaction(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_implicit_transaction(&self) -> bool {
         self.transaction.lock().implicit
     }
 }

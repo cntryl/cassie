@@ -91,7 +91,8 @@ impl CassieSession {
         self.ensure_operation_current_locked(&transaction)?;
         attach()
     }
-    pub(crate) fn try_with_current_operation_owner<T>(
+    #[doc(hidden)]
+    pub fn try_with_current_operation_owner<T>(
         &self,
         publish: impl FnOnce(super::FailureAuthorityIdentity) -> T,
     ) -> Result<T, super::CassieError> {
@@ -108,7 +109,8 @@ impl CassieSession {
         )))
     }
 
-    pub(crate) fn try_with_retired_operation_owner(
+    #[doc(hidden)]
+    pub fn try_with_retired_operation_owner(
         &self,
         cleanup: impl FnOnce(super::FailureAuthorityIdentity),
     ) -> bool {
@@ -242,13 +244,15 @@ impl CassieSession {
     }
 
     /// Exact wire-ID cleanup deliberately uses the current connection namespace.
-    pub(crate) fn without_operation_failure_authority(&self) -> Self {
+    #[doc(hidden)]
+    pub fn without_operation_failure_authority(&self) -> Self {
         let mut cleanup = self.clone();
         cleanup.operation_failure_authority = None;
         cleanup
     }
 
-    pub(crate) fn with_new_wire_operation(&self) -> Self {
+    #[doc(hidden)]
+    pub fn with_new_wire_operation(&self) -> Self {
         let mut operation = self.clone();
         operation.operation_failure_authority = Some(FailureAuthority {
             root: Arc::downgrade(&self.transaction),
@@ -257,13 +261,15 @@ impl CassieSession {
         operation
     }
 
-    pub(crate) fn expect_portal_owner(&self, identity: super::FailureAuthorityIdentity) {
+    #[doc(hidden)]
+    pub fn expect_portal_owner(&self, identity: super::FailureAuthorityIdentity) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.owner.lock().expected_portal = Some(identity);
         }
     }
 
-    pub(crate) fn ensure_admitted_operation_owner(
+    #[doc(hidden)]
+    pub fn ensure_admitted_operation_owner(
         authority: &FailureAuthority,
     ) -> Result<(), super::CassieError> {
         let root = authority
@@ -286,7 +292,8 @@ impl CassieSession {
         Ok(())
     }
 
-    pub(crate) fn try_with_current_portal_lifetime(
+    #[doc(hidden)]
+    pub fn try_with_current_portal_lifetime(
         &self,
         inspect: impl FnOnce(super::FailureAuthorityIdentity),
     ) {
@@ -300,7 +307,8 @@ impl CassieSession {
         }
     }
 
-    pub(crate) fn operation_failure_authority(&self) -> Option<&FailureAuthority> {
+    #[doc(hidden)]
+    pub fn operation_failure_authority(&self) -> Option<&FailureAuthority> {
         self.operation_failure_authority.as_ref()
     }
 
@@ -313,13 +321,15 @@ impl CassieSession {
         }
     }
 
-    pub(crate) fn note_operation_worker_started(&self) {
+    #[doc(hidden)]
+    pub fn note_operation_worker_started(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.owner.lock().worker_started = true;
         }
     }
 
-    pub(crate) fn may_capture_protocol_owner(&self) -> bool {
+    #[doc(hidden)]
+    pub fn may_capture_protocol_owner(&self) -> bool {
         self.operation_failure_authority
             .as_ref()
             .is_some_and(|authority| {
@@ -328,13 +338,15 @@ impl CassieSession {
             })
     }
 
-    pub(crate) fn operation_was_rejected(&self) -> bool {
+    #[doc(hidden)]
+    pub fn operation_was_rejected(&self) -> bool {
         self.operation_failure_authority
             .as_ref()
             .is_some_and(|authority| authority.owner.lock().admission_rejected)
     }
 
-    pub(crate) fn fail_operation_transaction(&self) {
+    #[doc(hidden)]
+    pub fn fail_operation_transaction(&self) {
         let Some(authority) = self
             .operation_failure_authority
             .as_ref()

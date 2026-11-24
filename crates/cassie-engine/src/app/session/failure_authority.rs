@@ -59,7 +59,8 @@ impl FailureAuthority {
         })
     }
 
-    pub(crate) fn portal_adoption(
+    #[doc(hidden)]
+    pub fn portal_adoption(
         &self,
     ) -> Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)> {
         let owner = self.owner.lock();

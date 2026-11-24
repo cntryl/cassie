@@ -13,7 +13,8 @@ use crate::midge::adapter::{Midge, StatementDataRead};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 #[derive(Debug)]
-pub(crate) struct BoundReadView {
+#[doc(hidden)]
+pub struct BoundReadView {
     data: Option<Arc<StatementDataRead>>,
     catalog: Arc<ControlledCatalogSnapshot>,
     identity: Weak<Mutex<SessionTransactionState>>,
@@ -112,13 +113,15 @@ thread_local! {
     static PENDING: RefCell<Option<Arc<BoundReadView>>> = const { RefCell::new(None) };
 }
 
-pub(crate) struct BoundReadScope {
+#[doc(hidden)]
+pub struct BoundReadScope {
     previous: Option<Arc<BoundReadView>>,
     _thread: PhantomData<Rc<()>>,
 }
 
 impl BoundReadScope {
-    pub(crate) fn enter(owner: Option<Arc<BoundReadView>>) -> Self {
+    #[doc(hidden)]
+    pub fn enter(owner: Option<Arc<BoundReadView>>) -> Self {
         Self {
             previous: PENDING.with(|slot| slot.replace(owner)),
             _thread: PhantomData,

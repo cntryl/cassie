@@ -339,7 +339,7 @@ async fn route_request_with_admin_ui(
                 }
             };
 
-        if !authenticated_role.is_admin
+        if !authenticated_role.is_admin()
             && !is_read_only_sql_route(&method, segments.as_slice())
             && !is_self_service_auth_route(&method, segments.as_slice())
         {
@@ -766,24 +766,18 @@ fn database_scoped_session(
     context: &RestRequestContext,
     database: &str,
 ) -> Result<CassieSession, (StatusCode, String)> {
-    cassie.ensure_database_exists(database).map_err(|_| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("database '{database}' does not exist"),
-        )
-    })?;
-    if context
-        .role
-        .as_ref()
-        .is_some_and(|role| !role.can_access_database(database))
-    {
-        return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
-    }
-    Ok(CassieSession::authenticated(
-        context.session.user.clone(),
-        Some(database.to_string()),
-        context.role.as_ref().is_some_and(|role| role.is_admin),
-    ))
+    cassie
+        .network_database_session(&context.session, context.role.as_ref(), database)
+        .map_err(|error| {
+            if matches!(error, crate::app::CassieError::InsufficientPrivilege) {
+                (StatusCode::FORBIDDEN, "forbidden".to_string())
+            } else {
+                (
+                    StatusCode::NOT_FOUND,
+                    format!("database '{database}' does not exist"),
+                )
+            }
+        })
 }
 
 async fn cancel_admin_query_operation(

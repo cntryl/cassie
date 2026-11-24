@@ -4,7 +4,8 @@ use super::{CassieError, CassieSession};
 use crate::app::session_settings::SETTINGS;
 
 impl CassieSession {
-    pub(crate) fn set_startup_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn set_startup_setting(&self, name: &str, value: &str) -> Result<(), CassieError> {
         Self::reject_projection_write_mode_change(name)?;
         self.settings.lock().set_startup(name, value)?;
         if name.eq_ignore_ascii_case("search_path") {
@@ -61,7 +62,8 @@ impl CassieSession {
 impl CassieSession {
     /// Tightens `controls` to this session's `statement_timeout`, measured
     /// from `started`; `0` leaves the configured deadline unchanged.
-    pub(crate) fn apply_statement_timeout(
+    #[doc(hidden)]
+    pub fn apply_statement_timeout(
         &self,
         controls: &mut crate::runtime::QueryExecutionControls,
         started: std::time::Instant,

@@ -50,7 +50,8 @@ impl Cassie {
         ))
     }
 
-    pub(crate) fn prepare_transaction_read_view(
+    #[doc(hidden)]
+    pub fn prepare_transaction_read_view(
         &self,
         session: &CassieSession,
         parsed: &ParsedStatement,
@@ -71,7 +72,8 @@ impl Cassie {
         self.capture_transaction_read_view(session, parsed, controls)
     }
 
-    pub(crate) fn prepare_transaction_analysis_view(
+    #[doc(hidden)]
+    pub fn prepare_transaction_analysis_view(
         &self,
         session: &CassieSession,
         parsed: &ParsedStatement,

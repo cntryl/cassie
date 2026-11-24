@@ -36,7 +36,7 @@ pub struct NetworkPrincipal {
 #[doc(hidden)]
 pub struct NetworkRole {
     pub name: String,
-    pub is_admin: bool,
+    is_admin: bool,
     database_grants: Option<BTreeSet<String>>,
 }
 
@@ -51,6 +51,13 @@ impl std::fmt::Debug for NetworkRole {
 }
 
 impl NetworkRole {
+    /// Reports whether this authenticated role snapshot is an administrator.
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+
     /// Reports whether this authenticated role snapshot grants database access.
     #[must_use]
     #[doc(hidden)]

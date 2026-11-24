@@ -247,7 +247,8 @@ pub(crate) struct SessionReadScope {
 }
 
 impl SessionReadScope {
-    pub(crate) fn enter(owner: Option<&Arc<StatementOverlay>>) -> Self {
+    #[doc(hidden)]
+    pub fn enter(owner: Option<&Arc<StatementOverlay>>) -> Self {
         Self {
             previous: CURRENT_OVERLAY.with(|current| current.replace(owner.cloned())),
             _thread: PhantomData,

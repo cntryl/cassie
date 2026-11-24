@@ -6,6 +6,7 @@ use super::{
     NormalizedVectorCacheKey, QueryEmbeddingCacheKey, RuntimeState, Serialize,
 };
 use crate::embeddings::EmbeddingProvider;
+use crate::runtime::QueryExecutionControls;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieRuntimeConfigState {
@@ -61,6 +62,40 @@ pub struct Cassie {
 }
 
 impl Cassie {
+    /// Runs an inspection against the admitted transaction catalog view.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when descriptor admission or the inspection fails.
+    #[doc(hidden)]
+    pub fn with_transaction_analysis_view<T, E>(
+        &self,
+        session: &crate::app::CassieSession,
+        controls: &QueryExecutionControls,
+        inspect: impl FnOnce(&Cassie) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<crate::app::CassieError>,
+    {
+        let _publication = self.catalog_publication.read();
+        let descriptor_owner = session
+            .command_descriptor_snapshot(&self.publication_catalog, controls)
+            .map_err(E::from)?;
+        let catalog_overlay = session.transaction_catalog_overlay();
+        let mut scoped_cassie = self.clone();
+        scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
+        scoped_cassie.metadata_write_catalog = session
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        scoped_cassie.catalog = self.publication_catalog.clone();
+        if let Some(owner) = &descriptor_owner {
+            scoped_cassie.catalog = owner.catalog().clone();
+        } else if let Some(catalog) = catalog_overlay.as_ref() {
+            scoped_cassie.catalog = catalog.clone();
+        }
+        inspect(&scoped_cassie)
+    }
+
     /// Returns the configured default database name.
     #[must_use]
     #[doc(hidden)]

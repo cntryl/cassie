@@ -1,5 +1,6 @@
 mod bound_read;
-pub(crate) use bound_read::{BoundReadScope, BoundReadView};
+#[doc(hidden)]
+pub use bound_read::{BoundReadScope, BoundReadView};
 mod catalog_overlay;
 mod copy_owner;
 mod projection_write;
@@ -206,7 +207,8 @@ struct SessionSavepoint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SessionTransactionStatus {
+#[doc(hidden)]
+pub enum SessionTransactionStatus {
     Idle,
     InTransaction,
     Failed,
@@ -384,7 +386,8 @@ impl CassieSession {
         operation(&mut self.random.lock())
     }
 
-    pub(crate) fn is_authenticated_read_only(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_authenticated_read_only(&self) -> bool {
         self.access == SessionAccess::AuthenticatedReadOnly
     }
 
@@ -494,7 +497,8 @@ impl CassieSession {
         self.apply_session_write(&[name], || self.settings.lock().set(name, value))
     }
 
-    pub(crate) fn set_backend_pid(&self, process_id: i32) {
+    #[doc(hidden)]
+    pub fn set_backend_pid(&self, process_id: i32) {
         self.backend_pid.store(process_id, Ordering::Relaxed);
     }
 
@@ -503,7 +507,8 @@ impl CassieSession {
         self.backend_pid.load(Ordering::Relaxed)
     }
 
-    pub(crate) fn is_transaction_active(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_transaction_active(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::InTransaction
     }
 
@@ -603,7 +608,8 @@ impl CassieSession {
         }
     }
 
-    pub(crate) fn is_transaction_failed(&self) -> bool {
+    #[doc(hidden)]
+    pub fn is_transaction_failed(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::Failed
     }
 

@@ -95,19 +95,23 @@ use cache::{
     current_time_millis, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, PlanCacheProvenance,
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
-pub(crate) use error::unsupported_sql_error;
+#[doc(hidden)]
+pub fn unsupported_sql_error(sql: &str) -> Option<CassieError> {
+    error::unsupported_sql_error(sql)
+}
 pub use error::{
-    CassieError, CatalogObjectKind, DiagnosticError, OwnedNumericLiteralError,
-    RetryableStorageError, StorageRetryKind,
+    CassieError, CassieErrorDescriptor, CatalogObjectKind, DiagnosticError,
+    OwnedNumericLiteralError, RetryableStorageError, StorageRetryKind,
 };
 pub(crate) use existing_constraint_checks::AddedColumnDefault;
 pub use session::CassieSession;
 pub(crate) use session::{is_projection_write_mode, ProjectionCommitPolicy};
 pub(crate) use session::{
-    BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext,
-    SessionRandom, SessionReadScope, SessionTransactionStatus, StagedWriteSnapshot,
+    CommandCatalogScope, CopyBindingContext, SessionRandom, SessionReadScope, StagedWriteSnapshot,
     StatementMutationBatch, StatementOverlay, TransactionConflictIntent, TransactionRowChange,
 };
+#[doc(hidden)]
+pub use session::{BoundReadScope, BoundReadView, SessionTransactionStatus};
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
     MAX_PREPARED_PER_SESSION,

@@ -310,13 +310,15 @@ impl CassieSession {
 
     /// The epoch a connection compares to drop protocol statements that SQL
     /// deallocated.
-    pub(crate) fn prepared_wire_epoch(&self) -> u64 {
+    #[doc(hidden)]
+    pub fn prepared_wire_epoch(&self) -> u64 {
         self.session_objects.lock().wire_epoch
     }
 
     /// Whether protocol statement `name` with connection id `id` is still
     /// registered.
-    pub(crate) fn has_wire_prepared(&self, name: &str, id: u64) -> bool {
+    #[doc(hidden)]
+    pub fn has_wire_prepared(&self, name: &str, id: u64) -> bool {
         self.session_objects
             .lock()
             .prepared
@@ -325,7 +327,8 @@ impl CassieSession {
     }
 
     /// Whether `name` is held by a SQL-level `PREPARE`.
-    pub(crate) fn has_sql_prepared(&self, name: &str) -> bool {
+    #[doc(hidden)]
+    pub fn has_sql_prepared(&self, name: &str) -> bool {
         self.session_objects
             .lock()
             .prepared
@@ -334,7 +337,8 @@ impl CassieSession {
     }
 
     /// Registers a named protocol-level statement in the shared namespace.
-    pub(crate) fn register_wire_prepared(
+    #[doc(hidden)]
+    pub fn register_wire_prepared(
         &self,
         name: &str,
         id: u64,
@@ -377,7 +381,8 @@ impl CassieSession {
     }
 
     /// Forgets a protocol-level statement its connection closed.
-    pub(crate) fn forget_wire_prepared(&self, name: &str, id: u64) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn forget_wire_prepared(&self, name: &str, id: u64) -> Result<(), CassieError> {
         let forget = |objects: &mut SessionObjects| {
             if objects
                 .prepared

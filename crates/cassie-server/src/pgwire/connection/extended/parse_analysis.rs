@@ -20,47 +20,32 @@ pub(super) fn admit(
             "private Cassie array parameter OIDs are unsupported by pgwire",
         ));
     }
-    let _publication = cassie.catalog_publication.read();
-    let descriptor_owner = session
-        .command_descriptor_snapshot(&cassie.publication_catalog, controls)
-        .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let catalog_overlay = session.transaction_catalog_overlay();
-    let mut scoped_cassie = cassie.clone();
-    scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
-    scoped_cassie.metadata_write_catalog = session
-        .transaction_catalog_overlay()
-        .unwrap_or_else(|| cassie.publication_catalog.clone());
-    scoped_cassie.catalog = cassie.publication_catalog.clone();
-    if let Some(owner) = &descriptor_owner {
-        scoped_cassie.catalog = owner.catalog().clone();
-    } else if let Some(catalog) = catalog_overlay.as_ref() {
-        scoped_cassie.catalog = catalog.clone();
-    }
-    crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)
-        .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let admitted = with_function_input_scope(&scoped_cassie, session, |scope| {
-        crate::sql::checked_wire_parse_parameter_types_in_scope(
+    let admitted = cassie.with_transaction_analysis_view(session, controls, |scoped_cassie| {
+        crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)?;
+        let admitted = with_function_input_scope(scoped_cassie, session, |scope| {
+            crate::sql::checked_wire_parse_parameter_types_in_scope(
+                parsed,
+                parameter_type_oids,
+                &scoped_cassie.catalog,
+                controls,
+                Some(scope),
+            )
+        })
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
+        // Bind source/name/input semantics without planning, before final slot
+        // validation and before making the prepared statement visible.
+        // An omitted Parse OID may have a legacy fallback in the admitted list.
+        // Set category checks must distinguish that from an explicit type declaration.
+        crate::sql::parse_analysis::validate_with_declared_types(
             parsed,
+            admitted.types(),
             parameter_type_oids,
             &scoped_cassie.catalog,
+            &scoped_cassie.binding_context_for_session(Some(session)),
             controls,
-            Some(scope),
-        )
-    })
-    .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
-    // Bind source/name/input semantics without planning, before final slot
-    // validation and before making the prepared statement visible.
-    // An omitted Parse OID may have a legacy fallback in the admitted list.
-    // Set category checks must distinguish that from an explicit type declaration.
-    crate::sql::parse_analysis::validate_with_declared_types(
-        parsed,
-        admitted.types(),
-        parameter_type_oids,
-        &scoped_cassie.catalog,
-        &scoped_cassie.binding_context_for_session(Some(session)),
-        controls,
-    )
-    .map_err(|error| ExtendedQueryError::cassie(&error))?;
+        )?;
+        Ok(admitted)
+    })?;
     admitted
         .final_check()
         .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;

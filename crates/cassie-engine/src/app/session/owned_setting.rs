@@ -9,7 +9,8 @@ use crate::runtime::QueryExecutionControls;
 use super::CassieSession;
 
 impl CassieSession {
-    pub(crate) fn with_search_path<R>(&self, inspect: impl FnOnce(&[String]) -> R) -> R {
+    #[doc(hidden)]
+    pub fn with_search_path<R>(&self, inspect: impl FnOnce(&[String]) -> R) -> R {
         let path = self.search_path.lock();
         inspect(&path)
     }

@@ -1,9 +1,35 @@
 use super::auth::hash_password;
-use super::{normalize_role_name, Cassie, CassieError, CassieSession, CatalogObjectKind, RoleMeta};
+use super::{
+    normalize_role_name, Cassie, CassieError, CassieSession, CatalogObjectKind, NetworkRole,
+    RoleMeta,
+};
 use crate::catalog::{RoleGrantTarget, RoleObjectGrantMeta, RoleObjectPrivilege};
 use std::collections::{BTreeSet, HashSet};
 
 impl Cassie {
+    /// Creates a database-scoped REST session after applying the authenticated role snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database does not exist or the role lacks access.
+    #[doc(hidden)]
+    pub fn network_database_session(
+        &self,
+        session: &CassieSession,
+        role: Option<&NetworkRole>,
+        database: &str,
+    ) -> Result<CassieSession, CassieError> {
+        self.ensure_database_exists(database)?;
+        if role.is_some_and(|role| !role.can_access_database(database)) {
+            return Err(CassieError::InsufficientPrivilege);
+        }
+        Ok(CassieSession::authenticated(
+            session.user.clone(),
+            Some(database.to_string()),
+            role.is_some_and(NetworkRole::is_admin),
+        ))
+    }
+
     #[must_use]
     pub fn create_session(&self, user: &str, database: Option<String>) -> CassieSession {
         let database = database.or_else(|| Some(self.default_database.clone()));
@@ -13,11 +39,13 @@ impl Cassie {
     }
 
     #[must_use]
-    pub(crate) fn database_catalog_enforced(&self) -> bool {
+    #[doc(hidden)]
+    pub fn database_catalog_enforced(&self) -> bool {
         self.is_started() || !self.catalog.list_databases().is_empty()
     }
 
-    pub(crate) fn ensure_database_exists(&self, database: &str) -> Result<(), CassieError> {
+    #[doc(hidden)]
+    pub fn ensure_database_exists(&self, database: &str) -> Result<(), CassieError> {
         if !self.database_catalog_enforced() || self.catalog.database_exists(database) {
             return Ok(());
         }
@@ -32,7 +60,8 @@ impl Cassie {
         })
     }
 
-    pub(crate) fn ensure_session_database_exists(
+    #[doc(hidden)]
+    pub fn ensure_session_database_exists(
         &self,
         session: &CassieSession,
     ) -> Result<(), CassieError> {
@@ -42,7 +71,8 @@ impl Cassie {
         self.ensure_database_exists(database)
     }
 
-    pub(crate) fn ensure_session_database_access(
+    #[doc(hidden)]
+    pub fn ensure_session_database_access(
         &self,
         session: &CassieSession,
     ) -> Result<(), CassieError> {

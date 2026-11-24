@@ -17,7 +17,8 @@ pub(crate) use table_privilege_checks::{
 mod graph_table;
 
 impl CassieSession {
-    pub(crate) fn authorize_statement(
+    #[doc(hidden)]
+    pub fn authorize_statement(
         &self,
         statement: &QueryStatement,
     ) -> Result<(), CassieError> {
@@ -33,7 +34,8 @@ impl CassieSession {
 }
 
 impl super::Cassie {
-    pub(crate) fn authorize_role_object_access(
+    #[doc(hidden)]
+    pub fn authorize_role_object_access(
         &self,
         session: &CassieSession,
         statement: &QueryStatement,

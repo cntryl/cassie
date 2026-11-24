@@ -49,7 +49,7 @@ fn should_reject_identity_sequence_collision_before_collection_publication() {
         .put_sequence(&existing_sequence)
         .expect("seed the colliding sequence metadata");
 
-    let mut constraint = FieldConstraint::new("id");
+    let mut constraint = FieldConstraint::<()>::new("id");
     constraint.not_null = true;
     constraint.identity = Some(IdentityGeneration::ByDefault);
     constraint.default_sequence = Some(sequence_name.to_string());

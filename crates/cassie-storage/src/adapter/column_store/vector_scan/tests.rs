@@ -222,7 +222,7 @@ fn document_values(fixture: &Fixture, table: &str, fields: &[&str]) -> Vec<(Stri
     let mut rows = Vec::new();
     loop {
         let page = cursor
-            .next_documents(fixture.midge(), 64, &controls)
+            .next_documents(fixture.midge(), 64, &controls.context())
             .expect("documents");
         if page.is_empty() {
             break;
@@ -449,10 +449,13 @@ fn should_reject_a_required_field_with_no_stored_value() {
     let result = fixture.read("holes", &["a"], RowTraversal::CompleteSource, &controls);
 
     // Assert
-    assert_eq!(
-        result.expect_err("missing required field").sql_state(),
-        "XX001"
-    );
+    assert!(matches!(
+        result.expect_err("missing required field"),
+        StorageError::Diagnostic {
+            sql_state: "XX001",
+            ..
+        }
+    ));
 }
 
 fn orphan_key(fixture: &Fixture, table: &str, id: &str) -> Vec<u8> {
@@ -515,7 +518,13 @@ fn should_reject_an_orphan_between_markers_on_a_complete_scan() {
     );
 
     // Assert
-    assert_eq!(result.expect_err("orphan").sql_state(), "XX001");
+    assert!(matches!(
+        result.expect_err("orphan"),
+        StorageError::Diagnostic {
+            sql_state: "XX001",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -534,7 +543,13 @@ fn should_reject_an_orphan_after_the_last_marker_on_a_complete_scan() {
     );
 
     // Assert
-    assert_eq!(result.expect_err("orphan").sql_state(), "XX001");
+    assert!(matches!(
+        result.expect_err("orphan"),
+        StorageError::Diagnostic {
+            sql_state: "XX001",
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -735,7 +750,7 @@ fn should_stop_with_cancellation_before_returning_a_batch() {
     let result = fixture.read("stopped", &["a"], RowTraversal::CompleteSource, &controls);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCanceled)));
+    assert!(matches!(result, Err(StorageError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -814,7 +829,7 @@ fn should_reject_a_budget_one_byte_below_the_observed_peak() {
     );
 
     // Assert
-    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+    assert!(matches!(result, Err(StorageError::ResourceLimit(_))));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -919,7 +934,13 @@ fn should_reject_a_value_whose_stored_tag_contradicts_its_type() {
     let result = fixture.read("tagged", &["a"], RowTraversal::CompleteSource, &controls);
 
     // Assert
-    assert_eq!(result.expect_err("wrong tag").sql_state(), "XX001");
+    assert!(matches!(
+        result.expect_err("wrong tag"),
+        StorageError::Diagnostic {
+            sql_state: "XX001",
+            ..
+        }
+    ));
 }
 
 #[test]

@@ -19,6 +19,9 @@ mod legacy_graph_state_tests;
 #[cfg(test)]
 #[path = "adapter/unique_constraint_publication_tests.rs"]
 mod unique_constraint_publication_tests;
+#[cfg(test)]
+#[path = "adapter/copy_identity_tests.rs"]
+mod copy_identity_tests;
 
 use std::cell::RefCell;
 

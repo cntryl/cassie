@@ -3,11 +3,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::app::{Cassie, CassieSession, SessionReadScope};
+use crate::app::{Cassie, CassieError, CassieSession, SessionReadScope};
 use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
-use crate::midge::adapter::{
-    CassieError, Midge, ScalarIndexScanRequest, StatementDataRead, StatementReadScope,
-};
+use crate::midge::adapter::{Midge, ScalarIndexScanRequest, StatementDataRead, StatementReadScope};
 use crate::runtime::{ExecutionMode, QueryExecutionControls};
 
 #[path = "tests/replay_cloud_cache_loss.rs"]

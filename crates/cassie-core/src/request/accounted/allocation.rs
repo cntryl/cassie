@@ -2,6 +2,7 @@
 
 use std::mem::size_of;
 
+use super::retained::{add, mul};
 use super::{AccountingError, RequestMemoryReservation};
 
 /// Reserves a fresh directory before allocation. The returned lease follows the backing buffer.
@@ -55,12 +56,4 @@ pub fn grow_vec<T>(
 #[doc(hidden)]
 pub fn allocation_error(error: std::collections::TryReserveError) -> AccountingError {
     AccountingError::Allocation(error)
-}
-
-fn add(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_add(right).ok_or(AccountingError::StateSizeOverflow)
-}
-
-fn mul(left: usize, right: usize) -> Result<usize, AccountingError> {
-    left.checked_mul(right).ok_or(AccountingError::StateSizeOverflow)
 }

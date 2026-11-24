@@ -5,6 +5,7 @@ use super::{MemoryBudgetError, RequestMemory, RequestMemoryReservation};
 
 pub mod allocation;
 pub mod json;
+pub mod retained;
 
 /// Failure to admit or allocate retained request data.
 #[derive(Debug, thiserror::Error)]

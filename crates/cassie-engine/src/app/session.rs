@@ -319,6 +319,13 @@ impl CassieSession {
         Self::with_access(user, database, access)
     }
 
+    /// Creates an authenticated session for cross-crate transport fixtures.
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn authenticated_for_test(user: String, database: Option<String>, is_admin: bool) -> Self {
+        Self::authenticated(user, database, is_admin)
+    }
+
     fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
         Self {
             statement_text: None,

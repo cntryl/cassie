@@ -22,6 +22,9 @@ mod unique_constraint_publication_tests;
 #[cfg(test)]
 #[path = "adapter/copy_identity_tests.rs"]
 mod copy_identity_tests;
+#[cfg(test)]
+#[path = "adapter/index_publication_tests.rs"]
+mod index_publication_tests;
 
 use std::cell::RefCell;
 

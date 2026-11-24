@@ -808,7 +808,9 @@ pub fn lookup_zone(name: &str) -> Option<Zone> {
     lookup_zone_with_origin(name).map(|(zone, _)| zone)
 }
 
-pub(crate) fn lookup_zone_with_origin(name: &str) -> Option<(Zone, bool)> {
+/// Looks up a time zone and reports whether it came from a POSIX rule.
+#[must_use]
+pub fn lookup_zone_with_origin(name: &str) -> Option<(Zone, bool)> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.len() > 255 {
         return None;

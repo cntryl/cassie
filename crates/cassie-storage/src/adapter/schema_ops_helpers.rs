@@ -75,11 +75,8 @@ pub(super) fn drop_referencing_indexes_in_tx(
     collection: &str,
     field: &str,
 ) -> Result<DroppedCollectionIndexes, CassieError> {
-    let index_prefix = Midge::index_collection_prefix(collection);
-    let indexes = collect_scan(
-        tx.scan(&Query::new().prefix(index_prefix.into()))
-            .map_err(CassieError::from)?,
-    )?;
+    let query = Query::new().prefix(Midge::index_collection_prefix(collection).into());
+    let indexes = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
     let mut dropped_column_index_keys = Vec::new();
     let mut dropped_column_indexes = Vec::new();
     let mut dropped_scalar_indexes = Vec::new();

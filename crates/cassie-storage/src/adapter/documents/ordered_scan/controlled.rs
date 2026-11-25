@@ -45,6 +45,9 @@ struct AccountedRawEntry {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error if the request is interrupted, row storage is unsupported, or cursor state cannot be admitted.
     pub fn open_controlled_ordered_row_cursor(
         &self,
         request: OrderedRowScanRequest<'_>,

@@ -9,6 +9,9 @@ use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
 use crate::adapter::key_encoding;
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns index read, range validation, or request-control errors.
     pub fn scan_scalar_index_controlled(
         &self,
         index: &IndexMeta,
@@ -26,6 +29,9 @@ impl Midge {
     }
 
     /// Keep one native cursor open while downstream joins accept or reject each entry.
+    ///
+    /// # Errors
+    /// Returns index read, request-control, or visitor errors.
     pub fn visit_scalar_index_documents<E: From<CassieError>>(
         &self,
         index: &IndexMeta,

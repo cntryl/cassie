@@ -66,6 +66,7 @@ pub struct PersistedIvfFlatTrainingSnapshot {
 }
 
 impl PersistedIvfFlatTrainingSnapshot {
+    #[must_use]
     pub fn into_parts(
         self,
     ) -> (
@@ -466,6 +467,9 @@ impl Midge {
         )))
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control, manifest read, or stored training state decoding errors.
     pub fn get_ivfflat_training_manifest_controlled(
         &self,
         collection: &str,
@@ -620,6 +624,9 @@ impl Midge {
         Ok(records)
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control, candidate read, or stored vector decoding errors.
     pub fn ivfflat_candidate_vectors_controlled(
         &self,
         collection: &str,
@@ -763,6 +770,9 @@ impl Midge {
         Ok(result)
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control or node read errors, or reports a graph that needs repair.
     pub fn search_hnsw_graph_point_read_controlled(
         &self,
         collection: &str,
@@ -823,38 +833,7 @@ impl Midge {
                     .map(|(node, memory)| Some((node, memory)))
             },
         )
-        .map_err(|error| match error {
-            crate::vector::hnsw::HnswSearchError::Loader(error) => error,
-            crate::vector::hnsw::HnswSearchError::GraphRepair(reason) => {
-                let label = match reason {
-                    crate::vector::hnsw::HnswGraphRepairReason::MissingEntryPoint => {
-                        "missing-entry-point"
-                    }
-                    crate::vector::hnsw::HnswGraphRepairReason::InconsistentMaxLayer => {
-                        "inconsistent-max-layer"
-                    }
-                };
-                CassieError::Execution(format!("hnsw fallback:{label}"))
-            }
-            crate::vector::hnsw::HnswSearchError::Interruption(error) => match error {
-                cassie_core::request::InterruptionError::Canceled => CassieError::QueryCanceled,
-                cassie_core::request::InterruptionError::DeadlineExceeded => {
-                    CassieError::DeadlineExceeded
-                }
-            },
-            crate::vector::hnsw::HnswSearchError::Memory(error) => {
-                CassieError::ResourceLimit(format!(
-                    "query memory budget exceeded: {} > {}",
-                    error.requested, error.budget
-                ))
-            }
-            crate::vector::hnsw::HnswSearchError::Allocation => {
-                CassieError::ResourceLimit("unable to retain controlled HNSW candidate".to_owned())
-            }
-            crate::vector::hnsw::HnswSearchError::AccountingOverflow => {
-                CassieError::ResourceLimit("controlled HNSW retained memory overflow".to_owned())
-            }
-        })?;
+        .map_err(map_hnsw_search_error)?;
         if missing_node {
             return Err(CassieError::Execution(
                 "hnsw fallback:unknown-neighbor-id".to_string(),
@@ -961,6 +940,37 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)
+    }
+}
+
+fn map_hnsw_search_error(error: crate::vector::hnsw::HnswSearchError<CassieError>) -> CassieError {
+    use crate::vector::hnsw::{HnswGraphRepairReason, HnswSearchError};
+
+    match error {
+        HnswSearchError::Loader(error) => error,
+        HnswSearchError::GraphRepair(reason) => {
+            let label = match reason {
+                HnswGraphRepairReason::MissingEntryPoint => "missing-entry-point",
+                HnswGraphRepairReason::InconsistentMaxLayer => "inconsistent-max-layer",
+            };
+            CassieError::Execution(format!("hnsw fallback:{label}"))
+        }
+        HnswSearchError::Interruption(error) => match error {
+            cassie_core::request::InterruptionError::Canceled => CassieError::QueryCanceled,
+            cassie_core::request::InterruptionError::DeadlineExceeded => {
+                CassieError::DeadlineExceeded
+            }
+        },
+        HnswSearchError::Memory(error) => CassieError::ResourceLimit(format!(
+            "query memory budget exceeded: {} > {}",
+            error.requested, error.budget
+        )),
+        HnswSearchError::Allocation => {
+            CassieError::ResourceLimit("unable to retain controlled HNSW candidate".to_owned())
+        }
+        HnswSearchError::AccountingOverflow => {
+            CassieError::ResourceLimit("controlled HNSW retained memory overflow".to_owned())
+        }
     }
 }
 

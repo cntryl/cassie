@@ -48,6 +48,9 @@ pub struct MaintenanceDebt {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when recovery metadata is inconsistent or unreadable.
     pub fn validate_recovery_state(&self) -> Result<(), CassieError> {
         self.pending_schema_cleanups()?;
         self.list_maintenance_debt()?;
@@ -296,6 +299,9 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when rollup maintenance debt cannot be persisted.
     pub fn record_rollup_maintenance_failure(
         &self,
         collection: &str,
@@ -305,6 +311,9 @@ impl Midge {
         self.record_maintenance_failure(collection, ROLLUP_ARTIFACT, target_generation, error)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when rollup maintenance debt cannot be removed.
     pub fn clear_rollup_maintenance_debt(
         &self,
         collection: &str,
@@ -313,6 +322,9 @@ impl Midge {
         self.clear_maintenance_debt(collection, ROLLUP_ARTIFACT, target_generation)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when projection maintenance debt cannot be persisted.
     pub fn record_materialized_projection_maintenance_failure(
         &self,
         collection: &str,
@@ -327,6 +339,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when projection maintenance debt cannot be removed.
     pub fn clear_materialized_projection_maintenance_debt(
         &self,
         collection: &str,
@@ -339,6 +354,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when post-commit maintenance cannot be refreshed.
     pub fn refresh_document_maintenance_after_commit(
         &self,
         collection: &str,
@@ -361,6 +379,9 @@ impl Midge {
         column_batches.and(projection_hashes)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when maintenance records cannot be read or decoded.
     pub fn list_maintenance_debt(&self) -> Result<Vec<MaintenanceDebt>, CassieError> {
         let mut debts = Vec::new();
         for database in self.list_databases()? {
@@ -379,6 +400,9 @@ impl Midge {
         Ok(debts)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the selected maintenance record cannot be read or decoded.
     pub fn maintenance_debt_for(
         &self,
         collection: &str,

@@ -3,6 +3,14 @@ use crate::adapter::{ColumnBatchScanFallbackReason, StorageRequestContext};
 
 use super::{EncodedSourceDecision, Midge};
 
+type EncodedSourceFixtureDiagnostics = (
+    bool,
+    Option<ColumnBatchScanFallbackReason>,
+    usize,
+    Option<bool>,
+    usize,
+);
+
 impl Midge {
     /// Replaces one field chunk and its manifest for cross-crate adapter fixtures.
     #[doc(hidden)]
@@ -62,16 +70,7 @@ impl Midge {
         collection: &str,
         fields: &[String],
         controls: &StorageRequestContext<'_>,
-    ) -> Result<
-        (
-            bool,
-            Option<ColumnBatchScanFallbackReason>,
-            usize,
-            Option<bool>,
-            usize,
-        ),
-        StorageError,
-    > {
+    ) -> Result<EncodedSourceFixtureDiagnostics, StorageError> {
         match self.controlled_encoded_source(collection, fields, controls)? {
             EncodedSourceDecision::Hit(source) => {
                 let first_field = source

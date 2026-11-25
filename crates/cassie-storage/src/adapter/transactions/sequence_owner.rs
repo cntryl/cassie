@@ -38,6 +38,7 @@ pub struct PreparedSequenceCursorMetadata {
 }
 
 impl PreparedSequenceCursorMetadata {
+    #[must_use]
     pub fn into_parts(
         self,
     ) -> (
@@ -670,6 +671,9 @@ impl Midge {
         owner.advance(metadata, epoch, overlay.sequence_fork.as_deref(), update)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the staged sequence metadata cannot be checked.
     pub fn is_private_sequence(&self, metadata: &SequenceMeta) -> Result<bool, CassieError> {
         Ok(matches!(
             self.private_sequence_target(&metadata.name)?,
@@ -679,6 +683,9 @@ impl Midge {
 }
 
 impl StorageOverlay {
+    ///
+    /// # Errors
+    /// Returns an error if the sequence fork lease cannot be acquired or retained.
     pub fn attach_sequence_fork_lease(
         &mut self,
         controls: Option<&StorageRequestContext<'_>>,
@@ -715,6 +722,9 @@ impl StorageOverlay {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the inherited sequence fork state cannot be retained.
     pub fn inherit_sequence_fork_lease(
         &mut self,
         parent: &StorageOverlay,
@@ -763,11 +773,15 @@ impl StorageOverlay {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn has_sequence_cursors(&self) -> bool {
         !self.sequence_cursors.state.lock().cursors.is_empty()
     }
 
     /// Retires only identities absent from both the current view and retained savepoints.
+    ///
+    /// # Errors
+    /// Returns an error if cursor pruning is interrupted or its reservation cannot be admitted.
     pub fn prune_sequence_cursors_with<'a>(
         &'a self,
         protected: impl Iterator<Item = &'a StorageOverlay>,
@@ -895,6 +909,9 @@ impl StorageOverlay {
     }
 
     /// Object identities of every sequence this transaction stages itself.
+    ///
+    /// # Errors
+    /// Returns an error if staged cursor metadata cannot be read or admitted.
     pub fn staged_sequence_object_ids(
         &self,
         controls: &StorageRequestContext<'_>,

@@ -81,6 +81,7 @@ fn initial_added_version() -> u32 {
 }
 
 impl RowSchema {
+    #[must_use]
     pub fn from_schema(schema: &Schema) -> Self {
         let mut fields = schema
             .fields
@@ -108,6 +109,7 @@ impl RowSchema {
         }
     }
 
+    #[must_use]
     pub fn active_schema(&self) -> Schema {
         Schema {
             fields: self
@@ -123,6 +125,8 @@ impl RowSchema {
         }
     }
 
+    /// # Errors
+    /// Returns a schema error when the requested field conflicts with or cannot be resolved in the schema.
     pub fn add_field(&mut self, field: FieldSchema) -> Result<(), RowSchemaError> {
         if self
             .fields
@@ -151,6 +155,8 @@ impl RowSchema {
         Ok(())
     }
 
+    /// # Errors
+    /// Returns a schema error when the requested field conflicts with or cannot be resolved in the schema.
     pub fn rename_field(&mut self, current: &str, next: &str) -> Result<(), RowSchemaError> {
         if self
             .fields
@@ -203,6 +209,7 @@ impl RowSchema {
         true
     }
 
+    #[must_use]
     pub fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
         self.fields.iter().filter(|field| !field.retired).collect()
     }
@@ -260,6 +267,8 @@ pub enum RowBlobValueError {
 
 mod encode;
 
+/// # Errors
+/// Returns an encoding error when a document value cannot be represented by the schema or value encoder.
 pub fn encode_row(
     schema: &RowSchema,
     document: &serde_json::Value,
@@ -267,6 +276,8 @@ pub fn encode_row(
     encode_row_with(schema, document, encode::encode_value)
 }
 
+/// # Errors
+/// Returns an encoding error when a document value cannot be represented by the schema or value encoder.
 pub fn encode_row_with<E>(
     schema: &RowSchema,
     document: &serde_json::Value,
@@ -378,6 +389,8 @@ pub struct RowBlobRecord<'a> {
 }
 
 impl<'a> RowBlobRecord<'a> {
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn parse(row: &'a [u8]) -> Result<Self, StorageCodecError> {
         let mut cursor = Cursor::new(row);
         cursor.expect_bytes(MAGIC)?;
@@ -434,6 +447,8 @@ impl<'a> RowBlobRecord<'a> {
         })
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn field(&self, field_id: u32) -> Result<Option<RowBlobField<'a>>, StorageCodecError> {
         if !field_bit(self.presence, field_id) {
             return Ok(None);
@@ -457,6 +472,7 @@ impl<'a> RowBlobRecord<'a> {
     }
 }
 
+#[must_use]
 pub fn field_bit(bitmap: &[u8], field_id: u32) -> bool {
     field_id.checked_sub(1).is_some_and(|zero_based| {
         let byte = usize::try_from(zero_based / 8).unwrap_or(usize::MAX);
@@ -472,10 +488,13 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
+    #[must_use]
     pub const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, offset: 0 }
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn expect_bytes(&mut self, expected: &[u8]) -> Result<(), StorageCodecError> {
         if self.read_exact(expected.len())? == expected {
             Ok(())
@@ -484,10 +503,14 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_u8(&mut self) -> Result<u8, StorageCodecError> {
         Ok(self.read_exact(1)?[0])
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_u32(&mut self) -> Result<u32, StorageCodecError> {
         let bytes = self.read_exact(4)?;
         Ok(u32::from_be_bytes(
@@ -497,6 +520,8 @@ impl<'a> Cursor<'a> {
         ))
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_i64(&mut self) -> Result<i64, StorageCodecError> {
         let bytes = self.read_exact(8)?;
         Ok(i64::from_be_bytes(
@@ -506,6 +531,8 @@ impl<'a> Cursor<'a> {
         ))
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_f64(&mut self) -> Result<f64, StorageCodecError> {
         let bytes = self.read_exact(8)?;
         Ok(f64::from_be_bytes(
@@ -515,6 +542,8 @@ impl<'a> Cursor<'a> {
         ))
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_varint(&mut self) -> Result<u64, StorageCodecError> {
         let mut shift = 0;
         let mut value = 0_u64;
@@ -531,12 +560,16 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_len_prefixed(&mut self) -> Result<Vec<u8>, StorageCodecError> {
         let len = usize::try_from(self.read_varint()?)
             .map_err(|_| invalid("row blob length overflow"))?;
         Ok(self.read_exact(len)?.to_vec())
     }
 
+    /// # Errors
+    /// Returns a codec error when row framing, field identifiers, or payload bytes are invalid.
     pub fn read_exact(&mut self, len: usize) -> Result<&'a [u8], StorageCodecError> {
         let end = self
             .offset
@@ -550,6 +583,7 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
+    #[must_use]
     pub fn remaining(&self) -> &'a [u8] {
         &self.bytes[self.offset..]
     }

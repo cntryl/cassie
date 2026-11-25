@@ -271,6 +271,9 @@ impl Midge {
         self.alter_collection_add_column_with_default(collection, field, None)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the field definition or default is invalid, or the change cannot be persisted.
     pub fn alter_collection_add_column_with_default(
         &self,
         collection: &str,

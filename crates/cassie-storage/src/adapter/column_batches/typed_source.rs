@@ -69,6 +69,9 @@ pub enum EncodedSourceDecision {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when source metadata cannot be read or the request is interrupted.
     pub fn controlled_encoded_source(
         &self,
         collection: &str,

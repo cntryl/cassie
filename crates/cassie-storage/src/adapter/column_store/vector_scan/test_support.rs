@@ -32,6 +32,9 @@ fn retain_batch(batch: ColumnVectorBatch) -> TestColumnVectorBatch {
 }
 
 /// Reads all selected column lanes through the production native reader.
+///
+/// # Errors
+/// Returns request-control, cursor, or stored field decoding errors.
 pub fn read_column_vector_batches(
     midge: &Midge,
     collection: &str,
@@ -56,6 +59,9 @@ pub fn read_column_vector_batches(
 }
 
 /// Returns the result binding for each requested vector-reader column.
+///
+/// # Errors
+/// Returns an error when the selected column vector output cannot be read.
 pub fn column_vector_outputs(
     midge: &Midge,
     collection: &str,
@@ -83,6 +89,9 @@ pub fn column_vector_outputs(
 }
 
 /// Reads row documents and their declared fields through the production cursor.
+///
+/// # Errors
+/// Returns an error when the cursor cannot read or decode the selected rows.
 pub fn read_row_documents(
     midge: &Midge,
     collection: &str,

@@ -1,18 +1,21 @@
-//! Cassie persisted key framing backed by the published LexKey encoder.
+//! Cassie persisted key framing backed by the published `LexKey` encoder.
 
 use cntryl_lexkey::{Encoder, LexKey};
 
 /// Encodes one Cassie family key using the established root and layout marker.
+#[must_use]
 pub fn encode_key(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
     encode(family, components, false)
 }
 
 /// Encodes a Cassie family prefix that can select all child keys.
+#[must_use]
 pub fn encode_prefix(family: &[u8], components: &[&[u8]]) -> Vec<u8> {
     encode(family, components, true)
 }
 
-/// Encodes an unsigned numeric key component with the established LexKey form.
+/// Encodes an unsigned numeric key component with the established `LexKey` form.
+#[must_use]
 pub fn encode_u64_component(value: u64) -> Vec<u8> {
     let mut encoder = Encoder::with_capacity(9);
     encoder.encode_u64_into(value);
@@ -20,16 +23,20 @@ pub fn encode_u64_component(value: u64) -> Vec<u8> {
 }
 
 /// Encodes the key identifying a persisted enum descriptor.
+#[must_use]
 pub fn enum_type_key(canonical_name: &str) -> Vec<u8> {
     encode_key(b"enum-type", &[canonical_name.as_bytes()])
 }
 
 /// Encodes the prefix selecting persisted enum descriptors.
+#[must_use]
 pub fn enum_type_prefix() -> Vec<u8> {
     encode_prefix(b"enum-type", &[])
 }
 
 /// Appends one scalar index value using Cassie's order-preserving value tags.
+/// # Errors
+/// Returns a codec error when a scalar number is unsupported or composite JSON cannot be encoded.
 pub fn append_scalar_value(
     key: &mut Vec<u8>,
     value: &serde_json::Value,

@@ -1,6 +1,9 @@
 use super::super::{key_encoding, CassieError, Midge};
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when a reservation key cannot be encoded, read, or decoded.
     pub fn unique_scalar_index_reservation_owner(
         &self,
         collection: &str,

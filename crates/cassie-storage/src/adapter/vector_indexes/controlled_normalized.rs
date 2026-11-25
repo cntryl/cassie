@@ -8,6 +8,9 @@ use super::{
 use crate::adapter::{QueryMemoryReservation, StorageRequestContext};
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns request-control, vector read, or stored record decoding errors.
     pub fn list_normalized_vectors_controlled(
         &self,
         collection: &str,
@@ -80,6 +83,9 @@ impl Midge {
         Ok((records, memory))
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control, vector read, or stored record decoding errors.
     pub fn get_normalized_vector_controlled(
         &self,
         collection: &str,

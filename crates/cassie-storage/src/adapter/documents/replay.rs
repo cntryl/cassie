@@ -4,6 +4,9 @@ use super::{
 };
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error if replay validation, writes, or commit fails.
     pub fn apply_projection_replay_batch(
         &self,
         collection: &str,

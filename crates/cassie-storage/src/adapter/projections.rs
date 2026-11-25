@@ -80,6 +80,9 @@ pub struct ReplayBatchCommit {
 
 impl Midge {
     /// Resolve the publication from the same statement Data view as its output.
+    ///
+    /// # Errors
+    /// Returns an error when persisted view metadata cannot be read or decoded.
     pub fn statement_materialized_view(
         &self,
         collection: &str,
@@ -100,6 +103,9 @@ impl Midge {
             .transpose()
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when published index metadata cannot be read or decoded.
     pub fn published_scalar_index(
         &self,
         output: &str,
@@ -119,6 +125,9 @@ impl Midge {
         }))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when checkpoint records cannot be read or decoded.
     pub fn checkpoint_rows_for_statement(
         &self,
         database: &str,
@@ -317,6 +326,9 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the checkpoint cannot be validated or an authorized update cannot be committed.
     pub fn put_replay_failure_if_unchanged(
         &self,
         expected: Option<&ProjectionMeta>,
@@ -474,6 +486,9 @@ impl Midge {
 
 impl Midge {
     /// Rekeys one SQL materialized-view definition in the owning database family.
+    ///
+    /// # Errors
+    /// Returns an error when view metadata cannot be read, renamed, or committed.
     pub fn rename_sql_materialized_view_metadata(
         &self,
         previous: &str,

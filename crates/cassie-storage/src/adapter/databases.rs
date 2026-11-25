@@ -334,6 +334,9 @@ impl Midge {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when database catalog entries cannot be read or validated.
     pub fn database_catalog_entries(
         &self,
         database: &str,
@@ -365,6 +368,9 @@ impl Midge {
         Ok(scoped_entries)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the database name cannot be staged or the native family cannot be created.
     pub fn stage_database_family(&self, name: &str) -> Result<StagedDatabaseFamily, CassieError> {
         self.ensure_families_ready()?;
         if self
@@ -396,6 +402,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when staged records cannot be written to the native family.
     pub fn write_staged_database_entries(
         &self,
         staged: &StagedDatabaseFamily,
@@ -413,6 +422,9 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the staged family cannot be published or the catalog checks fail.
     pub fn commit_staged_database_family(
         &self,
         staged: StagedDatabaseFamily,
@@ -492,6 +504,9 @@ impl Midge {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when cleanup of the staged family fails.
     pub fn abort_staged_database_family(
         &self,
         staged: &StagedDatabaseFamily,

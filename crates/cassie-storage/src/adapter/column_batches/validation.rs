@@ -56,6 +56,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the request is interrupted or a summary cannot be read or decoded.
     pub fn prepare_column_batch_summaries_controlled(
         &self,
         collection: &str,
@@ -102,6 +105,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if index metadata or a pending batch cannot be read or reconciled.
     pub fn reconcile_column_batch_indexes(&self) -> Result<(), CassieError> {
         let indexes = self
             .list_indexes()?

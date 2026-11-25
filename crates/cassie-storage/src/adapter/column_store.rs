@@ -34,15 +34,15 @@ struct InitialCollectionContents<'a, A = ()> {
     comments: Option<&'a [(String, String)]>,
 }
 
-impl<'a, A> Copy for InitialCollectionContents<'a, A> {}
+impl<A> Copy for InitialCollectionContents<'_, A> {}
 
-impl<'a, A> Clone for InitialCollectionContents<'a, A> {
+impl<A> Clone for InitialCollectionContents<'_, A> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'a, A> Default for InitialCollectionContents<'a, A> {
+impl<A> Default for InitialCollectionContents<'_, A> {
     fn default() -> Self {
         Self {
             constraints: None,
@@ -671,6 +671,9 @@ impl Midge {
             }))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the collection metadata cannot be read.
     pub fn collection_uses_column_store(&self, collection: &str) -> Result<bool, CassieError> {
         Ok(self
             .storage_mode_for_collection(collection)?

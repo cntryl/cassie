@@ -128,7 +128,7 @@ impl Fixture {
             .expect("write rows");
     }
 
-    fn controls(&self) -> TestRequest {
+    fn controls() -> TestRequest {
         TestRequest::new(64 * 1024 * 1024)
     }
 
@@ -232,7 +232,7 @@ fn document_values(fixture: &Fixture, table: &str, fields: &[&str]) -> Vec<(Stri
         .open_row_cursor(table, RowDecode::Full)
         .expect("open")
         .expect("cursor");
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
     let mut rows = Vec::new();
     loop {
         let page = cursor
@@ -298,7 +298,7 @@ fn should_keep_scalar_types_in_native_lanes() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = typed_fixture();
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -342,7 +342,7 @@ fn should_decode_compressed_values_into_text_lanes() {
     let compressed = stored
         .iter()
         .any(|(_, value)| value.first() == Some(&super::super::compression::COMPRESSED_TAG));
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -362,7 +362,7 @@ fn should_return_sql_null_for_a_stored_null_lane() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = typed_fixture();
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -390,7 +390,7 @@ fn should_return_null_for_a_field_added_after_the_row_was_written() {
             ("2".to_owned(), serde_json::json!({"a": 2})),
         ],
     );
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -442,7 +442,7 @@ fn should_reject_a_required_field_with_no_stored_value() {
         .midge()
         .raw_delete(StorageFamily::Data, &victim)
         .expect("remove one field value");
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let result = fixture.read("holes", &["a"], RowTraversal::CompleteSource, &controls);
@@ -506,7 +506,7 @@ fn should_reject_an_orphan_between_markers_on_a_complete_scan() {
         .collect::<Vec<_>>();
     ids.sort();
     plant_orphan(&fixture, "between_orphan", &format!("{}\u{1}", ids[0]));
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let result = fixture.read(
@@ -531,7 +531,7 @@ fn should_reject_an_orphan_after_the_last_marker_on_a_complete_scan() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = orphan_table("tail_orphan", "~~~~");
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let result = fixture.read(
@@ -556,7 +556,7 @@ fn should_skip_an_orphan_on_a_visited_row_scan() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = orphan_table("visited_orphan", "0000");
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -587,7 +587,7 @@ fn should_split_rows_into_batches_of_at_most_1024() {
             .map(|value| (format!("{value:04}"), serde_json::json!({"a": value})))
             .collect(),
     );
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let batches = fixture
@@ -636,7 +636,7 @@ fn should_count_one_batch_of_lanes_with_no_row_documents() {
             ),
         ],
     );
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
     let before = fixture.counters();
 
     // Act
@@ -708,7 +708,7 @@ fn should_read_only_the_selected_field_payloads() {
             ),
         ],
     );
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
     let validation = fixture.midge().column_validation_reads_for_diagnostics();
     let fields = fixture.midge().column_field_reads_for_diagnostics();
 
@@ -742,7 +742,7 @@ fn should_stop_with_cancellation_before_returning_a_batch() {
             ("2".to_owned(), serde_json::json!({"a": 2})),
         ],
     );
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
     controls.cancellation.cancel();
 
     // Act
@@ -776,7 +776,7 @@ fn should_fit_a_budget_equal_to_the_observed_peak() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = budget_fixture();
-    let probe = fixture.controls();
+    let probe = Fixture::controls();
     let batches = fixture
         .read(
             "budgeted",
@@ -806,7 +806,7 @@ fn should_reject_a_budget_one_byte_below_the_observed_peak() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let fixture = budget_fixture();
-    let probe = fixture.controls();
+    let probe = Fixture::controls();
     let batches = fixture
         .read(
             "budgeted",
@@ -927,7 +927,7 @@ fn should_reject_a_value_whose_stored_tag_contradicts_its_type() {
         .midge()
         .raw_put(StorageFamily::Data, &stored[0].0, b"\x05text")
         .expect("wrong-tag value");
-    let controls = fixture.controls();
+    let controls = Fixture::controls();
 
     // Act
     let result = fixture.read("tagged", &["a"], RowTraversal::CompleteSource, &controls);

@@ -62,6 +62,7 @@ impl DocumentWriteBatchOptions {
             .unwrap_or_else(|| default.to_owned())
     }
 
+    #[must_use]
     pub fn sync(commit: WriteOptions) -> Self {
         Self {
             commit,
@@ -77,6 +78,7 @@ impl DocumentWriteBatchOptions {
         }
     }
 
+    #[must_use]
     pub fn buffered(commit: WriteOptions) -> Self {
         Self {
             commit,

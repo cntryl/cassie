@@ -42,6 +42,9 @@ pub(super) fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], databa
             .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
 }
 
+///
+/// # Errors
+/// Returns an error when persisted metadata is malformed or belongs to another database.
 pub fn validate_database_catalog_entry(
     key: &[u8],
     value: &[u8],
@@ -115,6 +118,7 @@ fn is_database_scoped_catalog_family(family: &str) -> bool {
     )
 }
 
+#[must_use]
 pub fn is_database_catalog_entry(key: &[u8]) -> bool {
     key_family(key).is_some_and(|family| {
         matches!(family, "collections" | "namespaces") || is_database_scoped_catalog_family(family)
@@ -136,6 +140,9 @@ fn catalog_name_component_belongs_to_database(name: &[u8], database: &str) -> bo
 /// Retargets a restored data-plane record that embeds its owning database name.
 /// Object comments carry their database in the payload; other records pass
 /// through unchanged.
+///
+/// # Errors
+/// Returns an error when a database key or persisted metadata cannot be rewritten.
 pub fn rewrite_database_data_entry(
     key: &[u8],
     value: &[u8],

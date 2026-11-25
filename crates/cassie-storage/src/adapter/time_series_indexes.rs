@@ -168,6 +168,9 @@ fn time_series_scan_query(
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when index metadata cannot be read or an index cannot be reconciled.
     pub fn reconcile_time_series_indexes(&self) -> Result<(), CassieError> {
         let indexes = self
             .list_indexes()?
@@ -428,6 +431,9 @@ impl Midge {
         }
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when index data cannot be read, refreshed, or published.
     pub fn rebuild_time_series_indexes_for_collection(
         &self,
         collection: &str,

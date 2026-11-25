@@ -144,6 +144,9 @@ pub fn set_projection_replay_post_commit_failure_point(enabled: bool) {
     PROJECTION_REPLAY_POST_COMMIT_FAILPOINT.set(enabled);
 }
 
+///
+/// # Errors
+/// Returns an error when the configured post-commit replay failure point is reached.
 pub fn check_projection_replay_post_commit_failure_point() -> Result<(), CassieError> {
     if PROJECTION_REPLAY_POST_COMMIT_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
@@ -199,6 +202,9 @@ pub fn set_rollup_maintenance_failure_point(enabled: bool) {
     ROLLUP_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
+///
+/// # Errors
+/// Returns an error when the configured rollup-maintenance failure point is reached.
 pub fn check_rollup_maintenance_failure_point() -> Result<(), CassieError> {
     if ROLLUP_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
@@ -501,6 +507,7 @@ mod verification;
 #[path = "verification_tests.rs"]
 mod verification_tests;
 
+#[must_use]
 pub fn benchmark_row_key_round_trip(relation_id: u64, id: &str) -> Option<(Vec<u8>, String)> {
     let prefix = key_encoding::row_prefix(relation_id);
     let key = key_encoding::row_key(relation_id, id);

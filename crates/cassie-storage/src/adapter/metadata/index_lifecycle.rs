@@ -126,7 +126,7 @@ impl Midge {
             metadata.predicate.as_deref(),
         )?;
         let identity = (
-            metadata.kind.clone(),
+            metadata.kind,
             metadata.collection.clone(),
             metadata.name.clone(),
             metadata.relation_id(),

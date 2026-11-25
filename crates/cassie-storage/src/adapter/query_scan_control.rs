@@ -95,10 +95,12 @@ pub fn set_query_scan_cancellation_after_entries(entries: Option<usize>) {
     });
 }
 
+#[must_use]
 pub fn current_query_scan_control_scope() -> Option<Arc<QueryScanControlScope>> {
     TEST_SCOPE.with(|scope| scope.borrow().clone())
 }
 
+#[must_use]
 pub fn should_cancel_controlled_query_scan(context: &super::StorageRequestContext<'_>) -> bool {
     context.should_cancel_controlled_query_scan()
 }

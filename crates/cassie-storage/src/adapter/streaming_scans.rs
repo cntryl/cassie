@@ -24,6 +24,7 @@ pub enum RowTraversal {
 }
 
 impl RowTraversal {
+    #[must_use]
     pub fn from_limit(limit: Option<usize>) -> Self {
         if limit.is_some() {
             Self::VisitedRows
@@ -93,6 +94,9 @@ impl MidgeRowCursor {
         self.pruning = super::ColumnPruning::resolve(&self.collection, &self.row_schema, filter);
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the next document cannot be read, decoded, or admitted.
     pub fn next_accounted_document(
         &mut self,
         midge: &Midge,
@@ -102,6 +106,9 @@ impl MidgeRowCursor {
         Ok(documents.pop())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the requested documents cannot be read or decoded.
     pub fn next_documents(
         &mut self,
         midge: &Midge,
@@ -115,6 +122,9 @@ impl MidgeRowCursor {
             .collect())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if page reading or request memory admission fails.
     pub fn next_accounted_page(
         &mut self,
         midge: &Midge,
@@ -172,20 +182,7 @@ impl MidgeRowCursor {
         check_controls(controls)?;
         let remaining = result_limit.saturating_sub(documents.len());
         let storage_limit = remaining.clamp(1, STORAGE_SCAN_PAGE_ENTRIES);
-        let query_key_bytes = self.prefix.len().saturating_add(
-            self.last_key
-                .as_ref()
-                .map_or(0, |key| key.len().saturating_add(1)),
-        );
-        let _query_key_memory = controls.reserve_query_memory(query_key_bytes)?;
-        let mut query = Query::new()
-            .prefix(self.prefix.clone().into())
-            .limit(storage_limit);
-        if let Some(last_key) = self.last_key.as_ref() {
-            let mut next_key = last_key.clone();
-            next_key.push(0);
-            query = query.start_key(next_key.into());
-        }
+        let (_query_key_memory, query) = self.query_for_next_page(controls, storage_limit)?;
         let mut scan = self.tx.scan(&query).map_err(CassieError::from)?;
         let mut scanned_entries = 0usize;
 
@@ -276,6 +273,28 @@ impl MidgeRowCursor {
         }
         Ok(())
     }
+
+    fn query_for_next_page(
+        &self,
+        controls: &StorageRequestContext<'_>,
+        storage_limit: usize,
+    ) -> Result<(QueryMemoryReservation, Query), CassieError> {
+        let query_key_bytes = self.prefix.len().saturating_add(
+            self.last_key
+                .as_ref()
+                .map_or(0, |key| key.len().saturating_add(1)),
+        );
+        let memory = controls.reserve_query_memory(query_key_bytes)?;
+        let mut query = Query::new()
+            .prefix(self.prefix.clone().into())
+            .limit(storage_limit);
+        if let Some(last_key) = self.last_key.as_ref() {
+            let mut next_key = last_key.clone();
+            next_key.push(0);
+            query = query.start_key(next_key.into());
+        }
+        Ok((memory, query))
+    }
 }
 
 fn push_accounted_document(
@@ -300,6 +319,9 @@ fn check_controls(controls: &StorageRequestContext<'_>) -> Result<(), CassieErro
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error if the collection schema or native read transaction cannot be opened.
     pub fn open_row_cursor(
         &self,
         collection: &str,
@@ -308,6 +330,9 @@ impl Midge {
         self.open_row_cursor_with_traversal(collection, decode, RowTraversal::CompleteSource)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the collection schema or native read transaction cannot be opened.
     pub fn open_row_cursor_with_traversal(
         &self,
         collection: &str,
@@ -347,6 +372,9 @@ impl Midge {
 
     /// Callback scans may stop after any visited row. Full-input callers must
     /// opt into complete-source validation before their first callback.
+    ///
+    /// # Errors
+    /// Returns the visitor error or a storage error from opening or advancing the scan.
     pub fn scan_rows_until<E, F>(
         &self,
         collection: &str,
@@ -367,6 +395,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns the visitor error or a storage error from opening or advancing the scan.
     pub fn scan_rows_until_with_traversal<E, F>(
         &self,
         collection: &str,

@@ -40,6 +40,9 @@ impl Midge {
         self.has_active_transactional_ddl_scope()
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when cleanup records cannot be read or cleanup still blocks the operation.
     pub fn ensure_no_pending_index_cleanup(
         &self,
         collection: &str,
@@ -310,6 +313,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when pending cleanup records cannot be read or decoded.
     pub fn pending_schema_cleanups(&self) -> Result<Vec<PendingSchemaCleanup>, CassieError> {
         let entries = self.scan_database_families(&Self::schema_cleanup_prefix())?;
         let mut cleanups = Vec::new();
@@ -324,6 +330,9 @@ impl Midge {
         Ok(cleanups)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when pending artifacts cannot be removed or completion cannot be persisted.
     pub fn complete_pending_schema_cleanup(
         &self,
         cleanup: &PendingSchemaCleanup,

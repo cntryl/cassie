@@ -4,6 +4,9 @@ use super::{CassieError, Midge, RowSchema, Schema};
 
 impl Midge {
     /// Delayed work checks published identity, never an enclosing stale view.
+    ///
+    /// # Errors
+    /// Returns an error when the current row schema cannot be read or decoded.
     pub fn current_row_schema_identity(
         &self,
         collection: &str,
@@ -22,6 +25,9 @@ impl Midge {
             .map(|_| 0))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the collection has no schema or its descriptor cannot be read.
     pub fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let statement_read = self.begin_data_readonly_tx_for(&collection)?;
@@ -50,6 +56,9 @@ impl Midge {
         Ok(RowSchema::from_schema(&schema))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when type validation, row conversion, or schema publication fails.
     pub fn alter_collection_column_type(
         &self,
         collection: &str,

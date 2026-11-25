@@ -507,6 +507,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when vector index metadata cannot be read or decoded.
     pub fn list_vector_indexes_canonical(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {

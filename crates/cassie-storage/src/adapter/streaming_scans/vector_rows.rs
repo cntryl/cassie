@@ -35,6 +35,9 @@ impl MidgeRowCursor {
 
     /// Reads up to `limit` rows, decoding `column` directly and, with `with_payload`, the other
     /// fields as the generic decoder would.
+    ///
+    /// # Errors
+    /// Returns an error if vector rows cannot be read, decoded, or admitted.
     pub fn next_vector_rows(
         &mut self,
         midge: &Midge,

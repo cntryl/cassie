@@ -19,6 +19,9 @@ pub struct AccountedDocument {
 }
 
 impl AccountedDocument {
+    ///
+    /// # Errors
+    /// Returns an error if the retained page exceeds the request memory budget.
     pub fn try_build(
         controls: &StorageRequestContext<'_>,
         retained_bytes: usize,

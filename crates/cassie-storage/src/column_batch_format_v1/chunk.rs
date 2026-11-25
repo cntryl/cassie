@@ -31,6 +31,8 @@ pub enum LogicalType {
 }
 
 impl LogicalType {
+    /// # Errors
+    /// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
     pub fn from_name(name: &str) -> Result<Self, StorageCodecError> {
         match name.to_ascii_lowercase().as_str() {
             "smallint" | "int" | "bigint" => Ok(Self::Int64),
@@ -64,10 +66,13 @@ impl LogicalType {
         }
     }
 
+    /// # Errors
+    /// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
     pub fn from_tag_for_manifest(tag: u8) -> Result<Self, StorageCodecError> {
         Self::from_tag(tag)
     }
 
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::Int64 => "int64",
@@ -105,10 +110,13 @@ impl Codec {
         }
     }
 
+    /// # Errors
+    /// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
     pub fn from_tag_for_manifest(tag: u8) -> Result<Self, StorageCodecError> {
         Self::from_tag(tag)
     }
 
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::Plain => "plain",
@@ -151,6 +159,8 @@ pub(super) struct ChunkParts<'a> {
     pub(super) decoded_len: usize,
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode(
     logical_type: LogicalType,
     values: &[serde_json::Value],
@@ -158,10 +168,14 @@ pub fn encode(
     encode_with_policy(logical_type, values, None)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_for(values: &[serde_json::Value]) -> Result<EncodedChunk, StorageCodecError> {
     encode_with_policy(LogicalType::Int64, values, Some(Codec::FrameOfReference))
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_plain_for_test(
     logical_type: LogicalType,
     values: &[serde_json::Value],
@@ -327,6 +341,8 @@ fn encoded_chunk(
     }
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode(bytes: &[u8]) -> Result<DecodedChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     let non_null_count = parts.value_count - parts.null_count;

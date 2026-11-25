@@ -34,6 +34,9 @@ impl Midge {
         Ok(out)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the feedback mutation cannot be validated or persisted.
     pub fn apply_runtime_feedback_mutation(
         &self,
         mutation: &crate::runtime_feedback::RuntimeFeedbackMutation,

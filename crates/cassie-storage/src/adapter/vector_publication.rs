@@ -36,6 +36,9 @@ struct BackfillRow {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when index preparation, backfill, or publication fails.
     pub fn publish_vector_index_with_backfill(
         &self,
         index: &VectorIndexRecord,
@@ -373,6 +376,9 @@ impl Midge {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when pending staging records or artifacts cannot be removed.
     pub fn cleanup_vector_publication_staging(&self) -> Result<(), CassieError> {
         for database in self.database_names() {
             let tx = self.begin_database_readonly_tx(&database)?;

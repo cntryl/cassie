@@ -346,6 +346,7 @@ impl NativePublicationControlScope {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn enter_for_rest(cancellation: &RequestCancellation, deadline: Instant) -> Self {
         let mut controls = CURRENT_CONTROLS
             .with(|slot| slot.borrow().clone())
@@ -359,6 +360,7 @@ impl NativePublicationControlScope {
 
     /// Adds an explicit replay cancellation handle to the ambient authority.
     #[doc(hidden)]
+    #[must_use]
     pub fn enter_for_replay(cancellation: &RequestCancellation) -> Self {
         let mut controls = CURRENT_CONTROLS
             .with(|slot| slot.borrow().clone())
@@ -382,6 +384,7 @@ impl NativePublicationControlScope {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn enter(controls: Option<&StorageRequestContext<'_>>) -> Self {
         let current = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
         Self::replace(match controls {
@@ -398,6 +401,7 @@ impl NativePublicationControlScope {
     /// or completion after a confirmed publication. Storage quarantine remains
     /// enforced independently by every publishing path.
     #[doc(hidden)]
+    #[must_use]
     pub fn terminal_completion() -> Self {
         Self::replace(None)
     }
@@ -417,6 +421,9 @@ impl Drop for NativePublicationControlScope {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns the recovery-required error when the publication coordinator is quarantined.
     pub fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
         self.publication.ensure_recovered()
     }
@@ -443,6 +450,9 @@ impl Midge {
         assert!(result.is_err());
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if history registration is interrupted or cannot be admitted.
     pub fn capture_repeatable_row_history(
         &self,
         database: &str,
@@ -457,6 +467,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns the operation error or an error produced while waiting for publication.
     pub fn with_database_publication<T, E>(
         &self,
         database: &str,

@@ -26,6 +26,8 @@ const MAX_SEGMENTS: usize = 1_048_576;
 const MAX_VECTOR_VALUES: usize = 1_048_576;
 const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
 
+/// # Errors
+/// Returns a codec error when manifest fields are invalid, unsupported, or exceed format limits.
 pub fn encode(metadata: &ColumnBatchMetadata) -> Result<Vec<u8>, StorageCodecError> {
     if metadata.metadata_format_version != u32::from(FORMAT_VERSION)
         || metadata.summary_format_version != u32::from(SUMMARY_VERSION)
@@ -79,6 +81,8 @@ pub fn encode(metadata: &ColumnBatchMetadata) -> Result<Vec<u8>, StorageCodecErr
     Ok(out)
 }
 
+/// # Errors
+/// Returns a codec error when manifest fields are invalid, unsupported, or exceed format limits.
 pub fn decode(bytes: &[u8]) -> Result<ColumnBatchMetadata, StorageCodecError> {
     if bytes.len() < CHECKSUM_LEN || bytes.len() > MAX_MANIFEST_BYTES {
         return Err(invalid("invalid column-batch manifest length"));
@@ -133,6 +137,7 @@ pub fn decode(bytes: &[u8]) -> Result<ColumnBatchMetadata, StorageCodecError> {
     })
 }
 
+#[must_use]
 pub fn has_current_header(bytes: &[u8]) -> bool {
     bytes.get(..4) == Some(MAGIC.as_slice())
         && bytes
@@ -140,10 +145,13 @@ pub fn has_current_header(bytes: &[u8]) -> bool {
             .is_some_and(|raw| raw == FORMAT_VERSION.to_le_bytes())
 }
 
+#[must_use]
 pub fn checksum_hex(bytes: &[u8]) -> String {
     hex(Sha256::digest(bytes).as_slice())
 }
 
+/// # Errors
+/// Returns a codec error when manifest fields are invalid, unsupported, or exceed format limits.
 pub fn summary_checksum(
     row_count: usize,
     summaries: &BTreeMap<String, ColumnBatchFieldSummary>,

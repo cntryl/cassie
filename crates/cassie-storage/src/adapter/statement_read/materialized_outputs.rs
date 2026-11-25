@@ -13,6 +13,9 @@ use std::sync::Arc;
 
 impl Midge {
     /// Copies a newly-created relation from a transaction overlay into a native read owner.
+    ///
+    /// # Errors
+    /// Returns an error if the private output snapshot cannot be captured or admitted.
     pub fn capture_private_materialized_snapshot(
         self: &Arc<Self>,
         storage: &StorageOverlay,

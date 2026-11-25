@@ -231,6 +231,9 @@ impl Midge {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when rollup metadata serialization fails.
     pub fn rollup_data_write(
         &self,
         metadata: &RollupMeta,
@@ -300,6 +303,9 @@ impl Midge {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when retention metadata serialization fails.
     pub fn retention_policy_data_write(
         &self,
         metadata: &RetentionPolicyMeta,

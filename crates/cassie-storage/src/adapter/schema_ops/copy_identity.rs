@@ -62,6 +62,9 @@ pub(super) fn decode_identity(
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns an error when the schema or relation identity cannot be read.
     pub fn copy_physical_identity(
         &self,
         name: &str,

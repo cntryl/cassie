@@ -325,6 +325,9 @@ impl Midge {
         Ok(root)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when rows cannot be encoded or the output transaction cannot be committed.
     pub fn write_fresh_projection_output_rows(
         &self,
         collection: &str,

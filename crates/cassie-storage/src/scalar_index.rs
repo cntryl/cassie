@@ -8,6 +8,8 @@ pub trait ScalarExpressionEvaluator {
     type Error;
 
     /// Evaluates the serialized expression without exposing its syntax here.
+    /// # Errors
+    /// Returns the evaluator error or reports that a value cannot be represented as a scalar index key.
     fn evaluate(
         &self,
         stored_expression: &str,
@@ -25,6 +27,8 @@ pub enum ScalarExpressionEvaluationError<E> {
 }
 
 /// Evaluates stored expressions and applies the scalar-index NULL uniqueness policy.
+/// # Errors
+/// Returns the evaluator error or reports that a value cannot be represented as a scalar index key.
 pub fn evaluate_expression_index_values<Evaluator>(
     expressions: &[String],
     row: &[(String, Value)],

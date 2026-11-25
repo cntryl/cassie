@@ -12,11 +12,17 @@ pub enum NumericValues {
     Float(Vec<Option<f64>>),
 }
 impl NumericValues {
+    #[must_use]
     pub fn len(&self) -> usize {
         match self {
             Self::Integer(values) => values.len(),
             Self::Float(values) => values.len(),
         }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 pub struct DecodedNumericChunk {

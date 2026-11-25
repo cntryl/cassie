@@ -36,10 +36,14 @@ pub struct IndexCleanupGateNames {
 }
 
 impl<'a> IndexCleanupCommitGuard<'a> {
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.indexes.is_empty() && self.markers.is_empty() && self.sources.is_empty()
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if staged cleanup metadata is invalid, interrupted, or cannot be admitted.
     pub fn capture(
         overlay: &'a StorageOverlay,
         controls: &StorageRequestContext<'_>,

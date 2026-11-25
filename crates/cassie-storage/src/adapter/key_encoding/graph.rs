@@ -34,6 +34,7 @@ pub(crate) fn legacy_graph_prefixes() -> [Vec<u8>; 2] {
 /// This is exposed for compatibility diagnostics that must inspect legacy
 /// state without maintaining a second copy of the storage key encoding.
 #[doc(hidden)]
+#[must_use]
 pub fn legacy_graph_prefixes_for_diagnostics() -> [Vec<u8>; 2] {
     legacy_graph_prefixes()
 }
@@ -41,6 +42,7 @@ pub fn legacy_graph_prefixes_for_diagnostics() -> [Vec<u8>; 2] {
 /// One definition key and one adjacency key shaped like the removed feature wrote them.
 /// Returns representative persisted keys used by the removed graph feature.
 #[doc(hidden)]
+#[must_use]
 pub fn legacy_graph_sample_keys_for_diagnostics() -> [Vec<u8>; 2] {
     [
         scoped_key(LEGACY_FAMILY_GRAPH, "postgres.public.social", &[]),

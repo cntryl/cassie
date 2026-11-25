@@ -10,6 +10,8 @@ pub struct DecodedAlpChunk {
     pub decoded_len: usize,
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_scaled(bytes: &[u8]) -> Result<DecodedAlpChunk, StorageCodecError> {
     let parts = parse_chunk(bytes)?;
     if parts.logical_type != LogicalType::Float64 || parts.codec != Codec::Alp {

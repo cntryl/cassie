@@ -19,10 +19,14 @@ impl StorageOverlay {
 }
 
 impl Midge {
+    #[must_use]
     pub fn legacy_field_add_failure_injected() -> bool {
         super::super::FIELD_ADD_FAILPOINT.get() || super::super::FIELD_ADD_BACKFILL_FAILPOINT.get()
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when schema validation, backfill, or atomic publication fails.
     pub fn alter_collection_add_column_atomically<A: Clone>(
         &self,
         collection: &str,
@@ -53,6 +57,7 @@ impl Midge {
         }
         let mut row_schema = Self::load_row_schema_from_tx(&read_tx, &collection)?
             .unwrap_or_else(|| RowSchema::from_schema(&schema));
+        let field_name = field.name.clone();
         row_schema.add_field(field.clone())?;
         schema.fields.push(field);
 
@@ -81,12 +86,6 @@ impl Midge {
             sequences,
         )?;
 
-        let field_name = schema
-            .fields
-            .last()
-            .expect("new field was appended")
-            .name
-            .clone();
         let operations =
             self.prepare_add_column_backfill_operations(&collection, &field_name, default_value)?;
         let no_document_changes = operations.is_empty();
@@ -185,6 +184,9 @@ impl Midge {
         Ok(operations)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when pending field-add metadata cannot be read or the backfill cannot resume.
     pub fn resume_pending_field_add_matching(
         &self,
         collection: &str,
@@ -219,6 +221,9 @@ impl Midge {
         Ok(true)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when pending field-add metadata cannot be read or decoded.
     pub fn has_pending_field_add(
         &self,
         collection: &str,

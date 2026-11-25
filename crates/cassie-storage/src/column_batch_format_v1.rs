@@ -17,16 +17,20 @@ pub use boolean::DecodedBooleanChunk;
 pub use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
 pub use numeric::{DecodedNumericChunk, NumericValues};
 
+#[must_use]
 pub fn scale_alp_value(value: &serde_json::Value, scale: u8) -> Option<i64> {
     alp::scale_value_at(value, scale)
 }
 
+#[must_use]
 pub fn alp_scaled_to_f64(value: i64, scale: u8) -> f64 {
     alp::scaled_to_f64(value, scale)
 }
 
 use crate::StorageCodecError;
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_column_chunk(
     logical_type: LogicalType,
     values: &[serde_json::Value],
@@ -34,6 +38,8 @@ pub fn encode_column_chunk(
     chunk::encode(logical_type, values)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_plain_column_chunk(
     logical_type: LogicalType,
     values: &[serde_json::Value],
@@ -41,16 +47,22 @@ pub fn encode_plain_column_chunk(
     chunk::encode_plain_for_test(logical_type, values)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_for_column_chunk(
     values: &[serde_json::Value],
 ) -> Result<EncodedChunk, StorageCodecError> {
     chunk::encode_for(values)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_column_chunk(bytes: &[u8]) -> Result<DecodedChunk, StorageCodecError> {
     chunk::decode(bytes)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_selected_column_chunk(
     bytes: &[u8],
     selection: &[bool],
@@ -58,14 +70,20 @@ pub fn decode_selected_column_chunk(
     selected::decode(bytes, selection)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn encode_row_ids(row_ids: &[String]) -> Result<Vec<u8>, StorageCodecError> {
     row_ids::encode(row_ids)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_row_ids(bytes: &[u8]) -> Result<Vec<String>, StorageCodecError> {
     row_ids::decode(bytes)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_numeric_column_chunk(
     bytes: &[u8],
     expected_rows: usize,
@@ -73,6 +91,8 @@ pub fn decode_numeric_column_chunk(
     numeric::decode(bytes, expected_rows)
 }
 
+/// # Errors
+/// Returns a codec error when values cannot be represented or encoded bytes are invalid or out of bounds.
 pub fn decode_boolean_column_chunk(
     bytes: &[u8],
     expected_rows: usize,

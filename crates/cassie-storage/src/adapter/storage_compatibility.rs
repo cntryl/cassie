@@ -45,6 +45,9 @@ impl Compatibility {
 impl Midge {
     /// A new pinned expression contract requires a reader that understands it.
     /// Validate the record before calling; this fence precedes feature mutation.
+    ///
+    /// # Errors
+    /// Returns an error if the requested definition version is unsupported or its reader fence cannot be persisted.
     pub fn require_definition_version(&self, version: u32) -> Result<(), CassieError> {
         cassie_sql::definition_guard::version(version)?;
         if version == 1 {
@@ -107,6 +110,9 @@ impl Midge {
         Self::supports_storage_layout_marker(version.as_bytes())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the storage layout is unavailable or its marker is invalid.
     pub fn storage_layout_version(&self) -> Result<&'static str, CassieError> {
         self.publication.ensure_recovered()?;
         let schema = self.ensure_families_ready()?.schema.id();
@@ -125,6 +131,9 @@ impl Midge {
 
     /// Acknowledges the minimum reader before a separate feature transaction publishes.
     /// A failure never authorizes that feature publication, even if the marker is visible.
+    ///
+    /// # Errors
+    /// Returns an error if the requested layout is unsupported or its marker cannot be validated.
     pub fn require_storage_layout_version(&self, version: &str) -> Result<(), CassieError> {
         self.publication.ensure_recovered()?;
         let required = Compatibility::parse(version.as_bytes()).ok_or_else(|| {

@@ -100,6 +100,7 @@ impl StorageOverlay {
         self.restarted_sequences.insert(object_id);
     }
 
+    #[must_use]
     pub fn schema_write_collections(&self) -> Vec<String> {
         let prefix = Midge::schema_collection_prefix();
         self.changes
@@ -108,6 +109,7 @@ impl StorageOverlay {
             .collect()
     }
 
+    #[must_use]
     pub fn drops_collection(&self, collection: &str, default_database: &str) -> bool {
         let canonical = match parse_name(collection) {
             Ok(ParsedName::Unqualified(name)) => {
@@ -139,6 +141,9 @@ impl StorageOverlay {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if cursor metadata cannot be decoded, admitted, or prepared.
     pub fn with_sequence_cursors(
         mut self,
         controls: &crate::adapter::StorageRequestContext<'_>,
@@ -305,10 +310,16 @@ impl AdapterTransaction {
         );
     }
 
+    ///
+    /// # Errors
+    /// Returns the native Midge read error, if the transaction read fails.
     pub fn get(&self, key: &[u8]) -> Result<Option<bytes::Bytes>, cntryl_midge::MidgeError> {
         self.inner().get(key)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the mutation cannot be staged or applied.
     pub fn put(
         &mut self,
         key: Vec<u8>,
@@ -330,6 +341,9 @@ impl AdapterTransaction {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the mutation cannot be staged or applied.
     pub fn delete(&mut self, key: Vec<u8>) -> Result<(), AdapterMutationError> {
         let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
@@ -372,6 +386,9 @@ impl AdapterTransaction {
         }
     }
 
+    ///
+    /// # Errors
+    /// Returns the native Midge scan error, if the scan cannot be opened.
     pub fn scan(
         &self,
         query: &Query,
@@ -383,6 +400,9 @@ impl AdapterTransaction {
         self.inner_mut().set_conflict_policy(policy);
     }
 
+    ///
+    /// # Errors
+    /// Returns the native Midge assertion error, if the assertion cannot be added.
     pub fn assert_value(
         &mut self,
         key: Vec<u8>,
@@ -405,6 +425,11 @@ impl AdapterTransaction {
         }
     }
 
+    /// # Panics
+    /// Panics if the native transaction owner has already been consumed.
+    ///
+    /// # Errors
+    /// Returns the native commit outcome, including an unknown outcome when Midge cannot confirm publication.
     pub fn commit(mut self, options: WriteOptions) -> Result<(), AdapterCommitError> {
         let inner = self.inner.take().expect("commit consumes its transaction");
         if self.suppress_commit {
@@ -452,6 +477,11 @@ impl AdapterTransaction {
         }
     }
 
+    /// # Panics
+    /// Panics if the native transaction owner has already been consumed.
+    ///
+    /// # Errors
+    /// Returns the native Midge rollback error, if rollback fails.
     pub fn rollback(mut self) -> Result<(), cntryl_midge::MidgeError> {
         let inner = self
             .inner
@@ -492,6 +522,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the database family cannot be resolved.
     pub fn enter_transactional_ddl_scope(
         &self,
         database: &str,
@@ -638,6 +671,9 @@ impl Midge {
         Ok(transaction)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the requested family transaction cannot be opened.
     pub fn begin_raw_family_adapter_tx(
         &self,
         family: StorageFamily,
@@ -652,6 +688,9 @@ impl Midge {
         self.begin_raw_adapter_tx(family_id, mode)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if overlay changes cannot be committed.
     pub fn commit_storage_overlay(
         &self,
         database: &str,
@@ -808,10 +847,14 @@ impl Midge {
 
     #[cfg(any(test, feature = "storage-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn take_collection_flush_family_for_test() -> Option<u32> {
         COLLECTION_FLUSH_FAMILY.take()
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the collection data family cannot be flushed.
     pub fn flush_data_family_for_collection(&self, collection: &str) -> Result<(), CassieError> {
         let canonical = self.canonical_collection_name(collection);
         let database =

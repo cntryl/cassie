@@ -70,6 +70,9 @@ enum ControlledIntegrityOutcome {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns request-control, range validation, or index read errors.
     pub fn scan_time_series_index_controlled(
         &self,
         index: &IndexMeta,
@@ -238,6 +241,9 @@ impl Midge {
         }))
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control, index read, or document decoding errors.
     pub fn scan_time_series_hit_documents_controlled(
         &self,
         index: &IndexMeta,

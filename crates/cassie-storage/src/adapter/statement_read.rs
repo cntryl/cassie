@@ -156,6 +156,9 @@ impl<'a> StorageRequestContext<'a> {
         self.memory.budget()
     }
 
+    ///
+    /// # Errors
+    /// Returns `QueryCanceled` or `DeadlineExceeded` when request execution is interrupted.
     pub fn check_interruption(&self) -> Result<(), CassieError> {
         self.interruption().check().map_err(|error| match error {
             InterruptionError::Canceled => CassieError::QueryCanceled,
@@ -163,10 +166,16 @@ impl<'a> StorageRequestContext<'a> {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the request memory budget cannot admit the reservation.
     pub fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, CassieError> {
         self.memory.reserve(bytes).map_err(CassieError::from)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the request memory budget cannot admit the reservation.
     pub fn reserve_query_memory(
         &self,
         bytes: usize,
@@ -174,6 +183,9 @@ impl<'a> StorageRequestContext<'a> {
         self.reserve(bytes)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the request memory budget cannot admit the growth.
     pub fn grow(
         &self,
         reservation: &mut RequestMemoryReservation,
@@ -214,6 +226,9 @@ impl NativeStatementSnapshot {
         Midge::load_projection_metadata_from_tx(&self.tx, projection)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if capture is interrupted or the database snapshot cannot be opened.
     pub fn capture(
         midge: &Arc<Midge>,
         database: &str,
@@ -264,6 +279,9 @@ impl NativeStatementSnapshot {
         Arc::ptr_eq(&self.midge, midge) && self.database.eq_ignore_ascii_case(database)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the current database family cannot be resolved.
     pub fn matches_current_family(
         &self,
         midge: &Arc<Midge>,
@@ -288,6 +306,7 @@ pub struct NativeStatementReadScope {
 }
 
 impl NativeStatementReadScope {
+    #[must_use]
     pub fn enter(
         snapshot: Option<&Arc<NativeStatementSnapshot>>,
         checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,

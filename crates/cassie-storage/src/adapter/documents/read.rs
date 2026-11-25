@@ -32,6 +32,9 @@ impl Midge {
         Self::load_data_epoch_from_tx(&tx)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the database epoch cannot be read or decoded.
     pub fn data_epoch_for_database(&self, database: &str) -> Result<u64, CassieError> {
         let tx =
             self.begin_database_adapter_tx(database, cntryl_midge::TransactionMode::ReadOnly)?;
@@ -274,39 +277,13 @@ impl Midge {
                 seen_ids.insert(id.clone());
 
                 let decode_started = Instant::now();
-                let payload = match (projection, filter) {
-                    (Some(projection), Some(filter)) => {
-                        crate::adapter::decode_projected_row_matching_with_aliases_and_hooks(
-                            row_schema,
-                            &raw_value,
-                            projection,
-                            &filter.field,
-                            &filter.value,
-                            include_historical_aliases,
-                            &self.value_hooks(),
-                        )?
-                    }
-                    (Some(projection), None) => Some(if include_historical_aliases {
-                        crate::adapter::decode_projected_row_with_aliases_and_hooks(
-                            row_schema,
-                            &raw_value,
-                            projection,
-                            &self.value_hooks(),
-                        )?
-                    } else {
-                        crate::adapter::decode_projected_row_with_hooks(
-                            row_schema,
-                            &raw_value,
-                            projection,
-                            &self.value_hooks(),
-                        )?
-                    }),
-                    (None, _) => Some(super::super::decode_row_with_hooks(
-                        row_schema,
-                        &raw_value,
-                        &self.value_hooks(),
-                    )?),
-                };
+                let payload = self.decode_row_blob_payload(
+                    row_schema,
+                    &raw_value,
+                    projection,
+                    filter,
+                    include_historical_aliases,
+                )?;
                 row_decode += decode_started.elapsed();
                 let Some(payload) = payload else {
                     continue;
@@ -362,5 +339,41 @@ impl Midge {
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
         self.scan_documents(collection)
             .map(|docs| docs.into_iter().map(|doc| (doc.id, doc.payload)).collect())
+    }
+
+    fn decode_row_blob_payload(
+        &self,
+        row_schema: &RowSchema,
+        raw_value: &[u8],
+        projection: Option<&HashSet<String>>,
+        filter: Option<&RowFilter>,
+        include_historical_aliases: bool,
+    ) -> Result<Option<serde_json::Value>, CassieError> {
+        let hooks = self.value_hooks();
+        match (projection, filter) {
+            (Some(projection), Some(filter)) => {
+                crate::adapter::decode_projected_row_matching_with_aliases_and_hooks(
+                    row_schema,
+                    raw_value,
+                    projection,
+                    &filter.field,
+                    &filter.value,
+                    include_historical_aliases,
+                    &hooks,
+                )
+            }
+            (Some(projection), None) => Ok(Some(if include_historical_aliases {
+                crate::adapter::decode_projected_row_with_aliases_and_hooks(
+                    row_schema, raw_value, projection, &hooks,
+                )?
+            } else {
+                crate::adapter::decode_projected_row_with_hooks(
+                    row_schema, raw_value, projection, &hooks,
+                )?
+            })),
+            (None, _) => Ok(Some(super::super::decode_row_with_hooks(
+                row_schema, raw_value, &hooks,
+            )?)),
+        }
     }
 }

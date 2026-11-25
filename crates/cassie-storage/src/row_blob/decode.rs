@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::BuildHasher};
 
 use cassie_core::types::{extended::ExtendedType, ArrayDimension, DataType, SqlArray, Value};
 use cassie_sql::column_identifier::ColumnIdentifierPath;
@@ -27,36 +27,50 @@ impl<E> From<StorageCodecError> for RowBlobDecodeError<E> {
     }
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_row<E>(
     schema: &RowSchema,
     row: &[u8],
     decode_json: impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
-    decode_with_projection(schema, row, None, false, &decode_json)
+    decode_with_projection::<E, std::collections::hash_map::RandomState>(
+        schema,
+        row,
+        None,
+        false,
+        &decode_json,
+    )
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_projected_row<E>(
     schema: &RowSchema,
     row: &[u8],
-    projection: &HashSet<String>,
+    projection: &HashSet<String, impl BuildHasher>,
     decode_json: impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
-    decode_with_projection(schema, row, Some(projection), false, &decode_json)
+    decode_with_projection::<E, S>(schema, row, Some(projection), false, &decode_json)
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_projected_row_with_aliases<E>(
     schema: &RowSchema,
     row: &[u8],
-    projection: &HashSet<String>,
+    projection: &HashSet<String, impl BuildHasher>,
     decode_json: impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
-    decode_with_projection(schema, row, Some(projection), true, &decode_json)
+    decode_with_projection::<E, S>(schema, row, Some(projection), true, &decode_json)
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_projected_row_matching<E>(
     schema: &RowSchema,
     row: &[u8],
-    projection: &HashSet<String>,
+    projection: &HashSet<String, impl BuildHasher>,
     filter_field: &str,
     filter_value: &serde_json::Value,
     include_historical_aliases: bool,
@@ -97,6 +111,8 @@ pub fn decode_projected_row_matching<E>(
     Ok((saw_filter && matched_filter).then_some(object.into()))
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_compact_field_value<E>(
     data_type: &DataType,
     bytes: &[u8],
@@ -138,10 +154,10 @@ pub fn decode_compact_field_value<E>(
     Ok(Some(value))
 }
 
-fn decode_with_projection<E>(
+fn decode_with_projection<E, S: BuildHasher>(
     schema: &RowSchema,
     row: &[u8],
-    projection: Option<&HashSet<String>>,
+    projection: Option<&HashSet<String, S>>,
     aliases: bool,
     decode_json: &impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
@@ -197,9 +213,9 @@ fn decode_field<E>(
     Ok(Some(value))
 }
 
-fn names_for_field(
+fn names_for_field<S: BuildHasher>(
     field: &RowFieldMeta,
-    projection: Option<&HashSet<String>>,
+    projection: Option<&HashSet<String, S>>,
     aliases: bool,
     active: &HashSet<String>,
 ) -> Vec<String> {
@@ -342,7 +358,7 @@ fn decode_value<E>(
                 .ok_or_else(|| invalid("unknown typed value in row blob"))?;
             kind.receive_binary(payload)
                 .map(|typed| typed.to_json())
-                .map_err(|error| invalid(error.to_string()).into())
+                .map_err(|error| invalid(error.clone()).into())
         }
         _ => Err(invalid(format!("unsupported row blob type tag {tag}")).into()),
     }
@@ -418,7 +434,7 @@ fn decode_array_extended(cursor: &mut Cursor<'_>) -> Result<Value, StorageCodecE
         .ok_or_else(|| invalid("unknown typed array value in row blob"))?;
     kind.receive_binary(payload)
         .map(Value::Typed)
-        .map_err(|error| invalid(error.to_string()))
+        .map_err(|error| invalid(error.clone()))
 }
 
 fn value_from_decoded_tag<E>(
@@ -704,6 +720,8 @@ pub enum CompactScalar<'a> {
     Generic(Option<serde_json::Value>),
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn decode_compact_scalar<'a, E>(
     data_type: &DataType,
     bytes: &'a [u8],
@@ -788,6 +806,7 @@ pub fn decode_compact_scalar<'a, E>(
     }
 }
 
+#[must_use]
 pub fn encode_compact_sql_null() -> Vec<u8> {
     vec![TYPE_NULL]
 }
@@ -798,6 +817,7 @@ pub struct VectorColumn {
 }
 
 impl VectorColumn {
+    #[must_use]
     pub fn resolve(schema: &RowSchema, field_name: &str) -> Option<Self> {
         let requested = ColumnIdentifierPath::from_field_name(field_name).lookup_key();
         let active = schema
@@ -824,12 +844,16 @@ pub struct PackedVector<'a> {
 }
 
 impl PackedVector<'_> {
+    #[must_use]
     pub const fn dimensions(&self) -> usize {
         self.components.len() / 4
     }
+    #[must_use]
     pub const fn decoded_bytes(&self) -> usize {
         self.components.len()
     }
+    /// # Errors
+    /// Returns a codec error when packed vector bytes contain a non-finite component.
     pub fn to_f32(self) -> Result<Vec<f32>, StorageCodecError> {
         let mut values = Vec::with_capacity(self.dimensions());
         for chunk in self.components.as_chunks::<4>().0 {
@@ -848,6 +872,8 @@ pub struct VectorRowParts<'a> {
     pub payload: Option<serde_json::Value>,
 }
 
+/// # Errors
+/// Returns a codec error for malformed or schema-inconsistent row data, or forwards an error from the JSON decoder.
 pub fn split_vector_row<'a, E>(
     schema: &RowSchema,
     column: &VectorColumn,

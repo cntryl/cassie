@@ -225,6 +225,9 @@ impl Midge {
         Ok(report.row_delta < 0)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if document validation, indexing, or the storage commit fails.
     pub fn put_document_with_stats_and_options(
         &self,
         collection: &str,
@@ -247,6 +250,9 @@ impl Midge {
         Ok((doc_id, report.stats, report.row_delta))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if document deletion or the storage commit fails.
     pub fn delete_document_with_stats_and_options(
         &self,
         collection: &str,
@@ -274,6 +280,9 @@ impl Midge {
         )
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if validation, indexing, or the storage commit fails.
     pub fn apply_document_write_batch_with_options(
         &self,
         collection: &str,
@@ -290,6 +299,9 @@ impl Midge {
         Ok(reports.remove(&collection).unwrap_or_default())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if validation, indexing, or the storage commit fails.
     pub fn apply_document_write_batches_with_options(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
@@ -298,6 +310,9 @@ impl Midge {
         self.apply_document_write_batches_with_storage_overlay::<()>(writes, options, None, None)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if validation, indexing, or the storage commit fails.
     pub fn apply_document_write_batches_with_transactional_ddl(
         &self,
         writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
@@ -343,13 +358,7 @@ impl Midge {
             }
             return Ok(BTreeMap::new());
         }
-        let mut canonical_writes = BTreeMap::<String, Vec<DocumentWriteOp>>::new();
-        for (collection, operations) in writes {
-            canonical_writes
-                .entry(self.canonical_collection_name(collection))
-                .or_default()
-                .extend(operations.iter().cloned());
-        }
+        let canonical_writes = self.canonicalize_document_writes(writes);
 
         let mut attempts = 0u8;
         loop {
@@ -450,6 +459,20 @@ impl Midge {
                 },
             }
         }
+    }
+
+    fn canonicalize_document_writes(
+        &self,
+        writes: &BTreeMap<String, Vec<DocumentWriteOp>>,
+    ) -> BTreeMap<String, Vec<DocumentWriteOp>> {
+        let mut canonical_writes = BTreeMap::<String, Vec<DocumentWriteOp>>::new();
+        for (collection, operations) in writes {
+            canonical_writes
+                .entry(self.canonical_collection_name(collection))
+                .or_default()
+                .extend(operations.iter().cloned());
+        }
+        canonical_writes
     }
 
     fn apply_prepared_document_write_batches<A>(

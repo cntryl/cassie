@@ -180,6 +180,9 @@ impl ColumnBatchScanState {
 }
 
 impl Midge {
+    ///
+    /// # Errors
+    /// Returns request-control errors or a failure reading an aggregate source.
     pub fn execute_column_batch_aggregates_controlled(
         &self,
         collection: &str,
@@ -519,6 +522,9 @@ impl Midge {
         })
     }
 
+    ///
+    /// # Errors
+    /// Returns request-control, source read, or stored batch decoding errors.
     pub fn scan_column_batch_projected_rows_controlled(
         &self,
         request: &ControlledColumnBatchScanRequest<'_>,
@@ -623,6 +629,9 @@ impl Midge {
         )))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error when the collection row schema cannot be loaded.
     pub fn column_batch_request_uses_json_fields(
         &self,
         collection: &str,

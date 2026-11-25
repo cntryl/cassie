@@ -9,6 +9,8 @@ use super::{
     TYPE_TIMESTAMP, TYPE_UUID, TYPE_VECTOR_F32,
 };
 
+/// # Errors
+/// Returns a value error when the value cannot be represented by the declared row type.
 pub fn encode_compact_value(
     data_type: &DataType,
     value: &serde_json::Value,
@@ -379,7 +381,7 @@ fn encode_composite(
         out.push(tag);
         match tag {
             TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => {
-                out.extend_from_slice(&data)
+                out.extend_from_slice(&data);
             }
             _ => {
                 write_varint(u64::try_from(data.len()).unwrap_or(u64::MAX), &mut out);

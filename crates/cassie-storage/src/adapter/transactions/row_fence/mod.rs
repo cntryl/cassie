@@ -25,6 +25,9 @@ impl std::fmt::Debug for RetainedRowFence {
 }
 
 impl RetainedRowFence {
+    ///
+    /// # Errors
+    /// Returns an error if the current family cannot be resolved or the native fence cannot be opened.
     pub fn capture(
         midge: &Arc<Midge>,
         database: &str,
@@ -48,6 +51,9 @@ impl RetainedRowFence {
         }))
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if interruption, family validation, row checking, or commit fails.
     pub fn validate_rows<'a>(
         self: Box<Self>,
         rows: impl IntoIterator<Item = Result<(&'a str, u64, &'a str), CassieError>>,

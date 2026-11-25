@@ -27,6 +27,7 @@ pub struct ControlledRetrievalDocument {
 }
 
 impl ControlledRetrievalDocument {
+    #[must_use]
     pub fn into_parts(self) -> (DocumentRef, RequestMemoryReservation) {
         (self.document, self.memory)
     }
@@ -91,6 +92,7 @@ fn provisional_column_field_bytes(
 }
 
 impl ControlledFulltextCandidateSet {
+    #[must_use]
     pub fn into_parts(self) -> (PersistedFulltextCandidateSet, RequestMemoryReservation) {
         (self.candidates, self.memory)
     }

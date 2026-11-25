@@ -254,6 +254,9 @@ impl MutationKeys {
 }
 
 impl RetainedRowHistory {
+    ///
+    /// # Errors
+    /// Returns an error if row identity cannot be read or a concurrent row change is detected.
     pub fn check_row(
         &self,
         midge: &crate::adapter::Midge,
@@ -273,6 +276,9 @@ impl RetainedRowHistory {
         self.check_keys(keys.iter().map(Vec::as_slice), controls)
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if publication waiting is interrupted or a concurrent row change is detected.
     pub fn check_keys<'a>(
         &self,
         keys: impl IntoIterator<Item = &'a [u8]>,

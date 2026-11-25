@@ -116,9 +116,7 @@ pub fn lifecycle_journal_is_empty(midge: &Midge) -> bool {
         return false;
     };
     let query = Query::new().prefix(key_encoding::database_lifecycle_prefix().into());
-    collect_scan(read.scan(&query).unwrap())
-        .map(|entries| entries.is_empty())
-        .unwrap_or(false)
+    collect_scan(read.scan(&query).unwrap()).is_ok_and(|entries| entries.is_empty())
 }
 
 /// Persists one ambiguous owner/family/journal state for a startup rejection test.
@@ -183,7 +181,7 @@ pub fn persist_ambiguity(
             .unwrap();
         }
         CreateRetryAmbiguity::InvalidStagedFamily => {
-            intent.physical_family = "db-invalid".to_owned();
+            "db-invalid".clone_into(&mut intent.physical_family);
             Midge::write_lifecycle_record(&mut tx, &intent).unwrap();
         }
         CreateRetryAmbiguity::InvalidReplacementFamily => {

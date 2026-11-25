@@ -87,6 +87,9 @@ impl Midge {
         values
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the database transaction or native scan fails.
     pub fn raw_scan_database_page(
         &self,
         database: &str,
@@ -109,6 +112,9 @@ impl Midge {
             .collect())
     }
 
+    ///
+    /// # Errors
+    /// Returns an error if the collection transaction or native scan fails.
     pub fn raw_scan_prefix_for_collection(
         &self,
         collection: &str,

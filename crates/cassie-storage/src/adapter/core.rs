@@ -14,6 +14,13 @@ use cassie_core::types::{DataType, Schema, Value};
 
 use super::StorageError;
 
+#[doc(hidden)]
+pub type ScalarExpressionEvaluator =
+    fn(&str, &str, &[(String, Value)]) -> Result<Value, StorageError>;
+#[doc(hidden)]
+pub type ScalarPredicateEvaluator =
+    fn(&str, &str, Vec<(String, Value)>) -> Result<bool, StorageError>;
+
 /// Engine policy callbacks required by concrete Midge operations.
 #[derive(Clone, Copy)]
 #[doc(hidden)]
@@ -22,10 +29,8 @@ pub struct StorageValueHooks {
     pub(crate) decode_typed_value: fn(&serde_json::Value, &DataType) -> Result<Value, StorageError>,
     pub(crate) validate_graph_fields:
         fn(&Schema, &serde_json::Map<String, serde_json::Value>) -> Result<(), StorageError>,
-    pub(crate) evaluate_scalar_expression:
-        fn(&str, &str, &[(String, Value)]) -> Result<Value, StorageError>,
-    pub(crate) evaluate_scalar_predicate:
-        fn(&str, &str, Vec<(String, Value)>) -> Result<bool, StorageError>,
+    pub(crate) evaluate_scalar_expression: ScalarExpressionEvaluator,
+    pub(crate) evaluate_scalar_predicate: ScalarPredicateEvaluator,
 }
 
 impl Default for StorageValueHooks {
@@ -68,16 +73,8 @@ impl StorageValueHooks {
             &Schema,
             &serde_json::Map<String, serde_json::Value>,
         ) -> Result<(), StorageError>,
-        evaluate_scalar_expression: fn(
-            &str,
-            &str,
-            &[(String, Value)],
-        ) -> Result<Value, StorageError>,
-        evaluate_scalar_predicate: fn(
-            &str,
-            &str,
-            Vec<(String, Value)>,
-        ) -> Result<bool, StorageError>,
+        evaluate_scalar_expression: ScalarExpressionEvaluator,
+        evaluate_scalar_predicate: ScalarPredicateEvaluator,
     ) -> Self {
         Self {
             decode_json,
@@ -147,6 +144,8 @@ mod value_hook_tests {
 }
 
 impl Midge {
+    /// # Errors
+    /// Returns an error if the requested budget cannot be installed.
     pub fn configure_repeatable_history_budget(&self, bytes: usize) -> Result<(), CassieError> {
         self.publication.configure_history_budget(bytes)
     }
@@ -177,6 +176,10 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
     }
 
+    /// Opens local storage with the requested native memory limits.
+    ///
+    /// # Errors
+    /// Returns an error if the storage path or memory limits cannot be opened.
     pub fn new_with_data_dir_database_and_memory_limits(
         data_dir: &Path,
         database: &str,
@@ -188,6 +191,10 @@ impl Midge {
         Self::open_with_write_policy(config.open_options, database, config.write_policy)
     }
 
+    /// Opens an in-memory Midge instance.
+    ///
+    /// # Errors
+    /// Returns an error if Midge cannot initialize its in-memory store.
     pub fn new_in_memory(default_database: impl Into<String>) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::in_memory()
             .build()
@@ -199,6 +206,10 @@ impl Midge {
         )
     }
 
+    /// Opens an in-memory Midge instance with optional native memory limits.
+    ///
+    /// # Errors
+    /// Returns an error if Midge cannot initialize with the requested limits.
     pub fn new_in_memory_with_limits(
         default_database: impl Into<String>,
         budget: Option<usize>,
@@ -679,6 +690,10 @@ impl Midge {
         })
     }
 
+    /// Runs an operation while holding its collection and optional referential write gates.
+    ///
+    /// # Errors
+    /// Returns the operation error or an error produced while waiting for a gate.
     pub fn with_transaction_write_gates<T, E>(
         &self,
         collections: &[String],
@@ -699,6 +714,9 @@ impl Midge {
     }
 
     /// Serializes a SQL sequence update through its catalog cursor publication.
+    ///
+    /// # Errors
+    /// Returns the operation error or an error produced while acquiring the sequence gate.
     pub fn with_sequence_update_gate<T, E: From<CassieError>>(
         &self,
         sequence: &str,
@@ -726,6 +744,9 @@ impl Midge {
     /// Like [`Self::with_collection_write_gates`], but waits for each gate in
     /// bounded steps and returns the first interruption `check` reports. No gate
     /// is retained when the wait is interrupted.
+    ///
+    /// # Errors
+    /// Returns the interruption error or the operation's error.
     pub fn with_collection_write_gates_interruptible<T, E>(
         &self,
         collections: &[String],

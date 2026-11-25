@@ -420,7 +420,7 @@ fn index_items(
                 columns: Vec::new(),
                 metadata: Some(format!(
                     "{} on {}({})",
-                    index_kind_label(&index.kind),
+                    index_kind_label(index.kind),
                     index.collection,
                     fields
                 )),
@@ -508,7 +508,7 @@ fn column_count_label(column_count: usize) -> String {
     }
 }
 
-fn index_kind_label(kind: &IndexKind) -> &'static str {
+fn index_kind_label(kind: IndexKind) -> &'static str {
     match kind {
         IndexKind::Scalar => "scalar",
         IndexKind::FullText => "fulltext",

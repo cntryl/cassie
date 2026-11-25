@@ -746,7 +746,7 @@ async fn handle_simple_copy_from_stdin(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> bool {
-    let mut payload = match CopyPayload::new(&binding.controls()) {
+    let mut payload = match CopyPayload::new(binding.controls()) {
         Ok(payload) => payload,
         Err(error) => {
             return matches!(
@@ -760,7 +760,7 @@ async fn handle_simple_copy_from_stdin(
         let (message, _frame_memory) = match read_admitted_copy_message(
             cancellation.as_ref(),
             binding.controls().deadline,
-            &binding.controls(),
+            binding.controls(),
             reader,
         )
         .await
@@ -793,7 +793,7 @@ async fn handle_simple_copy_from_stdin(
                         "COPY FROM STDIN payload exceeds {MAX_FRONTEND_MESSAGE_BYTES} bytes"
                     )));
                 }
-                if let Err(error) = payload.append(&chunk, &binding.controls()) {
+                if let Err(error) = payload.append(&chunk, binding.controls()) {
                     break cassie_pg_error(&error);
                 }
                 #[cfg(test)]
@@ -815,7 +815,7 @@ async fn handle_simple_copy_from_stdin(
             }
             Ok(FrontendMessage::CopyFail(message)) => {
                 let (message, _error_memory) =
-                    match payload_owner::copy_fail_message(&message, &binding.controls()) {
+                    match payload_owner::copy_fail_message(&message, binding.controls()) {
                         Ok(value) => value,
                         Err(error) => {
                             return matches!(

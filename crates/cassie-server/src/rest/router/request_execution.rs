@@ -37,8 +37,8 @@ pub(super) async fn run_server(
     let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
     let tls_options = cassie.rest_tls_options();
     let tls_config = crate::rest::tls::load_server_config(
-        tls_options.certificate_path.as_deref(),
-        tls_options.private_key_path.as_deref(),
+        tls_options.certificate_path,
+        tls_options.private_key_path,
     )?;
     let admission = Arc::new(Semaphore::new(
         cassie.runtime().limits().rest_max_connections.max(1),

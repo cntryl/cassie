@@ -50,10 +50,10 @@ mod worker;
 pub use aggregate::columns_from_projection;
 
 mod projection_refresh_hooks;
+pub(crate) use projection_refresh_hooks::observe_projection_publication_wait;
 pub use projection_refresh_hooks::{
-    set_materialized_projection_refresh_wait_observer,
     set_materialized_projection_replace_barriers,
-    set_materialized_projection_replace_start_barriers,
+    set_materialized_projection_replace_start_barriers, set_projection_publication_wait_observer,
 };
 
 type RollupPublicationTestBarriers = (

@@ -28,11 +28,11 @@ pub fn set_materialized_projection_replace_barriers(
 }
 
 #[doc(hidden)]
-pub fn set_materialized_projection_refresh_wait_observer(sender: mpsc::Sender<()>) {
+pub fn set_projection_publication_wait_observer(sender: mpsc::Sender<()>) {
     GATE_WAIT.set(Some(sender));
 }
 
-pub(super) fn observe_refresh_gate_wait() {
+pub(crate) fn observe_projection_publication_wait() {
     if let Some(sender) = GATE_WAIT.take() {
         let _ = sender.send(());
     }

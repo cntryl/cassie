@@ -89,6 +89,12 @@ impl StorageValueHooks {
 #[path = "storage_compatibility.rs"]
 mod storage_compatibility;
 
+#[derive(Eq, Hash, PartialEq)]
+enum WriteGateName {
+    Collection(String),
+    ProjectionPublication(String),
+}
+
 pub struct Midge {
     pub(super) engine: Engine,
     write_policy: super::storage_config::WritePolicy,
@@ -98,7 +104,7 @@ pub struct Midge {
     pub(super) storage_layout: OnceLock<StorageLayout>,
     pub(super) database_families: RwLock<BTreeMap<String, super::DatabaseFamily>>,
     pub(super) default_database: String,
-    collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
+    write_gates: Mutex<HashMap<WriteGateName, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
     pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
@@ -241,7 +247,7 @@ impl Midge {
             storage_layout: OnceLock::new(),
             database_families: RwLock::new(BTreeMap::new()),
             default_database: default_database.into(),
-            collection_write_gates: Mutex::new(HashMap::new()),
+            write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
             publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
@@ -825,9 +831,22 @@ impl Midge {
     }
 
     pub fn collection_write_gate(&self, collection: &str) -> Arc<ReentrantMutex<()>> {
-        let mut gates = self.collection_write_gates.lock();
-        gates
-            .entry(collection.to_ascii_lowercase())
+        self.write_gate(WriteGateName::Collection(collection.to_ascii_lowercase()))
+    }
+
+    /// Serializes refresh and replay metadata across aliases of a projection.
+    /// Acquire it before any referential or collection write gate.
+    #[doc(hidden)]
+    pub fn projection_publication_gate(&self, projection: &str) -> Arc<ReentrantMutex<()>> {
+        self.write_gate(WriteGateName::ProjectionPublication(
+            self.canonical_collection_name(projection),
+        ))
+    }
+
+    fn write_gate(&self, name: WriteGateName) -> Arc<ReentrantMutex<()>> {
+        self.write_gates
+            .lock()
+            .entry(name)
             .or_insert_with(|| Arc::new(ReentrantMutex::new(())))
             .clone()
     }

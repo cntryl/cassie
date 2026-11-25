@@ -349,27 +349,23 @@ pub(super) fn refresh_materialized_projection_data(
     controls: &QueryExecutionControls,
     repair_collections: &[String],
 ) -> Result<(), QueryError> {
-    // Serialize the logical projection before selecting its snapshot. Take any
-    // repair source/output gates inside this guard; ordinary source writes
-    // must still be able to finish while a refresh is building.
-    let projection = cassie.midge.canonical_collection_name(name);
-    let gate = cassie.midge.collection_write_gate(&projection);
-    let _publication = loop {
-        controls.check_interruption()?;
-        if let Some(guard) = gate.try_lock_for(std::time::Duration::from_millis(2)) {
-            break guard;
-        }
-        crate::executor::projection_refresh_hooks::observe_refresh_gate_wait();
-    };
-    controls.check_interruption()?;
-    let refresh = || refresh_materialized_projection_gated(cassie, name, user_functions, controls);
-    if repair_collections.is_empty() {
-        refresh()
-    } else {
-        cassie
-            .midge
-            .with_collection_write_gates(repair_collections, refresh)
-    }
+    cassie.with_projection_publication(
+        name,
+        || controls.check_interruption().map_err(QueryError::from),
+        || {
+            let refresh =
+                || refresh_materialized_projection_gated(cassie, name, user_functions, controls);
+            if repair_collections.is_empty() {
+                refresh()
+            } else {
+                cassie.midge.with_collection_write_gates_interruptible(
+                    repair_collections,
+                    || controls.check_interruption().map_err(QueryError::from),
+                    refresh,
+                )
+            }
+        },
+    )
 }
 
 fn refresh_materialized_projection_gated(

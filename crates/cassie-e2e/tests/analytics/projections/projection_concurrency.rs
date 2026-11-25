@@ -49,9 +49,8 @@ use cassie::app::{
     CassieSession, ProjectionReplayBatch, ProjectionReplayEvent,
 };
 use cassie::executor::{
-    set_materialized_projection_refresh_wait_observer,
     set_materialized_projection_replace_barriers,
-    set_materialized_projection_replace_start_barriers,
+    set_materialized_projection_replace_start_barriers, set_projection_publication_wait_observer,
 };
 use cassie::types::Value;
 
@@ -178,7 +177,7 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
     let second_cassie = Arc::clone(&cassie);
     let second = std::thread::spawn(move || {
         let session = second_cassie.create_session("second", None);
-        set_materialized_projection_refresh_wait_observer(second_boundary_tx);
+        set_projection_publication_wait_observer(second_boundary_tx);
         let result = second_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED PROJECTION projection_concurrent",
@@ -221,6 +220,127 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
         ]
     );
     pause_cleanup.disarm();
+}
+
+#[test]
+fn should_wait_for_refresh_before_replay_acquires_collection_write_gates() {
+    // Arrange
+    let _guard = projection_concurrency_test_guard();
+    let (cassie, setup) = concurrent_projection_fixture();
+    execute_setup(
+        &cassie,
+        &setup,
+        &[
+            "CREATE TABLE mixed_source (title TEXT)",
+            "INSERT INTO mixed_source VALUES ('original')",
+            "CREATE MATERIALIZED PROJECTION mixed_target AS SELECT title FROM mixed_source",
+            "CREATE MATERIALIZED PROJECTION mixed_other AS SELECT title FROM mixed_source",
+        ],
+    );
+    let ready = Arc::new(Barrier::new(2));
+    let resume = Arc::new(Barrier::new(2));
+    let refresh_pause = (Arc::clone(&ready), Arc::clone(&resume));
+    let mut cleanup = ProjectionPauseCleanup::arm([(Arc::clone(&ready), Arc::clone(&resume))]);
+    let refresh_cassie = Arc::clone(&cassie);
+    let refresh = std::thread::spawn(move || {
+        set_materialized_projection_replace_start_barriers(
+            Some(refresh_pause.0),
+            Some(refresh_pause.1),
+        );
+        let session = refresh_cassie.create_session("refresh", None);
+        refresh_cassie.execute_sql(
+            &session,
+            "REFRESH MATERIALIZED PROJECTION mixed_target",
+            vec![],
+        )
+    });
+    wait_for_barrier(&ready, "first refresh holds the publication gate");
+
+    // Act
+    let cancel = cassie::runtime::QueryCancellationHandle::new();
+    let canceled = start_contending_replay(
+        &cassie,
+        "public.mixed_target",
+        "canceled",
+        Some(cancel.clone()),
+    );
+    cancel.cancel();
+    let canceled_result = canceled
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("replay cancels before refresh resumes");
+    let canonical = cassie.midge.canonical_collection_name("mixed_target");
+    let after_cancel = cassie
+        .midge
+        .projection_metadata(&canonical)
+        .unwrap()
+        .unwrap();
+    let replay = start_contending_replay(&cassie, &canonical, "completed", None);
+    execute_setup(
+        &cassie,
+        &setup,
+        &[
+            "INSERT INTO mixed_source VALUES ('new')",
+            "REFRESH MATERIALIZED PROJECTION mixed_other",
+        ],
+    );
+    wait_for_barrier(&resume, "allow refresh to acquire output gates");
+    let refresh_result = cassie::runtime::test_sync::join_test_thread(
+        refresh,
+        "refresh completes despite contended replay",
+    );
+    let replay_result = replay
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("replay reaches semantic validation");
+    let durable = cassie
+        .midge
+        .projection_metadata(&canonical)
+        .unwrap()
+        .unwrap();
+    let catalog = cassie.catalog.get_projection_metadata(&canonical).unwrap();
+
+    // Assert
+    assert!(matches!(
+        canceled_result,
+        Err(cassie::app::CassieError::QueryCanceled)
+    ));
+    assert_eq!(after_cancel.replay_batch_id, None);
+    assert_eq!(after_cancel.last_error, None);
+    refresh_result.expect("refresh publishes its output before replay");
+    let expected_error = "projection replay event id cannot be empty";
+    assert!(
+        matches!(replay_result, Err(cassie::app::CassieError::Execution(message)) if message == expected_error)
+    );
+    assert_eq!(durable.replay_batch_id.as_deref(), Some("completed"));
+    assert_eq!(durable.last_error.as_deref(), Some(expected_error));
+    assert_eq!(catalog.replay_batch_id, durable.replay_batch_id);
+    assert_eq!(catalog.last_error, durable.last_error);
+    cleanup.disarm();
+}
+
+fn start_contending_replay(
+    cassie: &Arc<Cassie>,
+    projection: &str,
+    batch_id: &str,
+    cancellation: Option<cassie::runtime::QueryCancellationHandle>,
+) -> mpsc::Receiver<Result<cassie::app::ProjectionReplayReport, cassie::app::CassieError>> {
+    let (wait_tx, wait_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
+    let engine = Arc::clone(cassie);
+    let mut batch = replay_batch(projection, batch_id, "document", "unused", 1);
+    batch.events[0].event_id.clear();
+    std::thread::spawn(move || {
+        set_projection_publication_wait_observer(wait_tx);
+        let result = if let Some(cancel) = cancellation {
+            engine.replay_projection_batch_cancellable(batch, &cancel)
+        } else {
+            engine.replay_projection_batch(batch)
+        };
+        done_tx.send(result).expect("send replay outcome");
+    });
+    wait_rx
+        .recv_timeout(CONCURRENCY_DEADLINE)
+        .expect("actual same-projection publication contention");
+    done_rx
 }
 
 #[test]

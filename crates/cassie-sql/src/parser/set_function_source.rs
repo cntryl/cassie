@@ -29,6 +29,8 @@ pub(super) fn parse(raw: &str) -> Result<Option<QuerySource>, SqlError> {
     let unnest = crate::registry::table_sources::is_unnest(&function.name);
     let default_name = if let Some(json) = json {
         json.function_name()
+    } else if crate::registry::table_sources::is_partition_ancestors(&function.name) {
+        "pg_partition_ancestors".to_owned()
     } else if unnest {
         "unnest".to_owned()
     } else {

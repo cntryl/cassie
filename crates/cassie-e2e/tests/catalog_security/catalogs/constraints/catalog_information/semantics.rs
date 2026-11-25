@@ -269,3 +269,37 @@ fn should_describe_relation_attributes_and_constraints_for_psql() {
         ])
     );
 }
+
+#[test]
+fn should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_lookups() {
+    // Arrange
+    let fixture = sql_fixture(
+        "psql-foreign-key-ancestors",
+        &[
+            "CREATE TABLE ordinary_parent (id INT PRIMARY KEY)",
+            "CREATE TABLE ordinary_child (parent_id INT REFERENCES ordinary_parent(id))",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let ancestors = fixture
+        .execute("SELECT pg_catalog.pg_partition_ancestors('ordinary_parent')")
+        .unwrap();
+    let source = fixture.rows("SELECT relid, depth FROM pg_catalog.pg_partition_ancestors('ordinary_parent') WITH ORDINALITY AS a(relid, depth)");
+    let referencing = fixture.rows("SELECT conname FROM pg_catalog.pg_constraint WHERE confrelid IN (
+        SELECT pg_catalog.pg_partition_ancestors('ordinary_parent') UNION ALL VALUES ('ordinary_parent'::regclass)
+    ) AND contype = 'f' AND conparentid = 0");
+    let missing_name =
+        fixture.execute("SELECT pg_catalog.pg_partition_ancestors('no_such_parent')");
+
+    // Assert
+    assert!(ancestors.rows().is_empty());
+    assert_eq!(ancestors.columns()[0].type_oid, 2205);
+    assert!(source.is_empty());
+    assert_eq!(
+        referencing,
+        vec![vec![Value::String("ordinary_child_parent_id_fkey".into())]]
+    );
+    assert!(missing_name.is_err());
+}

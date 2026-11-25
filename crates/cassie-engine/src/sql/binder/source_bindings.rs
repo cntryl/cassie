@@ -341,6 +341,27 @@ fn source(
             for (index, argument) in function.args.iter_mut().enumerate() {
                 if let Some(signature) = &signature {
                     cast_input(argument, &signature.inputs[index], types);
+                } else if table_sources::is_partition_ancestors(&function.name) {
+                    if !matches!(argument, Expr::StringLiteral(_) | Expr::Null)
+                        && types.expression_type(argument).is_some_and(|kind| {
+                            !matches!(
+                                kind,
+                                DataType::Null
+                                    | DataType::SmallInt
+                                    | DataType::Int
+                                    | DataType::ObjectId(_)
+                            )
+                        })
+                    {
+                        return Err(CassieError::Execution(
+                            "pg_partition_ancestors requires a regclass argument".into(),
+                        ));
+                    }
+                    cast_input(
+                        argument,
+                        &DataType::ObjectId(crate::types::ObjectIdKind::RegClass),
+                        types,
+                    );
                 } else if table_sources::is_unnest(&function.name) {
                     if let Some(kind @ DataType::Array(_)) = types.expression_type(argument) {
                         cast_input(argument, &kind, types);

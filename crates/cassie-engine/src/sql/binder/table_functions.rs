@@ -22,6 +22,19 @@ fn validate_table_function(
     form: Option<&TableFunctionForm>,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
+    if crate::sql::table_sources::is_partition_ancestors(&function.name) {
+        let [argument] = function.args.as_slice() else {
+            return Err(CassieError::Execution(
+                "pg_partition_ancestors requires one regclass argument".into(),
+            ));
+        };
+        if function.has_modifiers() {
+            return Err(CassieError::Execution(
+                "pg_partition_ancestors does not accept aggregate modifiers".into(),
+            ));
+        }
+        return validate_expression(argument, lateral_fields, &HashSet::new(), false);
+    }
     if crate::sql::table_sources::is_series(&function.name) {
         return validate_series(function, lateral_fields);
     }
@@ -166,8 +179,15 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
     else {
         return Vec::new();
     };
-    if crate::sql::table_sources::is_series(&function.name) {
-        let mut columns = vec![(crate::sql::table_sources::physical_name(0), DataType::Null)];
+    if crate::sql::table_sources::is_series(&function.name)
+        || crate::sql::table_sources::is_partition_ancestors(&function.name)
+    {
+        let kind = if crate::sql::table_sources::is_partition_ancestors(&function.name) {
+            DataType::ObjectId(crate::types::ObjectIdKind::RegClass)
+        } else {
+            DataType::Null
+        };
+        let mut columns = vec![(crate::sql::table_sources::physical_name(0), kind)];
         if *with_ordinality {
             columns.push((
                 crate::sql::table_sources::physical_name(1),

@@ -504,7 +504,7 @@ fn should_rollback_materialized_view_refresh() {
 }
 
 #[test]
-fn should_hide_materialized_view_until_drop_commits_and_restore_it_on_rollback() {
+fn should_follow_transactional_visibility_for_materialized_view_drop() {
     // Arrange
     let fixture = sql_fixture("materialized-view-drop", &[
         "CREATE TABLE public.mv_drop_source (id INT PRIMARY KEY)",

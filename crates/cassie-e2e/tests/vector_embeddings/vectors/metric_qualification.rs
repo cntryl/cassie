@@ -3,7 +3,7 @@ use cassie::types::Value;
 use std::sync::atomic::Ordering;
 
 #[test]
-fn should_rank_exact_dot_from_raw_vectors_with_underflow_and_identity_ties() {
+fn should_rank_raw_dot_products_by_score_then_identity_despite_underflow() {
     // Arrange
     let cases = [
         ([1e30_f32, 1e-20, 0.0], [1e30_f32, 2e-20, 0.0], ["b", "a"]),

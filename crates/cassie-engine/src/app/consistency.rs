@@ -39,17 +39,14 @@ impl Cassie {
         projection: &str,
         options: ProjectionManifestExportOptions,
     ) -> Result<ProjectionVerificationManifest, CassieError> {
-        let metadata = self
-            .catalog
-            .get_projection_metadata(projection)
-            .or_else(|| self.midge.projection_metadata(projection).ok().flatten())
-            .ok_or_else(|| CassieError::NotFound(format!("projection not found: {projection}")))?;
-        let hash_collection = metadata
-            .active_output_collection()
-            .unwrap_or(metadata.projection_id());
-        let root = self.midge.root_hash(hash_collection)?;
-        let mut ranges = self.midge.list_range_hashes(hash_collection)?;
-        ranges.sort_by_key(|range| range.range_id);
+        let crate::midge::adapter::ProjectionManifestSnapshot {
+            metadata,
+            root,
+            ranges,
+            rows,
+        } = self
+            .midge
+            .projection_manifest_snapshot(projection, options.include_row_hashes)?;
         let generated_ms = options.generated_ms.unwrap_or_else(current_time_millis);
         let ttl_ms = options.ttl_ms.unwrap_or(DEFAULT_MANIFEST_TTL_MS);
         let schema_epoch = root
@@ -100,11 +97,7 @@ impl Cassie {
             ),
             root: root.as_ref().map(root_summary),
             ranges: ranges.iter().map(range_summary).collect(),
-            row_hashes: if options.include_row_hashes {
-                row_hash_summaries(&self.midge, hash_collection)?
-            } else {
-                Vec::new()
-            },
+            row_hashes: rows.into_iter().map(row_hash_summary).collect(),
             manifest_digest: String::new(),
         };
         manifest.manifest_digest = manifest_digest(&manifest);
@@ -412,21 +405,13 @@ fn range_summary(range: &crate::midge::adapter::RangeHashRecord) -> ProjectionMa
     }
 }
 
-fn row_hash_summaries(
-    midge: &crate::midge::adapter::Midge,
-    collection: &str,
-) -> Result<Vec<ProjectionManifestRowHashSummary>, CassieError> {
-    let mut rows = midge.list_row_hashes(collection)?;
-    rows.sort_by(|left, right| left.row_id.cmp(&right.row_id));
-    Ok(rows
-        .into_iter()
-        .map(|row| ProjectionManifestRowHashSummary {
-            row_id: row.row_id,
-            digest: row.digest,
-            state: stored_hash_state(&row.state).to_string(),
-            computed_ms: row.computed_ms,
-        })
-        .collect())
+fn row_hash_summary(row: crate::midge::adapter::RowHashRecord) -> ProjectionManifestRowHashSummary {
+    ProjectionManifestRowHashSummary {
+        row_id: row.row_id,
+        digest: row.digest,
+        state: stored_hash_state(&row.state).to_string(),
+        computed_ms: row.computed_ms,
+    }
 }
 
 fn stored_hash_state(state: &crate::midge::adapter::StoredHashState) -> &'static str {

@@ -167,3 +167,188 @@ fn should_discover_the_visible_relation_for_psql_describe() {
         ]
     );
 }
+
+#[test]
+fn should_describe_relation_attributes_and_constraints_for_psql() {
+    // Arrange
+    let fixture = sql_fixture("psql-describe-catalog", &[
+        "CREATE TABLE probe_parent (id INTEGER PRIMARY KEY)",
+        "CREATE TABLE probe_docs (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 7 CHECK (amount > 0), parent_id INTEGER REFERENCES probe_parent(id))",
+        "CREATE INDEX probe_docs_amount_idx ON probe_docs (amount)",
+    ]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let relation = fixture.execute(
+        "SELECT relchecks, relhasindex, relhasrules, relhastriggers, relrowsecurity,
+                relforcerowsecurity, relispartition, reltablespace, reloftype, relreplident, relpartbound
+         FROM pg_catalog.pg_class WHERE oid = 'probe_docs'::regclass"
+    ).expect("relation details");
+    let attributes = fixture.rows(
+        "SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod),
+         (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true) FROM pg_catalog.pg_attrdef d
+          WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+         a.attnotnull,
+         (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+          WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation)
+         FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'probe_docs'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+         ORDER BY a.attnum"
+    );
+    let index_rows = fixture.rows(
+        "SELECT c.relname, i.indisprimary, i.indisclustered, i.indisreplident, c.reltablespace
+         FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON i.indexrelid = c.oid
+         WHERE i.indrelid = 'probe_docs'::regclass ORDER BY i.indisprimary DESC, c.relname",
+    );
+    let keys = fixture.rows(
+        "SELECT contype, conparentid, conperiod FROM pg_catalog.pg_constraint
+         WHERE conrelid = 'probe_docs'::regclass AND contype IN ('c','f','p') ORDER BY contype",
+    );
+
+    // Assert
+    assert_eq!(
+        relation.rows(),
+        vec![vec![
+            Value::Int64(1),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Int64(0),
+            Value::Int64(0),
+            Value::String("d".into()),
+            Value::Null,
+        ]]
+    );
+    assert_eq!(relation.columns()[0].type_oid, 21);
+    assert_eq!(relation.columns()[7].type_oid, 26);
+    assert_eq!(relation.columns()[8].type_oid, 26);
+    assert_eq!(
+        attributes,
+        vec![
+            vec![
+                Value::String("id".into()),
+                Value::String("integer".into()),
+                Value::Null,
+                Value::Bool(true),
+                Value::Null
+            ],
+            vec![
+                Value::String("amount".into()),
+                Value::String("integer".into()),
+                Value::String("7".into()),
+                Value::Bool(false),
+                Value::Null
+            ],
+            vec![
+                Value::String("parent_id".into()),
+                Value::String("integer".into()),
+                Value::Null,
+                Value::Bool(false),
+                Value::Null
+            ],
+        ]
+    );
+    assert_eq!(
+        index_rows,
+        ["probe_docs_pkey", "probe_docs_amount_idx"].map(|name| vec![
+            Value::String(name.into()),
+            Value::Bool(name.ends_with("_pkey")),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Int64(0)
+        ])
+    );
+    assert_eq!(
+        keys,
+        ["c", "f", "p"].map(|kind| vec![
+            Value::String(kind.into()),
+            Value::Int64(0),
+            Value::Bool(false)
+        ])
+    );
+}
+
+#[test]
+fn should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_lookups() {
+    // Arrange
+    let fixture = sql_fixture(
+        "psql-foreign-key-ancestors",
+        &[
+            "CREATE TABLE ordinary_parent (id INT PRIMARY KEY)",
+            "CREATE TABLE ordinary_child (parent_id INT REFERENCES ordinary_parent(id))",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let ancestors = fixture
+        .execute("SELECT pg_catalog.pg_partition_ancestors('ordinary_parent')")
+        .unwrap();
+    let source = fixture.rows("SELECT relid, depth FROM pg_catalog.pg_partition_ancestors('ordinary_parent') WITH ORDINALITY AS a(relid, depth)");
+    let referencing = fixture.rows("SELECT conname FROM pg_catalog.pg_constraint WHERE confrelid IN (
+        SELECT pg_catalog.pg_partition_ancestors('ordinary_parent') UNION ALL VALUES ('ordinary_parent'::regclass)
+    ) AND contype = 'f' AND conparentid = 0");
+    let missing_name =
+        fixture.execute("SELECT pg_catalog.pg_partition_ancestors('no_such_parent')");
+
+    // Assert
+    assert!(ancestors.rows().is_empty());
+    assert_eq!(ancestors.columns()[0].type_oid, 2205);
+    assert!(source.is_empty());
+    assert_eq!(
+        referencing,
+        vec![vec![Value::String("ordinary_child_parent_id_fkey".into())]]
+    );
+    assert!(missing_name.is_err());
+}
+
+#[test]
+fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature() {
+    // Arrange
+    let fixture = sql_fixture(
+        "ancestor-input-types",
+        &["CREATE TABLE ancestor_inputs (id INTEGER)"],
+    );
+    let accepted = [
+        "'ancestor_inputs'::text",
+        "'ancestor_inputs'::varchar(32)",
+        "'ancestor_inputs'::regclass",
+        "1::smallint",
+        "1::integer",
+        "1::bigint",
+        "1::oid",
+        "NULL",
+    ];
+    let rejected = [
+        "1::regtype",
+        "1::regnamespace",
+        "true",
+        "1::numeric",
+        "'ancestor_inputs'::name",
+        "'ancestor_inputs'::char(32)",
+    ];
+
+    // Act
+    for argument in accepted {
+        let sql =
+            format!("SELECT relid FROM pg_catalog.pg_partition_ancestors({argument}) AS a(relid)");
+        let result = fixture
+            .execute(&sql)
+            .unwrap_or_else(|err| panic!("{sql}: {err}"));
+
+        // Assert
+        assert_eq!(result.columns()[0].type_oid, 2205);
+        assert!(result.rows().is_empty(), "{sql}");
+    }
+    for argument in rejected {
+        let sql = format!("SELECT pg_catalog.pg_partition_ancestors({argument})");
+        let error = fixture
+            .execute(&sql)
+            .expect_err("incompatible regclass argument");
+
+        // Assert
+        assert_eq!(error.descriptor().sql_state, "42883", "{sql}: {error}");
+    }
+}

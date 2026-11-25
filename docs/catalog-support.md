@@ -274,6 +274,12 @@ user table. System relations, views, indexes and other supported relation
 kinds are ineligible. An unknown numeric relation OID or SQL NULL returns
 SQL NULL. These lookups use the session's database and relation identities.
 
+For this workflow `pg_class.relreplident` exposes the one-character replica
+identity code as `text` (OID 25). PostgreSQL declares its internal `"char"`
+type (OID 18). Cassie exposes the absent `relpartbound` as nullable `text`
+(OID 25); PostgreSQL uses `pg_node_tree` (OID 194). The psql client receives
+the replica identity code and a SQL NULL partition bound for a plain table.
+
 ## Retained client evidence
 
 | Client | Source revision | Workflow run | Certified catalog workflow |

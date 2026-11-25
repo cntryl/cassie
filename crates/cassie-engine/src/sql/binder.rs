@@ -15,6 +15,7 @@ mod graph_table;
 mod graph_table_expr;
 #[path = "binder/graph_table_scope.rs"]
 mod graph_table_scope;
+mod oid_arguments;
 pub(crate) use graph_table::{
     property_types as graph_table_property_types, resolve_graph,
     tables_read as graph_table_tables_read,

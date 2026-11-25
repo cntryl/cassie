@@ -17,6 +17,15 @@ impl Fold<'_, '_> {
             // so leave signature diagnostics to that typed binding boundary.
             return Ok(Some(Summary::unqualified()));
         }
+        if table_sources::is_partition_ancestors(&function.name) {
+            let arguments = &mut self.summaries.values[frame.start..];
+            if let Some(argument) = arguments.first_mut().filter(|_| function.args.len() == 1) {
+                if matches!(argument.oid, 0 | 705) {
+                    self.occurrences.coerce(argument, 2205, false)?;
+                }
+            }
+            return Ok(Some(Summary::known(2205)));
+        }
         if table_sources::is_unnest(&function.name) {
             if function.args.is_empty() {
                 self.occurrences.undefined_function("unnest", 0, None)?;

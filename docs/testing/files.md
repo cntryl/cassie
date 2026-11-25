@@ -154,7 +154,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/catalog_security/security/object_privilege_grants.rs` | test_module | 827 | 14 | catalog_security | keep | `tests/catalog_security/security/object_privilege_grants.rs` |
 | `tests/catalog_security/security/operator_view_privileges.rs` | test_module | 31 | 2 | catalog_security | move_with_module_alias | `tests/catalog_security/catalogs/operators/operator_view_privileges.rs` |
 | `tests/catalog_security/security/prepare_privileges.rs` | test_module | 50 | 3 | catalog_security | keep | `tests/catalog_security/security/prepare_privileges.rs` |
-| `tests/catalog_security/security/role_authorization.rs` | test_module | 750 | 6 | catalog_security | keep | `tests/catalog_security/security/role_authorization.rs` |
+| `tests/catalog_security/security/role_authorization.rs` | test_module | 760 | 6 | catalog_security | keep | `tests/catalog_security/security/role_authorization.rs` |
 | `tests/catalog_security/security/role_database_copy_boundaries.rs` | test_module | 105 | 2 | catalog_security | keep | `tests/catalog_security/security/role_database_copy_boundaries.rs` |
 | `tests/catalog_security/security/role_statement_boundaries.rs` | test_module | 141 | 6 | catalog_security | keep | `tests/catalog_security/security/role_statement_boundaries.rs` |
 | `tests/catalog_security/security/routine_body_privileges.rs` | test_module | 204 | 13 | catalog_security | split_by_contract | `tests/catalog_security/catalogs/aggregates/grouping/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/modifiers/routine_body_privileges.rs`; `tests/catalog_security/catalogs/aggregates/windows/routine_body_privileges.rs`; `tests/catalog_security/catalogs/routines/routine_body_privileges.rs` |
@@ -1069,7 +1069,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/pgwire_extended/types/arrays/character_row_images.rs` | test_module | 182 | 7 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/character_row_images.rs` |
 | `tests/pgwire_extended/types/arrays/character_using.rs` | test_module | 81 | 3 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/character_using.rs` |
 | `tests/pgwire_extended/types/arrays/constructor_contracts.rs` | test_module | 382 | 12 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/constructor_contracts.rs` |
-| `tests/pgwire_extended/types/arrays/dml_identity/semantics.rs` | test_module | 197 | 5 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/dml_identity/semantics.rs` |
+| `tests/pgwire_extended/types/arrays/dml_identity/semantics.rs` | test_module | 208 | 5 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/dml_identity/semantics.rs` |
 | `tests/pgwire_extended/types/arrays/functions/nulls.rs` | test_module | 23 | 1 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/functions/nulls.rs` |
 | `tests/pgwire_extended/types/arrays/index_queries/restart.rs` | test_module | 99 | 2 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/index_queries/restart.rs` |
 | `tests/pgwire_extended/types/arrays/multidimensional_persistence_binary.rs` | test_module | 67 | 1 | pgwire_types | keep | `tests/pgwire_extended/types/arrays/multidimensional_persistence_binary.rs` |

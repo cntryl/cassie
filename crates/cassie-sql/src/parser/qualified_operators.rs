@@ -261,9 +261,7 @@ pub(super) fn prefix(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlErr
 
 pub(super) fn binary_expression(span: Span<'_>, left: Expr, right: Expr) -> Result<Expr, SqlError> {
     if span.symbol == "~" {
-        return Ok(super::super::like_predicates::regex_predicate(
-            left, right, false,
-        ));
+        return Ok(super::like_predicates::regex_predicate(left, right, false));
     }
     Ok(Expr::Binary {
         left: Box::new(left),

@@ -229,3 +229,59 @@ fn should_support_numeric_typmod_precision_above_thirty_eight_digits() {
         &[vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_match_scalar_index_and_scan_for_numeric_special_values() {
+    // Arrange
+    let fixture = sql_fixture(
+        "numeric-special-index-scan-parity",
+        &[
+            "CREATE TABLE numeric_special (amount NUMERIC, label TEXT)",
+            "INSERT INTO numeric_special VALUES ('NaN', 'nan'), ('1.25', 'positive'), ('-Infinity', 'neg_inf'), ('Infinity', 'pos_inf'), ('-3.5', 'negative')",
+            "CREATE INDEX numeric_special_amount ON numeric_special USING btree (amount)",
+        ],
+    );
+    let cases: [(&str, &[&str]); 6] = [
+        (
+            "amount >= '-Infinity'::NUMERIC",
+            &["neg_inf", "negative", "positive", "pos_inf", "nan"],
+        ),
+        ("amount = 'NaN'::NUMERIC", &["nan"]),
+        ("amount = 'Infinity'::NUMERIC", &["pos_inf"]),
+        ("amount = '-Infinity'::NUMERIC", &["neg_inf"]),
+        (
+            "amount > '-Infinity'::NUMERIC AND amount < 'Infinity'::NUMERIC",
+            &["negative", "positive"],
+        ),
+        ("amount >= 'Infinity'::NUMERIC", &["pos_inf", "nan"]),
+    ];
+    let run = |predicate: &str| {
+        let query = format!("SELECT label FROM numeric_special WHERE {predicate} ORDER BY amount");
+        fixture
+            .execute(&query)
+            .expect("query NUMERIC keys")
+            .rows()
+            .to_vec()
+    };
+
+    // Act
+    let indexed = cases.map(|(predicate, _)| run(predicate));
+    let index_plan = fixture
+        .execute("EXPLAIN SELECT label FROM numeric_special WHERE amount = 'NaN'::NUMERIC")
+        .expect("explain indexed equality");
+    fixture
+        .execute("DROP INDEX numeric_special_amount")
+        .expect("drop NUMERIC index");
+    let scanned = cases.map(|(predicate, _)| run(predicate));
+
+    // Assert
+    assert!(format!("{:?}", index_plan.rows()).contains("numeric_special_amount"));
+    for ((indexed, scanned), (_, labels)) in indexed.iter().zip(scanned.iter()).zip(cases) {
+        let expected = labels
+            .iter()
+            .map(|label| vec![Value::from(*label)])
+            .collect::<Vec<_>>();
+        assert_eq!(indexed, &expected);
+        assert_eq!(scanned, &expected);
+    }
+}

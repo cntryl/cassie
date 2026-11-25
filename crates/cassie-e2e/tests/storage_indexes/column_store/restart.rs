@@ -587,3 +587,62 @@ fn should_read_selected_fields_without_unselected_payloads_after_restart() {
     assert_eq!(work.decodes, 6);
     assert!(work.payload_bytes < 8_192, "{work:?}");
 }
+
+#[test]
+fn should_restore_one_reinserted_row_across_both_storage_conversions() {
+    // Arrange
+    let store = Store::new("columnar-reinsert-after-tombstone");
+    let identity = {
+        let env = store.open();
+        env.run("CREATE TABLE converted_rows (id INT PRIMARY KEY, label TEXT) USING columnar");
+        env.run("CREATE INDEX converted_label ON converted_rows (label)");
+        env.run("INSERT INTO converted_rows VALUES (7, 'former')");
+        let original = env
+            .cassie
+            .midge
+            .scan_documents("converted_rows")
+            .expect("initial authoritative scan")
+            .remove(0)
+            .id;
+        env.run("DELETE FROM converted_rows WHERE id = 7");
+
+        // Act
+        env.run("ALTER TABLE converted_rows SET ACCESS METHOD heap");
+        env.run("INSERT INTO converted_rows VALUES (7, 'current')");
+        env.run("ALTER TABLE converted_rows SET ACCESS METHOD columnar");
+
+        // Assert
+        assert_reinserted_conversion_row(&env, &original);
+        original
+    };
+
+    let reopened = store.open();
+    assert_reinserted_conversion_row(&reopened, &identity);
+}
+
+fn assert_reinserted_conversion_row(env: &Env, identity: &str) {
+    let authoritative = env
+        .cassie
+        .midge
+        .scan_documents("converted_rows")
+        .expect("scan converted row storage");
+    assert_eq!(authoritative.len(), 1);
+    assert_eq!(authoritative[0].id, identity);
+    assert_eq!(authoritative[0].payload["label"], "current");
+
+    let current = "SELECT id::TEXT, label FROM converted_rows WHERE label = 'current'";
+    let former = "SELECT id::TEXT, label FROM converted_rows WHERE label = 'former'";
+    let indexed = text_rows(env, current);
+    let former_rows = text_rows(env, former);
+    let all_rows = text_rows(
+        env,
+        "SELECT id::TEXT, label FROM converted_rows ORDER BY id",
+    );
+    assert_eq!(indexed, vec![vec!["7".to_owned(), "current".to_owned()]]);
+    assert_eq!(all_rows, indexed);
+    assert!(former_rows.is_empty());
+    for predicate in [current, former] {
+        let explain = format!("{:?}", env.rows(&format!("EXPLAIN {predicate}")));
+        assert!(explain.contains("converted_label"), "{explain}");
+    }
+}

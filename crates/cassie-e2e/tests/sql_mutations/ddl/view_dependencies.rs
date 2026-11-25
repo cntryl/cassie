@@ -321,11 +321,14 @@ fn should_reject_dropping_a_function_used_by_a_view_chain() {
     );
 
     // Act
+    let plain = fixture.error("DROP FUNCTION view_increment");
     let error = fixture.error("DROP FUNCTION IF EXISTS view_increment");
     let function_result = fixture.rows("SELECT view_increment(1)");
     let view_result = fixture.rows("SELECT result FROM function_view_child");
 
     // Assert
+    assert_eq!(plain.sql_state(), "2BP01");
+    assert!(plain.to_string().contains("view_increment"));
     assert_eq!(error.sql_state(), "2BP01");
     assert!(
         matches!(
@@ -555,6 +558,11 @@ fn should_reject_duplicate_create_view_output_names() {
     assert_eq!(aliased.sql_state(), "42701");
     assert_eq!(projected.sql_state(), "42701");
     assert_eq!(folded.sql_state(), "42701");
+    for error in [aliased, projected, folded] {
+        assert!(error
+            .to_string()
+            .contains(r#"column "a" specified more than once"#));
+    }
     assert_eq!(remaining, vec![vec![Value::Int64(0)]]);
 }
 
@@ -576,14 +584,14 @@ fn should_apply_a_create_view_column_list_in_order() {
     let fixture = sql_fixture(
         "view-output-column-list",
         &[
-            "CREATE TABLE column_list_source (a INT, b INT)",
-            "INSERT INTO column_list_source VALUES (1, 2)",
+            "CREATE TABLE column_list_source (a INT)",
+            "INSERT INTO column_list_source VALUES (1)",
         ],
     );
 
     // Act
     let created =
-        fixture.execute("CREATE VIEW listed_view(p, q) AS SELECT a, b FROM column_list_source");
+        fixture.execute("CREATE VIEW listed_view(p, q) AS SELECT a, a + 1 FROM column_list_source");
     let values = fixture.rows("SELECT p, q FROM listed_view");
     let names = fixture.rows(
         "SELECT column_name FROM information_schema.columns \
@@ -607,7 +615,10 @@ fn should_preserve_unlisted_create_view_output_names() {
     // Arrange
     let fixture = sql_fixture(
         "view-short-output-column-list",
-        &["CREATE TABLE short_column_list_source (a INT)"],
+        &[
+            "CREATE TABLE short_column_list_source (a INT)",
+            "INSERT INTO short_column_list_source VALUES (1)",
+        ],
     );
 
     // Act
@@ -615,6 +626,7 @@ fn should_preserve_unlisted_create_view_output_names() {
         "CREATE VIEW short_list_view(p) AS \
          SELECT a, a + 1 AS b FROM short_column_list_source",
     );
+    let values = fixture.rows("SELECT p, b FROM short_list_view");
     let names = fixture.rows(
         "SELECT column_name FROM information_schema.columns \
          WHERE table_name = 'short_list_view' ORDER BY ordinal_position",
@@ -622,12 +634,48 @@ fn should_preserve_unlisted_create_view_output_names() {
 
     // Assert
     assert!(created.is_ok());
+    assert_eq!(values, vec![vec![Value::Int64(1), Value::Int64(2)]]);
     assert_eq!(
         names,
         vec![
             vec![Value::String("p".into())],
             vec![Value::String("b".into())]
         ]
+    );
+}
+
+#[test]
+fn should_keep_existing_view_when_recreating_with_a_column_list() {
+    // Arrange
+    let fixture = sql_fixture(
+        "view-existing-output-column-list",
+        &["CREATE VIEW existing_view(p) AS SELECT 1 AS original"],
+    );
+    let query = fixture
+        .cassie
+        .catalog
+        .get_view("existing_view")
+        .expect("existing view")
+        .query;
+
+    // Act
+    let skipped =
+        fixture.execute("CREATE VIEW IF NOT EXISTS existing_view(q) AS SELECT 2 AS replacement");
+
+    // Assert
+    assert!(skipped.is_ok());
+    assert_eq!(
+        fixture.rows("SELECT p FROM existing_view"),
+        vec![vec![Value::Int64(1)]]
+    );
+    assert_eq!(
+        fixture
+            .cassie
+            .catalog
+            .get_view("existing_view")
+            .expect("existing view")
+            .query,
+        query
     );
 }
 

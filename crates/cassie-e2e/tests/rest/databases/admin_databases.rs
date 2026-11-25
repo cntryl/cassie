@@ -8,11 +8,7 @@ use tokio::sync::Notify;
 use uuid::Uuid;
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!(
-        "cassie-rest-admin-databases-{label}-{}",
-        Uuid::new_v4()
-    ))
+    crate::support_temp_dirs::data_path(&format!("rest-admin-databases-{label}"))
 }
 
 async fn spawn_rest_server(

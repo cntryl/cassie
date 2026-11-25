@@ -55,15 +55,9 @@ use cassie::executor::{
     set_materialized_projection_replace_start_barriers,
 };
 use cassie::types::Value;
-use uuid::Uuid;
 
 fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir()
-        .join(format!(
-            "cassie-projection-concurrency-{label}-{}",
-            Uuid::new_v4()
-        ))
+    crate::support_temp_dirs::data_path(&format!("projection-concurrency-{label}"))
         .to_string_lossy()
         .into_owned()
 }

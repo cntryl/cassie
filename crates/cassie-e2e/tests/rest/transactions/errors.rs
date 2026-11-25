@@ -5,7 +5,6 @@ use std::sync::Arc;
 use cassie::app::{Cassie, CassieError};
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
 async fn spawn_rest_server(
     cassie: Cassie,
@@ -50,8 +49,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
 #[test]
 fn should_map_idle_savepoint_controls_to_rest_bad_requests() {
     // Arrange
-    crate::support_temp_dirs::sweep_stale_once();
-    let data_dir = std::env::temp_dir().join(format!("cassie-rest-tx-errors-{}", Uuid::new_v4()));
+    let data_dir = crate::support_temp_dirs::data_path("rest-tx-errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

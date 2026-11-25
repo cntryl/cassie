@@ -13,11 +13,9 @@ fn runtime() -> tokio::runtime::Runtime {
 }
 
 fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-pgwire-simple-query-batch-{label}"));
-    path.push(uuid::Uuid::new_v4().to_string());
-    path.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("pgwire-simple-query-batch-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn new_cassie(_path: &str) -> Cassie {

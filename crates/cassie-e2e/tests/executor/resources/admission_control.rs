@@ -9,10 +9,9 @@ use uuid::Uuid;
 use super::support_tls::client_trusting_test_certificate;
 
 fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-admission-{label}-{}", Uuid::new_v4()));
-    path.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("admission-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn runtime_config_with_limits(pgwire_max: usize, rest_max: usize) -> CassieRuntimeConfig {

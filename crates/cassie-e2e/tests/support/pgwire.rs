@@ -6,7 +6,6 @@ use std::time::Duration;
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use uuid::Uuid;
 
 pub struct PgwireServer {
     pub addr: SocketAddr,
@@ -37,10 +36,9 @@ pub fn use_local_storage() {
 
 #[must_use]
 pub fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-pgwire-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("pgwire-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// # Panics

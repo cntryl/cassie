@@ -4,14 +4,9 @@ use std::sync::Arc;
 use cassie::app::{Cassie, CassieError};
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!(
-        "cassie-rest-admin-query-{label}-{}",
-        Uuid::new_v4()
-    ))
+    crate::support_temp_dirs::data_path(&format!("rest-admin-query-{label}"))
 }
 async fn spawn_rest_server(
     cassie: Cassie,

@@ -2,11 +2,9 @@ use cassie::types::{DataType, Value, Vector};
 use uuid::Uuid;
 
 fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-types-{label}"));
-    path.push(Uuid::new_v4().to_string());
-    path.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("types-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[test]

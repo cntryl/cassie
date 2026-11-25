@@ -54,6 +54,10 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         oid("reltype"),
         int("relowner"),
         bool("relhasindex"),
+        text("relpersistence"),
+        int("reltuples"),
+        text("relacl"),
+        text("reloptions"),
         ("relchecks".to_owned(), DataType::SmallInt),
         bool("relhasrules"),
         bool("relhastriggers"),
@@ -64,10 +68,6 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         oid("reloftype"),
         text("relreplident"),
         text("relpartbound"),
-        text("relpersistence"),
-        int("reltuples"),
-        text("relacl"),
-        text("reloptions"),
     ]
 }
 
@@ -116,12 +116,12 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
         int("indnatts"),
         int("indnkeyatts"),
         text("indoption"),
-        bool("indisclustered"),
-        bool("indisreplident"),
         bool("indisvalid"),
         bool("indisready"),
         text("indpred"),
         text("indexprs"),
+        bool("indisclustered"),
+        bool("indisreplident"),
     ]
 }
 
@@ -397,8 +397,6 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 int_value("indnatts", index_attribute_count(catalog, &index)),
                 int_value("indnkeyatts", index_key_count(catalog, &index)),
                 string("indoption", index_options(&index)),
-                bool_value("indisclustered", false),
-                bool_value("indisreplident", false),
                 bool_value("indisvalid", true),
                 bool_value("indisready", true),
                 (
@@ -417,6 +415,8 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                         .collect::<Vec<_>>()
                         .join(", "),
                 ),
+                bool_value("indisclustered", false),
+                bool_value("indisreplident", false),
             ]
         })
         .collect()
@@ -536,6 +536,25 @@ fn class_row(
         ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
+        string(
+            "relpersistence",
+            if kind == "S" {
+                catalog
+                    .get_sequence(name)
+                    .map_or("p", |sequence| sequence.persistence.code())
+            } else {
+                "p"
+            },
+        ),
+        int_value("reltuples", 0),
+        (
+            "relacl".to_string(),
+            acl::table_acl(catalog, current_database, name, kind),
+        ),
+        index.and_then(index_reloptions).map_or_else(
+            || ("reloptions".to_string(), Value::Null),
+            |value| string("reloptions", value),
+        ),
         int_value(
             "relchecks",
             if kind == "r" {
@@ -557,25 +576,6 @@ fn class_row(
         int_value("reloftype", 0),
         string("relreplident", if kind == "r" { "d" } else { "n" }),
         ("relpartbound".to_owned(), Value::Null),
-        string(
-            "relpersistence",
-            if kind == "S" {
-                catalog
-                    .get_sequence(name)
-                    .map_or("p", |sequence| sequence.persistence.code())
-            } else {
-                "p"
-            },
-        ),
-        int_value("reltuples", 0),
-        (
-            "relacl".to_string(),
-            acl::table_acl(catalog, current_database, name, kind),
-        ),
-        index.and_then(index_reloptions).map_or_else(
-            || ("reloptions".to_string(), Value::Null),
-            |value| string("reloptions", value),
-        ),
     ]
 }
 

@@ -69,6 +69,16 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
             "reltuples",
             "relacl",
             "reloptions",
+            "relchecks",
+            "relhasrules",
+            "relhastriggers",
+            "relrowsecurity",
+            "relforcerowsecurity",
+            "relispartition",
+            "reltablespace",
+            "reloftype",
+            "relreplident",
+            "relpartbound",
         ]
         .map(str::to_owned)
     );
@@ -88,6 +98,7 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
             "typnotnull",
             "typtypmod",
             "typrelid",
+            "typcollation",
         ]
         .map(str::to_owned)
     );

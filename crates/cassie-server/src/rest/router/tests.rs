@@ -727,3 +727,101 @@ fn should_create_rest_collection_in_the_request_session_database() {
     );
     let _ = std::fs::remove_dir_all(data_dir);
 }
+
+#[test]
+fn should_wait_for_worker_exit_before_acknowledging_a_dropped_query_handler() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let cassie = Arc::new(
+        Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+            .expect("cassie"),
+    );
+    cassie.startup().expect("startup");
+    let request_context = RestRequestContext {
+        session: cassie.create_session("root", None),
+        role: None,
+        token: None,
+    };
+    let execute_context = RouteDispatchContext {
+        method: &Method::POST,
+        segments: &[],
+        path: "/api/v1/admin/query-executions",
+        query: None,
+        started_at: Instant::now(),
+        request_context: &request_context,
+        secure_transport: false,
+        peer_ip: "127.0.0.1".parse().expect("loopback"),
+        admitted_error_response: false,
+    };
+    let id = uuid::Uuid::new_v4();
+    let id_text = id.to_string();
+    let cancel_path = format!("/api/v1/admin/query-operations/{id}");
+    let cancel_context = RouteDispatchContext {
+        method: &Method::DELETE,
+        path: &cancel_path,
+        ..execute_context
+    };
+    let body = RestBytes::from(
+        serde_json::json!({"database": cassie.default_database(), "operation_id": id}).to_string(),
+    );
+    let (worker_started, started) = tokio::sync::oneshot::channel();
+    let (release_worker, held) = std::sync::mpsc::channel();
+    let (worker_exited, mut exited) = tokio::sync::oneshot::channel();
+    let hang_guard = Duration::from_secs(5);
+
+    runtime.block_on(async {
+        let mut execute = Box::pin(run_admin_query_operation(
+            execute_context,
+            cassie,
+            &body,
+            "rest_admin_query_execute",
+            move |_, _, _, cancellation| {
+                worker_started.send(()).expect("waiting for worker");
+                held.recv_timeout(hang_guard).expect("release worker");
+                assert!(cancellation.is_canceled());
+                worker_exited.send(()).expect("waiting for worker exit");
+                Err(crate::app::CassieError::QueryCanceled)
+            },
+        ));
+        tokio::select! {
+            result = &mut execute => panic!("query returned before worker release: {:?}", result.err()),
+            result = tokio::time::timeout(hang_guard, started) => {
+                result.expect("worker start deadline").expect("worker started");
+            }
+        }
+
+        // Act
+        let mut cancel = Box::pin(cancel_admin_query_operation(cancel_context, &id_text));
+        tokio::select! {
+            biased;
+            _ = &mut cancel => panic!("DELETE returned while the worker was held"),
+            () = std::future::ready(()) => {}
+        }
+        drop(execute);
+        let active_while_held = crate::rest::query_operations::is_active_for_test(id);
+        tokio::select! {
+            biased;
+            _ = &mut cancel => panic!("DELETE returned after dropping the handler but before worker exit"),
+            () = std::future::ready(()) => {}
+        }
+        release_worker.send(()).expect("release worker");
+        let response = tokio::time::timeout(hang_guard, cancel)
+            .await
+            .expect("DELETE deadline")
+            .expect("cancellation acknowledgement")
+            .expect("DELETE response");
+
+        // Assert
+        assert!(active_while_held);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(exited.try_recv(), Ok(()));
+        assert!(!crate::rest::query_operations::is_active_for_test(id));
+        assert!(matches!(
+            cancel_admin_query_operation(cancel_context, &id_text).await,
+            Err((StatusCode::CONFLICT, _))
+        ));
+    });
+}

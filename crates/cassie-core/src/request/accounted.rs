@@ -146,11 +146,7 @@ impl<T> AccountedVec<T> {
             .try_grow(retained_bytes)
             .map_err(AccountingError::from)?;
 
-        if let Err(error) = self.values.try_reserve_exact(1) {
-            self.reservation.shrink_to(previous_bytes);
-            return Err(AccountingError::AccountedAllocation(error).into());
-        }
-
+        // A failed builder must leave the existing backing allocation unchanged.
         let value = match build() {
             Ok(value) => value,
             Err(error) => {
@@ -158,6 +154,12 @@ impl<T> AccountedVec<T> {
                 return Err(error);
             }
         };
+        if let Err(error) = self.values.try_reserve_exact(1) {
+            drop(value);
+            self.reservation.shrink_to(previous_bytes);
+            return Err(AccountingError::AccountedAllocation(error).into());
+        }
+
         self.values.push(value);
         Ok(())
     }

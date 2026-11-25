@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11748,
+    "rust_test_declarations": 11750,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11773,
+    "registered_rust_instances": 11775,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -358931,8 +358931,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_write_a_bounded_number_of_nodes_regardless_of_unrelated_rows",
       "name": "should_write_a_bounded_number_of_nodes_regardless_of_unrelated_rows",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 147,
-      "end_line": 163,
+      "line": 148,
+      "end_line": 164,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -358962,8 +358962,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_write_a_bounded_number_of_nodes_to_a_ten_thousand_row_collection",
       "name": "should_write_a_bounded_number_of_nodes_to_a_ten_thousand_row_collection",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 166,
-      "end_line": 183,
+      "line": 167,
+      "end_line": 184,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -358993,8 +358993,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_keep_the_graph_valid_through_seeded_churn_with_entry_point_deletes",
       "name": "should_keep_the_graph_valid_through_seeded_churn_with_entry_point_deletes",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 245,
-      "end_line": 283,
+      "line": 246,
+      "end_line": 284,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359021,11 +359021,42 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_publish_the_highest_surviving_layer_after_hnsw_entry_deletions",
+      "name": "should_publish_the_highest_surviving_layer_after_hnsw_entry_deletions",
+      "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
+      "line": 287,
+      "end_line": 393,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::incremental_maintenance::should_publish_the_highest_surviving_layer_after_hnsw_entry_deletions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/incremental_maintenance.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_serve_exactly_reranked_indexed_results_after_churn",
       "name": "should_serve_exactly_reranked_indexed_results_after_churn",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 286,
-      "end_line": 318,
+      "line": 396,
+      "end_line": 428,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359055,8 +359086,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_repopulate_an_indexed_collection_after_emptying_it",
       "name": "should_repopulate_an_indexed_collection_after_emptying_it",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 321,
-      "end_line": 351,
+      "line": 431,
+      "end_line": 461,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359086,8 +359117,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_repair_a_damaged_graph_without_failing_the_write",
       "name": "should_repair_a_damaged_graph_without_failing_the_write",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 382,
-      "end_line": 413,
+      "line": 492,
+      "end_line": 523,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359117,8 +359148,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_rebuild_a_large_damaged_graph_after_the_commit",
       "name": "should_rebuild_a_large_damaged_graph_after_the_commit",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 416,
-      "end_line": 457,
+      "line": 526,
+      "end_line": 567,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359148,8 +359179,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs::should_keep_recall_after_deleting_two_thirds_of_the_rows",
       "name": "should_keep_recall_after_deleting_two_thirds_of_the_rows",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
-      "line": 460,
-      "end_line": 495,
+      "line": 570,
+      "end_line": 605,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359179,8 +359210,8 @@
       "id": "tests/vector_embeddings/indexes/churn/incremental_restart.rs::should_reopen_an_incrementally_maintained_graph_valid_with_zero_fallback",
       "name": "should_reopen_an_incrementally_maintained_graph_valid_with_zero_fallback",
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_restart.rs",
-      "line": 10,
-      "end_line": 77,
+      "line": 16,
+      "end_line": 83,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -359189,6 +359220,37 @@
         {
           "suite": "vector_embeddings",
           "name": "vector_index_churn::incremental_restart::should_reopen_an_incrementally_maintained_graph_valid_with_zero_fallback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "vectors",
+        "directory": "tests/vector_embeddings/vectors",
+        "file": "tests/vector_embeddings/vectors/incremental_restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/indexes/churn/incremental_restart.rs::should_reload_a_promoted_hnsw_entry_point_after_a_lower_layer_insert",
+      "name": "should_reload_a_promoted_hnsw_entry_point_after_a_lower_layer_insert",
+      "current_file": "tests/vector_embeddings/indexes/churn/incremental_restart.rs",
+      "line": 86,
+      "end_line": 164,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "vector_index_churn::incremental_restart::should_reload_a_promoted_hnsw_entry_point_after_a_lower_layer_insert"
         }
       ],
       "attributes": [
@@ -393248,9 +393310,9 @@
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_maintenance.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 495,
-      "sha256": "4b8f8d92522eac5f5ab04abd13c4a9c04b7e700db0cf971824c71eab8c6c70f3",
-      "test_declarations": 8,
+      "lines": 605,
+      "sha256": "6b70d469b18166da74bca3bf37ebbb0e0208e197621e30586434cc4d274338f2",
+      "test_declarations": 9,
       "registered_suites": [
         "vector_embeddings"
       ],
@@ -393263,9 +393325,9 @@
       "current_file": "tests/vector_embeddings/indexes/churn/incremental_restart.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 77,
-      "sha256": "692fe2ba3960774ca1f6fce73b201a437411958e5d2ebaa7d97d51934e88599e",
-      "test_declarations": 1,
+      "lines": 164,
+      "sha256": "b20f814b53c3feabd5bc0473f478f23178575725c53cf265ee6b843535b141d3",
+      "test_declarations": 2,
       "registered_suites": [
         "vector_embeddings"
       ],

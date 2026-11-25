@@ -24,7 +24,8 @@ pub use controlled::{
     HnswSearchError,
 };
 pub use incremental::{
-    GraphMaintainer, MaintainError, MaintainResult, MaintainedGraph, MaintainerSeed,
+    count_node_heights, GraphMaintainer, HnswLayerCounts, MaintainError, MaintainResult,
+    MaintainedGraph, MaintainerSeed,
 };
 pub use validation::graph_validity_violation;
 

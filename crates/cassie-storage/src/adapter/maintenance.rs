@@ -252,6 +252,8 @@ impl Midge {
         if self.collection_generation(collection)? != target_generation {
             return Ok(());
         }
+        #[cfg(test)]
+        tests::pause_after_debt_read();
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::maintenance_debt_key(collection, artifact))
             .map_err(CassieError::from)?;
@@ -280,6 +282,8 @@ impl Midge {
             retry_count,
             last_error: Some(format!("{artifact} maintenance failed (details redacted)")),
         };
+        #[cfg(test)]
+        tests::pause_after_debt_read();
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.put(
             key,
@@ -568,3 +572,6 @@ impl Midge {
             .map_err(CassieError::from)
     }
 }
+
+#[cfg(test)]
+mod tests;

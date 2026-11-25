@@ -50,6 +50,25 @@ fn should_score_a_perfect_ordering_as_one_with_no_relevant_document_as_zero() {
 }
 
 #[test]
+fn should_count_duplicate_documents_only_at_their_first_rank_for_ndcg() {
+    // Arrange: A has gain 3, B has gain 1, and the duplicate still occupies rank 2.
+    let judged = grades(&[("A", 2), ("B", 1)]);
+    let distinct = ids(&["A", "B"]);
+    let repeated = ids(&["A", "A", "B"]);
+    let ideal = 3.0 + 1.0 / 3.0_f64.log2();
+
+    // Act
+    let perfect = ndcg_at_k(&distinct, &judged, 2);
+    let duplicate_at_cutoff = ndcg_at_k(&repeated, &judged, 2);
+    let duplicate_before_unique_result = ndcg_at_k(&repeated, &judged, 3);
+
+    // Assert
+    assert!((perfect - 1.0).abs() < 1e-12);
+    assert!((duplicate_at_cutoff - 3.0 / ideal).abs() < 1e-12);
+    assert!((duplicate_before_unique_result - (3.0 + 1.0 / 2.0) / ideal).abs() < 1e-12);
+}
+
+#[test]
 fn should_ignore_results_below_the_cutoff_when_computing_ndcg() {
     // Arrange
     let judged = grades(&[("B", 3)]);

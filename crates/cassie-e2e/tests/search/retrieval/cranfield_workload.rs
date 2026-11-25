@@ -269,6 +269,55 @@ fn should_score_the_reference_by_hand_computed_bm25() {
 }
 
 #[test]
+fn should_reject_nonfinite_scores_in_either_cranfield_ranking() {
+    // Arrange
+    let first = ("first".to_owned(), 2.0);
+    let doc = "second".to_owned();
+    let invalid_scores = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
+
+    // Act
+    let agreements = invalid_scores.map(|invalid| {
+        [(invalid, 1.0), (1.0, invalid), (invalid, invalid)].map(|(actual, expected)| {
+            compare(
+                &[first.clone(), (doc.clone(), actual)],
+                &[first.clone(), (doc.clone(), expected)],
+                0.125,
+            )
+        })
+    });
+
+    // Assert
+    for agreement in agreements.into_iter().flatten() {
+        assert!(agreement.same_ids);
+        assert!(agreement.max_score_difference.is_infinite());
+        assert!(!agreement.within_tolerance);
+        assert!(!agreement.is_full());
+    }
+}
+
+#[test]
+fn should_apply_the_cranfield_score_tolerance_to_finite_pairs() {
+    // Arrange
+    let doc = "doc".to_owned();
+    let tolerance = 0.125;
+    let reference = [(doc.clone(), 1.0)];
+
+    // Act
+    let exact = compare(&reference, &reference, tolerance);
+    let within = compare(&[(doc.clone(), 1.0625)], &reference, tolerance);
+    let at_limit = compare(&[(doc.clone(), 1.125)], &reference, tolerance);
+    let outside = compare(&[(doc, 1.25)], &reference, tolerance);
+
+    // Assert
+    assert!(exact.is_full());
+    assert!(within.is_full());
+    assert!(at_limit.is_full());
+    assert!(outside.same_ids);
+    assert!(!outside.within_tolerance);
+    assert!(!outside.is_full());
+}
+
+#[test]
 fn should_agree_with_cassie_on_a_tiny_cranfield_format_collection() {
     // Arrange
     let documents: Vec<CranDocument> = parse_documents(DOCUMENTS);

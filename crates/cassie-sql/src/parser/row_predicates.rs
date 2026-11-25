@@ -5,6 +5,21 @@ use super::{BinaryOp, Expr, SqlError};
 use crate::ast::{RowComparison, RowComparisonOp};
 
 pub(super) fn comparison(left: &str, op: BinaryOp, right: &str) -> Result<Expr, SqlError> {
+    if matches!(
+        op,
+        BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+    ) && (super::super::operators::has_ordinary_comparison(left)
+        || super::super::operators::has_ordinary_comparison(right))
+    {
+        return Err(SqlError::syntax(
+            "chained comparisons require parentheses".into(),
+        ));
+    }
     if let Some(subquery) = super::subquery_syntax::comparison(left, &op, right)? {
         return Ok(subquery);
     }

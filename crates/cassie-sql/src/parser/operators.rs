@@ -85,6 +85,12 @@ fn binary_span(input: &str, start: usize, end: usize, token: &str) -> bool {
         })
 }
 
+pub(super) fn has_ordinary_comparison(input: &str) -> bool {
+    ["<=", ">=", "<>", "!=", "=", "<", ">"]
+        .into_iter()
+        .any(|token| split_operator(input, token, false).is_some())
+}
+
 pub(super) fn split_operator<'a>(
     input: &'a str,
     token: &str,

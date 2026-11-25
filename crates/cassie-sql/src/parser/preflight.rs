@@ -106,6 +106,9 @@ pub fn preflight_sql(sql: &str) -> Result<(), SqlError> {
         }
         index += 1;
     }
+    if matches!(state, ScanState::BlockComment(_)) {
+        return Err(SqlError::syntax("unterminated block comment".into()));
+    }
     finish_word(&mut in_word, &mut tokens)?;
     Ok(())
 }

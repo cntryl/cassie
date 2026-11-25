@@ -277,7 +277,7 @@ fn should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_
         "psql-foreign-key-ancestors",
         &[
             "CREATE TABLE ordinary_parent (id INT PRIMARY KEY)",
-            "CREATE TABLE ordinary_child (parent_id INT REFERENCES ordinary_parent(id))",
+            "CREATE TABLE ordinary_child (parent_id INT CONSTRAINT ordinary_child_parent_id_fkey REFERENCES ordinary_parent(id))",
         ],
     );
     fixture.cassie.startup().expect("startup");
@@ -351,4 +351,86 @@ fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature()
         // Assert
         assert_eq!(error.descriptor().sql_state, "42883", "{sql}: {error}");
     }
+}
+
+#[test]
+fn should_list_primary_and_unconstrained_indexes_with_psql_mixed_joins() {
+    // Arrange
+    let fixture = sql_fixture("psql-index-list-with-left-join", &[
+        "CREATE TABLE probe_parent (id INTEGER PRIMARY KEY)",
+        "CREATE TABLE probe_docs (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 7 CHECK (amount > 0), parent_id INTEGER REFERENCES probe_parent(id))",
+        "CREATE INDEX probe_docs_amount_idx ON probe_docs (amount)",
+        "CREATE TABLE probe_docs_archive (id INTEGER PRIMARY KEY)",
+        "CREATE SCHEMA outside_search_path",
+        "CREATE TABLE outside_search_path.probe_docs (id INTEGER PRIMARY KEY)",
+    ]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let rows = fixture.rows(
+        "SELECT c2.relname, i.indisprimary, pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),
+                pg_catalog.pg_get_constraintdef(con.oid, true), contype, conperiod
+         FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
+         LEFT JOIN pg_catalog.pg_constraint con ON
+           (conrelid = i.indrelid AND conindid = i.indexrelid AND contype IN ('p','u','x'))
+         WHERE c.oid = 'probe_docs'::regclass AND c.oid = i.indrelid AND i.indexrelid = c2.oid
+         ORDER BY i.indisprimary DESC, c2.relname",
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![
+                Value::String("probe_docs_pkey".into()),
+                Value::Bool(true),
+                Value::String(
+                    "CREATE UNIQUE INDEX probe_docs_pkey ON public.probe_docs USING btree (id)"
+                        .into()
+                ),
+                Value::String("PRIMARY KEY (id)".into()),
+                Value::String("p".into()),
+                Value::Bool(false)
+            ],
+            vec![
+                Value::String("probe_docs_amount_idx".into()),
+                Value::Bool(false),
+                Value::String(
+                    "CREATE INDEX probe_docs_amount_idx ON public.probe_docs USING btree (amount)"
+                        .into()
+                ),
+                Value::Null,
+                Value::Null,
+                Value::Null
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_bind_an_unknown_array_literal_in_a_projected_policy_comparison() {
+    // Arrange
+    let fixture = sql_fixture("psql-policy-comparison", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let empty = fixture.rows(
+        "SELECT CASE WHEN polroles = '{0}' THEN NULL ELSE polname END FROM pg_catalog.pg_policy",
+    );
+    let values = fixture.rows(
+        "SELECT CASE WHEN roles = '{0}' THEN 1 ELSE 2 END,
+        '{0}' = roles FROM (VALUES ('{0}'::oid[]), ('{11}'::oid[])) v(roles) ORDER BY 1",
+    );
+    let typed_text = fixture.execute("SELECT '{0}'::text = '{0}'::oid[]");
+
+    // Assert
+    assert!(empty.is_empty());
+    assert_eq!(
+        values,
+        vec![
+            vec![Value::Int64(1), Value::Bool(true)],
+            vec![Value::Int64(2), Value::Bool(false)]
+        ]
+    );
+    assert!(typed_text.is_err());
 }

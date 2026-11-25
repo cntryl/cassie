@@ -605,6 +605,7 @@ fn validate_binary(
     ) {
         validate_collation_pair(left, right)?;
         null_safe_comparison::qualify(op, left, right, types)?;
+        super::unknown_literals::coerce_array_pair(left, right, types);
         catalog_oid_operands::bind_pair(left, right, types);
         enum_operands::qualify_pair(op, left, right, types)?;
         canonicalize_boolean_pair(left, right, types)?;

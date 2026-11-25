@@ -63,6 +63,23 @@ fn pair(left: &mut Expr, right: &mut Expr, field_types: &crate::sql::FieldTypeMa
     *literal = typed;
 }
 
+/// In a comparison (including one nested in a SELECT-list CASE), an untyped
+/// array literal takes the array type of the other operand.
+pub(super) fn coerce_array_pair(
+    left: &mut Expr,
+    right: &mut Expr,
+    types: &super::coalesce_results::ResultTypes,
+) {
+    let (literal, other) = match (&*left, &*right) {
+        (Expr::StringLiteral(_), _) => (left, right),
+        (_, Expr::StringLiteral(_)) => (right, left),
+        _ => return,
+    };
+    if let Some(kind @ DataType::Array(_)) = types.expression_type(other) {
+        super::source_bindings::cast_input(literal, &kind, types);
+    }
+}
+
 /// An integer literal stays a plain literal so index bounds still apply; a
 /// malformed one keeps its cast and reports `22P02` when it is evaluated.
 fn typed_literal(text: &str, data_type: &DataType) -> Option<Expr> {

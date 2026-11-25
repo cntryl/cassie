@@ -168,6 +168,34 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
 }
 
 #[test]
+fn should_reuse_the_index_oid_when_alter_repeats_a_unique_constraint() {
+    // Arrange
+    let add = "ALTER TABLE repeat_constraints ADD CONSTRAINT repeated_key UNIQUE (code)";
+    let fixture = sql_fixture(
+        "issue-1518-repeat-constraint",
+        &["CREATE TABLE repeat_constraints (code INTEGER)", add],
+    );
+    let select = "SELECT oid::text FROM pg_catalog.pg_class WHERE relname = 'repeated_key'";
+    let previous = fixture.execute(select).expect("read original index OID");
+    let catalog_oid = stored_catalog_oid(&fixture.cassie, "repeat_constraints", "repeated_key");
+
+    // Act
+    fixture
+        .execute(add)
+        .expect("repeat the same accepted ALTER");
+    let repeated = fixture.execute(select).expect("read preserved index OID");
+
+    // Assert
+    assert_eq!(previous.rows().len(), 1);
+    assert!(catalog_oid.is_some());
+    assert_eq!(repeated.rows(), previous.rows());
+    assert_eq!(
+        stored_catalog_oid(&fixture.cassie, "repeat_constraints", "repeated_key"),
+        catalog_oid
+    );
+}
+
+#[test]
 fn should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart() {
     // Arrange
     let directory = crate::support_temp_dirs::IsolatedDataDir::new("issue-1518-fresh-index-oids");

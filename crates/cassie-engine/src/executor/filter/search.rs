@@ -257,12 +257,12 @@ impl SearchContext {
     ) -> Result<(), crate::app::CassieError> {
         let vocabulary = self.doc_frequency.entry(field.to_owned()).or_default();
         for term in terms {
-            if let std::collections::hash_map::Entry::Vacant(entry) = vocabulary.entry(term) {
-                let bytes =
-                    crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(1)?;
-                memory.try_grow(bytes.saturating_add(entry.key().capacity()))?;
-                entry.insert(1);
+            if vocabulary.contains_key(term.as_str()) {
+                continue;
             }
+            let bytes = crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(1)?;
+            memory.try_grow(bytes.saturating_add(term.capacity()))?;
+            vocabulary.insert(term, 1);
         }
         Ok(())
     }
@@ -584,4 +584,43 @@ pub(crate) fn prepare_query_terms_with_analyzer(
         }
     }
     terms
+}
+
+#[cfg(test)]
+mod snippet_vocabulary_tests {
+    use super::{HashMap, SearchContext};
+    use crate::app::CassieError;
+    use crate::config::CassieRuntimeLimits;
+    use crate::runtime::QueryExecutionControls;
+
+    #[test]
+    fn should_preserve_snippet_vocabulary_capacity_when_term_admission_fails() {
+        // Arrange
+        let mut context = SearchContext::default();
+        context
+            .doc_frequency
+            .insert("empty".to_owned(), HashMap::new());
+        context
+            .doc_frequency
+            .insert("seeded".to_owned(), HashMap::from([("seen".to_owned(), 7)]));
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1,
+                ..Default::default()
+            },
+            std::time::Instant::now(),
+        );
+        let mut memory = controls.reserve_query_memory(0).unwrap();
+
+        // Act
+        let duplicate = context.add_snippet_terms("seeded", vec!["seen".to_owned()], &mut memory);
+        let rejected = context.add_snippet_terms("empty", vec!["new".to_owned()], &mut memory);
+
+        // Assert
+        duplicate.expect("existing terms need no new reservation");
+        assert_eq!(context.doc_frequency["seeded"]["seen"], 7);
+        assert!(matches!(rejected, Err(CassieError::ResourceLimit(_))));
+        assert_eq!(context.doc_frequency["empty"].capacity(), 0);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
 }

@@ -4,6 +4,12 @@ use std::collections::HashMap;
 #[cfg(debug_assertions)]
 use std::sync::{Mutex, OnceLock};
 
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+#[path = "blocking/native_data_policy_observer.rs"]
+mod native_data_policy_observer;
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+pub(in crate::pgwire::connection) use native_data_policy_observer::arm;
+
 #[cfg(test)]
 #[path = "blocking/cleanup_test_hooks.rs"]
 pub(in crate::pgwire::connection) mod cleanup_test_hooks;
@@ -50,11 +56,9 @@ where
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             #[cfg(all(test, feature = "replay-benchmark-observation"))]
             {
-                crate::midge::adapter::data_policy_test_observer::observe_worker(
-                    &cleanup_cassie,
-                    operation_name,
-                    || operation(cassie),
-                )
+                native_data_policy_observer::observe_worker(&cleanup_cassie, operation_name, || {
+                    operation(cassie)
+                })
             }
             #[cfg(not(all(test, feature = "replay-benchmark-observation")))]
             {

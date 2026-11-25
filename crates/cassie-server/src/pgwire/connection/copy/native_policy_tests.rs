@@ -1,7 +1,7 @@
 //! Real wire COPY observes its owning Data submission on the COMMIT worker.
+use super::super::blocking::arm;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
-use crate::midge::adapter::data_policy_test_observer;
 use crate::types::Value;
 use std::sync::Arc;
 use std::time::Duration;
@@ -88,7 +88,7 @@ fn assert_wire_copy_policy(sequence_default: bool, mode: &str, expected: &str) {
             assert!(cassie.execute_sql(&observer, sql, vec![]).unwrap().rows().is_empty(), "staged data must remain private");
         }
         let reactor = std::thread::current().id();
-        let observation = data_policy_test_observer::arm(&cassie, "pgwire_simple_query");
+        let observation = arm(&cassie, "pgwire_simple_query");
 
         // Act
         let state = tokio::time::timeout(Duration::from_secs(10), query(&mut client, "COMMIT")).await.unwrap();

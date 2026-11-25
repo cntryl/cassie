@@ -136,6 +136,8 @@ fn should_discover_the_visible_relation_for_psql_describe() {
         &[
             "CREATE TABLE probe_docs (id INTEGER PRIMARY KEY)",
             "CREATE TABLE probe_docs_archive (id INTEGER PRIMARY KEY)",
+            "CREATE SCHEMA outside_search_path",
+            "CREATE TABLE outside_search_path.probe_docs (id INTEGER PRIMARY KEY)",
         ],
     );
     fixture.cassie.startup().expect("startup");

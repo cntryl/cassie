@@ -576,3 +576,52 @@ fn should_return_an_uncaptured_saturation_error_while_the_root_is_contended() {
     assert!(root.is_transaction_active());
     assert!(!root.is_transaction_failed());
 }
+
+#[test]
+fn should_release_a_suspended_portal_when_extended_rollback_ends_the_transaction() {
+    // Arrange
+    let (cassie, session, mut state) = fixture();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let mut awaiting = false;
+    let first_page = frontend_frame(b'E', b"p\0\0\0\0\x01");
+    let sync = frontend_frame(b'S', &[]);
+    runtime.block_on(async {
+        let select = parse_frame("SELECT 1 AS id UNION ALL SELECT 2");
+        for frame in [&select, &bind_frame()] {
+            let output = handle_frame(&cassie, &mut state, frame, &mut awaiting).await;
+            assert!(tagged_frames(&output).iter().all(|(tag, _)| *tag != b'E'));
+        }
+        let output = handle_frame(&cassie, &mut state, &first_page, &mut awaiting).await;
+        assert!(tagged_frames(&output).iter().any(|(tag, _)| *tag == b's'));
+        let output = handle_frame(&cassie, &mut state, &sync, &mut awaiting).await;
+        assert_eq!(tagged_frames(&output).last(), Some(&(b'Z', &b"T"[..])));
+        assert!(state.portals.contains_key("p"));
+        assert_eq!(cassie.runtime().snapshot().pgwire.portals, 1);
+        assert!(state.portal_memory_controls.current_query_memory_bytes() > 0);
+
+        // Act
+        let rollback = [
+            frontend_frame(b'P', b"txn\0ROLLBACK\0\0\0"),
+            frontend_frame(b'B', b"txn_portal\0txn\0\0\0\0\0\0\0"),
+            frontend_frame(b'E', b"txn_portal\0\0\0\0\0"),
+        ];
+        for frame in rollback {
+            let output = handle_frame(&cassie, &mut state, &frame, &mut awaiting).await;
+            assert!(tagged_frames(&output).iter().all(|(tag, _)| *tag != b'E'));
+        }
+        let ready = handle_frame(&cassie, &mut state, &sync, &mut awaiting).await;
+        let resumed = handle_frame(&cassie, &mut state, &first_page, &mut awaiting).await;
+
+        // Assert
+        assert_eq!(tagged_frames(&ready).last(), Some(&(b'Z', &b"I"[..])));
+        assert!(!session.is_transaction_active());
+        assert!(state.portals.is_empty());
+        assert_eq!(cassie.runtime().snapshot().pgwire.portals, 0);
+        assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
+        assert!(!tagged_frames(&resumed).iter().any(|(tag, _)| *tag == b'D'));
+        assert!(resumed.windows(7).any(|field| field == b"C34000\0"));
+    });
+}

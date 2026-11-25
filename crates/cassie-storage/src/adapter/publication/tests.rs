@@ -303,6 +303,83 @@ fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
 }
 
 #[test]
+fn should_open_fresh_document_write_after_acquiring_database_publication_gate() {
+    // Arrange
+    let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory fixture"));
+    midge.ensure_families_ready().expect("families");
+    for collection in ["fresh_publication_rows", "current_publication_rows"] {
+        midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "value".to_owned(),
+                        data_type: DataType::Int,
+                        nullable: true,
+                    }],
+                },
+            )
+            .expect("table");
+    }
+    let request = TestRequest::default();
+    let worker_midge = Arc::clone(&midge);
+    let (waiting_tx, waiting_rx) = mpsc::channel();
+
+    // Act
+    let worker = midge
+        .with_database_publication("postgres", &request.context(), || {
+            let worker = std::thread::spawn(move || {
+                NEXT_PUBLICATION.with(|slot| {
+                    *slot.borrow_mut() = Some(Box::new(move |boundary| {
+                        assert!(boundary == PublicationBoundary::WaitingForGate);
+                        waiting_tx.send(()).expect("fresh writer reached held gate");
+                    }));
+                });
+                let current = TestRequest::default();
+                let _scope = NativePublicationControlScope::enter(Some(&current.context()));
+                worker_midge.put_fresh_documents(
+                    "fresh_publication_rows",
+                    vec![(Some("fresh".to_owned()), serde_json::json!({"value": 1}))],
+                )
+            });
+            waiting_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("fresh writer is waiting on the database gate");
+            midge.put_document(
+                "current_publication_rows",
+                Some("current".to_owned()),
+                serde_json::json!({"value": 2}),
+            )?;
+            Ok::<_, CassieError>(worker)
+        })
+        .expect("current row publishes while holding database gate");
+    let fresh_result = worker.join().expect("fresh writer");
+
+    // Assert
+    assert!(
+        fresh_result.is_ok(),
+        "fresh write should succeed after waiting"
+    );
+    assert_eq!(midge.data_epoch().expect("data epoch"), 2);
+    assert_eq!(
+        midge
+            .get_document("fresh_publication_rows", "fresh")
+            .expect("fresh row read")
+            .expect("fresh row")
+            .payload["value"],
+        1
+    );
+    assert_eq!(
+        midge
+            .get_document("current_publication_rows", "current")
+            .expect("current row read")
+            .expect("current row")
+            .payload["value"],
+        2
+    );
+}
+
+#[test]
 fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
     // Arrange
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory fixture"));

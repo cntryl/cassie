@@ -144,17 +144,21 @@ metadata cannot silently select newer rows during fallback.
 
 A changed row batch advances the existing durable data epoch once in the same
 native transaction as its rows, collection generations, and maintenance debt.
-The epoch is scoped to the physical database family. Cassie takes the existing
-family publication guard before opening an epoch-changing native write
-transaction, after acquiring its collection write gates and preparing the
-input where possible. Two unrelated tables in the same family can prepare
+The epoch is scoped to the physical database family. Cassie orders
+epoch-changing native write transactions with a separate lock owned by the
+family publication state. It acquires collection write gates first and
+prepares input before acquiring the epoch lock where possible. Two unrelated tables in the same family can prepare
 writes independently. Their native write snapshots are opened in publication
 order so the shared epoch cannot force a retry on its own. Different families
 retain independent publication guards.
 
-The guard still orders native submissions and latches recovery on an unknown
-outcome before a waiter can submit. Confirmed index repair and post-commit
-maintenance run after the native write window. The stored epoch, image format,
+Native submissions still pass through the existing publication guard, which
+latches recovery on an unknown outcome before a waiter can submit. Operations
+that hold both locks acquire the epoch lock first, including guarded
+REPEATABLE READ validation. Metadata-only writes still take the existing
+publication guard and can conflict with a staged row batch when they change
+the same metadata. Confirmed index repair and post-commit maintenance run
+after the epoch-changing write window. The stored epoch, image format,
 and published Midge dependency retain their existing contracts.
 
 ## Resource and ownership contract

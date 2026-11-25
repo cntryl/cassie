@@ -52,56 +52,8 @@ fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
         .expect("read non-domain defaults for selected domain fields");
 
     // Assert
-    assert_eq!(
-        class_columns,
-        [
-            "oid",
-            "relname",
-            "relkind",
-            "relam",
-            "relnamespace",
-            "relnamespace_oid",
-            "reltoastrelid",
-            "reltype",
-            "relowner",
-            "relhasindex",
-            "relpersistence",
-            "reltuples",
-            "relacl",
-            "reloptions",
-            "relchecks",
-            "relhasrules",
-            "relhastriggers",
-            "relrowsecurity",
-            "relforcerowsecurity",
-            "relispartition",
-            "reltablespace",
-            "reloftype",
-            "relreplident",
-            "relpartbound",
-        ]
-        .map(str::to_owned)
-    );
-    assert_eq!(
-        type_columns,
-        [
-            "oid",
-            "typname",
-            "typnamespace",
-            "typlen",
-            "typbyval",
-            "typtype",
-            "typcategory",
-            "typelem",
-            "typarray",
-            "typbasetype",
-            "typnotnull",
-            "typtypmod",
-            "typrelid",
-            "typcollation",
-        ]
-        .map(str::to_owned)
-    );
+    assert_eq!(class_columns, PG_CLASS_COLUMN_NAMES.map(str::to_owned));
+    assert_eq!(type_columns, PG_TYPE_COLUMN_NAMES.map(str::to_owned));
     assert_eq!(
         relation_types.rows(),
         vec![
@@ -237,3 +189,47 @@ fn should_rollback_relhasindex_history_with_transactional_index_ddl() {
     assert_eq!(relation.rows(), vec![vec![Value::Bool(false)]]);
     assert_eq!(tables_relation.rows(), vec![vec![Value::Bool(false)]]);
 }
+
+const PG_CLASS_COLUMN_NAMES: [&str; 24] = [
+    "oid",
+    "relname",
+    "relkind",
+    "relam",
+    "relnamespace",
+    "relnamespace_oid",
+    "reltoastrelid",
+    "reltype",
+    "relowner",
+    "relhasindex",
+    "relpersistence",
+    "reltuples",
+    "relacl",
+    "reloptions",
+    "relchecks",
+    "relhasrules",
+    "relhastriggers",
+    "relrowsecurity",
+    "relforcerowsecurity",
+    "relispartition",
+    "reltablespace",
+    "reloftype",
+    "relreplident",
+    "relpartbound",
+];
+
+const PG_TYPE_COLUMN_NAMES: [&str; 14] = [
+    "oid",
+    "typname",
+    "typnamespace",
+    "typlen",
+    "typbyval",
+    "typtype",
+    "typcategory",
+    "typelem",
+    "typarray",
+    "typbasetype",
+    "typnotnull",
+    "typtypmod",
+    "typrelid",
+    "typcollation",
+];

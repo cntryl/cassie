@@ -331,5 +331,6 @@ fn should_use_scalar_index_for_equality_on_domain_over_int() {
     let plan = crate::support_sql::explain_plan_text(&plan);
 
     // Assert
-    assert!(plan.contains("selected_index=t_v"), "{plan}");
+    assert!(plan.contains("index_aware=true"), "{plan}");
+    assert!(plan.contains("index=t_v"), "{plan}");
 }

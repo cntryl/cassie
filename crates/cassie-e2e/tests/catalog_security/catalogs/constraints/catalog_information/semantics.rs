@@ -294,9 +294,9 @@ fn should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_
         fixture.execute("SELECT pg_catalog.pg_partition_ancestors('no_such_parent')");
 
     // Assert
-    assert!(ancestors.rows().is_empty());
+    assert_eq!(ancestors.rows(), &[] as &[Vec<Value>]);
     assert_eq!(ancestors.columns()[0].type_oid, 2205);
-    assert!(source.is_empty());
+    assert_eq!(source, Vec::<Vec<Value>>::new());
     assert_eq!(
         referencing,
         vec![vec![Value::String("ordinary_child_parent_id_fkey".into())]]
@@ -340,7 +340,7 @@ fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature()
 
         // Assert
         assert_eq!(result.columns()[0].type_oid, 2205);
-        assert!(result.rows().is_empty(), "{sql}");
+        assert_eq!(result.rows(), &[] as &[Vec<Value>], "{sql}");
     }
     for argument in rejected {
         let sql = format!("SELECT pg_catalog.pg_partition_ancestors({argument})");
@@ -424,7 +424,7 @@ fn should_bind_an_unknown_array_literal_in_a_projected_policy_comparison() {
     let typed_text = fixture.execute("SELECT '{0}'::text = '{0}'::oid[]");
 
     // Assert
-    assert!(empty.is_empty());
+    assert_eq!(empty, Vec::<Vec<Value>>::new());
     assert_eq!(
         values,
         vec![

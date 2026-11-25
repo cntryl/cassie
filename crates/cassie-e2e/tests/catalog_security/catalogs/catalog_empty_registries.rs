@@ -556,7 +556,7 @@ ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_ca
             .unwrap_or_else(|error| panic!("{query}: {error}"));
 
         // Assert
-        assert!(result.rows().is_empty(), "{query}");
+        assert_eq!(result.rows(), &[] as &[Vec<Value>], "{query}");
     }
 }
 

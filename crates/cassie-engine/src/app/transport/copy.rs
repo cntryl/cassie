@@ -139,7 +139,7 @@ impl CopyFromOperation {
             force_null,
             force_not_null,
         )?;
-        let admission_bytes = copy_admission_bytes(owner.as_ref(), &database)?;
+        let admission_bytes = copy_admission_bytes(owner.as_ref(), database.capacity())?;
         authority.reserve_shared_owner(&controls)?;
         #[cfg(any(test, feature = "transport-test-hooks"))]
         let mut observed = binding_accounting_test_hooks::before_admission(
@@ -540,13 +540,13 @@ fn bind_copy_target(
 
 fn copy_admission_bytes(
     owner: Option<&CopyCommandOwner>,
-    database: &str,
+    database_capacity: usize,
 ) -> Result<usize, CassieError> {
     let owner_bytes = owner.map_or(0, |_| std::mem::size_of::<CopyCommandOwner>());
     std::mem::size_of::<CopyFromOperation>()
         .checked_sub(owner_bytes)
         .ok_or_else(|| CassieError::ResourceLimit("COPY binding size underflow".into()))?
-        .checked_add(database.capacity())
+        .checked_add(database_capacity)
         .ok_or_else(|| CassieError::ResourceLimit("COPY binding size overflow".into()))
 }
 

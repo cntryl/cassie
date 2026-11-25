@@ -3,6 +3,89 @@ use cassie::types::Value;
 use std::sync::atomic::Ordering;
 
 #[test]
+fn should_rank_exact_dot_from_raw_vectors_with_underflow_and_identity_ties() {
+    // Arrange
+    let cases = [
+        ([1e-20_f32, 1e30, 0.0], [2e-20_f32, 1e30, 0.0], ["b", "a"]),
+        ([1.0_f32, 1.0, 0.0], [1.0_f32, 0.0, 0.0], ["a", "b"]),
+    ];
+
+    for (a, b, expected) in cases {
+        let (cassie, _) = fixture("dot", Some("index_type = bruteforce"));
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "DELETE FROM vectors", vec![])
+            .expect("clear shared seed");
+        cassie
+            .midge
+            .put_documents(
+                "vectors",
+                vec![
+                    (
+                        Some("a".to_owned()),
+                        serde_json::json!({"id":"a", "embedding":a}),
+                    ),
+                    (
+                        Some("b".to_owned()),
+                        serde_json::json!({"id":"b", "embedding":b}),
+                    ),
+                ],
+            )
+            .expect("authoritative rows");
+        let collection = cassie.midge.canonical_collection_name("vectors");
+        let stats = cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(&collection)
+            .expect("complete index population");
+        cassie.catalog.set_cardinality_stats(&collection, stats);
+
+        // Act
+        let exact = cassie
+            .execute_vector_search("vectors", "embedding", "unit", None, 2, 0)
+            .expect("exact REST engine");
+        let top = cassie
+            .execute_vector_search("vectors", "embedding", "unit", None, 1, 0)
+            .expect("exact top-1");
+        let raw = cassie
+            .execute_sql(
+                &session,
+                "SELECT _id FROM vectors ORDER BY dot_product(embedding, $1) DESC, _id ASC",
+                vec![Value::Vector(cassie::types::Vector::new(vec![
+                    1.0, 0.0, 0.0,
+                ]))],
+            )
+            .expect("authoritative SQL");
+
+        // Assert
+        let identity = exact
+            .columns()
+            .iter()
+            .position(|column| column.name == "_id")
+            .expect("identity projection");
+        let ids = exact.rows();
+        let top_rows = top.rows();
+        let raw = raw.rows();
+        assert_eq!(
+            ids.iter()
+                .map(|row| row[identity].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            raw.iter()
+                .map(|row| row[0].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(top_rows[0][identity].as_str(), Some(expected[0]));
+        assert_eq!(
+            cassie.metrics()["vector"]["normalized_candidate_count_total"],
+            0
+        );
+    }
+}
+
+#[test]
 fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() {
     // Arrange
     let (cassie, _) = fixture("dot", Some("index_type = bruteforce"));

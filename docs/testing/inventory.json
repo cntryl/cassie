@@ -384119,7 +384119,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 880,
-      "sha256": "aa189576e354df8b7df4a929abf643a0af249f64c173cab595681c3327c55f27",
+      "sha256": "8bd730a06f04997cb5e68bd81a094e6e99b842b6c209ef12527165c984ffb450",
       "test_declarations": 10,
       "registered_suites": [
         "rest"

@@ -406,8 +406,8 @@ struct RestSchemaPrivilegeFixture {
 }
 
 fn setup_rest_schema_privileges(
-    cassie: &crate::app::Cassie,
-    admin: &crate::app::CassieSession,
+    cassie: &Cassie,
+    admin: &cassie::app::CassieSession,
 ) -> RestSchemaPrivilegeFixture {
     let reader_password = Uuid::new_v4().to_string();
     let connect_only_password = Uuid::new_v4().to_string();

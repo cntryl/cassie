@@ -133,6 +133,8 @@ pub enum FunctionId {
     PgGetExpr,
     PgGetIndexDef,
     PgGetConstraintDef,
+    PgGetStatisticsObjDefColumns,
+    PgRelationIsPublishable,
     PgGetViewDef,
     PgGetUserById,
     ObjDescription,

@@ -511,10 +511,15 @@ fn pg_roles_rows(catalog: &Catalog) -> Vec<VirtualRow> {
         .list_roles()
         .into_iter()
         .map(|role| {
+            let oid = crate::catalog::object_identity::catalog_role_oid(&role);
             vec![
                 string("rolname", role.name),
                 bool_value("rolcanlogin", role.can_login),
                 bool_value("rolsuper", role.is_admin),
+                (
+                    "oid".to_owned(),
+                    oid.map_or(Value::Null, |oid| Value::Int64(i64::from(oid))),
+                ),
             ]
         })
         .collect()

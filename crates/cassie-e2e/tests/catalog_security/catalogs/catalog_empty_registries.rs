@@ -632,7 +632,11 @@ fn should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal() {
 #[test]
 fn should_expose_the_same_role_oid_to_policy_lookups_and_regrole() {
     // Arrange
-    let fixture = sql_fixture("describe-policy-roles", &["CREATE ROLE describe_reader"]);
+    let fixture = sql_fixture("describe-policy-roles", &[]);
+    fixture.cassie.startup().expect("initialize role catalog");
+    fixture
+        .execute("CREATE ROLE describe_reader NOLOGIN")
+        .expect("create role");
 
     // Act
     let result = fixture

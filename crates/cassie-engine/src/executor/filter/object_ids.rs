@@ -59,6 +59,14 @@ pub(crate) fn evaluate_lookup(
     if matches!(name, "pg_get_userbyid" | "pg_catalog.pg_get_userbyid") {
         return Some(user_by_oid(name, args, session));
     }
+    match name.strip_prefix("pg_catalog.").unwrap_or(name) {
+        "pg_get_statisticsobjdef_columns" => {
+            // No extended-statistics objects are stored. Check oid input before lookup.
+            return Some(oid_argument(name, args).map(|_| Value::Null));
+        }
+        "pg_relation_is_publishable" => return Some(relation_is_publishable(name, args, session)),
+        _ => {}
+    }
     let kind = crate::sql::functions::object_lookup_kind(name)?;
     Some(lookup(kind, args.first(), session))
 }
@@ -69,11 +77,21 @@ fn user_by_oid(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
+    let Some(oid) = oid_argument(name, args)? else {
+        return Ok(Value::Null);
+    };
+    let role = with_scope(session, |scope| Ok(scope.role_name(oid)))?;
+    Ok(Value::String(
+        role.unwrap_or_else(|| format!("unknown (OID={oid})")),
+    ))
+}
+
+fn oid_argument(name: &str, args: &[Value]) -> Result<Option<u32>, QueryError> {
     let [value] = args else {
         return Err(QueryError::General(format!("{name} requires 1 arg")));
     };
     let oid = match value {
-        Value::Null => return Ok(Value::Null),
+        Value::Null => return Ok(None),
         Value::Int64(value) => oid_from_integer(*value).map_err(|rejected| {
             QueryError::Cassie(ObjectIdentifierError::OutOfRange(rejected.to_string()).into())
         })?,
@@ -84,16 +102,36 @@ fn user_by_oid(
             return Err(QueryError::Cassie(
                 crate::app::DiagnosticError::new(
                     "42883",
-                    "function pg_get_userbyid does not exist for this input type".to_string(),
+                    format!("function {name} does not exist for this input type"),
                 )
                 .into(),
             ));
         }
     };
-    let role = with_scope(session, |scope| Ok(scope.role_name(oid)))?;
-    Ok(Value::String(
-        role.unwrap_or_else(|| format!("unknown (OID={oid})")),
-    ))
+    Ok(Some(oid))
+}
+
+fn relation_is_publishable(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    let oid = match args {
+        [Value::String(text)] => with_scope(session, |scope| {
+            scope.resolve_required(ObjectIdKind::RegClass, text)
+        })?,
+        _ => {
+            let Some(oid) = oid_argument(name, args)? else {
+                return Ok(Value::Null);
+            };
+            oid
+        }
+    };
+    with_scope(session, |scope| {
+        Ok(scope
+            .relation_is_publishable(oid)
+            .map_or(Value::Null, Value::Bool))
+    })
 }
 
 fn lookup(

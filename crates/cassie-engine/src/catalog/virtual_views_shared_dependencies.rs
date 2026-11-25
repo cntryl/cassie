@@ -1,8 +1,7 @@
 //! Shared dependencies backed by Cassie's recorded database CONNECT grants.
 
-use crate::catalog::builtin_identity::BOOTSTRAP_ROLE_OID;
-use crate::catalog::object_identity::normal_oid;
-use crate::catalog::{Catalog, RoleMeta};
+use crate::catalog::object_identity::catalog_role_oid;
+use crate::catalog::Catalog;
 use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
@@ -27,7 +26,7 @@ pub(super) fn rows(catalog: &Catalog) -> Vec<VirtualRow> {
     let mut rows = Vec::new();
 
     for role in catalog.list_roles() {
-        let Some(role_oid) = role_oid(&role) else {
+        let Some(role_oid) = catalog_role_oid(&role) else {
             continue;
         };
         let Some(granted_databases) = role.database_grants.as_ref() else {
@@ -51,22 +50,13 @@ pub(super) fn rows(catalog: &Catalog) -> Vec<VirtualRow> {
                 ),
                 int_value("objsubid", 0),
                 oid_value("refclassid", PG_AUTHID_OID),
-                oid_value("refobjid", role_oid),
+                oid_value("refobjid", i64::from(role_oid)),
                 string_value("deptype", "a"),
             ]);
         }
     }
 
     rows
-}
-
-fn role_oid(role: &RoleMeta) -> Option<i64> {
-    let oid = if role.is_admin && role.object_id == 0 {
-        BOOTSTRAP_ROLE_OID
-    } else {
-        normal_oid(role.object_id)?
-    };
-    Some(i64::from(oid))
 }
 
 fn oid(name: &str) -> (String, DataType) {

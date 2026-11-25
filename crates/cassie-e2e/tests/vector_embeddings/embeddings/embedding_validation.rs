@@ -332,7 +332,7 @@ fn indexed_embedding_fixture(provider: Arc<FixtureEmbeddingProvider>) -> Cassie 
 }
 
 #[test]
-fn should_use_document_and_query_embedding_roles_for_their_respective_paths() {
+fn should_dispatch_each_embedding_request_to_its_provider_role() {
     // Arrange
     let document = [1.0, 0.0, 0.0];
     for query in [[0.0, 1.0, 0.0], document] {

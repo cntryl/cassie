@@ -101,3 +101,85 @@ fn confidence_score(stats: &FieldCardinalityStats) -> u8 {
 fn canonical_stat_value(value: &serde_json::Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| value.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use cassie_core::types::{DataType, FieldSchema, Schema};
+
+    use crate::adapter::Midge;
+
+    #[test]
+    fn should_order_rebuilt_integer_histograms_by_exact_value() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("open memory fixture");
+        let samples: [(&str, DataType, &[i64], &[(&str, u64)]); 2] = [
+            ("numbers", DataType::Int, &[2, 10], &[("2", 1), ("10", 1)]),
+            (
+                "wide_numbers",
+                DataType::BigInt,
+                &[
+                    9_007_199_254_740_993,
+                    -2,
+                    10,
+                    -10,
+                    9_007_199_254_740_992,
+                    10,
+                ],
+                &[
+                    ("-10", 1),
+                    ("-2", 1),
+                    ("10", 2),
+                    ("9007199254740992", 1),
+                    ("9007199254740993", 1),
+                ],
+            ),
+        ];
+        for (collection, data_type, values, expected) in samples {
+            midge
+                .create_collection(
+                    collection,
+                    Schema {
+                        fields: vec![FieldSchema {
+                            name: "value".to_owned(),
+                            data_type,
+                            nullable: false,
+                        }],
+                    },
+                )
+                .expect("create typed collection");
+            for (offset, value) in values.iter().enumerate() {
+                midge
+                    .put_document(
+                        collection,
+                        Some(offset.to_string()),
+                        serde_json::json!({"value": value}),
+                    )
+                    .expect("write integer row");
+            }
+
+            // Act
+            let stats = midge
+                .rebuild_cardinality_stats_for_collection(collection)
+                .expect("rebuild persisted field stats");
+
+            // Assert
+            let field = &stats.fields["value"];
+            assert_eq!(
+                field.min_value.as_deref(),
+                expected.first().map(|item| item.0)
+            );
+            assert_eq!(
+                field.max_value.as_deref(),
+                expected.last().map(|item| item.0)
+            );
+            assert_eq!(field.distinct_count, u64::try_from(expected.len()).unwrap());
+            assert_eq!(field.histogram_buckets.len(), expected.len());
+            for (bucket, (value, count)) in field.histogram_buckets.iter().zip(expected) {
+                assert_eq!(
+                    (bucket.lower.as_str(), bucket.upper.as_str(), bucket.count),
+                    (*value, *value, *count)
+                );
+            }
+        }
+    }
+}

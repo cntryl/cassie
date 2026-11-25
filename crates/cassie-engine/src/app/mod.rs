@@ -65,10 +65,7 @@ pub(crate) fn field_value_is_sql_null(
             })
         })
 }
-use crate::vector::{
-    cosine_distance_from_normalized_query, dot_distance_from_normalized_target,
-    normalize as normalize_vector,
-};
+use crate::vector::{cosine_distance_from_normalized_query, normalize as normalize_vector};
 
 mod access;
 #[doc(hidden)]

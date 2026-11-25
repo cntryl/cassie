@@ -88,13 +88,13 @@ fn should_rank_exact_dot_from_raw_vectors_with_underflow_and_identity_ties() {
 #[test]
 fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() {
     // Arrange
-    let (cassie, _) = fixture("dot", Some("index_type = bruteforce"));
+    let (cassie, _) = fixture("cosine", Some("index_type = bruteforce"));
     let documents = (0..1020)
         .map(|index| {
             let id = format!("id{index:04}");
             (
                 Some(id.clone()),
-                serde_json::json!({"id":id,"content":null,"embedding":[1.0,0.0,0.0]}),
+                serde_json::json!({"id":id,"content":null,"embedding":[0.8,0.6,0.0]}),
             )
         })
         .collect();
@@ -112,11 +112,11 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
         .rebuild_cardinality_stats_for_collection(&collection)
         .expect("current stats");
     cassie.catalog.set_cardinality_stats(&collection, stats);
-    let body = br#"{"field":"embedding","query":"unit","metric":"dot","limit":1}"#;
+    let body = br#"{"field":"embedding","query":"unit","metric":"cosine","limit":1}"#;
     for _ in 0..2 {
         let warm =
             cassie::rest::search::vector_search(&cassie, "vectors", body).expect("warm search");
-        assert_eq!(warm.rows()[0][0].as_str(), Some("id0000"));
+        assert_eq!(warm.rows()[0][0].as_str(), Some("positive"));
     }
     assert!(
         cassie.metrics()["vector"]["normalized_candidate_count_total"]
@@ -130,7 +130,7 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
         .put_document(
             "vectors",
             Some("id0500".into()),
-            serde_json::json!({"id":"id0500","content":null,"embedding":[2.0,0.0,0.0]}),
+            serde_json::json!({"id":"id0500","content":null,"embedding":[1.0,0.0,0.0]}),
         )
         .expect("advance vector generation");
     assert!(cassie
@@ -221,7 +221,7 @@ fn should_match_zero_vector_order_across_query_paths() {
                 assert_eq!(result.rows().iter().map(|row| row[0].as_str().expect("identity")).collect::<Vec<_>>(),oracle(metric,&[0.0;3],false).iter().map(|row| row.0.as_str()).collect::<Vec<_>>());
             }
             if let Some(options) = options {
-                if metric != "l2" && !options.contains("hnsw") {
+                if metric == "cosine" && !options.contains("hnsw") {
                     assert!(cassie.metrics()["vector"]["normalized_candidate_count_total"].as_u64().expect("normalized path counter") >= 10);
                 }
                 if options.contains("hnsw") { assert!(cassie.metrics()["vector"]["hnsw_executions"].as_u64().expect("HNSW counter") > 0); }

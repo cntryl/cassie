@@ -5,11 +5,10 @@ use super::vector_helpers::{
     vector_search_columns, vector_search_row, ScoredVectorCandidate,
 };
 use super::{
-    cosine_distance_from_normalized_query, dot_distance_from_normalized_target, normalize_vector,
-    Arc, Cassie, CassieError, CollectionSchema, DistanceMetric, Embedding, Instant,
-    NormalizedVectorCacheEntry, NormalizedVectorCacheKey, NormalizedVectorRecord,
-    QueryEmbeddingCacheKey, QueryResult, RowDecode, VectorIndexRecord, VectorIndexType,
-    VectorSearchResultCacheKey,
+    cosine_distance_from_normalized_query, normalize_vector, Arc, Cassie, CassieError,
+    CollectionSchema, DistanceMetric, Embedding, Instant, NormalizedVectorCacheEntry,
+    NormalizedVectorCacheKey, NormalizedVectorRecord, QueryEmbeddingCacheKey, QueryResult,
+    RowDecode, VectorIndexRecord, VectorIndexType, VectorSearchResultCacheKey,
 };
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryExecutionControls;
@@ -276,7 +275,7 @@ impl Cassie {
         &self,
         request: &ProjectedVectorSearch<'_>,
     ) -> Result<Option<AccountedVectorResult>, CassieError> {
-        if !matches!(request.metric, DistanceMetric::Cosine | DistanceMetric::Dot) {
+        if request.metric != DistanceMetric::Cosine {
             return Ok(None);
         }
         let Some((entry, _entry_memory)) = self.cached_normalized_vectors_controlled(request)?
@@ -286,30 +285,15 @@ impl Cassie {
         let _query_memory = request
             .controls
             .reserve_query_memory(checked_mul(request.query.len(), size_of::<f32>())?)?;
-        let normalized_query = normalize_vector(request.query);
-        if request.metric == DistanceMetric::Cosine && normalized_query.is_none() {
+        let Some(normalized_query) = normalize_vector(request.query) else {
             return Ok(None);
-        }
+        };
         let mut top = AccountedCandidates::new(request.controls)?;
         for (index, id) in entry.ids.iter().enumerate() {
             check_controls(request.controls)?;
             let start = checked_mul(index, entry.dimensions)?;
             let values = &entry.values[start..start + entry.dimensions];
-            let distance = match request.metric {
-                DistanceMetric::Cosine => cosine_distance_from_normalized_query(
-                    &normalized_query
-                        .as_ref()
-                        .expect("validated normalized query")
-                        .values,
-                    values,
-                ),
-                DistanceMetric::Dot => dot_distance_from_normalized_target(
-                    request.query,
-                    values,
-                    entry.magnitudes[index],
-                ),
-                DistanceMetric::L2 => unreachable!("L2 has no normalized fast path"),
-            };
+            let distance = cosine_distance_from_normalized_query(&normalized_query.values, values);
             top.push(distance, id, request.top_needed)?;
         }
         let (ranked, _top_memory) = top.ranked();

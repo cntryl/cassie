@@ -140,7 +140,8 @@ impl Agreement {
     }
 }
 
-/// Ids and order must be identical; scores are compared pairwise within `tolerance`.
+/// Ids and order must be identical. Paired scores must be finite and within `tolerance`.
+/// An invalid pair has an infinite reported difference.
 pub fn compare(cassie: &[(String, f64)], reference: &[(String, f64)], tolerance: f64) -> Agreement {
     let same_ids = cassie.len() == reference.len()
         && cassie
@@ -150,11 +151,17 @@ pub fn compare(cassie: &[(String, f64)], reference: &[(String, f64)], tolerance:
     let max_score_difference = cassie
         .iter()
         .zip(reference)
-        .map(|(left, right)| (left.1 - right.1).abs())
+        .map(|(left, right)| {
+            if left.1.is_finite() && right.1.is_finite() {
+                (left.1 - right.1).abs()
+            } else {
+                f64::INFINITY
+            }
+        })
         .fold(0.0, f64::max);
     Agreement {
         same_ids,
         max_score_difference,
-        within_tolerance: max_score_difference <= tolerance,
+        within_tolerance: max_score_difference.is_finite() && max_score_difference <= tolerance,
     }
 }

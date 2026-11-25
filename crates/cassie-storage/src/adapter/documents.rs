@@ -412,39 +412,29 @@ impl Midge {
                 prepared_writes.push((collection.clone(), context, prepared));
             }
 
-            let mut tx = self
-                .begin_database_adapter_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
-            tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
+            let (family, publication) = self.data_epoch_publication(&database)?;
+            let epoch_write = publication.lock_data_epoch_write()?;
+            let mut tx = self.begin_data_rw_tx(family)?;
             if let Some(overlay) = overlay {
                 Self::apply_storage_overlay_to_transaction(&mut tx, overlay)?;
             }
-            let PreparedDocumentWriteBatches {
-                reports,
-                changed_collections,
-                vector,
-                fulltext_indexes_by_collection,
-            } = self.apply_prepared_document_write_batches(&mut tx, prepared_writes, options)?;
+            let prepared =
+                self.apply_prepared_document_write_batches(&mut tx, prepared_writes, options)?;
 
             if let Some(replay) = &options.replay {
                 self.stage_projection_replay_in_tx(&mut tx, replay)?;
             }
 
-            if changed_collections.is_empty() && !options.has_side_writes() {
+            if prepared.changed_collections.is_empty() && !options.has_side_writes() {
                 tx.rollback().map_err(CassieError::from)?;
+                drop(epoch_write);
                 if let Some(overlay) = overlay {
                     self.commit_storage_overlay(&database, overlay)?;
                 }
-                return Ok(reports);
+                return Ok(prepared.reports);
             }
 
-            match self.finish_document_write_batches(
-                options,
-                tx,
-                reports,
-                changed_collections,
-                &vector,
-                &fulltext_indexes_by_collection,
-            ) {
+            match self.finish_document_write_batches(options, tx, prepared, epoch_write) {
                 Ok(reports) => return Ok(reports),
                 Err(error) if options.replay.is_some() => return Err(error),
                 Err(error) => match commit::document_write_retry_delay(&error, attempts) {

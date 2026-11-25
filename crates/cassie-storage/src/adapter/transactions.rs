@@ -994,7 +994,14 @@ impl Midge {
         let database =
             relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
         let family = self.database_family(&database)?;
-        let mut tx = self.begin_adapter_tx(family.id(), TransactionMode::ReadWrite)?;
+        self.begin_data_rw_tx(family.id())
+    }
+
+    pub(super) fn begin_data_rw_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+    ) -> Result<AdapterTransaction, CassieError> {
+        let mut tx = self.begin_adapter_tx(family_id, TransactionMode::ReadWrite)?;
         tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
         Ok(tx)
     }

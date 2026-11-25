@@ -147,10 +147,10 @@ native transaction as its rows, collection generations, and maintenance debt.
 The epoch is scoped to the physical database family. Cassie orders
 epoch-changing native write transactions with a separate lock owned by the
 family publication state. It acquires collection write gates first and
-prepares input before acquiring the epoch lock where possible. Two unrelated tables in the same family can prepare
-writes independently. Their native write snapshots are opened in publication
-order so the shared epoch cannot force a retry on its own. Different families
-retain independent publication guards.
+prepares input before acquiring the epoch lock where possible. Writers for
+unrelated tables in the same family can prepare input independently. Their
+native write snapshots open in epoch order, which prevents a conflict on the
+shared epoch. Different families have independent locks.
 
 Native submissions still pass through the existing publication guard, which
 latches recovery on an unknown outcome before a waiter can submit. Operations

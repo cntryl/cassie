@@ -250,8 +250,10 @@ impl Midge {
         let row_schema = self.row_schema(&collection)?;
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
+        let (family, publication) = self.data_epoch_publication_for_collection(&collection)?;
+        let epoch_write = publication.lock_data_epoch_write()?;
         let generation = self.collection_generation(&collection)?.saturating_add(1);
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        let mut tx = self.begin_data_rw_tx(family)?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
@@ -281,6 +283,7 @@ impl Midge {
         Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
+        drop(epoch_write);
         let _ = self.complete_column_batch_maintenance(&collection, generation, None);
         let _ = self.complete_projection_hash_maintenance(&collection, generation, row_delta);
         Ok(ids)

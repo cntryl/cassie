@@ -58,6 +58,7 @@ impl PublicationCoordinator {
         }
         let gate = Arc::new(DatabasePublication {
             mutex: ReentrantMutex::new(()),
+            data_epoch_write: ReentrantMutex::new(()),
             recovery_required: Arc::clone(&self.recovery_required),
             row_history: row_history::RowHistory::new(
                 self.history_budget
@@ -120,6 +121,7 @@ impl PublicationCoordinator {
 
 pub(super) struct DatabasePublication {
     mutex: ReentrantMutex<()>,
+    data_epoch_write: ReentrantMutex<()>,
     recovery_required: Arc<AtomicBool>,
     pub(super) row_history: row_history::RowHistory,
 }
@@ -175,23 +177,24 @@ impl PublicationWaitControls {
 }
 
 impl DatabasePublication {
-    fn lock(
+    fn lock<'a>(
         &self,
+        gate: &'a ReentrantMutex<()>,
         controls: Option<&PublicationWaitControls>,
         observer: &mut impl FnMut(PublicationBoundary),
-    ) -> Result<ReentrantMutexGuard<'_, ()>, AdapterCommitError> {
+    ) -> Result<ReentrantMutexGuard<'a, ()>, AdapterCommitError> {
         let guard = if let Some(controls) = controls {
             loop {
                 controls
                     .check_interruption()
                     .map_err(AdapterCommitError::Cassie)?;
-                if let Some(guard) = self.mutex.try_lock_for(Duration::from_millis(2)) {
+                if let Some(guard) = gate.try_lock_for(Duration::from_millis(2)) {
                     break guard;
                 }
                 observer(PublicationBoundary::WaitingForGate);
             }
         } else {
-            self.mutex.lock()
+            gate.lock()
         };
         if let Some(controls) = controls {
             controls
@@ -202,6 +205,17 @@ impl DatabasePublication {
             return Err(AdapterCommitError::RecoveryRequired);
         }
         Ok(guard)
+    }
+
+    /// Called after collection gates, before opening an epoch-changing native transaction.
+    pub(super) fn lock_data_epoch_write(&self) -> Result<ReentrantMutexGuard<'_, ()>, CassieError> {
+        let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
+        self.lock(
+            &self.data_epoch_write,
+            controls.as_ref(),
+            &mut observe_publication_boundary,
+        )
+        .map_err(CassieError::from)
     }
 
     pub(super) fn publish_current(
@@ -276,7 +290,7 @@ impl DatabasePublication {
         operation: impl FnOnce() -> Result<(), AdapterCommitError>,
         mut observer: impl FnMut(PublicationBoundary),
     ) -> Result<(), AdapterCommitError> {
-        let _guard = self.lock(controls, &mut observer)?;
+        let _guard = self.lock(&self.mutex, controls, &mut observer)?;
         let result = operation();
         if matches!(
             &result,
@@ -298,7 +312,11 @@ impl DatabasePublication {
     ) -> Result<T, CassieError> {
         let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
         let _guard = self
-            .lock(controls.as_ref(), &mut observe_publication_boundary)
+            .lock(
+                &self.mutex,
+                controls.as_ref(),
+                &mut observe_publication_boundary,
+            )
             .map_err(CassieError::from)?;
         operation()
     }
@@ -315,8 +333,12 @@ impl DatabasePublication {
             .with(|slot| slot.borrow().clone())
             .unwrap_or_default()
             .with_interruption(controls.interruption(), controls.memory());
+        let _epoch = self
+            .lock(&self.data_epoch_write, Some(&controls), &mut |_| {})
+            .map_err(CassieError::from)
+            .map_err(E::from)?;
         let _guard = self
-            .lock(Some(&controls), &mut |_| {})
+            .lock(&self.mutex, Some(&controls), &mut |_| {})
             .map_err(CassieError::from)
             .map_err(E::from)?;
         operation()
@@ -467,6 +489,23 @@ impl Midge {
         })
     }
 
+    pub(super) fn data_epoch_publication(
+        &self,
+        database: &str,
+    ) -> Result<(cntryl_midge::ColumnFamilyId, Arc<DatabasePublication>), CassieError> {
+        let family_id = self.database_family(database)?.id();
+        Ok((family_id, self.publication.family(family_id)))
+    }
+
+    pub(super) fn data_epoch_publication_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<(cntryl_midge::ColumnFamilyId, Arc<DatabasePublication>), CassieError> {
+        let database = crate::catalog::relation_database_name(collection);
+        self.data_epoch_publication(database.as_deref().unwrap_or(&self.default_database))
+    }
+
+    /// Guards a validation and publication window. Acquire any collection write gates first.
     ///
     /// # Errors
     /// Returns the operation error or an error produced while waiting for publication.

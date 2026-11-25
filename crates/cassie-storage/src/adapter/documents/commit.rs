@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use super::super::{CassieError, Midge};
-use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
+use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport, PreparedDocumentWriteBatches};
 use crate::adapter::fulltext_retrieval::{FulltextCommitChanges, FulltextWriteTally};
 use crate::adapter::maintenance::check_fulltext_maintenance_failure_point;
 use crate::adapter::vector_indexes::{VectorBatchWork, VectorFieldWrites};
@@ -100,16 +100,15 @@ impl Midge {
         &self,
         options: &DocumentWriteBatchOptions,
         mut tx: crate::adapter::AdapterTransaction,
-        mut reports: BTreeMap<String, DocumentWriteBatchReport>,
-        changed_collections: Vec<String>,
-        vector: &VectorBatchWork,
-        fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
+        prepared: PreparedDocumentWriteBatches,
+        epoch_write: parking_lot::ReentrantMutexGuard<'_, ()>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
-        if changed_collections.is_empty() && !options.has_side_writes() {
-            tx.rollback().map_err(CassieError::from)?;
-            return Ok(reports);
-        }
-
+        let PreparedDocumentWriteBatches {
+            mut reports,
+            changed_collections,
+            vector,
+            fulltext_indexes_by_collection,
+        } = prepared;
         let mut generations = BTreeMap::new();
         let mut fulltext_tallies = Vec::<FulltextWriteTally>::new();
         let mut deferred_fulltext_rebuilds = Vec::new();
@@ -162,8 +161,9 @@ impl Midge {
                 super::super::schema_write_control::SchemaWritePausePoint::ProjectionReplayMetadataCommit,
             );
         }
-        Self::pause_before_index_publication(vector, !fulltext_tallies.is_empty());
+        Self::pause_before_index_publication(&vector, !fulltext_tallies.is_empty());
         tx.commit(options.commit).map_err(CassieError::from)?;
+        drop(epoch_write);
         self.publish_fulltext_maintenance(&fulltext_tallies, &deferred_fulltext_rebuilds);
         self.publish_vector_maintenance(&vector.maintenance);
         let mut sorted_changed_collections = changed_collections;

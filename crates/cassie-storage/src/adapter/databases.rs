@@ -285,6 +285,8 @@ impl Midge {
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
         let family = self.resolve_database_family(&metadata)?.handle.id();
+        #[cfg(test)]
+        publication_tests::pause_after_drop_resolution();
         let publication = self.publication.family(family);
         publication.with_current_operation(|| {
             self.ensure_database_droppable(name)?;

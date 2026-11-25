@@ -338,6 +338,63 @@ pub(super) fn pause_after_drop_empty_check() {
     }
 }
 
+thread_local! {
+    static AFTER_DROP_RESOLUTION: RefCell<Option<DropPause>> = const { RefCell::new(None) };
+}
+
+pub(super) fn pause_after_drop_resolution() {
+    if let Some(pause) = AFTER_DROP_RESOLUTION.with(|slot| slot.take()) {
+        pause();
+    }
+}
+
+#[test]
+fn should_preserve_recreated_database_when_an_earlier_drop_resumes() {
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("memory adapter");
+    let name = "name_reuse";
+    midge.create_database(name, None).unwrap();
+    let original = midge.database_family(name).unwrap();
+    let (resolved, observed) = mpsc::channel();
+    let (resume, retired) = mpsc::channel();
+
+    // Act
+    let (result, replacement) = std::thread::scope(|scope| {
+        let adapter = &midge;
+        let old_drop = scope.spawn(move || {
+            AFTER_DROP_RESOLUTION.with(|slot| {
+                slot.replace(Some(Box::new(move || {
+                    resolved.send(()).unwrap();
+                    retired.recv_timeout(Duration::from_secs(5)).unwrap();
+                })));
+            });
+            adapter.drop_database(name)
+        });
+        observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        midge.drop_database(name).unwrap();
+        midge.create_database(name, None).unwrap();
+        let replacement = midge.database_family(name).unwrap();
+        resume.send(()).unwrap();
+        (old_drop.join().unwrap(), replacement)
+    });
+
+    // Assert
+    assert_ne!(original.name(), replacement.name());
+    assert!(result.is_err(), "stale DROP must reject the replacement");
+    let durable = midge
+        .get_database(name)
+        .unwrap()
+        .expect("durable replacement");
+    assert_eq!(durable.physical_family, replacement.name());
+    assert_eq!(midge.database_family(name).unwrap().id(), replacement.id());
+    assert!(midge.engine.get_column_family(original.name()).is_none());
+    midge
+        .drop_database(name)
+        .expect("fresh DROP owns replacement");
+    assert!(midge.get_database(name).unwrap().is_none());
+    assert!(midge.engine.get_column_family(replacement.name()).is_none());
+}
+
 #[test]
 fn should_never_discard_a_native_write_racing_an_empty_database_drop() {
     // Arrange

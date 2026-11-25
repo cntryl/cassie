@@ -40,8 +40,6 @@ impl Drop for ProjectionPauseCleanup {
         if self.0.is_none() {
             return;
         }
-        set_materialized_projection_replace_start_barriers(None, None);
-        set_materialized_projection_replace_barriers(None, None);
         set_projection_replay_prepare_barriers(None, None, None);
     }
 }
@@ -51,6 +49,7 @@ use cassie::app::{
     CassieSession, ProjectionReplayBatch, ProjectionReplayEvent,
 };
 use cassie::executor::{
+    set_materialized_projection_refresh_wait_observer,
     set_materialized_projection_replace_barriers,
     set_materialized_projection_replace_start_barriers,
 };
@@ -125,20 +124,16 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
             "INSERT INTO projection_concurrent_source VALUES ('alpha', 1), ('bravo', 2)",
             "CREATE MATERIALIZED PROJECTION projection_concurrent AS \
              SELECT title FROM projection_concurrent_source WHERE score > 1",
+            "CREATE MATERIALIZED PROJECTION projection_independent AS \
+             SELECT title FROM projection_concurrent_source WHERE score = 1",
         ],
     );
     let dropped = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
     let replace_ready = Arc::new(Barrier::new(2));
     let replace_resume = Arc::new(Barrier::new(2));
-    set_materialized_projection_replace_start_barriers(
-        Some(Arc::clone(&replace_ready)),
-        Some(Arc::clone(&replace_resume)),
-    );
-    set_materialized_projection_replace_barriers(
-        Some(Arc::clone(&dropped)),
-        Some(Arc::clone(&resume)),
-    );
+    let first_start = (Arc::clone(&replace_ready), Arc::clone(&replace_resume));
+    let first_drop = (Arc::clone(&dropped), Arc::clone(&resume));
     let mut pause_cleanup = ProjectionPauseCleanup::arm([
         (Arc::clone(&replace_ready), Arc::clone(&replace_resume)),
         (Arc::clone(&dropped), Arc::clone(&resume)),
@@ -148,6 +143,11 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
     let first_cassie = Arc::clone(&cassie);
     let (first_tx, first_rx) = mpsc::channel();
     let first = std::thread::spawn(move || {
+        set_materialized_projection_replace_start_barriers(
+            Some(first_start.0),
+            Some(first_start.1),
+        );
+        set_materialized_projection_replace_barriers(Some(first_drop.0), Some(first_drop.1));
         let session = first_cassie.create_session("first", None);
         let result = first_cassie.execute_sql(
             &session,
@@ -164,6 +164,13 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
             vec![],
         )
         .expect("mutate source between refresh snapshots");
+    cassie
+        .execute_sql(
+            &setup,
+            "REFRESH MATERIALIZED PROJECTION projection_independent",
+            vec![],
+        )
+        .expect("refresh an independent projection while the first snapshot is paused");
     wait_for_barrier(&replace_resume, "materialized projection replace resume");
     wait_for_barrier(&dropped, "materialized projection old relation dropped");
     let (second_tx, second_rx) = mpsc::channel();
@@ -171,9 +178,7 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
     let second_cassie = Arc::clone(&cassie);
     let second = std::thread::spawn(move || {
         let session = second_cassie.create_session("second", None);
-        second_boundary_tx
-            .send(())
-            .expect("signal second refresh boundary");
+        set_materialized_projection_refresh_wait_observer(second_boundary_tx);
         let result = second_cassie.execute_sql(
             &session,
             "REFRESH MATERIALIZED PROJECTION projection_concurrent",
@@ -183,7 +188,7 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
     });
     second_boundary_rx
         .recv_timeout(CONCURRENCY_DEADLINE)
-        .expect("second refresh reaches execution boundary");
+        .expect("second refresh contends on the logical projection publication gate");
     assert!(
         second_rx.try_recv().is_err(),
         "second refresh completed before publication"
@@ -265,10 +270,7 @@ fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build
 
     let build_ready = Arc::new(Barrier::new(2));
     let build_resume = Arc::new(Barrier::new(2));
-    set_materialized_projection_replace_start_barriers(
-        Some(Arc::clone(&build_ready)),
-        Some(Arc::clone(&build_resume)),
-    );
+    let build_pause = (Arc::clone(&build_ready), Arc::clone(&build_resume));
     let mut pause_cleanup =
         ProjectionPauseCleanup::arm([(Arc::clone(&build_ready), Arc::clone(&build_resume))]);
     let refresh_cassie = Arc::clone(&cassie);
@@ -276,6 +278,10 @@ fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build
     // Act
     let (refresh_tx, refresh_rx) = mpsc::channel();
     let refresh = std::thread::spawn(move || {
+        set_materialized_projection_replace_start_barriers(
+            Some(build_pause.0),
+            Some(build_pause.1),
+        );
         let session = refresh_cassie.create_session("refresh", None);
         let result = refresh_cassie.execute_sql(
             &session,
@@ -347,10 +353,7 @@ fn should_serialize_materialized_view_refresh_modes() {
     );
     let build_ready = Arc::new(Barrier::new(2));
     let build_resume = Arc::new(Barrier::new(2));
-    set_materialized_projection_replace_start_barriers(
-        Some(Arc::clone(&build_ready)),
-        Some(Arc::clone(&build_resume)),
-    );
+    let build_pause = (Arc::clone(&build_ready), Arc::clone(&build_resume));
     let mut pause_cleanup =
         ProjectionPauseCleanup::arm([(Arc::clone(&build_ready), Arc::clone(&build_resume))]);
     let concurrent_cassie = Arc::clone(&cassie);
@@ -358,6 +361,10 @@ fn should_serialize_materialized_view_refresh_modes() {
     // Act
     let (concurrent_tx, concurrent_rx) = mpsc::channel();
     let concurrent = std::thread::spawn(move || {
+        set_materialized_projection_replace_start_barriers(
+            Some(build_pause.0),
+            Some(build_pause.1),
+        );
         let session = concurrent_cassie.create_session("concurrent", None);
         let result = concurrent_cassie.execute_sql(
             &session,

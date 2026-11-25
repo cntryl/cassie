@@ -1,5 +1,4 @@
 use cassie::types::{DataType, Value, Vector};
-use uuid::Uuid;
 
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::data_path(&format!("types-{label}"))

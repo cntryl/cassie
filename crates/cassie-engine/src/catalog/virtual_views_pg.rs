@@ -54,6 +54,16 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         oid("reltype"),
         int("relowner"),
         bool("relhasindex"),
+        ("relchecks".to_owned(), DataType::SmallInt),
+        bool("relhasrules"),
+        bool("relhastriggers"),
+        bool("relrowsecurity"),
+        bool("relforcerowsecurity"),
+        bool("relispartition"),
+        oid("reltablespace"),
+        oid("reloftype"),
+        text("relreplident"),
+        text("relpartbound"),
         text("relpersistence"),
         int("reltuples"),
         text("relacl"),
@@ -80,7 +90,7 @@ pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
         text("attgenerated"),
         text("attstorage"),
         text("attcompression"),
-        int("attcollation"),
+        oid("attcollation"),
     ]
 }
 
@@ -106,6 +116,8 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
         int("indnatts"),
         int("indnkeyatts"),
         text("indoption"),
+        bool("indisclustered"),
+        bool("indisreplident"),
         bool("indisvalid"),
         bool("indisready"),
         text("indpred"),
@@ -138,6 +150,7 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
         bool("typnotnull"),
         int("typtypmod"),
         oid("typrelid"),
+        oid("typcollation"),
     ]
 }
 
@@ -384,6 +397,8 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 int_value("indnatts", index_attribute_count(catalog, &index)),
                 int_value("indnkeyatts", index_key_count(catalog, &index)),
                 string("indoption", index_options(&index)),
+                bool_value("indisclustered", false),
+                bool_value("indisreplident", false),
                 bool_value("indisvalid", true),
                 bool_value("indisready", true),
                 (
@@ -521,6 +536,27 @@ fn class_row(
         ),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
+        int_value(
+            "relchecks",
+            if kind == "r" {
+                catalog
+                    .get_constraints(name)
+                    .iter()
+                    .filter(|constraint| constraint.check.is_some())
+                    .count()
+            } else {
+                0
+            },
+        ),
+        bool_value("relhasrules", false),
+        bool_value("relhastriggers", false),
+        bool_value("relrowsecurity", false),
+        bool_value("relforcerowsecurity", false),
+        bool_value("relispartition", false),
+        int_value("reltablespace", 0),
+        int_value("reloftype", 0),
+        string("relreplident", if kind == "r" { "d" } else { "n" }),
+        ("relpartbound".to_owned(), Value::Null),
         string(
             "relpersistence",
             if kind == "S" {

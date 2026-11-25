@@ -72,6 +72,7 @@ pub(super) fn type_row_with_oid(
         bool_value("typnotnull", false),
         int_value("typtypmod", -1),
         int_value("typrelid", 0),
+        int_value("typcollation", super::collation::type_oid(data_type)),
     ]
 }
 

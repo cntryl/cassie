@@ -167,3 +167,105 @@ fn should_discover_the_visible_relation_for_psql_describe() {
         ]
     );
 }
+
+#[test]
+fn should_describe_relation_attributes_and_constraints_for_psql() {
+    // Arrange
+    let fixture = sql_fixture("psql-describe-catalog", &[
+        "CREATE TABLE probe_parent (id INTEGER PRIMARY KEY)",
+        "CREATE TABLE probe_docs (id INTEGER PRIMARY KEY, amount INTEGER DEFAULT 7 CHECK (amount > 0), parent_id INTEGER REFERENCES probe_parent(id))",
+        "CREATE INDEX probe_docs_amount_idx ON probe_docs (amount)",
+    ]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let relation = fixture.execute(
+        "SELECT relchecks, relhasindex, relhasrules, relhastriggers, relrowsecurity,
+                relforcerowsecurity, relispartition, reltablespace, reloftype, relreplident, relpartbound
+         FROM pg_catalog.pg_class WHERE oid = 'probe_docs'::regclass"
+    ).expect("relation details");
+    let attributes = fixture.rows(
+        "SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod),
+         (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, true) FROM pg_catalog.pg_attrdef d
+          WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+         a.attnotnull,
+         (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+          WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation)
+         FROM pg_catalog.pg_attribute a WHERE a.attrelid = 'probe_docs'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+         ORDER BY a.attnum"
+    );
+    let index_rows = fixture.rows(
+        "SELECT c.relname, i.indisprimary, i.indisclustered, i.indisreplident, c.reltablespace
+         FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON i.indexrelid = c.oid
+         WHERE i.indrelid = 'probe_docs'::regclass ORDER BY i.indisprimary DESC, c.relname",
+    );
+    let keys = fixture.rows(
+        "SELECT contype, conparentid, conperiod FROM pg_catalog.pg_constraint
+         WHERE conrelid = 'probe_docs'::regclass AND contype IN ('c','f','p') ORDER BY contype",
+    );
+
+    // Assert
+    assert_eq!(
+        relation.rows(),
+        vec![vec![
+            Value::Int64(1),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Int64(0),
+            Value::Int64(0),
+            Value::String("d".into()),
+            Value::Null,
+        ]]
+    );
+    assert_eq!(relation.columns()[0].type_oid, 21);
+    assert_eq!(relation.columns()[7].type_oid, 26);
+    assert_eq!(relation.columns()[8].type_oid, 26);
+    assert_eq!(
+        attributes,
+        vec![
+            vec![
+                Value::String("id".into()),
+                Value::String("integer".into()),
+                Value::Null,
+                Value::Bool(true),
+                Value::Null
+            ],
+            vec![
+                Value::String("amount".into()),
+                Value::String("integer".into()),
+                Value::String("7".into()),
+                Value::Bool(false),
+                Value::Null
+            ],
+            vec![
+                Value::String("parent_id".into()),
+                Value::String("integer".into()),
+                Value::Null,
+                Value::Bool(false),
+                Value::Null
+            ],
+        ]
+    );
+    assert_eq!(
+        index_rows,
+        ["probe_docs_pkey", "probe_docs_amount_idx"].map(|name| vec![
+            Value::String(name.into()),
+            Value::Bool(name.ends_with("_pkey")),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Int64(0)
+        ])
+    );
+    assert_eq!(
+        keys,
+        ["c", "f", "p"].map(|kind| vec![
+            Value::String(kind.into()),
+            Value::Int64(0),
+            Value::Bool(false)
+        ])
+    );
+}

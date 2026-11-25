@@ -59,6 +59,8 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
         bool("convalidated"),
         bool("condeferrable"),
         bool("condeferred"),
+        super::virtual_views_pg::oid("conparentid"),
+        bool("conperiod"),
     ]
 }
 
@@ -539,6 +541,8 @@ fn pg_constraint_row(
         bool_value("convalidated", true),
         bool_value("condeferrable", false),
         bool_value("condeferred", false),
+        int_value("conparentid", 0),
+        bool_value("conperiod", false),
     ]
 }
 

@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11753,
+    "rust_test_declarations": 11759,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11778,
+    "registered_rust_instances": 11784,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -3159,8 +3159,8 @@
       "id": "tests/analytics/projections/projection_concurrency.rs::should_serialize_concurrent_materialized_projection_refreshes",
       "name": "should_serialize_concurrent_materialized_projection_refreshes",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 116,
-      "end_line": 219,
+      "line": 129,
+      "end_line": 227,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3187,11 +3187,42 @@
       }
     },
     {
+      "id": "tests/analytics/projections/projection_concurrency.rs::should_wait_for_refresh_before_replay_acquires_collection_write_gates",
+      "name": "should_wait_for_refresh_before_replay_acquires_collection_write_gates",
+      "current_file": "tests/analytics/projections/projection_concurrency.rs",
+      "line": 230,
+      "end_line": 323,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "analytics",
+          "name": "projection_concurrency::should_wait_for_refresh_before_replay_acquires_collection_write_gates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "analytics",
+        "category": "projections",
+        "directory": "tests/analytics/projections",
+        "file": "tests/analytics/projections/projection_concurrency.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/analytics/projections/projection_concurrency.rs::should_keep_active_materialized_view_readable_during_concurrent_refresh_build",
       "name": "should_keep_active_materialized_view_readable_during_concurrent_refresh_build",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 222,
-      "end_line": 325,
+      "line": 359,
+      "end_line": 463,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3221,8 +3252,8 @@
       "id": "tests/analytics/projections/projection_concurrency.rs::should_serialize_materialized_view_refresh_modes",
       "name": "should_serialize_materialized_view_refresh_modes",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 328,
-      "end_line": 433,
+      "line": 466,
+      "end_line": 572,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3252,8 +3283,8 @@
       "id": "tests/analytics/projections/projection_concurrency.rs::should_rollback_concurrent_materialized_view_refresh_with_transaction",
       "name": "should_rollback_concurrent_materialized_view_refresh_with_transaction",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 436,
-      "end_line": 512,
+      "line": 575,
+      "end_line": 651,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3283,8 +3314,8 @@
       "id": "tests/analytics/projections/projection_concurrency.rs::should_keep_concurrent_replay_checkpoint_monotonic",
       "name": "should_keep_concurrent_replay_checkpoint_monotonic",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 515,
-      "end_line": 602,
+      "line": 654,
+      "end_line": 741,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -3314,8 +3345,8 @@
       "id": "tests/analytics/projections/projection_concurrency.rs::should_apply_concurrent_duplicate_replay_event_once",
       "name": "should_apply_concurrent_duplicate_replay_event_once",
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
-      "line": 605,
-      "end_line": 698,
+      "line": 744,
+      "end_line": 837,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -23393,6 +23424,37 @@
         {
           "suite": "catalog_security",
           "name": "schema_scope_storage::should_reject_low_level_database_drop_with_user_program_metadata"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "namespaces",
+        "directory": "tests/catalog_security/namespaces",
+        "file": "tests/catalog_security/namespaces/schema_scope_storage.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/namespaces/schema_scope_storage.rs::should_leave_public_namespace_intact_when_a_native_writer_prevents_drop",
+      "name": "should_leave_public_namespace_intact_when_a_native_writer_prevents_drop",
+      "current_file": "tests/catalog_security/namespaces/schema_scope_storage.rs",
+      "line": 391,
+      "end_line": 442,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "schema_scope_storage::should_leave_public_namespace_intact_when_a_native_writer_prevents_drop"
         }
       ],
       "attributes": [
@@ -55765,6 +55827,37 @@
         {
           "suite": "domain_models",
           "name": "time_series_partition_delimiters::should_preserve_tab_partitions_through_index_lifecycle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "domain_models",
+        "category": "time_series/partitions",
+        "directory": "tests/domain_models/time_series/partitions",
+        "file": "tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs::should_read_ambiguous_composite_partitions_across_reopen_after_writes",
+      "name": "should_read_ambiguous_composite_partitions_across_reopen_after_writes",
+      "current_file": "tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs",
+      "line": 51,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "domain_models",
+          "name": "time_series_partition_delimiters::should_read_ambiguous_composite_partitions_across_reopen_after_writes"
         }
       ],
       "attributes": [
@@ -340492,6 +340585,37 @@
       }
     },
     {
+      "id": "tests/sql_queries/types/numeric/numeric.rs::should_match_scanned_numeric_special_values_through_a_scalar_index",
+      "name": "should_match_scanned_numeric_special_values_through_a_scalar_index",
+      "current_file": "tests/sql_queries/types/numeric/numeric.rs",
+      "line": 234,
+      "end_line": 287,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_numeric::should_match_scanned_numeric_special_values_through_a_scalar_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/numeric.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/types/numeric/scalar_index_probes.rs::should_retain_float_index_reads_for_mixed_integer_literals",
       "name": "should_retain_float_index_reads_for_mixed_integer_literals",
       "current_file": "tests/sql_queries/types/numeric/scalar_index_probes.rs",
@@ -347914,6 +348038,37 @@
         {
           "suite": "storage_indexes",
           "name": "column_store_authority::restart::should_read_selected_fields_without_unselected_payloads_after_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "storage",
+        "directory": "tests/storage_indexes/storage",
+        "file": "tests/storage_indexes/storage/restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/storage_indexes/column_store/restart.rs::should_restore_one_reinserted_row_across_both_storage_conversions",
+      "name": "should_restore_one_reinserted_row_across_both_storage_conversions",
+      "current_file": "tests/storage_indexes/column_store/restart.rs",
+      "line": 592,
+      "end_line": 640,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "column_store_authority::restart::should_restore_one_reinserted_row_across_both_storage_conversions"
         }
       ],
       "attributes": [
@@ -360851,6 +361006,37 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/indexes/ivfflat/ivfflat_indexes.rs::should_use_exact_dot_scoring_when_ivfflat_radius_overflows",
+      "name": "should_use_exact_dot_scoring_when_ivfflat_radius_overflows",
+      "current_file": "tests/vector_embeddings/indexes/ivfflat/ivfflat_indexes.rs",
+      "line": 770,
+      "end_line": 842,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "ivfflat_indexes::should_use_exact_dot_scoring_when_ivfflat_radius_overflows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "indexes/ivfflat",
+        "directory": "tests/vector_embeddings/indexes/ivfflat",
+        "file": "tests/vector_embeddings/indexes/ivfflat/ivfflat_indexes.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/providers/openai_provider.rs::should_build_requests_in_batches",
       "name": "should_build_requests_in_batches",
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
@@ -365655,9 +365841,9 @@
       "current_file": "tests/analytics/projections/projection_concurrency.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 698,
-      "sha256": "64606f573577ea07327f449d45d3a2ff59f21db13c6fffaa4ed2fd56564bb33f",
-      "test_declarations": 6,
+      "lines": 837,
+      "sha256": "b15c130f900ad7942c0a639f40a5468610b9bdc5755c13e54169030024499bb5",
+      "test_declarations": 7,
       "registered_suites": [
         "analytics"
       ],
@@ -367389,9 +367575,9 @@
       "current_file": "tests/catalog_security/namespaces/schema_scope_storage.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 388,
-      "sha256": "44f1540545c1efff0312e5fce4a1fd2e742a224ec997849c3b7a2ec9964ed47e",
-      "test_declarations": 6,
+      "lines": 442,
+      "sha256": "c3bc6a4ff1cf41208902265f98ef6eacfb5f5cb4429d8c828c295d3f3ffb2f4a",
+      "test_declarations": 7,
       "registered_suites": [
         "catalog_security"
       ],
@@ -371217,9 +371403,9 @@
       "current_file": "tests/domain_models/time_series/partitions/time_series_partition_delimiters.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 48,
-      "sha256": "348b8e53f3add63a315f1114e16ab62d76d27e49aef382f6bd43f84c0b3b467a",
-      "test_declarations": 1,
+      "lines": 187,
+      "sha256": "86eae7cce1ebd327926b5a35f6a83e9195ad3bbd790d2be395535101bdc809ca",
+      "test_declarations": 2,
       "registered_suites": [
         "domain_models"
       ],
@@ -390468,9 +390654,9 @@
       "current_file": "tests/sql_queries/types/numeric/numeric.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 231,
-      "sha256": "0ea575ccd20c002bc533c1734d0f24b32f4b55e3fb108be3b824621119e8d2df",
-      "test_declarations": 10,
+      "lines": 287,
+      "sha256": "53a4e0a22e9efd6f4d2f5b9d7e121cb2f767cb30f58d6446e5ed43a03150a1e5",
+      "test_declarations": 11,
       "registered_suites": [
         "sql_queries"
       ],
@@ -390844,9 +391030,9 @@
       "current_file": "tests/storage_indexes/column_store/restart.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 589,
-      "sha256": "672939f7e4a51d5b5294bed4f0ea388235dff7f9e720acd7e85ee682aa14e2e7",
-      "test_declarations": 11,
+      "lines": 681,
+      "sha256": "04fc900c0be0e447aa8e51e3dfa59b49ceb812093cb398f90ef49877b7eb9402",
+      "test_declarations": 12,
       "registered_suites": [
         "storage_indexes"
       ],
@@ -393599,7 +393785,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 296,
-      "sha256": "fb8cfb27a645d351b03a265b4667b8e9412ac4381692c50ebd69944f0922a5ce",
+      "sha256": "ebc97cb3a7bf8cd757bda12e190daf4aae7607d22404a39cbf8f0abe207bdfc0",
       "test_declarations": 5,
       "registered_suites": [
         "vector_embeddings"
@@ -393613,9 +393799,9 @@
       "current_file": "tests/vector_embeddings/indexes/ivfflat/ivfflat_indexes.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 767,
-      "sha256": "65619873387125797599ce826129242dc606ab69e3f9b62cbeadb5784dba9b2a",
-      "test_declarations": 13,
+      "lines": 842,
+      "sha256": "91941b85f4152653d2b484d3d0ff1fb2763405cca409a0dac75c997121122c32",
+      "test_declarations": 14,
       "registered_suites": [
         "vector_embeddings"
       ],

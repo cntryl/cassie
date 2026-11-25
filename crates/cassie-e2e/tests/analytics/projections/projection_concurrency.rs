@@ -307,9 +307,10 @@ fn should_wait_for_refresh_before_replay_acquires_collection_write_gates() {
     assert_eq!(after_cancel.last_error, None);
     refresh_result.expect("refresh publishes its output before replay");
     let expected_error = "projection replay event id cannot be empty";
-    assert!(
-        matches!(replay_result, Err(cassie::app::CassieError::Execution(message)) if message == expected_error)
-    );
+    let Err(cassie::app::CassieError::Execution(message)) = replay_result else {
+        panic!("expected replay validation error, got {replay_result:?}");
+    };
+    assert_eq!(message, expected_error);
     assert_eq!(durable.replay_batch_id.as_deref(), Some("completed"));
     assert_eq!(durable.last_error.as_deref(), Some(expected_error));
     assert_eq!(catalog.replay_batch_id, durable.replay_batch_id);
@@ -327,6 +328,13 @@ fn start_contending_replay(
     let (done_tx, done_rx) = mpsc::channel();
     let engine = Arc::clone(cassie);
     let mut batch = replay_batch(projection, batch_id, "document", "unused", 1);
+    batch.source_identity = cassie
+        .midge
+        .projection_metadata(projection)
+        .expect("read the contended projection")
+        .expect("published projection")
+        .source_identity
+        .expect("materialized projection is bound to its input collection");
     batch.events[0].event_id.clear();
     std::thread::spawn(move || {
         set_projection_publication_wait_observer(wait_tx);

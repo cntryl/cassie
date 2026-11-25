@@ -119,10 +119,12 @@ Authored coverage, an observed failing test and complete feature qualification a
 ### Fixture lifetime
 
 Shared fixture paths belong to a directory for the test process under the
-Cassie e2e fixture namespace. Each run holds the lock on its UUID-bearing
-ownership marker until it exits. The next sweep can remove a run that is at
-least six hours old after matching the marker and acquiring its lock. Storage
-fixtures use child paths so the ownership marker stays outside the Midge store.
+Cassie e2e fixture namespace. On Unix, the namespace is private to the effective
+user, so users sharing a temporary directory can each run the suite. Each run
+holds the lock on its UUID-bearing ownership marker until it exits. The next
+sweep can remove a run that is at least six hours old after matching the marker
+and acquiring its lock. Storage fixtures use child paths so the ownership marker
+stays outside the Midge store.
 
 REST network fixtures bind the loopback listener before publishing its address
 and transfer the same socket to the server. The address-based production

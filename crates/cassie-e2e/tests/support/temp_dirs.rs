@@ -2,6 +2,8 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime};
@@ -47,16 +49,45 @@ impl Drop for IsolatedDataDir {
 pub fn data_path(label: &str) -> PathBuf {
     static RUN: OnceLock<FixtureRun> = OnceLock::new();
     let run = RUN.get_or_init(|| {
-        let namespace = std::env::temp_dir().join(FIXTURE_NAMESPACE);
-        fs::create_dir_all(&namespace).expect("create e2e fixture namespace");
-        assert!(
-            fs::symlink_metadata(&namespace).is_ok_and(|entry| entry.is_dir()),
-            "e2e fixture namespace must be a directory"
-        );
+        let namespace =
+            create_fixture_namespace(&std::env::temp_dir()).expect("create e2e fixture namespace");
         sweep_stale(&namespace, SystemTime::now());
         FixtureRun::create(&namespace).expect("create owned e2e fixture run")
     });
     run.path.join(format!("cassie-{label}-{}", Uuid::new_v4()))
+}
+
+fn create_fixture_namespace(temp: &Path) -> io::Result<PathBuf> {
+    #[cfg(unix)]
+    let uid = rustix::process::geteuid().as_raw();
+    #[cfg(unix)]
+    let namespace = unix_fixture_namespace(temp, uid);
+    #[cfg(not(unix))]
+    let namespace = temp.join(FIXTURE_NAMESPACE);
+
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    builder.mode(0o700);
+    builder.recursive(true).create(&namespace)?;
+
+    let metadata = fs::symlink_metadata(&namespace)?;
+    if !metadata.is_dir() {
+        return Err(io::Error::other(
+            "e2e fixture namespace must be a directory",
+        ));
+    }
+    #[cfg(unix)]
+    if metadata.uid() != uid {
+        return Err(io::Error::other(
+            "e2e fixture namespace has a different owner",
+        ));
+    }
+    Ok(namespace)
+}
+
+#[cfg(unix)]
+fn unix_fixture_namespace(temp: &Path, uid: u32) -> PathBuf {
+    temp.join(format!("{FIXTURE_NAMESPACE}-uid-{uid}"))
 }
 
 struct FixtureRun {
@@ -135,6 +166,22 @@ mod tests {
     use super::{sweep_stale, FixtureRun, IsolatedDataDir, OWNER_MARKER, RUN_PREFIX, STALE_AFTER};
     use std::fs::{self, FileTimes};
     use std::time::{Duration, SystemTime};
+
+    #[cfg(unix)]
+    #[test]
+    fn should_separate_fixture_namespaces_for_users_sharing_a_temp_directory() {
+        // Arrange
+        let temp = std::path::Path::new("/tmp");
+
+        // Act
+        let first = super::unix_fixture_namespace(temp, 501);
+        let second = super::unix_fixture_namespace(temp, 502);
+
+        // Assert
+        assert_ne!(first, second);
+        assert_eq!(first.parent(), Some(temp));
+        assert_eq!(second.parent(), Some(temp));
+    }
 
     #[test]
     fn should_sweep_only_stale_owned_runs_without_a_live_lock() {

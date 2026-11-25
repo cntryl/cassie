@@ -673,7 +673,9 @@ fn should_check_remote_controls_before_accepting_empty_documents() {
             query_timeout_ms: 1,
             ..limits
         },
-        Instant::now() - Duration::from_secs(1),
+        Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .expect("representable expired request start"),
     );
 
     for provider in providers {

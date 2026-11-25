@@ -272,7 +272,7 @@ impl EmbeddingProvider for FixtureEmbeddingProvider {
         "local"
     }
 
-    fn model_name(&self) -> &str {
+    fn model_name(&self) -> &'static str {
         "role-fixture"
     }
 

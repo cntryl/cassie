@@ -27,9 +27,8 @@ pub(super) fn coerce(
     Ok(())
 }
 
-fn accepts(source: &DataType, target: ObjectIdKind) -> bool {
-    match source {
-        DataType::Domain(domain) => accepts(&domain.base, target),
+pub(crate) fn accepts(source: &DataType, target: ObjectIdKind) -> bool {
+    match source.flattened() {
         DataType::Null | DataType::SmallInt | DataType::Int | DataType::BigInt => true,
         DataType::Text | DataType::Varchar { .. } => target == ObjectIdKind::RegClass,
         DataType::ObjectId(kind) => {

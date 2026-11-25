@@ -50,6 +50,12 @@ fn bind_side(column: &mut Expr, other: &mut Expr, types: &ResultTypes) {
         };
         return;
     }
+    if matches!(other, Expr::StringLiteral(_)) {
+        if let Some(kind @ DataType::ObjectId(_)) = types.expression_type(column) {
+            super::super::source_bindings::cast_input(other, &kind, types);
+            return;
+        }
+    }
     if !matches!(
         types.expression_type(other),
         Some(DataType::ObjectId(

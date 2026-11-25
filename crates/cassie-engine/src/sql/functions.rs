@@ -16,7 +16,8 @@ pub(crate) use cassie_sql::registry::functions::*;
 pub(crate) use constant_folding::is_immutable_scalar;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 pub(crate) use inputs::{
-    aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
+    aggregate_accepts_input, catalog_oid_input, has_distinct_equality, input_signature,
+    FunctionInputSignature,
 };
 pub(crate) use numeric_identity::has_unselected_numeric;
 pub(crate) use percentile_identity::percentile_function_for_column;

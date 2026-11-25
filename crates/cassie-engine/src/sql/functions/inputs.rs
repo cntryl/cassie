@@ -112,6 +112,14 @@ impl FunctionInputSignature {
     }
 }
 
+pub(crate) const fn catalog_oid_input(id: FunctionId) -> Option<crate::types::ObjectIdKind> {
+    match id {
+        FunctionId::PgGetStatisticsObjDefColumns => Some(crate::types::ObjectIdKind::Oid),
+        FunctionId::PgRelationIsPublishable => Some(crate::types::ObjectIdKind::RegClass),
+        _ => None,
+    }
+}
+
 pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
     match id {
         FunctionId::Json(super::json::JsonFunction::ExtractPath { binary, .. }) => {
@@ -144,6 +152,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgInputIsValid => Some(FunctionInputSignature::Positional(&[25, 25])),
+        FunctionId::PgGetStatisticsObjDefColumns => Some(FunctionInputSignature::Positional(&[26])),
+        FunctionId::PgRelationIsPublishable => Some(FunctionInputSignature::Positional(&[2205])),
         FunctionId::ObjDescription => Some(FunctionInputSignature::Positional(&[26, 19])),
         FunctionId::ColDescription => Some(FunctionInputSignature::Positional(&[26, 23])),
         FunctionId::PgCharToEncoding

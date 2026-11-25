@@ -78,8 +78,7 @@ fn typed_literal(text: &str, data_type: &DataType) -> Option<Expr> {
                 .parse::<i64>()
                 .map_or_else(|_| cast(), Expr::IntegerLiteral),
         ),
-        DataType::ObjectId(_)
-        | DataType::Float
+        DataType::Float
         | DataType::Array(_)
         | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_)) => Some(cast()),
         DataType::Domain(descriptor) => typed_literal(text, &descriptor.base),

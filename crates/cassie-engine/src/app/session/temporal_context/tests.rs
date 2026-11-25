@@ -93,7 +93,7 @@ fn should_install_the_first_current_clock_under_root_then_clock_locks() {
     // Arrange
     let (cassie, session) = fixture();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     let observed = Arc::new(AtomicBool::new(false));
     ROOT_OBSERVER.with(|slot| assert!(slot.replace(Some(Arc::clone(&observed))).is_none()));
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
@@ -151,7 +151,7 @@ fn should_allow_only_the_own_retired_root_to_install_an_idle_statement_clock() {
     // Arrange
     let (cassie, session) = fixture();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
     operation.install_temporal_session(&controls).unwrap();
     let fork = operation.fork_statement_batch().unwrap();
@@ -182,7 +182,7 @@ fn should_not_adopt_another_actors_commit_as_an_idle_clock_receipt() {
     // Arrange
     let (cassie, session) = fixture();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     cassie.commit_transaction(&session).unwrap();
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
 

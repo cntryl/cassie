@@ -840,7 +840,7 @@ fn should_not_export_a_replacements_repeatable_read_alias_to_an_old_operation() 
         .execute_sql(&session, "SELECT id FROM rr_alias_rows", vec![])
         .unwrap();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     session.rollback_transaction();
     cassie
         .execute_sql(&session, "BEGIN ISOLATION LEVEL REPEATABLE READ", vec![])

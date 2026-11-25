@@ -340,7 +340,7 @@ fn should_revoke_an_owned_idle_receipt_after_an_independent_transaction() {
     // Arrange
     let (cassie, session) = fixture();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     execute(&cassie, &operation, "BEGIN");
     execute(&cassie, &operation, "COMMIT");
     execute(&cassie, &session, "BEGIN");
@@ -382,7 +382,7 @@ fn should_not_transfer_the_roots_idle_retirement_receipt_to_a_detached_fork() {
     // Arrange
     let (cassie, session) = fixture();
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     execute(&cassie, &operation, "BEGIN");
     let batch = cassie
         .new_statement_batch(Some(&operation))

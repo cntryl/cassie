@@ -88,6 +88,7 @@ statement-snapshot implementation and remaining limitations are described below
 
 - Events for one `(projection, source_identity)` pair must be replayed in monotonically increasing source position when positions are present.
 - `event_id` must be non-empty, stable across retries, and unique for each source event within the projection/source pair.
+- A new event must target a non-empty `document_id` for both puts and deletes. IDs are opaque strings, so a non-empty ID containing whitespace retains its exact identity. Cassie checks the durable event ledger before validating the document ID, so redelivery of an already committed event remains idempotent.
 - The caller must not acknowledge the source position or submit a later batch after a replay error; retry the same event batch until its durable checkpoint is confirmed.
 - Redelivery of an event whose durable ledger commit completed is idempotent: Cassie skips it and increments duplicate skip diagnostics without rewriting projection rows.
 - Projection rows, their transactional derived maintenance, duplicate ledger and checkpoint commit together in one owning-family Midge transaction. Replaying a batch after a known pre-commit failure applies it once; after an unknown outcome the caller retries the same deterministic batch and the recovered ledger determines whether it committed.
@@ -103,15 +104,17 @@ Replay failures are observable through `pg_catalog.pg_projection_checkpoints`, p
 Cassie records failed freshness and `last_error` for:
 
 - projection/source identity mismatch
-- empty event ids
+- empty event ids or empty document ids on new events
 - duplicate new event ids inside one batch
 - out-of-order event positions
 - row, schema, constraint, index, or storage write errors
 - replay-state persistence errors when the failure is known before commit
 
-For preflight conflicts such as empty event ids, out-of-order positions, and duplicate event ids inside a batch, Cassie does not apply projection row writes and does not advance `source_checkpoint` or `last_applied_event_id`.
+For preflight conflicts such as empty event IDs, empty document IDs on new events, out-of-order positions, and duplicate event IDs inside a batch, Cassie does not apply projection row writes, record new ledger entries, or advance `source_checkpoint` or `last_applied_event_id`. Previously acknowledged empty-ID rows retain their durable ledger entries and existing storage encoding. Rebuild an affected projection from retained source events with corrected IDs to recover those rows. [#1509](https://github.com/cntryl/cassie/issues/1509)
 
 Replay publishes rows, transactional index mutations, event ledger entries, and checkpoint metadata in one transaction in the owning database family. A committed event's row mutations and checkpoint are visible together in the same storage snapshot. If the transaction aborts, neither its row mutations nor its ledger or checkpoint updates are visible. This includes a new event whose deletion targets a missing row: the ledger and checkpoint must still commit. Duplicate-only and empty batches still commit their replay metadata and diagnostics. A preparation based on a stale checkpoint or duplicate-ledger view fails with a retryable conflict; the caller retries the whole batch after reading current state. The in-process collection gate is not a substitute for storage transaction conflict detection. Cassie does not automatically retry an uncertain commit outcome; the caller reconciles the recovered ledger and retries the same deterministic batch.
+
+Verification-manifest export reads the durable projection metadata, active output selection, generation, and emitted hash records in a single read-only snapshot of the owning database family. A missing or unreadable durable projection descriptor fails export. This keeps a replay checkpoint paired with the hash records from the same committed storage snapshot, including when a successful commit leaves the live projection catalog stale. Export preserves the verification state of stored hashes. [#1511](https://github.com/cntryl/cassie/issues/1511)
 
 The selected checkpoint-view contract reads projection metadata from the same
 statement Data-family snapshot as projection rows, merged with the same

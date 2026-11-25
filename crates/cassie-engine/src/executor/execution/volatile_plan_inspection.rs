@@ -1,4 +1,4 @@
-//! Volatile built-in detection for execution-result-cache admission.
+//! Query dependencies that bypass execution-result-cache admission.
 
 use std::collections::HashSet;
 
@@ -9,14 +9,16 @@ use crate::sql::ast::{
 };
 
 #[derive(Clone, Copy)]
-enum ResultCacheBypassBuiltin {
+enum ResultCacheBypassDependency {
+    VirtualCatalog,
     Volatile,
     ClockDependent,
 }
 
-impl ResultCacheBypassBuiltin {
+impl ResultCacheBypassDependency {
     fn matches_function(self, function: &crate::sql::ast::FunctionCall) -> bool {
         match self {
+            Self::VirtualCatalog => false,
             Self::Volatile => {
                 crate::planner::cte_inlining::volatile_builtin_name(&function.name)
                     || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
@@ -92,6 +94,18 @@ fn contains_clock_input(expression: &Expr) -> bool {
     expression.any_child(contains_clock_input)
 }
 
+pub(crate) fn plan_uses_virtual_catalog_including_views(
+    plan: &LogicalPlan,
+    catalog: &crate::catalog::Catalog,
+) -> bool {
+    plan_uses_with_views(
+        plan,
+        catalog,
+        &mut HashSet::new(),
+        ResultCacheBypassDependency::VirtualCatalog,
+    )
+}
+
 pub(crate) fn plan_uses_volatile_builtin_including_views(
     plan: &LogicalPlan,
     catalog: &crate::catalog::Catalog,
@@ -101,7 +115,7 @@ pub(crate) fn plan_uses_volatile_builtin_including_views(
         plan,
         catalog,
         &mut visited_views,
-        ResultCacheBypassBuiltin::Volatile,
+        ResultCacheBypassDependency::Volatile,
     )
 }
 
@@ -114,7 +128,7 @@ pub(crate) fn plan_uses_clock_dependent_builtin_including_views(
         plan,
         catalog,
         &mut visited_views,
-        ResultCacheBypassBuiltin::ClockDependent,
+        ResultCacheBypassDependency::ClockDependent,
     )
 }
 
@@ -122,7 +136,7 @@ fn plan_uses_with_views(
     plan: &LogicalPlan,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     source_uses_with_views(&plan.source, catalog, visited_views, builtin)
         || plan
@@ -171,7 +185,7 @@ fn cte_uses_with_views(
     cte: &CommonTableExpression,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     match &cte.query {
         CteQuery::Simple(statement) => {
@@ -190,7 +204,7 @@ fn parsed_statement_uses_with_views(
     statement: &crate::sql::ast::ParsedStatement,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     match &statement.statement {
         QueryStatement::Select(select) => {
@@ -204,7 +218,7 @@ fn select_uses_with_views(
     select: &SelectStatement,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     source_uses_with_views(&select.source, catalog, visited_views, builtin)
         || select
@@ -253,7 +267,7 @@ fn item_uses_with_views(
     item: &SelectItem,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     match item {
         SelectItem::Function { function, .. } => {
@@ -280,7 +294,7 @@ fn source_uses_with_views(
     source: &QuerySource,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     match source {
         QuerySource::Values { rows } => rows
@@ -316,6 +330,11 @@ fn source_uses_with_views(
             .expressions()
             .any(|expr| expr_uses_with_views(expr, catalog, visited_views, builtin)),
         QuerySource::Collection(name) => {
+            if matches!(builtin, ResultCacheBypassDependency::VirtualCatalog)
+                && crate::catalog::virtual_views::schema(name).is_some()
+            {
+                return true;
+            }
             let Some(view) = catalog.get_view(name) else {
                 return false;
             };
@@ -353,7 +372,7 @@ fn expr_uses_with_views(
     expr: &Expr,
     catalog: &crate::catalog::Catalog,
     visited_views: &mut HashSet<String>,
-    builtin: ResultCacheBypassBuiltin,
+    builtin: ResultCacheBypassDependency,
 ) -> bool {
     if builtin.matches_expression(expr) {
         return true;

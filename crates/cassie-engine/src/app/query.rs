@@ -549,7 +549,10 @@ impl Cassie {
         if session.read_transaction_is_active() {
             return Some("active_transaction");
         }
-        if super::query_virtual_catalog::logical_plan_uses_virtual_catalog(&physical.logical) {
+        if crate::executor::plan_uses_virtual_catalog_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
             return Some("virtual_catalog");
         }
         if crate::executor::plan_uses_volatile_builtin_including_views(
@@ -762,6 +765,8 @@ impl Cassie {
         result: &QueryResult,
     ) {
         if let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() {
+            #[cfg(test)]
+            volatile_cache_tests::before_execution_result_cache_store();
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
         }

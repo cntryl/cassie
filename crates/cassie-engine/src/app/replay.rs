@@ -94,6 +94,19 @@ pub struct ProjectionReplayEvent {
     pub payload: Option<serde_json::Value>,
 }
 
+impl ProjectionReplayEvent {
+    fn document_write(&self) -> DocumentWriteOp {
+        let id = self.document_id.clone();
+        match &self.payload {
+            Some(payload) => DocumentWriteOp::Put {
+                id,
+                payload: payload.clone(),
+            },
+            None => DocumentWriteOp::Delete { id },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionReplayBatch {
     pub projection: String,
@@ -375,16 +388,15 @@ impl Cassie {
                 }
             }
 
-            if let Some(payload) = event.payload.clone() {
-                write_ops.push(DocumentWriteOp::Put {
-                    id: event.document_id.clone(),
-                    payload,
-                });
-            } else {
-                write_ops.push(DocumentWriteOp::Delete {
-                    id: event.document_id.clone(),
-                });
+            if event.document_id.is_empty() {
+                return self.fail_replay_metadata(
+                    metadata.clone(),
+                    expected,
+                    batch,
+                    "projection replay document id cannot be empty".to_owned(),
+                );
             }
+            write_ops.push(event.document_write());
             replay_event_ids.push(event.event_id.clone());
 
             // A positionless event neither clears nor lowers the ordering cursor.

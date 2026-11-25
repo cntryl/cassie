@@ -457,3 +457,66 @@ fn should_recover_column_storage_metadata_after_restart() {
     assert_eq!(attributes, expected);
     assert_eq!(comment, vec![vec![text("durable comment")]]);
 }
+
+#[test]
+fn should_preserve_doubled_quote_column_rename_across_reopen() {
+    // Arrange
+    let path = support::data_dir("quoted-column-rename");
+    let directory = DataDirectory(path);
+    let config = cassie::config::CassieRuntimeConfig::default();
+    let cassie = Cassie::new_local_with_data_dir_and_config(&directory.0, config.clone())
+        .expect("open local Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    execute(
+        &cassie,
+        &session,
+        r#"CREATE TABLE quoted_column_rename ("a""b" INT)"#,
+    );
+    execute(
+        &cassie,
+        &session,
+        r#"INSERT INTO quoted_column_rename ("a""b") VALUES (17)"#,
+    );
+    let read = |cassie: &Cassie, session: &CassieSession| {
+        let value = rows(
+            cassie,
+            session,
+            r#"SELECT "x""y" FROM quoted_column_rename"#,
+        );
+        let columns = rows(cassie, session, "SELECT column_name FROM information_schema.columns WHERE table_name = 'quoted_column_rename'");
+        let old = cassie.execute_sql(
+            session,
+            r#"SELECT "a""b" FROM quoted_column_rename"#,
+            vec![],
+        );
+        (value, columns, old.is_err())
+    };
+
+    // Act
+    execute(
+        &cassie,
+        &session,
+        r#"ALTER TABLE quoted_column_rename RENAME COLUMN "a""b" TO "x""y""#,
+    );
+    let renamed = read(&cassie, &session);
+    drop(session);
+    cassie.shutdown();
+    drop(cassie);
+    let reopened = Cassie::new_local_with_data_dir_and_config(&directory.0, config)
+        .expect("reopen local Cassie");
+    reopened.startup().expect("recover renamed descriptor");
+    let recovered_session = reopened.create_session("tester", None);
+    let recovered = read(&reopened, &recovered_session);
+
+    // Assert
+    assert_eq!(
+        renamed,
+        (
+            vec![vec![Value::Int64(17)]],
+            vec![vec![Value::String("x\"y".to_owned())]],
+            true,
+        )
+    );
+    assert_eq!(recovered, renamed);
+}

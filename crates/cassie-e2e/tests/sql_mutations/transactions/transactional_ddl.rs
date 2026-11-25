@@ -504,6 +504,63 @@ fn should_rollback_materialized_view_refresh() {
 }
 
 #[test]
+fn should_hide_materialized_view_until_drop_commits_and_restore_it_on_rollback() {
+    // Arrange
+    let fixture = sql_fixture("materialized-view-drop", &[
+        "CREATE TABLE public.mv_drop_source (id INT PRIMARY KEY)",
+        "INSERT INTO public.mv_drop_source VALUES (17)",
+        "CREATE MATERIALIZED VIEW public.issue833_transactional_materialized_view AS SELECT id FROM public.mv_drop_source",
+    ]);
+    let observer = fixture.cassie.create_session("observer", None);
+    let drop_view = "DROP MATERIALIZED VIEW public.issue833_transactional_materialized_view";
+    let select_view = "SELECT id FROM public.issue833_transactional_materialized_view";
+    let observer_rows = || {
+        fixture
+            .cassie
+            .execute_sql(&observer, select_view, vec![])
+            .expect("observer materialized rows")
+            .rows()
+            .to_vec()
+    };
+
+    // Act
+    fixture.execute("BEGIN").expect("begin rollback case");
+    fixture
+        .execute(drop_view)
+        .expect("stage materialized view drop");
+    let writer_during_drop = visible_materialized_view(&fixture.cassie, &fixture.session);
+    let observer_during_drop = visible_materialized_view(&fixture.cassie, &observer);
+    let observer_before_rollback = observer_rows();
+    let writer_query_during_drop = fixture.execute(select_view);
+    fixture
+        .execute("ROLLBACK")
+        .expect("rollback materialized view drop");
+    let writer_after_rollback = visible_materialized_view(&fixture.cassie, &fixture.session);
+    let restored_rows = fixture.rows(select_view);
+    fixture.execute("BEGIN").expect("begin commit case");
+    fixture.execute(drop_view).expect("stage second drop");
+    let observer_before_commit = observer_rows();
+    fixture
+        .execute("COMMIT")
+        .expect("commit materialized view drop");
+    let observer_after_commit = visible_materialized_view(&fixture.cassie, &observer);
+    let reader_after_commit = fixture.cassie.execute_sql(&observer, select_view, vec![]);
+
+    // Assert
+    let view = vec![vec![Value::String(MATERIALIZED_VIEW_NAME.to_owned())]];
+    let expected = vec![vec![Value::Int64(17)]];
+    assert!(writer_during_drop.is_empty());
+    assert!(writer_query_during_drop.is_err());
+    assert_eq!(observer_during_drop, view);
+    assert_eq!(observer_before_rollback, expected);
+    assert_eq!(writer_after_rollback, view);
+    assert_eq!(restored_rows, expected);
+    assert_eq!(observer_before_commit, expected);
+    assert!(observer_after_commit.is_empty());
+    assert!(reader_after_commit.is_err());
+}
+
+#[test]
 fn should_reject_view_commands_for_materialized_projection() {
     // Arrange
     let fixture = sql_fixture(

@@ -73,14 +73,7 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
 /// Returns a syntax or resource-limit error when the input cannot be parsed.
 pub fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
     let _preflight = depth::enter_expression_preflight(raw)?;
-    let raw = super::lexical::trim_separators(raw);
-    if let Some((operand, collation)) = split_collation_suffix(raw)? {
-        return Ok(Expr::Collate {
-            expr: Box::new(parse_expression(operand)?),
-            collation,
-        });
-    }
-    parse_or_expression(raw)
+    parse_or_expression(super::lexical::trim_separators(raw))
 }
 
 pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -410,11 +403,7 @@ fn parse_prefix_expression_selected(
             let right = parse_prefix_expression_indexed(&raw[span.end..], operators)?;
             depth::validate(&left, 1)?;
             depth::validate(&right, 1)?;
-            return Ok(Expr::Binary {
-                left: Box::new(left),
-                right: Box::new(right),
-                op: qualified_operators::binary(span)?,
-            });
+            return qualified_operators::binary_expression(span, left, right);
         }
     }
     if let Some((left, right, op)) = selected {
@@ -483,6 +472,12 @@ fn parse_arithmetic_expression_indexed(
 }
 
 fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
+    if let Some((operand, collation)) = split_collation_suffix(raw)? {
+        return Ok(Expr::Collate {
+            expr: Box::new(parse_postfix_expression(operand)?),
+            collation,
+        });
+    }
     let mut cast_positions = [0; depth::MAX_POSTFIX_DEPTH];
     let mut cast_count = 0;
 
@@ -555,7 +550,13 @@ pub(super) fn selected_collation(name: &str) -> Result<String, SqlError> {
                     "user-defined collations are not selected".into(),
                 ));
             }
-            selected_builtin_collation(collation.value(), collation.is_delimited())
+            let name = collation.value();
+            if name == "default"
+                || (!collation.is_delimited() && name.eq_ignore_ascii_case("default"))
+            {
+                return Ok("default".to_owned());
+            }
+            selected_builtin_collation(name, collation.is_delimited())
         }
         _ => Err(SqlError::syntax("invalid collation name".into())),
     }

@@ -614,7 +614,7 @@ fn should_restore_renamed_relation_view_state_after_local_restart() {
 }
 
 #[test]
-fn should_preserve_table_and_views_when_wildcard_with_subquery_cannot_be_rewritten() {
+fn should_reject_a_column_rename_atomically_for_an_unsafe_wildcard_view() {
     // Arrange
     let fixture = sql_fixture(
         "rename-column-wildcard-with-subquery",

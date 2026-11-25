@@ -268355,8 +268355,8 @@
       }
     },
     {
-      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_preserve_table_and_views_when_wildcard_with_subquery_cannot_be_rewritten",
-      "name": "should_preserve_table_and_views_when_wildcard_with_subquery_cannot_be_rewritten",
+      "id": "tests/sql_mutations/ddl/view_rename_dependencies.rs::should_reject_a_column_rename_atomically_for_an_unsafe_wildcard_view",
+      "name": "should_reject_a_column_rename_atomically_for_an_unsafe_wildcard_view",
       "current_file": "tests/sql_mutations/ddl/view_rename_dependencies.rs",
       "line": 617,
       "end_line": 667,
@@ -268367,7 +268367,7 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "view_rename_dependencies::should_preserve_table_and_views_when_wildcard_with_subquery_cannot_be_rewritten"
+          "name": "view_rename_dependencies::should_reject_a_column_rename_atomically_for_an_unsafe_wildcard_view"
         }
       ],
       "attributes": [
@@ -386014,7 +386014,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 837,
-      "sha256": "9e3b9f6363b73124118bdad0b0ef206107f48d400b6562c090cb3efa3d246fd9",
+      "sha256": "c0823f6e435d8463842d7ad7e6698f11fcdcc07f4f14988e3e42235fa5d5de8f",
       "test_declarations": 34,
       "registered_suites": [
         "sql_mutations"

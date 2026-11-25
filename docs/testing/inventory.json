@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11738,
+    "rust_test_declarations": 11739,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11763,
+    "registered_rust_instances": 11764,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -11551,6 +11551,37 @@
         {
           "suite": "catalog_security",
           "name": "postgresql18_catalog_information::should_emit_typed_zero_when_constraint_has_no_backing_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_discover_the_visible_relation_for_psql_describe",
+      "name": "should_discover_the_visible_relation_for_psql_describe",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 132,
+      "end_line": 169,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_discover_the_visible_relation_for_psql_describe"
         }
       ],
       "attributes": [
@@ -365896,9 +365927,9 @@
       "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 129,
-      "sha256": "783a0244f1e0a5aef841d1b846a0344ed2d83f8a8a65c9b8dc65acc7f57aca7f",
-      "test_declarations": 3,
+      "lines": 169,
+      "sha256": "889b52e0f83bafae4f79046c7e75eca3e1abdced21817e59dbe865c4682e0754",
+      "test_declarations": 4,
       "registered_suites": [
         "catalog_security"
       ],

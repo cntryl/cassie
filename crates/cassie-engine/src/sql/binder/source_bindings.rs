@@ -342,26 +342,12 @@ fn source(
                 if let Some(signature) = &signature {
                     cast_input(argument, &signature.inputs[index], types);
                 } else if table_sources::is_partition_ancestors(&function.name) {
-                    if !matches!(argument, Expr::StringLiteral(_) | Expr::Null)
-                        && types.expression_type(argument).is_some_and(|kind| {
-                            !matches!(
-                                kind,
-                                DataType::Null
-                                    | DataType::SmallInt
-                                    | DataType::Int
-                                    | DataType::ObjectId(_)
-                            )
-                        })
-                    {
-                        return Err(CassieError::Execution(
-                            "pg_partition_ancestors requires a regclass argument".into(),
-                        ));
-                    }
-                    cast_input(
+                    super::oid_arguments::coerce(
+                        &function.name,
                         argument,
-                        &DataType::ObjectId(crate::types::ObjectIdKind::RegClass),
+                        crate::types::ObjectIdKind::RegClass,
                         types,
-                    );
+                    )?;
                 } else if table_sources::is_unnest(&function.name) {
                     if let Some(kind @ DataType::Array(_)) = types.expression_type(argument) {
                         cast_input(argument, &kind, types);
@@ -490,7 +476,7 @@ fn typed_function_arguments(
     Ok(())
 }
 
-fn cast_input(expr: &mut Expr, target: &DataType, types: &ResultTypes) {
+pub(super) fn cast_input(expr: &mut Expr, target: &DataType, types: &ResultTypes) {
     if matches!(expr,Expr::Cast { data_type,.. } if data_type == target) {
         return;
     }

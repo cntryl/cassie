@@ -349,9 +349,6 @@ fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature()
             .expect_err("incompatible regclass argument");
 
         // Assert
-        assert!(
-            error.to_string().contains("does not exist"),
-            "{sql}: {error}"
-        );
+        assert_eq!(error.descriptor().sql_state, "42883", "{sql}: {error}");
     }
 }

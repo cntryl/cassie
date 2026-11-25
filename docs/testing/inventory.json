@@ -242753,7 +242753,7 @@
       "name": "should_authenticate_non_empty_password_on_loopback_pgwire_listener",
       "current_file": "tests/rest/authentication/network_listener_authentication.rs",
       "line": 244,
-      "end_line": 284,
+      "end_line": 278,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242783,8 +242783,8 @@
       "id": "tests/rest/authentication/network_listener_authentication.rs::should_keep_pgwire_authentication_envelope_generic_when_throttled",
       "name": "should_keep_pgwire_authentication_envelope_generic_when_throttled",
       "current_file": "tests/rest/authentication/network_listener_authentication.rs",
-      "line": 287,
-      "end_line": 325,
+      "line": 281,
+      "end_line": 319,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -383830,8 +383830,8 @@
       "current_file": "tests/rest/authentication/network_listener_authentication.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 325,
-      "sha256": "c90831fb7b18afffac6f3d3b26223b6bda9b3f0eb02ec53e0c03e1b82e384ee5",
+      "lines": 319,
+      "sha256": "5906a69b088186f7389d1be440a58c29173325b8e2d9ae205337a592fb718a91",
       "test_declarations": 9,
       "registered_suites": [
         "rest"
@@ -383861,7 +383861,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 401,
-      "sha256": "bc686dbeb7c6ce4986db0a131451b8820ed36fdd18e30317464313fd997a1c5b",
+      "sha256": "0d03e6b9190a61fe2a5b2cd6c06225c1973b181fdfb0b8371fab71e14a1d2329",
       "test_declarations": 6,
       "registered_suites": [
         "rest"

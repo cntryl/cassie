@@ -143,7 +143,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn should_preserve_deterministic_document_and_query_embeddings() {
+    fn should_preserve_deterministic_local_embedding_domains() {
         // Arrange
         let provider = LocalProvider::with_config(LocalProviderConfig {
             model: "compat-model".to_owned(),

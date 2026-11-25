@@ -244,7 +244,8 @@ fn should_require_tls_for_actual_non_loopback_pgwire_listener() {
 fn should_authenticate_non_empty_password_on_loopback_pgwire_listener() {
     // Arrange
     let path = pgwire::data_dir("loopback-authenticated");
-    let config = password_config(Uuid::new_v4().to_string());
+    let password = Uuid::new_v4().to_string();
+    let config = password_config(password.clone());
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
     cassie.startup().expect("startup");
 
@@ -253,26 +254,19 @@ fn should_authenticate_non_empty_password_on_loopback_pgwire_listener() {
             .await
             .expect("reserve listener");
         let address = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
-            address.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener_and_shutdown(
+            listener,
             Arc::new(cassie),
             config,
             Arc::new(tokio::sync::Notify::new()),
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let socket = tokio::net::TcpStream::connect(address)
             .await
             .expect("connect pgwire");
         let (mut reader, mut writer) = tokio::io::split(socket);
 
         // Act
-        pgwire::complete_startup_with_password(
-            &mut reader,
-            &mut writer,
-            crate::support_sql::test_root_password(),
-        )
-        .await;
+        pgwire::complete_startup_with_password(&mut reader, &mut writer, &password).await;
 
         // Assert
         assert!(!server.is_finished());

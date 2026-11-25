@@ -347,6 +347,13 @@ fn should_scope_admin_database_listing_to_granted_databases() {
         .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
     let reader_password = Uuid::new_v4().to_string();
+    cassie
+        .execute_sql(
+            &root,
+            &format!("CREATE ROLE reader LOGIN PASSWORD '{reader_password}'"),
+            Vec::new(),
+        )
+        .expect("create reader");
     for statement in [
         "CREATE DATABASE analytics",
         "CREATE DATABASE secrets",
@@ -356,13 +363,6 @@ fn should_scope_admin_database_listing_to_granted_databases() {
             .execute_sql(&root, statement, Vec::new())
             .expect("grant-scoped database fixture");
     }
-    cassie
-        .execute_sql(
-            &root,
-            &format!("CREATE ROLE reader LOGIN PASSWORD '{reader_password}'"),
-            Vec::new(),
-        )
-        .expect("create reader");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

@@ -808,7 +808,12 @@ fn should_use_exact_dot_scoring_when_ivfflat_radius_overflows() {
     cassie.catalog.set_cardinality_stats(&collection, stats);
     let query = "SELECT content, embedding <#> '[-3.0e38,0]' AS distance FROM dot_bounds ORDER BY distance LIMIT 1";
     let exact = run(query);
-    run("CREATE INDEX dot_bounds_ivf ON dot_bounds USING ivfflat (embedding vector_ip_ops) WITH (lists = 2, training_seed = 1)");
+    run("CREATE INDEX dot_bounds_ivf ON dot_bounds USING ivfflat (embedding vector_ip_ops) WITH (lists = 2)");
+    let (training, members) = cassie
+        .midge
+        .get_ivfflat_training_manifest(&collection, "embedding")
+        .expect("read IVFFlat manifest")
+        .expect("trained IVFFlat index");
     let before = cassie.metrics();
 
     // Act
@@ -816,6 +821,9 @@ fn should_use_exact_dot_scoring_when_ivfflat_radius_overflows() {
     let after = cassie.metrics();
 
     // Assert
+    assert_eq!(members, 4);
+    assert_eq!(training.centroid_ids, ["centroid_a", "centroid_b"]);
+    assert!(training.list_bounds.is_empty());
     assert_eq!(exact.rows()[0][0], Value::from("query_c"));
     assert_eq!(with_index.rows(), exact.rows());
     for counter in ["ivfflat_executions", "ivfflat_exact_reranks_total"] {

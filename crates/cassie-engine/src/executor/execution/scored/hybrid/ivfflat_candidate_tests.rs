@@ -29,9 +29,7 @@ fn record(id: &str, metric: DistanceMetric, values: &[f32]) -> NormalizedVectorR
     }
 }
 
-fn ivfflat_hybrid_fixture(
-    build_index: bool,
-) -> (crate::app::Cassie, super::super::HybridTopKSpec) {
+fn ivfflat_hybrid_fixture(build_index: bool) -> (crate::app::Cassie, super::super::HybridTopKSpec) {
     let mut config = crate::config::CassieRuntimeConfig::default();
     config.embeddings =
         crate::config::EmbeddingsRuntimeConfig::Local(crate::config::LocalRuntimeConfig {
@@ -182,21 +180,15 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
             super::ivfflat_candidate_distance(&[1.0, 0.0], left)
                 .expect("valid vector")
                 .total_cmp(
-                    &super::ivfflat_candidate_distance(&[1.0, 0.0], right)
-                        .expect("valid vector"),
+                    &super::ivfflat_candidate_distance(&[1.0, 0.0], right).expect("valid vector"),
                 )
         })
         .expect("at least one probed vector")
         .id
         .clone();
-    let expected = rank_ivfflat_candidate_ids(
-        traversed.clone(),
-        &[1.0, 0.0],
-        1,
-        &controls(4096),
-    )
-    .expect("rank every vector in probed lists")
-    .0;
+    let expected = rank_ivfflat_candidate_ids(traversed.clone(), &[1.0, 0.0], 1, &controls(4096))
+        .expect("rank every vector in probed lists")
+        .0;
     let standalone = cassie
         .midge
         .persisted_vector_candidate_ids(&spec.collection, "embedding", &[1.0, 0.0], 1)

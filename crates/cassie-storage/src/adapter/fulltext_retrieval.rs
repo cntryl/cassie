@@ -850,7 +850,8 @@ mod tests {
             .expect("restore legacy metadata version");
 
         // Act
-        let legacy_read = midge.get_persisted_fulltext_index_state(collection, "dotted_i_rebuild_idx");
+        let legacy_read =
+            midge.get_persisted_fulltext_index_state(collection, "dotted_i_rebuild_idx");
         midge
             .reconcile_fulltext_indexes()
             .expect("rebuild legacy full-text state");
@@ -860,7 +861,9 @@ mod tests {
             .expect("rebuilt full-text state exists");
 
         // Assert
-        assert!(matches!(legacy_read, Err(CassieError::Parse(message)) if message.contains("unsupported fulltext metadata version 4")));
+        assert!(
+            matches!(legacy_read, Err(CassieError::Parse(message)) if message.contains("unsupported fulltext metadata version 4"))
+        );
         assert!(rebuilt.postings["istanbul"]
             .iter()
             .any(|posting| posting.document_id == "doc-1"));

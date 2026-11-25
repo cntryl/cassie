@@ -190,7 +190,10 @@ fn should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
-        run(&cassie, "CREATE TABLE dotted_i_ft (id INT NOT NULL, body TEXT)");
+        run(
+            &cassie,
+            "CREATE TABLE dotted_i_ft (id INT NOT NULL, body TEXT)",
+        );
         run(
             &cassie,
             "INSERT INTO dotted_i_ft (id, body) VALUES (1, 'İstanbul trip')",

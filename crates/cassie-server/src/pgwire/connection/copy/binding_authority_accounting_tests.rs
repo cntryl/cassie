@@ -297,9 +297,11 @@ fn should_report_malformed_payload_after_binding_is_admitted() {
     session.rollback_transaction();
 
     // Assert
-    assert!(
-        matches!(result, Err(super::filter::CopyWhereError::Cassie(CassieError::Parse(ref message))) if message == "COPY payload must be UTF-8")
-    );
+    let Err(super::filter::CopyWhereError::Cassie(CassieError::Diagnostic(error))) = result else {
+        panic!("expected a COPY encoding diagnostic after binding");
+    };
+    assert_eq!(error.sql_state, "22021");
+    assert_eq!(error.message, "COPY payload must be UTF-8");
 }
 
 #[test]

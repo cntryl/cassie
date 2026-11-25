@@ -28,3 +28,34 @@ fn should_frame_real_parameters_in_each_wire_format() {
         vec![fixture::one_field_row(&2.5_f32.to_be_bytes())]
     );
 }
+
+#[test]
+fn should_preserve_nonfinite_real_parameter_bits_in_binary_results() {
+    // Arrange
+    let sql = "SELECT CAST($1 AS real) AS v";
+    let inputs = [
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::from_bits(0x7FC0_0001),
+    ];
+    let cycles = inputs
+        .iter()
+        .map(|value| {
+            fixture::execute_cycle(sql, Some((700, 1, Some(&value.to_be_bytes()))), 1, true)
+        })
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("type-real-nonfinite-binary", &[], cycles);
+
+    // Assert
+    assert_eq!(batches.len(), inputs.len());
+    for (frames, value) in batches.iter().zip(inputs) {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (700, 4, -1), 1, true);
+        assert_eq!(
+            fixture::data_row_payloads(frames),
+            vec![fixture::one_field_row(&value.to_be_bytes())]
+        );
+    }
+}

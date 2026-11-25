@@ -23,6 +23,16 @@ A FLOAT partition parameter `-0.0` is SQL-equal to `+0.0`. Previous partition ad
 
 `time_series_qualification::should_preserve_signed_zero_float_partition_rows` compares both zero parameters and a nonzero control, including directly stored positive and negative zero JSON payloads, exact rows, native counters, no fallback and released query memory. FLOAT zero no longer narrows membership to one spelling. The selected timestamp range remains bucket-native, all candidate partitions receive authoritative SQL residual filtering, and existing memory/cancellation controls apply. Nonzero FLOAT partitions retain narrowing. Existing persisted keys and generations are unchanged; composite partition predicates also widen when a zero component prevents exact narrowing. This conservative scan can read more candidate partitions for zero equality, preserving the result law.
 
+## Ambiguous partition values
+
+Legacy time-series indexes join partition values with U+001F and encode SQL
+NULL with the text `null`. A bound containing U+001F or the ambiguous text
+`null` cannot identify a single logical partition. Cassie keeps the
+timestamp-bucket range, reads its candidate partitions and applies the
+authoritative SQL filters. Ordinary partition equalities, including TAB in
+text values, keep their narrower index lookup. Existing indexes retain their
+stored keys across restart. [#1537](https://github.com/cntryl/cassie/issues/1537)
+
 ## Open adjacency finding and decision boundary
 
 The [live adjacency finding](https://github.com/cntryl/cassie/issues/772#issuecomment-6043589425) removes only one `OE` member while retaining valid neighboring members, all authoritative rows, redundant keys and unchanged source generation/manifest. With result caching disabled, the selected type-specific native scan silently omits that edge. Existing startup reconciliation compares exact source-derived key sets and rebuilds the missing entry. Live scan admission checks version/generation but has no per-prefix completeness proof.

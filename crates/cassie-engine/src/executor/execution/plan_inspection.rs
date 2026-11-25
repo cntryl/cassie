@@ -807,7 +807,7 @@ fn collect_fulltext_fields_from_function(
     fields: &mut HashSet<String>,
 ) {
     let name = function.name.to_ascii_lowercase();
-    if matches!(name.as_str(), "search" | "search_score") {
+    if matches!(name.as_str(), "search" | "search_score" | "snippet") {
         if let Some(crate::sql::ast::Expr::Column(field)) = function.args.first() {
             fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
         }

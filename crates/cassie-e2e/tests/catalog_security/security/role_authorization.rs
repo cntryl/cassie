@@ -113,6 +113,15 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             Vec::new(),
         )
         .expect("read tables as blocked role");
+    let blocked_columns = cassie
+        .execute_sql(
+            &blocked,
+            "SELECT table_name, column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' \
+               AND table_name IN ('catalog_visible', 'catalog_secret')",
+            Vec::new(),
+        )
+        .expect("read columns as blocked role");
     let admin_tables = cassie
         .execute_sql(
             &admin,
@@ -152,7 +161,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             cassie::types::Value::String("id".to_owned()),
         ]]
     );
-    assert_eq!(blocked_tables.rows().len(), 0);
+    assert!(blocked_tables.rows().is_empty());
+    assert!(blocked_columns.rows().is_empty());
     assert_eq!(admin_tables.rows().len(), 2);
 }
 

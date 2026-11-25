@@ -490,7 +490,7 @@ fn should_read_empty_object_families_with_the_psql_table_description_queries() {
         panic!("expected a table OID")
     };
     let queries = [
-        r"SELECT pol.polname, pol.polpermissive,
+        "SELECT pol.polname, pol.polpermissive,
   CASE WHEN pol.polroles = '{0}' THEN NULL ELSE pg_catalog.array_to_string(array(select rolname from pg_catalog.pg_roles where oid = any (pol.polroles) order by 1),',') END,
   pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),
   pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),
@@ -502,7 +502,7 @@ fn should_read_empty_object_families_with_the_psql_table_description_queries() {
     END AS cmd
 FROM pg_catalog.pg_policy pol
 WHERE pol.polrelid = '{oid}' ORDER BY 1",
-        r"SELECT oid, stxrelid::pg_catalog.regclass, stxnamespace::pg_catalog.regnamespace::pg_catalog.text AS nsp, stxname,
+        "SELECT oid, stxrelid::pg_catalog.regclass, stxnamespace::pg_catalog.regnamespace::pg_catalog.text AS nsp, stxname,
 pg_catalog.pg_get_statisticsobjdef_columns(oid) AS columns,
   'd' = any(stxkind) AS ndist_enabled,
   'f' = any(stxkind) AS deps_enabled,
@@ -511,7 +511,7 @@ stxstattarget
 FROM pg_catalog.pg_statistic_ext
 WHERE stxrelid = '{oid}'
 ORDER BY nsp, stxname",
-        r"SELECT pubname
+        "SELECT pubname
      , NULL
      , NULL
 FROM pg_catalog.pg_publication p
@@ -537,12 +537,12 @@ SELECT pubname
 FROM pg_catalog.pg_publication p
 WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('{oid}')
 ORDER BY 1",
-        r"SELECT c.oid::pg_catalog.regclass
+        "SELECT c.oid::pg_catalog.regclass
 FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
 WHERE c.oid = i.inhparent AND i.inhrelid = '{oid}'
   AND c.relkind != 'p' AND c.relkind != 'I'
 ORDER BY inhseqno",
-        r"SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
+        "SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
 FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
 WHERE c.oid = i.inhrelid AND i.inhparent = '{oid}'
 ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_catalog.regclass::pg_catalog.text",
@@ -573,9 +573,17 @@ fn should_resolve_publishability_and_missing_extended_statistics_by_identity() {
     );
 
     // Act
-    let selected = fixture.execute(
-        "SELECT pg_catalog.pg_relation_is_publishable('published_kind'),                 pg_relation_is_publishable('published_kind_id'::regclass),                 pg_relation_is_publishable('pg_catalog.pg_class'),                 pg_relation_is_publishable('published_view'),                 pg_relation_is_publishable('0'), pg_relation_is_publishable(NULL),                 pg_catalog.pg_get_statisticsobjdef_columns(0::oid),                 pg_get_statisticsobjdef_columns(NULL)"
-    ).expect("evaluate psql catalog helpers");
+    let selected = fixture
+        .execute(
+            "SELECT pg_catalog.pg_relation_is_publishable('published_kind'),
+                pg_relation_is_publishable('published_kind_id'::regclass),
+                pg_relation_is_publishable('pg_catalog.pg_class'),
+                pg_relation_is_publishable('published_view'),
+                pg_relation_is_publishable('0'), pg_relation_is_publishable(NULL),
+                pg_catalog.pg_get_statisticsobjdef_columns(0::oid),
+                pg_get_statisticsobjdef_columns(NULL)",
+        )
+        .expect("evaluate psql catalog helpers");
 
     // Assert
     assert_eq!(
@@ -618,5 +626,29 @@ fn should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal() {
     assert_eq!(
         result.rows(),
         &[vec![Value::String("described_oid".into())]]
+    );
+}
+
+#[test]
+fn should_expose_the_same_role_oid_to_policy_lookups_and_regrole() {
+    // Arrange
+    let fixture = sql_fixture("describe-policy-roles", &["CREATE ROLE describe_reader"]);
+
+    // Act
+    let result = fixture
+        .execute(
+            "SELECT rolname FROM pg_catalog.pg_roles
+         WHERE oid = ANY(ARRAY['root'::regrole::oid, 'describe_reader'::regrole::oid])
+         ORDER BY rolname",
+        )
+        .expect("resolve policy role OIDs");
+
+    // Assert
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::String("describe_reader".into())],
+            vec![Value::String("root".into())]
+        ]
     );
 }

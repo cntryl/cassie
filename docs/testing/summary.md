@@ -138,7 +138,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
 | `tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs` | 824 | 28 |
-| `tests/catalog_security/catalogs/types/object_identity/user_routines.rs` | 816 | 52 |
+| `tests/catalog_security/catalogs/types/object_identity/user_routines.rs` | 825 | 52 |
 | `tests/compatibility/lifecycle/indexes/pgvector_profile.rs` | 825 | 10 |
 | `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 818 | 16 |
 | `tests/parser_types/grammar/expressions/semantics.rs` | 813 | 37 |

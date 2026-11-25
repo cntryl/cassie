@@ -384479,7 +384479,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 227,
-      "sha256": "4b271c2adba21ce138912807236d64a9b4f24d6dce836a9169d0a39f11f0b523",
+      "sha256": "3dd099de278a406927305e227fdeb672bcaca9e938d1146ed37d85a387698983",
       "test_declarations": 5,
       "registered_suites": [
         "search"

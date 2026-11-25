@@ -135,7 +135,11 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
 /// has no retry of its own, so the batch is resubmitted after a capped backoff.
 fn put_fresh_batch(cassie: &Cassie, batch: &[(Option<String>, Json)]) -> Result<(), String> {
     for attempt in 1..=INGEST_STALL_ATTEMPTS {
-        match cassie.midge.put_fresh_documents(TABLE, batch.to_vec()) {
+        match cassie
+            .midge
+            .put_fresh_documents(TABLE, batch.to_vec())
+            .map_err(CassieError::from)
+        {
             Ok(_) => return Ok(()),
             Err(CassieError::StorageRetryable(error))
                 if error.kind() == StorageRetryKind::WriteStall

@@ -317,7 +317,7 @@ fn should_return_timeout_error() {
         model: DEFAULT_EMBEDDING_MODEL.to_string(),
         timeout: Duration::from_millis(50),
         max_batch_size: 1,
-        max_retries: 1,
+        max_retries: 0,
         base_url: server.base_url(),
     })
     .expect("openai provider");

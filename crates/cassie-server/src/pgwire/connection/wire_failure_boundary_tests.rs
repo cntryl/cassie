@@ -618,7 +618,7 @@ fn should_release_a_suspended_portal_when_extended_rollback_ends_the_transaction
         // Assert
         assert_eq!(tagged_frames(&ready).last(), Some(&(b'Z', &b"I"[..])));
         assert!(!session.is_transaction_active());
-        assert!(state.portals.is_empty());
+        assert_eq!(state.portals.keys().next(), None);
         assert_eq!(cassie.runtime().snapshot().pgwire.portals, 0);
         assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
         assert!(!tagged_frames(&resumed).iter().any(|(tag, _)| *tag == b'D'));

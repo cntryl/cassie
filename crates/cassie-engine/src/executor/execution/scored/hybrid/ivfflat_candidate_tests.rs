@@ -196,7 +196,7 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
     let standalone = cassie
         .execute_sql(
             &session,
-            "SELECT id, vector_distance(embedding, '[1,0]') AS distance FROM ivf_rank ORDER BY distance ASC LIMIT 1",
+            "SELECT _id, vector_distance(embedding, '[1,0]') AS distance FROM ivf_rank ORDER BY distance ASC LIMIT 1",
             Vec::new(),
         )
         .expect("run the standalone IVFFlat query");
@@ -222,7 +222,10 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
         [nearest_id.as_str()]
     );
     assert_eq!(standalone.rows().len(), 1);
-    assert_eq!(standalone.rows()[0][0], crate::types::Value::Int64(2));
+    assert_eq!(
+        standalone.rows()[0][0],
+        crate::types::Value::String(nearest_id.clone())
+    );
     assert_eq!(after, before + 1, "standalone query must execute IVFFlat");
     assert_eq!(actual.ids, expected);
 }

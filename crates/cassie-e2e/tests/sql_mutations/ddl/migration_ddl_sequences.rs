@@ -839,3 +839,45 @@ fn should_keep_quoted_and_unquoted_sequence_identities_distinct() {
     );
     assert_eq!(next, vec![vec![Value::Int64(21), Value::Int64(102)]]);
 }
+
+#[test]
+fn should_preserve_case_distinct_sequence_defaults_through_schema_rename() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", Some("postgres".into()));
+    for sql in [
+        "CREATE SCHEMA case_source",
+        r#"CREATE SEQUENCE case_source."MixedCase" START WITH 10"#,
+        "CREATE SEQUENCE case_source.mixedcase START WITH 100",
+        r#"CREATE TABLE case_source.case_defaults (quoted_id BIGINT DEFAULT nextval('case_source."MixedCase"'::regclass), plain_id BIGINT DEFAULT nextval('case_source.mixedcase'::regclass))"#,
+        "INSERT INTO case_source.case_defaults DEFAULT VALUES",
+    ] {
+        execute_statement(&cassie, &session, sql);
+    }
+
+    // Act
+    execute_statement(
+        &cassie,
+        &session,
+        "ALTER SCHEMA case_source RENAME TO case_target",
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        "INSERT INTO case_target.case_defaults DEFAULT VALUES",
+    );
+
+    // Assert
+    assert_eq!(
+        query_rows(
+            &cassie,
+            &session,
+            "SELECT quoted_id, plain_id FROM case_target.case_defaults ORDER BY quoted_id"
+        ),
+        vec![
+            vec![Value::Int64(10), Value::Int64(100)],
+            vec![Value::Int64(11), Value::Int64(101)],
+        ],
+    );
+}

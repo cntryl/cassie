@@ -240,7 +240,7 @@ fn should_keep_months_distinct_from_thirty_day_intervals() {
 }
 
 #[test]
-fn should_compare_and_order_one_month_with_thirty_days() {
+fn should_order_one_month_as_equal_to_thirty_days() {
     // Arrange
     let fixture = sql_fixture(
         "issue-1544-interval-order",

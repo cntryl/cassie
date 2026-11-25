@@ -85,10 +85,37 @@ fn binary_span(input: &str, start: usize, end: usize, token: &str) -> bool {
         })
 }
 
-pub(super) fn has_ordinary_comparison(input: &str) -> bool {
-    ["<=", ">=", "<>", "!=", "=", "<", ">"]
-        .into_iter()
-        .any(|token| split_operator(input, token, false).is_some())
+/// Return a complete ordinary comparison token at this expression depth.
+pub(super) fn ordinary_comparison(input: &str) -> Option<(&str, super::BinaryOp, &str)> {
+    use super::BinaryOp;
+    for (token, operation) in [
+        ("<=", BinaryOp::Lte),
+        (">=", BinaryOp::Gte),
+        ("<>", BinaryOp::NotEq),
+        ("!=", BinaryOp::NotEq),
+        ("=", BinaryOp::Eq),
+        ("<", BinaryOp::Lt),
+        (">", BinaryOp::Gt),
+    ] {
+        let mut cursor = 0;
+        while let Some((start, end)) = operator_span(input, cursor, token) {
+            if ordinary_token_ends_here(&input[end..]) && binary_span(input, start, end, token) {
+                return Some((&input[..start], operation, &input[end..]));
+            }
+            cursor = end;
+        }
+    }
+    None
+}
+
+// An adjacent plus or minus can start a signed operand. Any other remaining
+// operator character belongs to the same token (e.g. the suffix of <->).
+fn ordinary_token_ends_here(suffix: &str) -> bool {
+    suffix.starts_with("--")
+        || suffix.starts_with("/*")
+        || !suffix
+            .trim_start_matches(['+', '-'])
+            .starts_with(operator_character)
 }
 
 pub(super) fn split_operator<'a>(

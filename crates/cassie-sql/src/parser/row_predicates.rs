@@ -13,8 +13,8 @@ pub(super) fn comparison(left: &str, op: BinaryOp, right: &str) -> Result<Expr, 
             | BinaryOp::Lte
             | BinaryOp::Gt
             | BinaryOp::Gte
-    ) && (super::super::operators::has_ordinary_comparison(left)
-        || super::super::operators::has_ordinary_comparison(right))
+    ) && (super::super::operators::ordinary_comparison(left).is_some()
+        || super::super::operators::ordinary_comparison(right).is_some())
     {
         return Err(SqlError::syntax(
             "chained comparisons require parentheses".into(),

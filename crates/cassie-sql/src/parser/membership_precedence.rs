@@ -5,16 +5,10 @@
 //! holds a top-level comparison, that comparison is the split point and the membership test
 //! belongs to its right operand.
 
-const DISTANCE_OPERATORS: [&str; 3] = [" <=> ", " <-> ", " <#> "];
-
 /// Whether `left`, the text before a top-level IN or BETWEEN keyword, has a top-level
 /// comparison operator that must be split first.
 pub(super) fn left_operand_has_comparison(left: &str) -> bool {
-    // The distance operators bind tighter than comparisons and have their own handling.
-    if DISTANCE_OPERATORS.iter().any(|token| left.contains(token)) {
-        return false;
-    }
-    super::operators::has_ordinary_comparison(left)
+    super::operators::ordinary_comparison(left).is_some()
 }
 
 #[cfg(test)]

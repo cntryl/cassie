@@ -622,6 +622,12 @@ fn should_reload_generic_index_registry_after_restart() {
             options: BTreeMap::from_iter(vec![("case_sensitive".to_string(), "true".to_string())]),
         };
         cassie.midge.put_index(&record).unwrap();
+        let stored_before_restart = cassie
+            .midge
+            .get_index(collection, "idx_generic_title")
+            .unwrap()
+            .expect("persisted index");
+        assert_eq!(stored_before_restart.catalog_oid(), None);
 
         cassie.shutdown();
         drop(cassie);
@@ -642,7 +648,7 @@ fn should_reload_generic_index_registry_after_restart() {
             .midge
             .get_index(collection, "idx_generic_title")
             .unwrap();
-        assert_eq!(stored, Some(record));
+        assert_eq!(stored, Some(stored_before_restart));
         restarted.shutdown();
     });
 
@@ -714,6 +720,12 @@ fn should_persist_fulltext_index_metadata_after_restart() {
             ]),
         };
         cassie.midge.put_index(&expected).unwrap();
+        let stored_before_restart = cassie
+            .midge
+            .get_index(collection, "idx_fulltext_body")
+            .unwrap()
+            .expect("persisted index");
+        assert_eq!(stored_before_restart.catalog_oid(), None);
 
         cassie.shutdown();
         drop(cassie);
@@ -735,7 +747,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
             .midge
             .get_index(collection, "idx_fulltext_body")
             .unwrap();
-        assert_eq!(stored, Some(expected));
+        assert_eq!(stored, Some(stored_before_restart));
         restarted.shutdown();
     });
 

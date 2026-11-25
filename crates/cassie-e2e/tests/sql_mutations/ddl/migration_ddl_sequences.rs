@@ -778,7 +778,7 @@ fn should_round_trip_exported_sequence_defaults_through_information_schema() {
 }
 
 #[test]
-fn should_keep_quoted_and_unquoted_sequence_identities_distinct() {
+fn should_preserve_case_distinct_sequence_identities() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
     cassie.startup().expect("startup");

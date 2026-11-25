@@ -120,7 +120,7 @@ fn should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands() 
 }
 
 #[test]
-fn should_report_unclosed_nested_comment_in_direct_simple_and_extended_parse() {
+fn should_report_unclosed_nested_comments_across_sql_entry_points() {
     // Arrange
     let unfinished = "SELECT 1 /* outer /* inner */";
     let balanced = "SELECT 1 /* outer /* inner */ */";

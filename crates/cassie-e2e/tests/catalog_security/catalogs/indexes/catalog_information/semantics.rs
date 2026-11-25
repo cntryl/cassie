@@ -50,8 +50,8 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     let session = cassie.create_session("tester", None);
     for sql in [
         "CREATE TABLE orders (col1 INT, col2 INT, col3 INT)",
-        "CREATE INDEX idx_prokjabdil ON orders (col1)",
-        "CREATE INDEX idx_sdxbzixofw ON orders (col2)",
+        "CREATE INDEX idx_probe_mruviborgh ON orders (col1)",
+        "CREATE INDEX idx_probe_khsnofgfon ON orders (col2)",
         "CREATE INDEX idx_allocated_control ON orders (col3)",
     ] {
         cassie
@@ -60,14 +60,20 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     }
     let join = "SELECT c.relname, i.indkey, c.oid::text \
                 FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON i.indexrelid = c.oid \
-                WHERE c.relname IN ('idx_allocated_control', 'idx_prokjabdil', 'idx_sdxbzixofw') \
+                WHERE c.relname IN ('idx_allocated_control', 'idx_probe_mruviborgh', 'idx_probe_khsnofgfon') \
                 ORDER BY c.relname, i.indkey";
     let fresh = cassie
         .execute_sql(&session, join, vec![])
         .expect("read fresh indexes");
     let collection = cassie.midge.canonical_collection_name("orders");
-    // These two supported no-OID catalog entries share the old hash.
-    for name in ["idx_prokjabdil", "idx_sdxbzixofw"] {
+    let survivor = "idx_probe_mruviborgh";
+    let original_holder = "idx_probe_khsnofgfon";
+    let candidate = |name| {
+        cassie_core::catalog::object_identity::stable_index_oid(&format!("{collection}.{name}"))
+    };
+    assert_eq!(candidate(survivor), candidate(original_holder));
+    // Register the legacy fixtures in the startup's canonical order.
+    for name in [original_holder, survivor] {
         let mut index = cassie
             .midge
             .get_index(&collection, name)
@@ -89,8 +95,9 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     drop(session);
     cassie.shutdown();
     drop(cassie);
-    let reopened = cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config)
-        .expect("reopen local Cassie");
+    let reopened =
+        cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config.clone())
+            .expect("reopen local Cassie");
     reopened.startup().expect("hydrate legacy index identity");
     let session = reopened.create_session("tester", None);
     let hydrated = reopened
@@ -100,8 +107,8 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     // Assert
     let expected = [
         ("idx_allocated_control", "3"),
-        ("idx_prokjabdil", "1"),
-        ("idx_sdxbzixofw", "2"),
+        (original_holder, "2"),
+        (survivor, "1"),
     ];
     for rows in [fresh.rows(), legacy.rows(), hydrated.rows()] {
         assert_eq!(rows.len(), expected.len());
@@ -115,7 +122,90 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     }
     assert_eq!(fresh.rows()[0], legacy.rows()[0]);
     assert_eq!(legacy.rows(), hydrated.rows());
+    let surviving_oid = hydrated.rows()[2][2].clone();
+    assert_ne!(
+        surviving_oid,
+        Value::String(candidate(survivor).to_string())
+    );
+    assert_eq!(
+        reopened
+            .midge
+            .get_index(&collection, original_holder)
+            .unwrap()
+            .unwrap()
+            .catalog_oid(),
+        None,
+    );
+    reopened
+        .execute_sql(&session, &format!("DROP INDEX {original_holder}"), vec![])
+        .expect("drop the original candidate owner");
     drop(session);
+    reopened.shutdown();
+    drop(reopened);
+
+    let reopened = cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config)
+        .expect("reopen after candidate owner drop");
+    reopened.startup().expect("retain displaced legacy OID");
+    let session = reopened.create_session("tester", None);
+    let remaining = reopened
+        .execute_sql(&session, join, vec![])
+        .expect("join surviving indexes");
+    assert_eq!(
+        remaining.rows(),
+        [hydrated.rows()[0].clone(), hydrated.rows()[2].clone()]
+    );
+    assert_eq!(remaining.rows()[1][2], surviving_oid);
+    reopened.shutdown();
+}
+
+#[test]
+fn should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart() {
+    // Arrange
+    let directory = crate::support_temp_dirs::IsolatedDataDir::new("issue-1518-fresh-index-oids");
+    let config =
+        crate::support_sql::with_test_root_password(cassie::config::CassieRuntimeConfig::default());
+    let cassie =
+        cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config.clone())
+            .expect("open local Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE orders (a INT, b INT, c INT, CONSTRAINT idx_probe_mruviborgh UNIQUE (a), CONSTRAINT idx_probe_khsnofgfon UNIQUE (b))",
+        "ALTER TABLE orders ADD CONSTRAINT orders_c_unique UNIQUE (c)",
+        "CREATE INDEX orders_extra_idx ON orders (a, b)",
+        "CREATE TABLE order_copies (LIKE orders INCLUDING INDEXES)",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("create fresh index fixture");
+    }
+    let join = "SELECT t.relname, c.relname, c.oid::text                 FROM pg_catalog.pg_index i                 JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid                 JOIN pg_catalog.pg_class t ON t.oid = i.indrelid                 WHERE t.relname IN ('orders', 'order_copies') ORDER BY t.relname, c.relname";
+    let live = cassie
+        .execute_sql(&session, join, vec![])
+        .expect("read fresh catalog indexes");
+    drop(session);
+    cassie.shutdown();
+    drop(cassie);
+
+    // Act
+    let reopened = cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config)
+        .expect("reopen local Cassie");
+    reopened.startup().expect("hydrate fresh index identities");
+    let session = reopened.create_session("tester", None);
+    let hydrated = reopened
+        .execute_sql(&session, join, vec![])
+        .expect("read reopened catalog indexes");
+
+    // Assert
+    assert_eq!(live.rows().len(), 8);
+    let mut oids = std::collections::BTreeSet::new();
+    for row in live.rows() {
+        let Value::String(oid) = &row[2] else {
+            panic!("expected catalog OID text: {row:?}");
+        };
+        let oid = oid.parse::<u32>().expect("catalog OID");
+        assert!(oid < 0x8000_0000, "fresh index uses legacy OID: {row:?}");
+        assert!(oids.insert(oid), "multiple fresh indexes share {oid}");
+    }
+    assert_eq!(live.rows(), hydrated.rows());
     reopened.shutdown();
 }
 
@@ -252,9 +342,7 @@ fn should_omit_cassie_internal_index_methods_from_postgresql_catalogs() {
         .expect("read selected pg_indexes rows");
 
     // Assert
-    let expected = vec![vec![Value::String(
-        "issue_817_events_btree_idx".to_owned(),
-    )]];
+    let expected = vec![vec![Value::String("issue_817_events_btree_idx".to_owned())]];
     assert_eq!(class_rows.rows(), expected);
     assert_eq!(
         access_method_rows.rows(),
@@ -379,10 +467,7 @@ fn should_return_empty_text_given_column_beyond_index_keys_when_calling_pg_get_i
         .expect("read a column beyond the index keys");
 
     // Assert
-    assert_eq!(
-        selected.rows(),
-        vec![vec![Value::String(String::new())]]
-    );
+    assert_eq!(selected.rows(), vec![vec![Value::String(String::new())]]);
 }
 
 #[test]
@@ -411,7 +496,10 @@ fn should_reject_non_boolean_pretty_flag_when_calling_pg_get_indexdef() {
     let result = fixture.execute("SELECT pg_get_indexdef(1, 0, 'true')");
 
     // Assert
-    assert_eq!(result.expect_err("reject a text pretty flag").sql_state(), "42883");
+    assert_eq!(
+        result.expect_err("reject a text pretty flag").sql_state(),
+        "42883"
+    );
 }
 
 #[test]

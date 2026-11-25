@@ -27,6 +27,9 @@ const INDEX_PREDICATE_QUERY: &str =
 
 type Frames = Vec<(u8, Vec<u8>)>;
 
+#[path = "result_framing/expression_labels.rs"]
+mod expression_labels;
+
 #[test]
 fn should_report_syntax_message_with_character_position_in_error_response() {
     // Arrange

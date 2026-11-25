@@ -188,3 +188,57 @@ mod collation_tests {
         assert!(matches!(*right, Expr::StringLiteral(value) if value == "left collate \"C\""));
     }
 }
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::{parse_expression, BinaryOp, Expr};
+    use crate::parser::{parse_statement, SqlErrorKind};
+
+    #[test]
+    fn should_bind_vector_distances_as_operands_of_ordinary_comparisons() {
+        // Arrange
+        let cases = [
+            ("a <-> b < 1", BinaryOp::PgvectorL2, BinaryOp::Lt, true),
+            (
+                "1 >= a <=> b",
+                BinaryOp::PgvectorCosine,
+                BinaryOp::Gte,
+                false,
+            ),
+            ("a <#> b = -1", BinaryOp::PgvectorDot, BinaryOp::Eq, true),
+        ];
+
+        // Act
+        for (sql, distance, comparison, distance_on_left) in cases {
+            let expr = parse_expression(sql).expect(sql);
+            parse_statement(&format!("SELECT {sql}")).expect(sql);
+
+            // Assert
+            let Expr::Binary { left, op, right } = expr else {
+                panic!("{sql}")
+            };
+            assert_eq!(op, comparison, "{sql}");
+            let operand = if distance_on_left { left } else { right };
+            assert!(
+                matches!(*operand, Expr::Binary { op, .. } if op == distance),
+                "{sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_reject_ordinary_comparison_chains_with_vector_operands() {
+        // Arrange
+        let cases = ["a <-> b < 1 = true", "1 = a <#> b >= 0", "1 < 2 < a <=> b"];
+
+        // Act
+        for sql in cases {
+            let error = parse_expression(sql).expect_err(sql);
+            let statement_error = parse_statement(&format!("SELECT {sql}")).expect_err(sql);
+
+            // Assert
+            assert_eq!(error.kind(), SqlErrorKind::Syntax, "{sql}");
+            assert_eq!(statement_error.kind(), SqlErrorKind::Syntax, "{sql}");
+        }
+    }
+}

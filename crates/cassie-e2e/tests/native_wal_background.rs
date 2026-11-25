@@ -3,7 +3,7 @@
 use std::sync::{mpsc, Mutex};
 use std::time::Duration;
 
-use cassie::midge::adapter::{CassieError, StorageRetryKind};
+use cassie::midge::adapter::{StorageError, StorageRetryKind};
 use cassie::midge::Midge;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
@@ -58,7 +58,7 @@ fn put_strict(storage: &Midge, database: &str) {
 fn create_while_flush_is_held<'scope>(
     scope: &'scope std::thread::Scope<'scope, '_>,
     storage: &'scope Midge,
-) -> Result<(), CassieError> {
+) -> Result<(), StorageError> {
     let (complete, outcome) = mpsc::channel();
     let create = scope.spawn(move || {
         let _ = complete.send(storage.create_database(CREATED, None));

@@ -354,10 +354,15 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
     let (contender_events, contender_worker) =
         start_observed_insert(cassie.clone(), owner.clone(), "INSERT INTO u VALUES (5, 3)");
     let retained_wait_event = receive_event(&contender_events);
+    let reached_retained_wait = matches!(&retained_wait_event, WaitEvent::ReachedWait);
     cassie
         .execute_sql(&waiter, "ROLLBACK", Vec::new())
         .expect("release the retained key");
-    let contender_result = receive_event(&contender_events);
+    let contender_result = if reached_retained_wait {
+        receive_event(&contender_events)
+    } else {
+        retained_wait_event
+    };
     contender_worker
         .join()
         .expect("retained-key contender worker");
@@ -368,7 +373,7 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
     // Assert
     assert!(matches!(retired_result, WaitEvent::Completed(Err(_))));
     assert_eq!(waits_after_retirement, 0);
-    assert!(matches!(retained_wait_event, WaitEvent::ReachedWait));
+    assert!(reached_retained_wait);
     assert!(matches!(contender_result, WaitEvent::Completed(Ok(_))));
     assert_eq!(
         rows(&cassie, &owner),

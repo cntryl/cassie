@@ -173,7 +173,11 @@ fn should_allow_multi_key_insert_after_wait_owner_rolls_back_without_other_confl
 #[test]
 fn should_keep_the_prepared_identity_when_a_plain_insert_resumes() {
     // Arrange
-    let (cassie, owner, waiter) = two_key_fixture("issue_1466_prepared_identity");
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let owner = cassie.create_session("issue_1466_identity_owner", None);
+    let waiter = cassie.create_session("issue_1466_identity_waiter", None);
     for sql in [
         "CREATE TABLE identity_wait (id SERIAL PRIMARY KEY, payload TEXT UNIQUE)",
         "BEGIN",

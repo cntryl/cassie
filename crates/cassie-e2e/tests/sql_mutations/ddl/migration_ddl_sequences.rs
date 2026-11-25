@@ -695,3 +695,137 @@ fn should_bind_bare_explicit_sequence_defaults_to_table_schema() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_round_trip_exported_sequence_defaults_through_information_schema() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        r#"CREATE SEQUENCE "a'b""#,
+        "CREATE SEQUENCE simple_seq START WITH 10",
+        r#"CREATE TABLE source_defaults (quoted_id BIGINT DEFAULT nextval('"a''b"'::regclass), plain_id BIGINT DEFAULT nextval('simple_seq'::regclass))"#,
+        "INSERT INTO source_defaults DEFAULT VALUES",
+        "INSERT INTO source_defaults DEFAULT VALUES",
+    ] {
+        execute_statement(&cassie, &session, sql);
+    }
+
+    // Act
+    let defaults = query_rows(
+        &cassie,
+        &session,
+        "SELECT column_default FROM information_schema.columns WHERE table_name = 'source_defaults' ORDER BY ordinal_position",
+    );
+    let [quoted, plain] = defaults.as_slice() else {
+        panic!("expected two exported defaults: {defaults:?}");
+    };
+    let ([Value::String(quoted)], [Value::String(plain)]) = (quoted.as_slice(), plain.as_slice())
+    else {
+        panic!("expected stored SQL expressions: {defaults:?}");
+    };
+    execute_statement(
+        &cassie,
+        &session,
+        &format!(
+            "CREATE TABLE replayed_defaults (quoted_id BIGINT DEFAULT {quoted}, plain_id BIGINT DEFAULT {plain})"
+        ),
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        "INSERT INTO replayed_defaults DEFAULT VALUES",
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        "INSERT INTO source_defaults DEFAULT VALUES",
+    );
+
+    // Assert
+    assert_eq!(plain, "nextval('postgres.public.simple_seq'::regclass)");
+    assert_eq!(
+        query_rows(
+            &cassie,
+            &session,
+            "SELECT quoted_id, plain_id FROM replayed_defaults"
+        ),
+        vec![vec![Value::Int64(3), Value::Int64(12)]]
+    );
+    assert_eq!(
+        query_rows(
+            &cassie,
+            &session,
+            "SELECT quoted_id, plain_id FROM source_defaults ORDER BY quoted_id"
+        ),
+        vec![
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(11)],
+            vec![Value::Int64(4), Value::Int64(13)],
+        ],
+    );
+}
+
+#[test]
+fn should_keep_quoted_and_unquoted_sequence_identities_distinct() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        r#"CREATE SEQUENCE "MixedCase" START WITH 10"#,
+        "CREATE SEQUENCE MIXEDCASE START WITH 100",
+        r#"CREATE TABLE case_defaults (quoted_id BIGINT DEFAULT nextval('"MixedCase"'::regclass), plain_id BIGINT DEFAULT nextval('mixedcase'::regclass))"#,
+    ] {
+        execute_statement(&cassie, &session, sql);
+    }
+
+    // Act
+    let class_rows = query_rows(
+        &cassie,
+        &session,
+        "SELECT relname FROM pg_catalog.pg_class WHERE relkind = 'S' AND relname IN ('MixedCase', 'mixedcase') ORDER BY relname",
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        "INSERT INTO case_defaults DEFAULT VALUES",
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        r#"ALTER SEQUENCE "MixedCase" RESTART WITH 20"#,
+    );
+    execute_statement(
+        &cassie,
+        &session,
+        "INSERT INTO case_defaults DEFAULT VALUES",
+    );
+    let next = query_rows(
+        &cassie,
+        &session,
+        r#"SELECT nextval('"MixedCase"'), nextval('MIXEDCASE')"#,
+    );
+
+    // Assert
+    assert_eq!(
+        class_rows,
+        vec![
+            vec![Value::String("MixedCase".into())],
+            vec![Value::String("mixedcase".into())],
+        ]
+    );
+    assert_eq!(
+        query_rows(
+            &cassie,
+            &session,
+            "SELECT quoted_id, plain_id FROM case_defaults ORDER BY quoted_id"
+        ),
+        vec![
+            vec![Value::Int64(10), Value::Int64(100)],
+            vec![Value::Int64(20), Value::Int64(101)],
+        ],
+    );
+    assert_eq!(next, vec![vec![Value::Int64(21), Value::Int64(102)]]);
+}

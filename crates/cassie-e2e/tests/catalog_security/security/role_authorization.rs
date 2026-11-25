@@ -313,17 +313,19 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     .into_iter()
     .map(|sql| (sql, cassie.execute_sql(&reader, sql, Vec::new())))
     .collect::<Vec<_>>();
+    let create_role = format!("CREATE ROLE blocked_role LOGIN PASSWORD '{blocked_password}'");
+    let alter_role = format!("ALTER ROLE sa PASSWORD '{blocked_password}'");
     let forbidden = [
         "INSERT INTO role_docs (title) VALUES ('blocked')",
         "UPDATE role_docs SET title = 'blocked'",
         "DELETE FROM role_docs",
         "COPY role_docs FROM STDIN WITH (FORMAT CSV)",
         "CREATE TABLE blocked_table (title TEXT)",
-        &format!("CREATE ROLE blocked_role LOGIN PASSWORD '{blocked_password}'"),
+        create_role.as_str(),
         r#"CREATE PROCEDURE blocked_proc() AS "SELECT title FROM role_docs""#,
         "CREATE MATERIALIZED PROJECTION blocked_projection AS SELECT title FROM role_docs",
         "CREATE RETENTION POLICY blocked_retention ON role_docs USING event_at RETAIN FOR '1 day'",
-        &format!("ALTER ROLE sa PASSWORD '{blocked_password}'"),
+        alter_role.as_str(),
     ]
     .into_iter()
     .map(|sql| (sql, cassie.execute_sql(&reader, sql, Vec::new())))

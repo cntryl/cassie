@@ -127,3 +127,41 @@ fn should_emit_typed_zero_when_constraint_has_no_backing_index() {
         vec![vec![Value::Int64(0), Value::String("0".to_owned())]]
     );
 }
+
+#[test]
+fn should_discover_the_visible_relation_for_psql_describe() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1487-psql-discovery",
+        &[
+            "CREATE TABLE probe_docs (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE probe_docs_archive (id INTEGER PRIMARY KEY)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let discovered = fixture
+        .execute(
+            "SELECT c.oid, n.nspname, c.relname
+             FROM pg_catalog.pg_class c
+             LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relname OPERATOR(pg_catalog.~) '^(probe_docs)$' COLLATE pg_catalog.default
+               AND pg_catalog.pg_table_is_visible(c.oid)
+             ORDER BY 2, 3",
+        )
+        .expect("discover the relation for psql describe");
+
+    // Assert
+    let rows = discovered.rows();
+    assert_eq!(rows.len(), 1);
+    let relation = &rows[0];
+    assert_ne!(relation[0], Value::Null);
+    assert_eq!(
+        &relation[1..],
+        &[
+            Value::String("public".to_owned()),
+            Value::String("probe_docs".to_owned()),
+        ]
+    );
+}

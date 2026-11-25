@@ -102,9 +102,10 @@ mod tests {
 
     #[test]
     fn should_order_rebuilt_integer_histograms_by_exact_value() {
+        type Fixture<'a> = (&'a str, DataType, &'a [i64], &'a [(&'a str, u64)]);
+
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("open memory fixture");
-        type Fixture<'a> = (&'a str, DataType, &'a [i64], &'a [(&'a str, u64)]);
         let samples: [Fixture<'_>; 2] = [
             ("numbers", DataType::Int, &[2, 10], &[("2", 1), ("10", 1)]),
             (

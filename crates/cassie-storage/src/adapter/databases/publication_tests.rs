@@ -251,10 +251,11 @@ fn should_refuse_database_drop_for_a_current_row_without_catalog_or_sidecars() {
     writer
         .commit(midge.write_options_sync())
         .expect("publish raw row");
-    assert!(midge
-        .database_catalog_entries(database)
-        .expect("catalog")
-        .is_empty());
+    assert_eq!(
+        midge.database_catalog_entries(database).expect("catalog"),
+        Vec::<crate::adapter::RawStorageEntry>::new(),
+        "the test row has no corresponding catalog declaration",
+    );
 
     // Act
     let result = midge.drop_database(database);
@@ -343,7 +344,7 @@ thread_local! {
 }
 
 pub(super) fn pause_after_drop_resolution() {
-    if let Some(pause) = AFTER_DROP_RESOLUTION.with(|slot| slot.take()) {
+    if let Some(pause) = AFTER_DROP_RESOLUTION.with(RefCell::take) {
         pause();
     }
 }

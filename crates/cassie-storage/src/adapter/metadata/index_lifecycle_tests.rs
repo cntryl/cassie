@@ -634,10 +634,13 @@ fn assert_index_rebuild_stays_retired(midge: &Midge, declaration: &IndexMeta) {
         .expect("read catalog")
         .expect("published index");
     let old_prefix = rebuild_artifact_prefix(&old);
-    assert!(!midge
-        .raw_scan_prefix_for_collection(collection, &old_prefix)
-        .expect("live artifacts")
-        .is_empty());
+    let no_artifacts = Vec::<crate::adapter::RawStorageEntry>::new();
+    assert_ne!(
+        midge
+            .raw_scan_prefix_for_collection(collection, &old_prefix)
+            .expect("live artifacts"),
+        no_artifacts,
+    );
     let (ready, captured) = mpsc::channel();
     let (resume, wait) = mpsc::channel();
     let (rebuilt, first_finished) = mpsc::channel();
@@ -696,17 +699,21 @@ fn assert_index_rebuild_stays_retired(midge: &Midge, declaration: &IndexMeta) {
     });
 
     // Assert
-    assert!(after_drop.is_empty());
-    assert!(after_old_rebuild.is_empty());
+    assert_eq!(after_drop, no_artifacts);
+    assert_eq!(after_old_rebuild, no_artifacts);
     assert_ne!(old_prefix, replacement_prefix);
-    assert!(midge
-        .raw_scan_prefix_for_collection(collection, &old_prefix)
-        .expect("inspect old prefix after recreation")
-        .is_empty());
-    assert!(!midge
-        .raw_scan_prefix_for_collection(collection, &replacement_prefix)
-        .expect("inspect replacement prefix")
-        .is_empty());
+    assert_eq!(
+        midge
+            .raw_scan_prefix_for_collection(collection, &old_prefix)
+            .expect("inspect old prefix after recreation"),
+        no_artifacts,
+    );
+    assert_ne!(
+        midge
+            .raw_scan_prefix_for_collection(collection, &replacement_prefix)
+            .expect("inspect replacement prefix"),
+        no_artifacts,
+    );
     midge
         .delete_index(collection, &declaration.name)
         .expect("drop replacement");

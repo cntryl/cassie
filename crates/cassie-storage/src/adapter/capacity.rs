@@ -340,7 +340,7 @@ mod tests {
         );
         assert_eq!(before.total_bytes, after.total_bytes + reservation_bytes);
         for report in [&documents_only, &before, &after] {
-            assert!(report.errors.is_empty());
+            assert_eq!(report.errors, Vec::<String>::new());
             assert_eq!(
                 report.total_bytes,
                 report

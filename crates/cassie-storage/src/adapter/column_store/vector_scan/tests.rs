@@ -31,6 +31,9 @@ fn vector_test_hooks() -> StorageValueHooks {
             serde_json::from_slice(bytes).map_err(|error| StorageError::Parse(error.to_string()))
         },
         |value, data_type| {
+            if value.is_null() {
+                return Ok(Value::Null);
+            }
             if *data_type == DataType::Date {
                 let text = value.as_str().ok_or_else(|| {
                     StorageError::Unsupported("test fixture date value must be text".to_owned())

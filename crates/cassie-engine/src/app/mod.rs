@@ -177,7 +177,6 @@ mod query_feedback;
 mod query_implicit_ddl;
 mod query_lifecycle;
 mod query_operation;
-mod query_virtual_catalog;
 mod query_wire;
 pub(crate) use domain_enforcement::DomainRowRule;
 mod type_scope;

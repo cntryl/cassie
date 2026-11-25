@@ -561,7 +561,7 @@ ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_ca
 }
 
 #[test]
-fn should_resolve_publishability_and_missing_extended_statistics_by_identity() {
+fn should_resolve_psql_catalog_helpers_by_object_identity() {
     // Arrange
     let fixture = sql_fixture(
         "describe-object-identity",
@@ -630,7 +630,7 @@ fn should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal() {
 }
 
 #[test]
-fn should_expose_the_same_role_oid_to_policy_lookups_and_regrole() {
+fn should_use_regrole_identity_for_policy_role_lookups() {
     // Arrange
     let fixture = sql_fixture("describe-policy-roles", &[]);
     fixture.cassie.startup().expect("initialize role catalog");
@@ -658,7 +658,7 @@ fn should_expose_the_same_role_oid_to_policy_lookups_and_regrole() {
 }
 
 #[test]
-fn should_bind_oid_and_regclass_catalog_helpers_with_their_distinct_input_types() {
+fn should_bind_psql_catalog_helpers_to_their_declared_input_types() {
     // Arrange
     let fixture = sql_fixture(
         "describe-helper-types",

@@ -169,7 +169,7 @@ fn should_discover_the_visible_relation_for_psql_describe() {
 }
 
 #[test]
-fn should_describe_relation_attributes_and_constraints_for_psql() {
+fn should_describe_a_constrained_relation_for_psql() {
     // Arrange
     let fixture = sql_fixture("psql-describe-catalog", &[
         "CREATE TABLE probe_parent (id INTEGER PRIMARY KEY)",
@@ -354,7 +354,7 @@ fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature()
 }
 
 #[test]
-fn should_list_primary_and_unconstrained_indexes_with_psql_mixed_joins() {
+fn should_list_all_relation_indexes_with_psql_mixed_joins() {
     // Arrange
     let fixture = sql_fixture("psql-index-list-with-left-join", &[
         "CREATE TABLE probe_parent (id INTEGER PRIMARY KEY)",

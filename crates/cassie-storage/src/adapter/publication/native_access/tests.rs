@@ -106,7 +106,7 @@ fn should_not_latch_an_interop_mode_when_admission_fails() {
         access.tracked(|| Err(CassieError::ResourceLimit("denied".to_owned())));
 
     // Act
-    let native = access.native(TransactionMode::ReadWrite, || Ok(()));
+    let native = access.open_writable(0, &AtomicBool::new(false), || Ok(()));
 
     // Assert
     assert!(denied.is_err());
@@ -122,7 +122,7 @@ fn should_admit_only_one_competing_interop_mode() {
     let other_start = Arc::clone(&start);
     let worker = std::thread::spawn(move || {
         other_start.wait();
-        other.native(TransactionMode::ReadWrite, || Ok(()))
+        other.open_writable(0, &AtomicBool::new(false), || Ok(()))
     });
 
     // Act

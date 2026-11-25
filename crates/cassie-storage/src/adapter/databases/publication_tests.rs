@@ -441,3 +441,42 @@ fn retained_row() -> (Vec<u8>, Vec<u8>) {
         .expect("encode a current-format row");
     (key, row)
 }
+
+#[test]
+fn should_drop_an_empty_database_after_its_issued_writable_handle_closes_and_storage_reopens() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-drop-reopen-{}", uuid::Uuid::new_v4()));
+    let database = "drop_recovered";
+    let midge = Midge::new_strict_with_data_dir(&path).expect("open local fixture");
+    midge
+        .create_database(database, None)
+        .expect("create database");
+    let physical_name = midge
+        .get_database(database)
+        .expect("metadata")
+        .expect("created database")
+        .physical_family;
+    midge
+        .database_tx(database, cntryl_midge::TransactionMode::ReadWrite)
+        .expect("native writer")
+        .rollback()
+        .expect("finish native writer");
+
+    // Act
+    let blocked = midge.drop_database(database);
+    drop(midge);
+    let reopened = Midge::new_strict_with_data_dir(&path).expect("reopen after handle retirement");
+    let dropped = reopened.drop_database(database);
+
+    // Assert
+    assert!(matches!(blocked, Err(CassieError::Unsupported(message))
+        if message.contains("native writable transaction") && message.contains("reopen")));
+    dropped.expect("empty database can drop after recovery");
+    assert!(reopened
+        .get_database(database)
+        .expect("registry read")
+        .is_none());
+    assert!(reopened.engine.get_column_family(&physical_name).is_none());
+    drop(reopened);
+    std::fs::remove_dir_all(&path).expect("remove local fixture");
+}

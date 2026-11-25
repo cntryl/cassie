@@ -235,10 +235,16 @@ impl Cassie {
     ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
         let gated_projection = batch.projection.clone();
-        self.midge.with_collection_write_gates_interruptible(
-            std::slice::from_ref(&gated_projection),
+        self.with_projection_publication(
+            &gated_projection,
             PublicationControlScope::check_current,
-            || self.replay_projection_batch_gated(batch, commit),
+            || {
+                self.midge.with_collection_write_gates_interruptible(
+                    std::slice::from_ref(&gated_projection),
+                    PublicationControlScope::check_current,
+                    || self.replay_projection_batch_gated(batch, commit),
+                )
+            },
         )
     }
 
@@ -249,10 +255,16 @@ impl Cassie {
     ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
         let gated_projection = batch.projection.clone();
-        self.midge
-            .with_collection_write_gates(std::slice::from_ref(&gated_projection), || {
-                self.replay_projection_batch_gated(batch, commit)
-            })
+        self.with_projection_publication(
+            &gated_projection,
+            || Ok(()),
+            || {
+                self.midge
+                    .with_collection_write_gates(std::slice::from_ref(&gated_projection), || {
+                        self.replay_projection_batch_gated(batch, commit)
+                    })
+            },
+        )
     }
 
     fn replay_projection_batch_gated(

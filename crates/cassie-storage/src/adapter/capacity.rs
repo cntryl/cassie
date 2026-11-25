@@ -258,3 +258,97 @@ fn index_metadata_category(value: &[u8]) -> &'static str {
 fn usize_to_u64(value: usize) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
 }
+
+#[cfg(test)]
+mod tests {
+    use cassie_core::types::{DataType, FieldSchema, Schema};
+
+    use super::*;
+
+    #[test]
+    fn should_account_for_unique_reservations_as_scalar_index_bytes() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("open memory fixture");
+        let collection = midge.canonical_collection_name("reserved");
+        midge
+            .create_collection(
+                &collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "value".to_owned(),
+                        data_type: DataType::Text,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+        midge
+            .put_document(
+                &collection,
+                Some("row".to_owned()),
+                serde_json::json!({"value": "example"}),
+            )
+            .expect("write row");
+        let documents_only = midge.capacity_report();
+        let index = IndexMeta {
+            definition_semantics_version: 0,
+            collection: collection.clone(),
+            name: "reserved_value".to_owned(),
+            field: "value".to_owned(),
+            fields: vec!["value".to_owned()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: true,
+            options: BTreeMap::new(),
+        };
+        midge
+            .put_index(&index)
+            .expect("publish unique scalar index");
+        let reservation_prefix = crate::key_codec::encode_prefix(b"unique-reservation", &[]);
+        let reservations = midge
+            .raw_scan_prefix_database("postgres", &reservation_prefix)
+            .expect("read materialized reservation");
+        let [(key, owner)] = reservations.as_slice() else {
+            panic!("expected exactly one reservation");
+        };
+        let reservation_bytes = usize_to_u64(key.len() + owner.len());
+        let before = midge.capacity_report();
+
+        // Act
+        midge
+            .raw_delete(StorageFamily::Data, key)
+            .expect("remove only the reservation");
+        let after = midge.capacity_report();
+
+        // Assert
+        assert_eq!(owner.as_slice(), b"row");
+        assert_eq!(
+            before.categories[CATEGORY_SCALAR_INDEXES].total_bytes,
+            after.categories[CATEGORY_SCALAR_INDEXES].total_bytes + reservation_bytes
+        );
+        assert_eq!(
+            before.categories[CATEGORY_OTHER].total_bytes,
+            after.categories[CATEGORY_OTHER].total_bytes
+        );
+        assert!(after.categories[CATEGORY_SCALAR_INDEXES].total_bytes > 0);
+        assert!(documents_only.categories[CATEGORY_ROW_BLOBS].total_bytes > 0);
+        assert_eq!(
+            after.categories[CATEGORY_ROW_BLOBS].total_bytes,
+            documents_only.categories[CATEGORY_ROW_BLOBS].total_bytes
+        );
+        assert_eq!(before.total_bytes, after.total_bytes + reservation_bytes);
+        for report in [&documents_only, &before, &after] {
+            assert_eq!(report.errors, Vec::<String>::new());
+            assert_eq!(
+                report.total_bytes,
+                report
+                    .categories
+                    .values()
+                    .map(|bucket| bucket.total_bytes)
+                    .sum::<u64>()
+            );
+        }
+    }
+}

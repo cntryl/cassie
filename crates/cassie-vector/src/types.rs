@@ -159,11 +159,10 @@ pub struct IvfFlatTrainingState {
     pub centroids: Vec<Vec<f32>>,
     pub assignments: BTreeMap<String, usize>,
     pub list_sizes: Vec<usize>,
-    /// Per list `[mean..., radius]`: the mean of the member vectors at their
-    /// original magnitude followed by the largest member distance from that
-    /// mean. `query . mean + |query| * radius` bounds the best inner product
-    /// the list can hold, which a maximum-inner-product probe ranks by; the
-    /// unit centroids above encode direction only.
+    /// Per list `[center..., radius]`: the rounded member mean and a
+    /// conservative radius at original magnitude. The list is absent when
+    /// finite conservative bounds cannot be built. Maximum-inner-product
+    /// probing ranks by `query . center + |query| * radius`.
     #[serde(default)]
     pub list_bounds: Vec<Vec<f32>>,
 }

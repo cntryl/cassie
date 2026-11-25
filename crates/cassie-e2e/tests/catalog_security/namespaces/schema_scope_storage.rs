@@ -386,3 +386,57 @@ fn should_reject_low_level_database_drop_with_user_program_metadata() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_leave_public_namespace_intact_when_a_native_writer_prevents_drop() {
+    use cntryl_midge::TransactionMode;
+
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
+    cassie.startup().expect("start fixture");
+    let session = cassie.create_session("root", Some("postgres".to_owned()));
+    let run = |sql| cassie.execute_sql(&session, sql, vec![]);
+    run("CREATE DATABASE blocked_drop").expect("create destination");
+    run("CREATE DATABASE other_drop").expect("create unrelated database");
+    let issued = cassie
+        .midge
+        .database_tx("blocked_drop", TransactionMode::ReadWrite)
+        .expect("escaped native writer for destination");
+    let original = cassie
+        .midge
+        .namespace_metadata("blocked_drop.public")
+        .expect("read durable namespace")
+        .expect("normal public namespace");
+
+    // Act
+    let blocked = run("DROP DATABASE blocked_drop");
+    issued.rollback().expect("finish native transaction");
+    let blocked_again = run("DROP DATABASE blocked_drop");
+    let unrelated = run("DROP DATABASE other_drop");
+
+    // Assert
+    for result in [blocked, blocked_again] {
+        let error = result.expect_err("issued native writer prevents DROP");
+        assert!(
+            error.to_string().contains("native writable transaction"),
+            "{error}"
+        );
+    }
+    let actual = cassie
+        .midge
+        .namespace_metadata("blocked_drop.public")
+        .expect("read preserved namespace")
+        .expect("DROP refusal leaves namespace");
+    assert_eq!(actual.object_id, original.object_id);
+    assert!(cassie
+        .midge
+        .get_database("blocked_drop")
+        .expect("registry read")
+        .is_some());
+    unrelated.expect("unrelated database remains eligible");
+    assert!(cassie
+        .midge
+        .get_database("other_drop")
+        .expect("registry read")
+        .is_none());
+}

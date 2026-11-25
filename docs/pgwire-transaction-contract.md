@@ -720,6 +720,13 @@ READ COMMITTED, read-only native transactions and ordinary private SQL/REST
 writers remain available, subject to normal recovery admission. Jev selected
 this source-compatible fail-closed policy at 0.71.
 
+Empty-only `DROP DATABASE` also uses the native admission lock. Its
+restriction applies to the destination physical family. An issued raw writer
+cannot be observed through its final outcome, so a drop of that family is
+refused until a new storage instance recovers after the old handles close.
+Once retirement is admitted, a new raw writer for that family is rejected.
+See [database lifetime](database-families.md).
+
 The exact public native factories are `schema_tx`, `data_tx`, `database_tx`,
 `temp_tx`, `default_tx` and `begin_families_tx`. `Midge.engine` is private to the
 adapter; Midge exposes no native Engine Arc/reference or dereference. Public

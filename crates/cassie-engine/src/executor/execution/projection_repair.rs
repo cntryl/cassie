@@ -330,17 +330,13 @@ fn execute_full_rebuild_repair(
             false,
         )
     };
-    cassie
-        .midge
-        .with_collection_write_gates(&gated_collections, || {
-            super::materialized_projection::refresh_materialized_projection_data(
-                cassie,
-                None,
-                &plan.projection_name,
-                &user_functions,
-                controls,
-            )
-        })
+    super::materialized_projection::refresh_materialized_projection_data(
+        cassie,
+        &plan.projection_name,
+        &user_functions,
+        controls,
+        &gated_collections,
+    )
 }
 
 fn execute_index_repair(cassie: &Cassie, collection: &str) -> Result<(), QueryError> {

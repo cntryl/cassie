@@ -14,8 +14,9 @@ use super::{
         key_family, rewrite_catalog_value, rewrite_key_component, rewrite_string_list,
         validate_database_catalog_entry,
     },
-    key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query, RawStorageEntry,
-    TransactionMode,
+    key_encoding,
+    publication::DatabaseRetirement,
+    CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query, RawStorageEntry, TransactionMode,
 };
 
 mod lifecycle_recovery;
@@ -238,9 +239,8 @@ impl Midge {
         Ok(())
     }
 
-    /// Refuses a drop while the database still holds retained rows or catalog
-    /// entries, without changing anything. Callers run this before any step
-    /// that removes database metadata, such as dropping its `public` schema.
+    /// Checks for retained rows or catalog entries without changing the database.
+    /// The drop operation holds the publication gate through this check.
     ///
     /// # Errors
     ///
@@ -253,7 +253,7 @@ impl Midge {
         let data_tx = self.begin_raw_adapter_tx(handle.id(), TransactionMode::ReadOnly)?;
         let has_data = collect_scan(data_tx.scan(&Query::new()).map_err(CassieError::from)?)?
             .into_iter()
-            .any(|(key, _)| is_database_data_key(&key));
+            .any(|(key, _)| key_encoding::is_retained_database_data_key(&key));
         if has_data {
             return Err(CassieError::Unsupported(format!(
                 "database '{}' is not empty",
@@ -281,24 +281,48 @@ impl Midge {
     /// completed atomically enough for startup recovery to finish it.
     pub fn drop_database(&self, name: &str) -> Result<(), CassieError> {
         let schema = self.ensure_families_ready()?.schema.clone();
-        self.ensure_database_droppable(name)?;
         let metadata = self
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
+        let family = self.resolve_database_family(&metadata)?.handle.id();
+        #[cfg(test)]
+        publication_tests::pause_after_drop_resolution();
+        let publication = self.publication.family(family);
+        publication.with_current_operation(|| {
+            self.ensure_database_droppable(name)?;
+            #[cfg(test)]
+            publication_tests::pause_after_drop_empty_check();
 
+            let mut retirement =
+                self.publication
+                    .begin_database_retirement(family, &publication, name)?;
+            self.with_schema_publication(|| {
+                self.finish_verified_database_drop(&schema, &metadata, &mut retirement)
+            })
+        })
+    }
+
+    fn finish_verified_database_drop(
+        &self,
+        schema: &ColumnFamilyHandle,
+        metadata: &DatabaseMeta,
+        retirement: &mut DatabaseRetirement<'_>,
+    ) -> Result<(), CassieError> {
         let record = DatabaseLifecycleRecord {
             operation_id: Uuid::new_v4().to_string(),
             kind: DatabaseLifecycleKind::Drop,
             name: metadata.name.clone(),
             physical_family: metadata.physical_family.clone(),
         };
-        let mut journal = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
+        let mut journal = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
+        Self::assert_drop_owner(&mut journal, metadata)?;
         Self::write_lifecycle_record(&mut journal, &record)?;
         journal
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
-        let mut catalog = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
+        let mut catalog = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
+        Self::assert_drop_owner(&mut catalog, metadata)?;
         catalog
             .delete(Self::database_key(&metadata.name))
             .map_err(CassieError::from)?;
@@ -322,16 +346,47 @@ impl Midge {
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
-        self.drop_physical_family_if_present(&metadata.physical_family)?;
-        let mut cleanup = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
+        retirement.mark_registry_retired();
+        self.database_families
+            .write()
+            .remove(&metadata.name.to_ascii_lowercase());
+        if let Err(error) = self.drop_physical_family_if_present(&metadata.physical_family) {
+            self.publication.retain_incomplete_retirement(retirement);
+            return Err(error);
+        }
+
+        let mut cleanup = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
         Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
         cleanup
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        self.database_families
-            .write()
-            .remove(&metadata.name.to_ascii_lowercase());
         Ok(())
+    }
+
+    // Resolving a name and acquiring its family gate are separate operations.
+    // A prior DROP can retire that gate and publish a new owner in between.
+    fn assert_drop_owner(
+        tx: &mut super::AdapterTransaction,
+        expected: &DatabaseMeta,
+    ) -> Result<(), CassieError> {
+        let key = Self::database_key(&expected.name);
+        let changed = || {
+            CassieError::NotFound(format!(
+                "database '{}' no longer refers to the family selected for DROP",
+                expected.name
+            ))
+        };
+        let bytes = tx
+            .get(&key)
+            .map_err(CassieError::from)?
+            .ok_or_else(changed)?;
+        let current: DatabaseMeta = serde_json::from_slice(&bytes)
+            .map_err(|error| CassieError::Parse(format!("invalid database metadata: {error}")))?;
+        if current.physical_family != expected.physical_family {
+            return Err(changed());
+        }
+        tx.assert_value(key, Some(bytes.to_vec()))
+            .map_err(CassieError::from)
     }
 
     ///
@@ -727,26 +782,6 @@ impl Midge {
         databases.sort_by_key(|database| database.name.to_ascii_lowercase());
         Ok(databases)
     }
-}
-
-fn is_database_data_key(key: &[u8]) -> bool {
-    matches!(
-        key_family(key),
-        Some(
-            "row"
-                | "legacy-doc"
-                | "scalar-index"
-                | "time-series-index"
-                | "normalized-vector"
-                | "vector-index-state"
-                | "unique-reservation"
-                | "column-batch"
-                | "column-store"
-                | "row-hash"
-                | "range-hash"
-                | "root-hash"
-        )
-    )
 }
 
 fn is_database_catalog_data_key(key: &[u8]) -> bool {

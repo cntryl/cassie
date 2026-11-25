@@ -347,10 +347,18 @@ impl Midge {
     pub(crate) fn rebuild_fulltext_index_for_index(
         &self,
         index: &IndexMeta,
-    ) -> Result<(), CassieError> {
+    ) -> Result<bool, CassieError> {
         let collection = self.canonical_collection_name(&index.collection);
         let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
+        if self.get_index(&collection, &index.name)?.as_ref() != Some(index) {
+            return Ok(false);
+        }
+        self.rebuild_existing_fulltext_index(index)?;
+        Ok(true)
+    }
+
+    fn rebuild_existing_fulltext_index(&self, index: &IndexMeta) -> Result<(), CassieError> {
         let tally = self.rebuild_fulltext_index_staged(
             index,
             |_| Ok(()),
@@ -374,20 +382,22 @@ impl Midge {
         index_name: &str,
     ) -> Result<(), CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
         let index = self
             .get_index(&collection, index_name)?
             .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
-        let write_gate = self.collection_write_gate(&collection);
-        let _write_guard = write_gate.lock();
-        self.rebuild_fulltext_index_for_index(&index)
+        self.rebuild_existing_fulltext_index(&index)
     }
 
+    // A durable prepared publication owns this definition even when it is
+    // absent from, or replaces an entry in, the installed index catalog.
     pub(super) fn rebuild_prepared_fulltext_index_for_index(
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
         if self.get_index(&index.collection, &index.name)?.is_some() {
-            return self.rebuild_fulltext_index_for_index(index);
+            return self.rebuild_existing_fulltext_index(index);
         }
         self.rebuild_fulltext_index_staged(index, |_| Ok(()), None)
             .map(|_| ())

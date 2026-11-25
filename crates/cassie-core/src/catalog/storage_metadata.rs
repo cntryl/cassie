@@ -134,6 +134,34 @@ pub struct FieldHistogramBucket {
     pub count: u64,
 }
 
+/// Compares canonical JSON histogram endpoints using their stored scalar types.
+#[must_use]
+pub fn compare_histogram_endpoints(left: &str, right: &str) -> std::cmp::Ordering {
+    if let (Some(left), Some(right)) = (histogram_number(left), histogram_number(right)) {
+        return crate::types::semantic::compare_values(&left, &right);
+    }
+    if left.starts_with('"') && right.starts_with('"') {
+        if let (Ok(left), Ok(right)) = (
+            serde_json::from_str::<String>(left),
+            serde_json::from_str::<String>(right),
+        ) {
+            return left.cmp(&right);
+        }
+    }
+    left.cmp(right)
+}
+
+fn histogram_number(value: &str) -> Option<Value> {
+    if !matches!(value.as_bytes().first(), Some(b'-' | b'0'..=b'9')) {
+        return None;
+    }
+    let number = serde_json::from_str::<serde_json::Number>(value).ok()?;
+    number
+        .as_i64()
+        .map(Value::Int64)
+        .or_else(|| number.as_f64().map(Value::Float64))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct FieldHeavyHitter {
     pub value: String,

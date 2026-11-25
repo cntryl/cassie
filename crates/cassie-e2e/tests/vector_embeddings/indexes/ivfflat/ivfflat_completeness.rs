@@ -245,7 +245,7 @@ fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
             .ivfflat_training
             .as_mut()
             .expect("IVFFlat training")
-            .version = 0;
+            .version = 1;
         cassie
             .midge
             .put_vector_index_state(collection, "embedding", state)
@@ -262,7 +262,7 @@ fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
         .expect("repaired manifest");
 
     // Assert
-    assert_eq!(training.version, 1);
+    assert_eq!(training.version, 2);
     let _ = std::fs::remove_dir_all(path);
 }
 

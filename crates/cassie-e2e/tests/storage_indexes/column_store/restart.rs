@@ -587,3 +587,95 @@ fn should_read_selected_fields_without_unselected_payloads_after_restart() {
     assert_eq!(work.decodes, 6);
     assert!(work.payload_bytes < 8_192, "{work:?}");
 }
+
+#[test]
+fn should_restore_one_reinserted_row_across_both_storage_conversions() {
+    // Arrange
+    let store = Store::new("columnar-reinsert-after-tombstone");
+    let (identity, deleted_revision) = {
+        let env = store.open();
+        env.run("CREATE TABLE converted_rows (id INT PRIMARY KEY, label TEXT) USING columnar");
+        env.run("CREATE INDEX converted_label ON converted_rows (label)");
+        env.run("INSERT INTO converted_rows VALUES (7, 'former')");
+        let original = env
+            .cassie
+            .midge
+            .scan_documents("converted_rows")
+            .expect("initial authoritative scan")
+            .remove(0)
+            .id;
+        env.run("DELETE FROM converted_rows WHERE id = 7");
+        let mut tombstone = env.column_prefix("converted_rows");
+        tombstone.extend_from_slice(b"x\0");
+        tombstone.extend_from_slice(original.as_bytes());
+        let deleted = env
+            .cassie
+            .midge
+            .raw_get(StorageFamily::Data, &tombstone)
+            .expect("read tombstone")
+            .expect("original row has a deleted marker");
+        let deleted_revision =
+            u64::from_be_bytes(deleted.try_into().expect("deleted marker revision"));
+
+        // Act
+        env.run("ALTER TABLE converted_rows SET ACCESS METHOD heap");
+        // A new SQL INSERT allocates a fresh document ID even when its primary key is reused.
+        env.cassie
+            .midge
+            .put_document(
+                "converted_rows",
+                Some(original.clone()),
+                serde_json::json!({"id": 7, "label": "current"}),
+            )
+            .expect("reinsert the tombstoned physical identity");
+        env.run("ALTER TABLE converted_rows SET ACCESS METHOD columnar");
+
+        // Assert
+        assert_reinserted_conversion_row(&env, &original, deleted_revision);
+        (original, deleted_revision)
+    };
+
+    let reopened = store.open();
+    assert_reinserted_conversion_row(&reopened, &identity, deleted_revision);
+}
+
+fn assert_reinserted_conversion_row(env: &Env, identity: &str, deleted_revision: u64) {
+    let marker = env
+        .cassie
+        .midge
+        .raw_get(
+            StorageFamily::Data,
+            &env.marker_key("converted_rows", identity),
+        )
+        .expect("read surviving marker")
+        .expect("a live marker exists for the same document");
+    let revision = u64::from_be_bytes(marker[4..].try_into().expect("live marker revision"));
+    assert!(
+        revision > deleted_revision,
+        "the new marker must advance past the prior delete"
+    );
+    let authoritative = env
+        .cassie
+        .midge
+        .scan_documents("converted_rows")
+        .expect("scan converted row storage");
+    assert_eq!(authoritative.len(), 1);
+    assert_eq!(authoritative[0].id, identity);
+    assert_eq!(authoritative[0].payload["label"], "current");
+
+    let current = "SELECT id::TEXT, label FROM converted_rows WHERE label = 'current'";
+    let former = "SELECT id::TEXT, label FROM converted_rows WHERE label = 'former'";
+    let indexed = text_rows(env, current);
+    let former_rows = text_rows(env, former);
+    let all_rows = text_rows(
+        env,
+        "SELECT id::TEXT, label FROM converted_rows ORDER BY id",
+    );
+    assert_eq!(indexed, vec![vec!["7".to_owned(), "current".to_owned()]]);
+    assert_eq!(all_rows, indexed);
+    assert_eq!(former_rows, Vec::<Vec<String>>::new());
+    for predicate in [current, former] {
+        let explain = format!("{:?}", env.rows(&format!("EXPLAIN {predicate}")));
+        assert!(explain.contains("converted_label"), "{explain}");
+    }
+}

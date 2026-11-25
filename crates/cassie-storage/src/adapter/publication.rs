@@ -45,6 +45,9 @@ impl From<AdapterCommitError> for CassieError {
 pub(super) struct PublicationCoordinator {
     families: Mutex<HashMap<cntryl_midge::ColumnFamilyId, Weak<DatabasePublication>>>,
     recovery_required: Arc<AtomicBool>,
+    // While a retired registry entry awaits interrupted physical cleanup,
+    // keep its gate alive so late openers cannot obtain a new authority.
+    incomplete_retirements: Mutex<Vec<Arc<DatabasePublication>>>,
     native_access: native_access::NativeAccess,
     history_budget: OnceLock<usize>,
 }
@@ -60,6 +63,7 @@ impl PublicationCoordinator {
             mutex: ReentrantMutex::new(()),
             data_epoch_write: ReentrantMutex::new(()),
             recovery_required: Arc::clone(&self.recovery_required),
+            retiring: AtomicBool::new(false),
             row_history: row_history::RowHistory::new(
                 self.history_budget
                     .get()
@@ -73,10 +77,37 @@ impl PublicationCoordinator {
 
     pub(super) fn open_native<T>(
         &self,
+        family: cntryl_midge::ColumnFamilyId,
         mode: cntryl_midge::TransactionMode,
         open: impl FnOnce() -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
-        self.native_access.native(mode, open)
+        if mode == cntryl_midge::TransactionMode::ReadOnly {
+            return open();
+        }
+        let publication = self.family(family);
+        self.native_access
+            .open_writable(family, &publication.retiring, open)
+    }
+
+    // The caller holds this family publication gate through logical retirement.
+    pub(super) fn begin_database_retirement<'a>(
+        &self,
+        family: cntryl_midge::ColumnFamilyId,
+        publication: &'a Arc<DatabasePublication>,
+        database: &str,
+    ) -> Result<DatabaseRetirement<'a>, CassieError> {
+        self.native_access
+            .begin_retirement(family, &publication.retiring, database)?;
+        Ok(DatabaseRetirement {
+            publication,
+            registry_retired: false,
+        })
+    }
+
+    pub(super) fn retain_incomplete_retirement(&self, retirement: &DatabaseRetirement<'_>) {
+        self.incomplete_retirements
+            .lock()
+            .push(Arc::clone(retirement.publication));
     }
 
     pub(super) fn admit_tracked_write<T>(
@@ -119,10 +150,30 @@ impl PublicationCoordinator {
     }
 }
 
+pub(super) struct DatabaseRetirement<'a> {
+    publication: &'a Arc<DatabasePublication>,
+    registry_retired: bool,
+}
+
+impl DatabaseRetirement<'_> {
+    pub(super) fn mark_registry_retired(&mut self) {
+        self.registry_retired = true;
+    }
+}
+
+impl Drop for DatabaseRetirement<'_> {
+    fn drop(&mut self) {
+        if !self.registry_retired {
+            self.publication.retiring.store(false, Ordering::Release);
+        }
+    }
+}
+
 pub(super) struct DatabasePublication {
     mutex: ReentrantMutex<()>,
     data_epoch_write: ReentrantMutex<()>,
     recovery_required: Arc<AtomicBool>,
+    retiring: AtomicBool,
     pub(super) row_history: row_history::RowHistory,
 }
 
@@ -203,6 +254,11 @@ impl DatabasePublication {
         }
         if self.recovery_required.load(Ordering::Acquire) {
             return Err(AdapterCommitError::RecoveryRequired);
+        }
+        if self.retiring.load(Ordering::Acquire) {
+            return Err(AdapterCommitError::Cassie(CassieError::Unsupported(
+                "the database family is retiring".to_owned(),
+            )));
         }
         Ok(guard)
     }

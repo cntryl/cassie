@@ -1,3 +1,5 @@
+use cassie_core::catalog::storage_metadata::compare_histogram_endpoints;
+
 use super::{
     is_equi_join_predicate, plan_uses_aggregate, plan_uses_fulltext, plan_uses_vector, BinaryOp,
     CollectionCardinalityStats, Expr, JoinKind, LogicalPlan, PlanEstimates, QuerySource,
@@ -216,8 +218,16 @@ fn histogram_range_estimate(
         .histogram_buckets
         .iter()
         .filter(|bucket| {
-            lower.is_none_or(|lower| bucket.upper.as_str() >= lower)
-                && upper.is_none_or(|upper| bucket.lower.as_str() <= upper)
+            let (bucket_lower, bucket_upper) =
+                if compare_histogram_endpoints(&bucket.lower, &bucket.upper).is_gt() {
+                    // Earlier stats could store endpoints in lexical order.
+                    (&bucket.upper, &bucket.lower)
+                } else {
+                    (&bucket.lower, &bucket.upper)
+                };
+            lower.is_none_or(|lower| compare_histogram_endpoints(bucket_upper, lower).is_ge())
+                && upper
+                    .is_none_or(|upper| compare_histogram_endpoints(bucket_lower, upper).is_le())
         })
         .map(|bucket| bucket.count)
         .sum::<u64>()
@@ -310,5 +320,39 @@ fn join_rows<S: BuildHasher>(
             }
         }
         _ => 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::catalog::{FieldCardinalityStats, FieldHistogramBucket};
+
+    use super::histogram_range_estimate;
+
+    #[test]
+    fn should_estimate_integer_ranges_from_typed_histogram_endpoints() {
+        // Arrange
+        let stats = FieldCardinalityStats {
+            non_null_count: 21,
+            histogram_buckets: [("2", "2", 3), ("10", "10", 7), ("30", "20", 11)]
+                .into_iter()
+                .map(|(lower, upper, count)| FieldHistogramBucket {
+                    lower: lower.to_owned(),
+                    upper: upper.to_owned(),
+                    count,
+                })
+                .collect(),
+            ..FieldCardinalityStats::default()
+        };
+
+        // Act
+        let below_three = histogram_range_estimate(&stats, None, Some("3"));
+        let from_three_through_fifteen = histogram_range_estimate(&stats, Some("3"), Some("15"));
+        let above_nineteen = histogram_range_estimate(&stats, Some("19"), None);
+
+        // Assert
+        assert_eq!(below_three, 3);
+        assert_eq!(from_three_through_fifteen, 7);
+        assert_eq!(above_nineteen, 11);
     }
 }

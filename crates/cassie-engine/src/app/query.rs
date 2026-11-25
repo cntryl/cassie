@@ -766,7 +766,7 @@ impl Cassie {
     ) {
         if let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() {
             #[cfg(test)]
-            super::query_volatile_cache_tests::before_execution_result_cache_store();
+            volatile_cache_tests::before_execution_result_cache_store();
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
         }

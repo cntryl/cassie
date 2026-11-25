@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     check_column_batch_maintenance_failure_point, check_projection_hash_maintenance_failure_point,
-    collect_scan, CassieError, Midge, Query,
+    collect_scan, AdapterCommitError, AdapterTransaction, CassieError, Midge, Query,
 };
 
 const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
@@ -207,17 +207,7 @@ impl Midge {
             )?;
             return Err(error);
         }
-        if self.collection_generation(collection)? != target_generation {
-            return Ok(());
-        }
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        tx.delete(Self::maintenance_debt_key(
-            collection,
-            COLUMN_BATCH_ARTIFACT,
-        ))
-        .map_err(CassieError::from)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        self.clear_maintenance_debt(collection, COLUMN_BATCH_ARTIFACT, target_generation)
     }
 
     pub(super) fn complete_projection_hash_maintenance(
@@ -249,16 +239,16 @@ impl Midge {
         artifact: &str,
         target_generation: u64,
     ) -> Result<(), CassieError> {
-        if self.collection_generation(collection)? != target_generation {
+        let collection = self.canonical_collection_name(collection);
+        let Some(mut tx) = self.begin_maintenance_debt_change(&collection, target_generation)?
+        else {
             return Ok(());
-        }
+        };
         #[cfg(test)]
         tests::pause_after_debt_read();
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        tx.delete(Self::maintenance_debt_key(collection, artifact))
+        tx.delete(Self::maintenance_debt_key(&collection, artifact))
             .map_err(CassieError::from)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        self.commit_maintenance_debt_change(tx, &collection, target_generation)
     }
 
     fn record_maintenance_failure(
@@ -268,15 +258,20 @@ impl Midge {
         target_generation: u64,
         _error: &CassieError,
     ) -> Result<(), CassieError> {
-        let key = Self::maintenance_debt_key(collection, artifact);
-        let read_tx = self.begin_data_readonly_tx_for(collection)?;
-        let retry_count = read_tx
+        let collection = self.canonical_collection_name(collection);
+        let Some(mut tx) = self.begin_maintenance_debt_change(&collection, target_generation)?
+        else {
+            return Ok(());
+        };
+        let key = Self::maintenance_debt_key(&collection, artifact);
+        let retry_count = tx
             .get(&key)
             .map_err(CassieError::from)?
             .and_then(|raw| serde_json::from_slice::<MaintenanceDebt>(&raw).ok())
+            .filter(|debt| debt.target_generation == target_generation)
             .map_or(1, |debt| debt.retry_count.saturating_add(1));
         let debt = MaintenanceDebt {
-            collection: collection.to_string(),
+            collection: collection.clone(),
             artifact: artifact.to_string(),
             target_generation,
             retry_count,
@@ -284,7 +279,6 @@ impl Midge {
         };
         #[cfg(test)]
         tests::pause_after_debt_read();
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.put(
             key,
             serde_json::to_vec(&debt)
@@ -299,8 +293,51 @@ impl Midge {
                 "injected materialized projection debt persistence failure".to_string(),
             ));
         }
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+        self.commit_maintenance_debt_change(tx, &collection, target_generation)
+    }
+
+    fn begin_maintenance_debt_change(
+        &self,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<Option<AdapterTransaction>, CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let generation_key = Self::collection_generation_key(collection);
+        let raw_generation = tx.get(&generation_key).map_err(CassieError::from)?;
+        let generation = match raw_generation.as_deref() {
+            None => 0,
+            Some(raw) => {
+                let bytes: [u8; 8] = raw.try_into().map_err(|_| {
+                    CassieError::Parse("invalid persisted collection generation".to_string())
+                })?;
+                u64::from_be_bytes(bytes)
+            }
+        };
+        if generation != target_generation {
+            return Ok(None);
+        }
+
+        // The generation is a read-only dependency of this write. Conflicts on
+        // the debt key alone cannot detect a newer write that leaves no debt.
+        tx.assert_value(generation_key, raw_generation.map(|raw| raw.to_vec()))
+            .map_err(CassieError::from)?;
+        Ok(Some(tx))
+    }
+
+    fn commit_maintenance_debt_change(
+        &self,
+        tx: AdapterTransaction,
+        collection: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        match tx.commit(self.write_options_sync()) {
+            Err(AdapterCommitError::Native(cntryl_midge::MidgeError::WriteConflict(_)))
+                if self.collection_generation(collection)? != target_generation =>
+            {
+                Ok(())
+            }
+            result => result.map_err(CassieError::from),
+        }
     }
 
     ///

@@ -375,6 +375,14 @@ impl Cassie {
                 }
             }
 
+            if event.document_id.is_empty() {
+                return self.fail_replay_metadata(
+                    metadata.clone(),
+                    expected,
+                    batch,
+                    "projection replay document id cannot be empty".to_owned(),
+                );
+            }
             if let Some(payload) = event.payload.clone() {
                 write_ops.push(DocumentWriteOp::Put {
                     id: event.document_id.clone(),

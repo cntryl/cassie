@@ -119,6 +119,12 @@ fn should_coerce_array_literals_for_slice_assignment() {
         0,
         true,
     );
+    let oversized = fixture::execute_cycle(
+        "UPDATE issue_1460_array_slice_literal SET items[1:2] = '{1,2,3}' RETURNING items::TEXT",
+        None,
+        0,
+        true,
+    );
     let element = fixture::execute_cycle(
         "UPDATE issue_1460_array_slice_literal SET items[1] = '7' RETURNING items::TEXT",
         None,
@@ -130,7 +136,7 @@ fn should_coerce_array_literals_for_slice_assignment() {
     let batches = fixture::run_cycles(
         "issue-1460-array-slice-literal",
         &setup,
-        vec![literal, constructor, element],
+        vec![literal, constructor, oversized, element],
     );
 
     // Assert
@@ -147,7 +153,12 @@ fn should_coerce_array_literals_for_slice_assignment() {
     fixture::assert_success(&batches[2]);
     assert_eq!(
         wire::data_rows(&batches[2]),
-        vec![vec![Some("{7,4}".to_owned())]]
+        vec![vec![Some("{1,2}".to_owned())]]
+    );
+    fixture::assert_success(&batches[3]);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("{7,2}".to_owned())]]
     );
 }
 
@@ -192,6 +203,6 @@ fn should_report_array_literal_errors_for_slice_assignment() {
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
-    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22000"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("2202E"));
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22P02"));
 }

@@ -712,6 +712,15 @@ fn should_round_trip_exported_sequence_defaults_through_information_schema() {
         execute_statement(&cassie, &session, sql);
     }
 
+    let source = cassie.midge.canonical_collection_name("source_defaults");
+    let mut constraints = cassie.catalog.get_constraints(&source);
+    let legacy = constraints
+        .iter_mut()
+        .find(|constraint| constraint.field == "quoted_id")
+        .expect("quoted sequence constraint");
+    legacy.default_expression = Some("nextval('postgres.public.a'b'::regclass)".into());
+    cassie.catalog.register_constraints(&source, constraints);
+
     // Act
     let defaults = query_rows(
         &cassie,
@@ -744,6 +753,7 @@ fn should_round_trip_exported_sequence_defaults_through_information_schema() {
     );
 
     // Assert
+    assert_eq!(quoted, r#"nextval('postgres.public."a''b"'::regclass)"#);
     assert_eq!(plain, "nextval('postgres.public.simple_seq'::regclass)");
     assert_eq!(
         query_rows(

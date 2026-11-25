@@ -51,7 +51,7 @@ pub fn decode_projected_row<E>(
     projection: &HashSet<String, impl BuildHasher>,
     decode_json: impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
-    decode_with_projection::<E, S>(schema, row, Some(projection), false, &decode_json)
+    decode_with_projection(schema, row, Some(projection), false, &decode_json)
 }
 
 /// # Errors
@@ -62,7 +62,7 @@ pub fn decode_projected_row_with_aliases<E>(
     projection: &HashSet<String, impl BuildHasher>,
     decode_json: impl Fn(&[u8]) -> Result<serde_json::Value, E>,
 ) -> Result<serde_json::Value, RowBlobDecodeError<E>> {
-    decode_with_projection::<E, S>(schema, row, Some(projection), true, &decode_json)
+    decode_with_projection(schema, row, Some(projection), true, &decode_json)
 }
 
 /// # Errors

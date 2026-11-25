@@ -152,16 +152,28 @@ fn initial_table_indexes(
     initial_indexes
 }
 
-pub(super) fn assign_index_catalog_oid(
-    cassie: &Cassie,
-    index: &mut IndexMeta,
-) -> Result<(), QueryError> {
+fn assign_index_catalog_oid(cassie: &Cassie, index: &mut IndexMeta) -> Result<(), QueryError> {
     if index.catalog_oid().is_none() {
         let oid = catalog::object_identity::normal_oid(cassie.midge.allocate_object_id()?)
             .ok_or_else(|| CassieError::Execution("index catalog OID space exhausted".into()))?;
         index.set_catalog_oid_if_missing(oid);
     }
     Ok(())
+}
+
+/// Reuses an installed index's identity when constraint DDL republishes it.
+pub(super) fn preserve_or_assign_index_catalog_oid(
+    cassie: &Cassie,
+    index: &mut IndexMeta,
+) -> Result<(), QueryError> {
+    if let Some(stored) = cassie.midge.get_index(&index.collection, &index.name)? {
+        if let Some(oid) = stored.catalog_oid() {
+            index.set_catalog_oid_if_missing(oid);
+        }
+        // Keep an installed, uncollided legacy identity unassigned on disk.
+        return Ok(());
+    }
+    assign_index_catalog_oid(cassie, index)
 }
 
 /// Persists the indexes of a new table. A retry after a failed publication
@@ -176,17 +188,10 @@ fn persist_initial_indexes(
             .midge
             .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
-        let stored_oid = cassie
-            .midge
-            .get_index(&index.collection, &index.name)?
-            .and_then(|stored| stored.catalog_oid());
-        if let Some(oid) = stored_oid {
-            index.set_catalog_oid_if_missing(oid);
-        }
+        preserve_or_assign_index_catalog_oid(cassie, index)?;
         if recovered {
             continue;
         }
-        assign_index_catalog_oid(cassie, index)?;
         cassie
             .midge
             .put_index_with_held_collection_gate(index)

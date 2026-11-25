@@ -25,8 +25,10 @@ impl Midge {
         include_rows: bool,
     ) -> Result<ProjectionManifestSnapshot, CassieError> {
         let projection = self.canonical_collection_name(projection);
-        let tx =
-            self.database_tx_for_collection(&projection, cntryl_midge::TransactionMode::ReadOnly)?;
+        let database =
+            relation_database_name(&projection).unwrap_or_else(|| self.default_database.clone());
+        let family = self.database_family(&database)?;
+        let tx = self.begin_committed_read_adapter_tx(family.id())?;
         let metadata = Self::load_projection_metadata_from_tx(&tx, &projection)?
             .ok_or_else(|| CassieError::NotFound(format!("projection not found: {projection}")))?;
         let output = self.canonical_collection_name(
@@ -34,7 +36,7 @@ impl Midge {
                 .active_output_collection()
                 .unwrap_or(metadata.projection_id()),
         );
-        if relation_database_name(&projection) != relation_database_name(&output) {
+        if !crate::catalog::relation_belongs_to_database(&output, &database) {
             return Err(CassieError::Execution(format!(
                 "projection '{projection}' has an output outside its owning database"
             )));

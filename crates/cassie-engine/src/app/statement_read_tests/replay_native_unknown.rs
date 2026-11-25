@@ -75,9 +75,8 @@ fn should_reconcile_committed_native_unknown_after_restart() {
     std::fs::remove_dir_all(path).unwrap();
 }
 
-#[test]
-fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
-    // Arrange
+fn indexed_postcommit_replay_fixture(
+) -> (Cassie, super::CassieSession, String, ProjectionReplayBatch) {
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("reader", None);
@@ -107,6 +106,13 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
             payload: Some(serde_json::json!({"title": "committed"})),
         }],
     };
+    (cassie, session, projection, batch)
+}
+
+#[test]
+fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
+    // Arrange
+    let (cassie, session, projection, batch) = indexed_postcommit_replay_fixture();
     super::super::replay::inject_replay_postcommit_metadata_read_failure();
 
     // Act

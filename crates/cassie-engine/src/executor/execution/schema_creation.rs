@@ -152,21 +152,41 @@ fn initial_table_indexes(
     initial_indexes
 }
 
+pub(super) fn assign_index_catalog_oid(
+    cassie: &Cassie,
+    index: &mut IndexMeta,
+) -> Result<(), QueryError> {
+    if index.catalog_oid().is_none() {
+        let oid = catalog::object_identity::normal_oid(cassie.midge.allocate_object_id()?)
+            .ok_or_else(|| CassieError::Execution("index catalog OID space exhausted".into()))?;
+        index.set_catalog_oid_if_missing(oid);
+    }
+    Ok(())
+}
+
 /// Persists the indexes of a new table. A retry after a failed publication
 /// completes the journal the earlier attempt prepared rather than reusing its
 /// index name.
 fn persist_initial_indexes(
     cassie: &Cassie,
-    indexes: &[catalog::IndexMeta],
+    indexes: &mut [catalog::IndexMeta],
 ) -> Result<(), QueryError> {
     for index in indexes {
         let recovered = cassie
             .midge
             .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
+        let stored_oid = cassie
+            .midge
+            .get_index(&index.collection, &index.name)?
+            .and_then(|stored| stored.catalog_oid());
+        if let Some(oid) = stored_oid {
+            index.set_catalog_oid_if_missing(oid);
+        }
         if recovered {
             continue;
         }
+        assign_index_catalog_oid(cassie, index)?;
         cassie
             .midge
             .put_index_with_held_collection_gate(index)
@@ -204,11 +224,14 @@ fn create_table_gated(
     let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
-    let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
+    let mut initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
     let copied_comments = prepare_like_column_comments(cassie, statement)?;
     let mut published_comments = Vec::new();
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
+        for index in &mut initial_indexes {
+            assign_index_catalog_oid(cassie, index)?;
+        }
         let Some((storage_id, comments)) = cassie
             .midge
             .create_collection_with_meta_constraints_sequences_and_indexes_if_absent(
@@ -253,7 +276,7 @@ fn create_table_gated(
         collection_meta.row_array_object_id = stored.row_array_object_id;
     }
     if statement.like.is_none() {
-        persist_initial_indexes(cassie, &initial_indexes)?;
+        persist_initial_indexes(cassie, &mut initial_indexes)?;
     }
     if statement.like.is_some() {
         super::sequence_command::register_created_sequences(cassie, table_sequences);

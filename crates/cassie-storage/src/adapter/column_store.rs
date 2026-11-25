@@ -361,8 +361,13 @@ impl Midge {
         indexes: &[IndexMeta],
     ) -> Result<(), CassieError> {
         let mut seen_names = std::collections::HashSet::new();
-        for index in indexes {
-            let index = index.clone_for_relation(name, &index.name);
+        for source in indexes {
+            let mut index = source.clone_for_relation(name, &source.name);
+            if let Some(oid) = source.catalog_oid() {
+                // The SQL caller allocated the target's identity after cloning
+                // the source definition. Physical identities are allocated here.
+                index.set_catalog_oid_if_missing(oid);
+            }
             if !seen_names.insert(index.name.to_ascii_lowercase()) {
                 return Err(CassieError::CatalogObjectAlreadyExists {
                     kind: crate::adapter::CatalogObjectKind::Index,

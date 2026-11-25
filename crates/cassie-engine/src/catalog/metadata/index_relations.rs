@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::Catalog;
 use crate::catalog::{
     canonical_relation_name, local_name, name_matches, parse_name, IndexMeta, ParsedName,
@@ -113,24 +115,38 @@ impl Catalog {
             .is_some_and(|metadata| metadata.has_ever_had_indexes)
     }
 
+    fn resolve_index_oid(
+        indexes: &HashMap<String, IndexMeta>,
+        key: &str,
+        metadata: &IndexMeta,
+    ) -> u32 {
+        indexes
+            .get(key)
+            .and_then(IndexMeta::catalog_oid)
+            .unwrap_or_else(|| {
+                let candidate = crate::catalog::object_identity::catalog_index_oid(metadata);
+                cassie_core::catalog::object_identity::available_legacy_index_oid(
+                    candidate,
+                    |oid| {
+                        indexes
+                            .values()
+                            .any(|index| index.catalog_oid() == Some(oid))
+                    },
+                )
+            })
+    }
+
+    pub(crate) fn legacy_index_oid_for_registration(&self, metadata: &IndexMeta) -> u32 {
+        let indexes = self.indexes.read();
+        let key = Self::index_key(&metadata.collection, &metadata.name);
+        Self::resolve_index_oid(&indexes, &key, metadata)
+    }
+
     pub fn register_index(&self, mut metadata: IndexMeta) {
         let mut indexes = self.indexes.write();
         let key = Self::index_key(&metadata.collection, &metadata.name);
         if metadata.catalog_oid().is_none() {
-            let oid = indexes
-                .get(&key)
-                .and_then(IndexMeta::catalog_oid)
-                .unwrap_or_else(|| {
-                    let candidate = crate::catalog::object_identity::catalog_index_oid(&metadata);
-                    cassie_core::catalog::object_identity::available_legacy_index_oid(
-                        candidate,
-                        |oid| {
-                            indexes
-                                .values()
-                                .any(|index| index.catalog_oid() == Some(oid))
-                        },
-                    )
-                });
+            let oid = Self::resolve_index_oid(&indexes, &key, &metadata);
             metadata.set_catalog_oid_if_missing(oid);
         }
         indexes.insert(key, metadata);

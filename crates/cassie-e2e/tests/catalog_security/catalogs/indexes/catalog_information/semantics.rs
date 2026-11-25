@@ -37,6 +37,26 @@ fn should_report_created_index_definition_in_pg_indexes() {
     );
 }
 
+fn assert_legacy_index_rows(rows: &[Vec<Value>], expected: [(&str, &str); 3]) {
+    assert_eq!(rows.len(), expected.len());
+    for (row, (name, key)) in rows.iter().zip(expected) {
+        assert_eq!(row[0], Value::String(name.into()));
+        assert_eq!(row[1], Value::String(key.into()));
+    }
+    assert_ne!(rows[0][2], rows[1][2]);
+    assert_ne!(rows[1][2], rows[2][2]);
+    assert_ne!(rows[0][2], rows[2][2]);
+}
+
+fn stored_catalog_oid(cassie: &cassie::Cassie, collection: &str, name: &str) -> Option<u32> {
+    cassie
+        .midge
+        .get_index(collection, name)
+        .expect("read stored index")
+        .expect("index exists")
+        .catalog_oid()
+}
+
 #[test]
 fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     // Arrange
@@ -111,30 +131,20 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
         (survivor, "1"),
     ];
     for rows in [fresh.rows(), legacy.rows(), hydrated.rows()] {
-        assert_eq!(rows.len(), expected.len());
-        for (row, (name, key)) in rows.iter().zip(expected) {
-            assert_eq!(row[0], Value::String(name.into()));
-            assert_eq!(row[1], Value::String(key.into()));
-        }
-        assert_ne!(rows[0][2], rows[1][2]);
-        assert_ne!(rows[1][2], rows[2][2]);
-        assert_ne!(rows[0][2], rows[2][2]);
+        assert_legacy_index_rows(rows, expected);
     }
     assert_eq!(fresh.rows()[0], legacy.rows()[0]);
     assert_eq!(legacy.rows(), hydrated.rows());
-    let surviving_oid = hydrated.rows()[2][2].clone();
-    assert_ne!(
-        surviving_oid,
-        Value::String(candidate(survivor).to_string())
+    let surviving_oid = stored_catalog_oid(&reopened, &collection, survivor)
+        .expect("displaced legacy OID was persisted");
+    assert_ne!(surviving_oid, candidate(survivor));
+    assert_eq!(
+        hydrated.rows()[2][2],
+        Value::String(surviving_oid.to_string())
     );
     assert_eq!(
-        reopened
-            .midge
-            .get_index(&collection, original_holder)
-            .unwrap()
-            .unwrap()
-            .catalog_oid(),
-        None,
+        stored_catalog_oid(&reopened, &collection, original_holder),
+        None
     );
     reopened
         .execute_sql(&session, &format!("DROP INDEX {original_holder}"), vec![])
@@ -154,7 +164,6 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
         remaining.rows(),
         [hydrated.rows()[0].clone(), hydrated.rows()[2].clone()]
     );
-    assert_eq!(remaining.rows()[1][2], surviving_oid);
     reopened.shutdown();
 }
 
@@ -177,7 +186,12 @@ fn should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart(
     ] {
         cassie.execute_sql(&session, sql, vec![]).expect("create fresh index fixture");
     }
-    let join = "SELECT t.relname, c.relname, c.oid::text                 FROM pg_catalog.pg_index i                 JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid                 JOIN pg_catalog.pg_class t ON t.oid = i.indrelid                 WHERE t.relname IN ('orders', 'order_copies') ORDER BY t.relname, c.relname";
+    let join = concat!(
+        "SELECT t.relname, c.relname, c.oid::text FROM pg_catalog.pg_index i ",
+        "JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid ",
+        "JOIN pg_catalog.pg_class t ON t.oid = i.indrelid ",
+        "WHERE t.relname IN ('orders', 'order_copies') ORDER BY t.relname, c.relname",
+    );
     let live = cassie
         .execute_sql(&session, join, vec![])
         .expect("read fresh catalog indexes");

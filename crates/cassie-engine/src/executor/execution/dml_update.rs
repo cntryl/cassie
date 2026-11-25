@@ -603,7 +603,7 @@ fn set_array_slice(
     if upper < lower {
         return Ok(());
     }
-    validate_slice_length(lower, upper, replacement)?;
+    let target_length = validate_slice_length(lower, upper, array.is_empty(), replacement.len())?;
     let (mut old_lower, mut old_length, mut elements) = if array.is_empty() {
         (1, 0_usize, Vec::new())
     } else {
@@ -673,10 +673,7 @@ fn set_array_slice(
             .ok_or_else(|| QueryError::General("array slice upper bound out of range".into()))?,
     )
     .map_err(|_| QueryError::General("array slice upper bound out of range".into()))?;
-    elements
-        .try_reserve(replacement.len())
-        .map_err(|error| QueryError::General(format!("cannot assign array slice: {error}")))?;
-    elements.splice(start..end, replacement.elements().iter().cloned());
+    elements[start..end].clone_from_slice(&replacement.elements()[..target_length]);
     *array = crate::types::SqlArray::new(
         vec![crate::types::ArrayDimension {
             length: i32::try_from(elements.len())
@@ -692,20 +689,25 @@ fn set_array_slice(
 fn validate_slice_length(
     lower: i32,
     upper: i32,
-    replacement: &crate::types::SqlArray,
-) -> Result<(), QueryError> {
+    target_is_empty: bool,
+    replacement_length: usize,
+) -> Result<usize, QueryError> {
     let target_length = upper
         .checked_sub(lower)
         .and_then(|length| length.checked_add(1))
         .and_then(|length| usize::try_from(length).ok())
         .ok_or_else(|| QueryError::General("array slice length is out of range".into()))?;
-    if replacement.len() == target_length {
-        Ok(())
-    } else {
-        Err(QueryError::General(
+    if target_is_empty && replacement_length != target_length {
+        return Err(QueryError::General(
             "array slice assignment dimensions do not match".into(),
-        ))
+        ));
     }
+    if replacement_length < target_length {
+        return Err(QueryError::Cassie(
+            crate::app::DiagnosticError::new("2202E", "source array too small").into(),
+        ));
+    }
+    Ok(target_length)
 }
 
 fn apply_update_row(

@@ -9,6 +9,14 @@ use tokio_postgres::NoTls;
 use super::support_sql as support;
 use support::*;
 
+const VISIBILITY_TABLES_SQL: &str = "SELECT table_name FROM information_schema.tables \
+    WHERE table_schema = 'public' AND table_name IN ('catalog_visible', 'catalog_secret') \
+    ORDER BY table_name";
+const VISIBILITY_COLUMNS_SQL: &str =
+    "SELECT table_name, column_name FROM information_schema.columns \
+    WHERE table_schema = 'public' AND table_name IN ('catalog_visible', 'catalog_secret') \
+    ORDER BY table_name, ordinal_position";
+
 fn catalog_visibility_roles(
     cassie: &Cassie,
     admin: &CassieSession,
@@ -64,24 +72,10 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
 
     // Act
     let tables = cassie
-        .execute_sql(
-            &reader,
-            "SELECT table_name FROM information_schema.tables \
-             WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible', 'catalog_secret') \
-             ORDER BY table_name",
-            Vec::new(),
-        )
+        .execute_sql(&reader, VISIBILITY_TABLES_SQL, Vec::new())
         .expect("read visible tables");
     let columns = cassie
-        .execute_sql(
-            &reader,
-            "SELECT table_name, column_name FROM information_schema.columns \
-             WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible', 'catalog_secret') \
-             ORDER BY table_name, ordinal_position",
-            Vec::new(),
-        )
+        .execute_sql(&reader, VISIBILITY_COLUMNS_SQL, Vec::new())
         .expect("read visible columns");
     let views = cassie
         .execute_sql(
@@ -105,23 +99,13 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
         )
         .expect("read visible view columns");
     let blocked_tables = cassie
-        .execute_sql(
-            &blocked,
-            "SELECT table_name FROM information_schema.tables \
-             WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible', 'catalog_secret')",
-            Vec::new(),
-        )
+        .execute_sql(&blocked, VISIBILITY_TABLES_SQL, Vec::new())
         .expect("read tables as blocked role");
+    let blocked_columns = cassie
+        .execute_sql(&blocked, VISIBILITY_COLUMNS_SQL, Vec::new())
+        .expect("read columns as blocked role");
     let admin_tables = cassie
-        .execute_sql(
-            &admin,
-            "SELECT table_name FROM information_schema.tables \
-             WHERE table_schema = 'public' \
-               AND table_name IN ('catalog_visible', 'catalog_secret') \
-             ORDER BY table_name",
-            Vec::new(),
-        )
+        .execute_sql(&admin, VISIBILITY_TABLES_SQL, Vec::new())
         .expect("read tables as administrator");
 
     // Assert
@@ -152,7 +136,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             cassie::types::Value::String("id".to_owned()),
         ]]
     );
-    assert_eq!(blocked_tables.rows().len(), 0);
+    assert_eq!(blocked_tables.rows(), &[] as &[Vec<cassie::types::Value>]);
+    assert_eq!(blocked_columns.rows(), &[] as &[Vec<cassie::types::Value>]);
     assert_eq!(admin_tables.rows().len(), 2);
 }
 

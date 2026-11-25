@@ -155,6 +155,12 @@ fn should_reject_a_jsonb_delete_path_dimension_larger_than_its_contents() {
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+    let (_, payload) = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .expect("ErrorResponse for the malformed array literal");
+    assert!(wire::parse_error_fields(payload)
+        .contains(&('M', r#"malformed array literal: "[1:9]={}""#.to_owned(),)));
     fixture::assert_success(&batches[1]);
     assert_eq!(
         wire::data_rows(&batches[1]),

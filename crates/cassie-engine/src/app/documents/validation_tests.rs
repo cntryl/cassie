@@ -110,6 +110,25 @@ fn should_keep_the_vector_error_for_a_wrong_length_document_vector() {
 }
 
 #[test]
+fn should_report_vector_errors_for_non_array_or_non_numeric_document_input() {
+    // Arrange
+    // The JSON document API passes these raw shapes to the vector validator.
+    // A typed SQL vector expression may reject them before document validation.
+    let inputs = [json!("not an array"), json!([1.0, "not a number", 3.0])];
+
+    // Act
+    let errors = inputs
+        .each_ref()
+        .map(|input| document_error("VECTOR(3)", input));
+
+    // Assert
+    for error in errors {
+        assert_eq!(error.sql_state(), "22000", "{error}");
+        assert!(error.to_string().contains("invalid vector"), "{error}");
+    }
+}
+
+#[test]
 fn should_report_reachable_non_vector_document_shape_errors_without_vector_diagnostics() {
     // Arrange
     let cases = [

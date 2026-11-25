@@ -196,17 +196,14 @@ impl Cassie {
         let last_record = records.last().cloned();
         let mut ids = Vec::with_capacity(records.len());
         let mut values = Vec::with_capacity(checked_mul(records.len(), request.query.len())?);
-        let mut magnitudes = Vec::with_capacity(records.len());
         for record in records {
             ids.push(record.id);
             values.extend(record.values);
-            magnitudes.push(record.magnitude);
         }
         drop(records_memory);
         let entry = Arc::new(NormalizedVectorCacheEntry {
             ids,
             values,
-            magnitudes,
             dimensions: request.query.len(),
             metric: request.metric,
             first_record,
@@ -306,7 +303,7 @@ fn flattened_entry_bytes(
     records: &[NormalizedVectorRecord],
     dimensions: usize,
 ) -> Result<usize, CassieError> {
-    let inline = checked_mul(records.len(), size_of::<String>() + size_of::<f64>())?;
+    let inline = checked_mul(records.len(), size_of::<String>())?;
     let values = checked_mul(checked_mul(records.len(), dimensions)?, size_of::<f32>())?;
     let ids = records
         .iter()
@@ -325,7 +322,7 @@ fn flattened_entry_bytes(
 }
 
 fn normalized_entry_bytes(entry: &NormalizedVectorCacheEntry) -> Result<usize, CassieError> {
-    let inline = checked_mul(entry.ids.len(), size_of::<String>() + size_of::<f64>())?;
+    let inline = checked_mul(entry.ids.len(), size_of::<String>())?;
     let ids = entry
         .ids
         .iter()

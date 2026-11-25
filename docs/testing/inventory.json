@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11741,
+    "rust_test_declarations": 11742,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11766,
+    "registered_rust_instances": 11767,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -355555,15 +355555,49 @@
       }
     },
     {
-      "id": "tests/support/temp_dirs.rs::tests::should_sweep_only_stale_owned_runs_without_a_live_lock",
-      "name": "should_sweep_only_stale_owned_runs_without_a_live_lock",
+      "id": "tests/support/temp_dirs.rs::tests::should_separate_fixture_namespaces_for_users_sharing_a_temp_directory",
+      "name": "should_separate_fixture_namespaces_for_users_sharing_a_temp_directory",
       "current_file": "tests/support/temp_dirs.rs",
-      "line": 140,
-      "end_line": 186,
+      "line": 172,
+      "end_line": 184,
       "inline_modules": [
         "tests"
       ],
-      "inline_module_lines": 54,
+      "inline_module_lines": 70,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "cassie_test_support",
+          "name": "support_temp_dirs::tests::should_separate_fixture_namespaces_for_users_sharing_a_temp_directory"
+        }
+      ],
+      "attributes": [
+        "#[cfg(unix)]",
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "support",
+        "category": "shared_helper_tests",
+        "directory": "tests/support",
+        "file": "tests/support/temp_dirs.rs",
+        "basis": "helper_unit_test",
+        "review": "recommended",
+        "migration": "keep_shared_helper_namespace"
+      }
+    },
+    {
+      "id": "tests/support/temp_dirs.rs::tests::should_sweep_only_stale_owned_runs_without_a_live_lock",
+      "name": "should_sweep_only_stale_owned_runs_without_a_live_lock",
+      "current_file": "tests/support/temp_dirs.rs",
+      "line": 187,
+      "end_line": 233,
+      "inline_modules": [
+        "tests"
+      ],
+      "inline_module_lines": 70,
       "language": "rust",
       "registration": "registered",
       "instances": [
@@ -392452,9 +392486,9 @@
       "current_file": "tests/support/temp_dirs.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 187,
-      "sha256": "b0908db8527ff0abd6f7722eedd908b77b9c1de8a19d4476981260ff8fc9e6ca",
-      "test_declarations": 1,
+      "lines": 234,
+      "sha256": "558c9b51721e43b6721bb25832d671a1659fa433e90734c3f123d08ad3cbdd0c",
+      "test_declarations": 2,
       "registered_suites": [
         "cassie_test_support"
       ],

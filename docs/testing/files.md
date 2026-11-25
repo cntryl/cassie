@@ -1840,7 +1840,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/sql_fixture.rs` | shared_support | 323 | 4 | cassie_test_support | keep | `tests/support/sql_fixture.rs` |
 | `tests/support/storage_family_snapshot.rs` | shared_support | 90 | 0 | storage_indexes | keep | `tests/support/storage_family_snapshot.rs` |
 | `tests/support/teardown_evidence.rs` | shared_support | 46 | 0 | cassie_test_support, metrics, query_scan_controls | keep | `tests/support/teardown_evidence.rs` |
-| `tests/support/temp_dirs.rs` | shared_support | 187 | 1 | cassie_test_support | keep | `tests/support/temp_dirs.rs` |
+| `tests/support/temp_dirs.rs` | shared_support | 234 | 2 | cassie_test_support | keep | `tests/support/temp_dirs.rs` |
 | `tests/support/temporal_cancellation.rs` | shared_support | 74 | 0 | pgwire_types | keep | `tests/support/temporal_cancellation.rs` |
 | `tests/support/time_series_evidence.rs` | shared_support | 348 | 0 | domain_models | keep | `tests/support/time_series_evidence.rs` |
 | `tests/support/tls.rs` | shared_support | 11 | 0 | executor, rest | keep | `tests/support/tls.rs` |

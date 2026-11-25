@@ -315,12 +315,14 @@ impl Midge {
             physical_family: metadata.physical_family.clone(),
         };
         let mut journal = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
+        Self::assert_drop_owner(&mut journal, metadata)?;
         Self::write_lifecycle_record(&mut journal, &record)?;
         journal
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
         let mut catalog = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
+        Self::assert_drop_owner(&mut catalog, metadata)?;
         catalog
             .delete(Self::database_key(&metadata.name))
             .map_err(CassieError::from)?;
@@ -359,6 +361,32 @@ impl Midge {
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+
+    // Resolving a name and acquiring its family gate are separate operations.
+    // A prior DROP can retire that gate and publish a new owner in between.
+    fn assert_drop_owner(
+        tx: &mut super::AdapterTransaction,
+        expected: &DatabaseMeta,
+    ) -> Result<(), CassieError> {
+        let key = Self::database_key(&expected.name);
+        let changed = || {
+            CassieError::NotFound(format!(
+                "database '{}' no longer refers to the family selected for DROP",
+                expected.name
+            ))
+        };
+        let bytes = tx
+            .get(&key)
+            .map_err(CassieError::from)?
+            .ok_or_else(changed)?;
+        let current: DatabaseMeta = serde_json::from_slice(&bytes)
+            .map_err(|error| CassieError::Parse(format!("invalid database metadata: {error}")))?;
+        if current.physical_family != expected.physical_family {
+            return Err(changed());
+        }
+        tx.assert_value(key, Some(bytes.to_vec()))
+            .map_err(CassieError::from)
     }
 
     ///

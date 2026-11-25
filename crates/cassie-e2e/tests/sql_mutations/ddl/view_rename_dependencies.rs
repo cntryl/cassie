@@ -614,17 +614,17 @@ fn should_restore_renamed_relation_view_state_after_local_restart() {
 }
 
 #[test]
-fn should_preserve_table_and_views_when_join_wildcard_cannot_be_rewritten() {
+fn should_preserve_table_and_views_when_wildcard_with_subquery_cannot_be_rewritten() {
     // Arrange
     let fixture = sql_fixture(
-        "rename-column-join-wildcard",
+        "rename-column-wildcard-with-subquery",
         &[
             "CREATE TABLE rename_source (id INT, n INT)",
             "CREATE TABLE join_source (other_id INT)",
             "INSERT INTO rename_source VALUES (1, 5)",
             "INSERT INTO join_source VALUES (1)",
-            "CREATE VIEW rv AS SELECT * FROM rename_source \
-             JOIN join_source ON rename_source.id = join_source.other_id",
+            "CREATE VIEW rv AS SELECT * FROM rename_source AS r \
+             WHERE EXISTS (SELECT 1 FROM join_source j WHERE j.other_id = r.id)",
             "CREATE VIEW rv_safe AS SELECT n FROM rename_source",
         ],
     );

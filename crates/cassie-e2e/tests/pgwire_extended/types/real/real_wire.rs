@@ -34,9 +34,14 @@ fn should_preserve_nonfinite_real_parameter_bits_in_binary_results() {
     // Arrange
     let sql = "SELECT CAST($1 AS real) AS v";
     let inputs = [
-        f32::INFINITY,
-        f32::NEG_INFINITY,
-        f32::from_bits(0x7FC0_0001),
+        f32::INFINITY.to_bits(),
+        f32::NEG_INFINITY.to_bits(),
+        0x7FC0_0001,
+        0xFFC0_0002,
+        0x7F80_0001,
+        0x7FC0_0001,
+        0.0_f32.to_bits(),
+        (-0.0_f32).to_bits(),
     ];
     let cycles = inputs
         .iter()

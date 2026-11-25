@@ -8,7 +8,7 @@ use cassie::embeddings::compatible::{OpenAiCompatibleProvider, OpenAiCompatibleP
 use cassie::embeddings::ollama::{OllamaProvider, OllamaProviderConfig};
 use cassie::embeddings::tei::{TeiProvider, TeiProviderConfig};
 use cassie::embeddings::voyage::{VoyageProvider, VoyageProviderConfig};
-use cassie::embeddings::EmbeddingProvider;
+use cassie::embeddings::{EmbeddingError, EmbeddingProvider};
 
 #[derive(Clone)]
 struct MockResponse {
@@ -494,6 +494,31 @@ fn should_retry_transient_self_hosted_embedding_failures() {
     // Assert
     assert_eq!(embeddings.len(), 1);
     assert_eq!(embeddings[0].values, vec![0.1, 0.2, 0.3]);
+}
+
+#[test]
+fn should_reject_compatible_provider_coordinates_that_overflow_f32() {
+    // Arrange
+    let server = MockEmbeddingServer::spawn(vec![MockResponse::ok(&serde_json::json!({
+        "data": [{"index": 0, "embedding": [1e40, 0.0, 0.0]}]
+    }))]);
+    let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
+        base_url: server.base_url(),
+        api_key: None,
+        model: "compatible-test".to_string(),
+        dimensions: 3,
+        timeout: std::time::Duration::from_secs(1),
+        max_batch_size: 1,
+        max_retries: 0,
+    })
+    .expect("compatible provider");
+
+    // Act
+    let result = provider.embed_documents(&["alpha".to_string()]);
+
+    // Assert
+    assert!(matches!(result, Err(EmbeddingError::ParseError(_))));
+    assert_eq!(server.recorded_requests().len(), 1);
 }
 
 #[derive(Clone)]

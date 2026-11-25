@@ -229,6 +229,44 @@ fn should_build_requests_in_batches() {
 }
 
 #[test]
+fn should_restore_openai_batch_order_from_reversed_response_indices() {
+    // Arrange
+    let first = constant_vector(0.125);
+    let second = constant_vector(0.25);
+    let server = MockOpenAiServer::spawn(vec![MockResponse {
+        status: 200,
+        body: serde_json::json!({
+            "data": [
+                {"index": 1, "embedding": second},
+                {"index": 0, "embedding": first}
+            ]
+        })
+        .to_string(),
+        delay_ms: 0,
+    }]);
+    let provider = OpenAiProvider::with_config(OpenAiProviderConfig {
+        api_key: "test-key".to_string(),
+        model: DEFAULT_EMBEDDING_MODEL.to_string(),
+        timeout: Duration::from_secs(1),
+        max_batch_size: 2,
+        max_retries: 0,
+        base_url: server.base_url(),
+    })
+    .expect("OpenAI provider");
+
+    // Act
+    let results = provider
+        .embed_documents(&["first input".to_string(), "second input".to_string()])
+        .expect("reordered embeddings");
+
+    // Assert
+    assert_eq!(server.observed_input_counts(), vec![2]);
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].values, first);
+    assert_eq!(results[1].values, second);
+}
+
+#[test]
 fn should_retry_transient_failures() {
     // Arrange
     let server = MockOpenAiServer::spawn(vec![

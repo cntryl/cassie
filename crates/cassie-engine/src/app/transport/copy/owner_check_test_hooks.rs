@@ -32,6 +32,11 @@ impl Drop for Guard {
     }
 }
 
+/// Installs a one-shot pause between owner validation and COPY predicate evaluation.
+///
+/// # Panics
+/// Panics if a COPY owner hook is already installed on this thread.
+#[must_use]
 pub fn install_after_owner_check(
     cassie: &Cassie,
     session: &CassieSession,

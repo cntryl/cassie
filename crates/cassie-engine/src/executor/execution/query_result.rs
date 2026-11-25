@@ -64,6 +64,7 @@ impl QueryResult {
 
     /// The OID a rendered `reg*` value in `row`/`column` names, for binary output.
     #[doc(hidden)]
+    #[must_use]
     pub fn object_oid(&self, row: usize, column: usize) -> Option<u32> {
         self.payload
             .object_oids
@@ -73,10 +74,12 @@ impl QueryResult {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn postgres_array_text_columns(&self) -> &[usize] {
         &self.payload.postgres_array_text_columns
     }
     #[doc(hidden)]
+    #[must_use]
     pub fn temporal_context(&self) -> &crate::types::extended::temporal::TemporalSession {
         self.payload
             .temporal
@@ -206,6 +209,7 @@ impl QueryResult {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn admission(&self) -> &QueryMemoryReservation {
         self.exposure.as_deref().unwrap_or(&self.payload.memory)
     }
@@ -296,7 +300,6 @@ impl QueryResultBuilder<'_> {
     }
 
     #[doc(hidden)]
-
     pub fn try_push_values<'v, I>(&mut self, values: I) -> Result<(), CassieError>
     where
         I: Iterator<Item = &'v Value> + Clone,

@@ -16,6 +16,8 @@ use super::{
 };
 
 impl Cassie {
+    /// # Errors
+    /// Returns an error when the prepared statement cannot be admitted, bound, or executed.
     pub fn execute_parsed_sql_with_cancellation(
         &self,
         session: &CassieSession,
@@ -46,6 +48,8 @@ impl Cassie {
         })
     }
 
+    /// # Errors
+    /// Returns authorization, parsing, execution, or interruption errors.
     pub fn execute_pgwire_sql_with_cancellation(
         &self,
         session: &CassieSession,

@@ -237,6 +237,8 @@ impl Cassie {
         )
     }
 
+    /// # Errors
+    /// Returns an error if credentials, database access, or rate-limit admission fail.
     pub fn authenticate_network_principal(
         &self,
         user: &str,

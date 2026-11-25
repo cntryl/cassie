@@ -13,12 +13,10 @@ use cassie_storage::native::{DurabilityPolicy, WriteOptions};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::thread::ThreadId;
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
 struct Report {
-    worker: ThreadId,
     data: Vec<DataSubmission>,
     native: NativeCommitObservation,
 }
@@ -95,11 +93,7 @@ fn observe_worker<T>(cassie: &Cassie, name: &str, operation: impl FnOnce() -> T)
     let _guard = DataGuard;
     let (output, native) = observe_native_commits(operation);
     let data = DATA.with(|slot| slot.borrow_mut().take().unwrap());
-    let _ = sender.send(Report {
-        worker: std::thread::current().id(),
-        data,
-        native,
-    });
+    let _ = sender.send(Report { data, native });
     output
 }
 

@@ -813,7 +813,7 @@ pub(super) fn create_index(
             .predicate
             .as_ref()
             .and_then(|predicate| serde_json::to_string(predicate).ok()),
-        kind: statement.kind.clone(),
+        kind: statement.kind,
         unique: statement.unique,
         options: statement.options.clone(),
     };

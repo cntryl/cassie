@@ -40,6 +40,7 @@ impl SessionObjectError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn duplicate_prepared(name: &str) -> Self {
         Self::new(
             "42P05",

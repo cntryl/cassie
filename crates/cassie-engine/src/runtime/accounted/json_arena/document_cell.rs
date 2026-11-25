@@ -28,7 +28,6 @@ pub enum CellError {
 }
 
 #[doc(hidden)]
-
 pub struct Cell {
     text: String,
     identity: Identity,
@@ -140,17 +139,18 @@ impl Cell {
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn text(&self) -> &str {
         &self.text
     }
     #[doc(hidden)]
+    #[must_use]
     pub fn identity(&self) -> Identity {
         self.identity
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         self.memory.belongs_to(controls)
     }

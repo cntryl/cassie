@@ -38,6 +38,7 @@ impl fmt::Debug for OwnedDiagnostic {
 
 impl OwnedDiagnostic {
     #[doc(hidden)]
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.text
     }

@@ -11,12 +11,12 @@ use super::{
 impl CassieSession {
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn rollback_epoch_for_test(&self) -> u64 {
         self.transaction.lock().rollback_epoch
     }
 
     #[doc(hidden)]
-
     pub fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         self.ensure_operation_current_locked(&transaction)?;
@@ -106,63 +106,8 @@ impl CassieSession {
         after_prune: impl FnOnce(),
     ) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
-        self.ensure_given_operation_current_locked(&transaction, authority)?;
-        if !matches!(
-            transaction.status,
-            SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
-        ) {
-            return Err(CassieError::savepoint_outside_transaction(
-                "ROLLBACK TO SAVEPOINT",
-            ));
-        }
-
-        let index = savepoint_index(&transaction, name)?;
-
-        // Invalidate prior forks before the first possible rollback mutation.
-        // An ordinary prune error occurs before its retain; restore the old
-        // epoch while still holding the parent mutex. An unwind keeps it advanced.
-        let previous_epoch = transaction.rollback_epoch;
-        transaction.rollback_epoch = previous_epoch.checked_add(1).ok_or_else(|| {
-            CassieError::ResourceLimit("savepoint rollback epoch exhausted".to_owned())
-        })?;
-        let adopted = authority.is_some_and(|authority| {
-            authority.advance_savepoint(self, &transaction, previous_epoch)
-        });
-        if transaction.savepoints[index]
-            .storage_overlay
-            .has_sequence_cursors()
-        {
-            #[cfg(test)]
-            authority_test_hooks::before_prune(self, transaction.rollback_epoch);
-            let pruning = (|| {
-                let controls =
-                    crate::midge::adapter::PublicationControlScope::current_query_controls()
-                        .ok_or_else(|| {
-                            CassieError::Unsupported(
-                                "savepoint sequence recovery requires query controls".into(),
-                            )
-                        })?;
-                transaction.savepoints[index]
-                    .storage_overlay
-                    .prune_sequence_cursors_with(
-                        transaction.savepoints[..=index]
-                            .iter()
-                            .map(|savepoint| &savepoint.storage_overlay),
-                        &controls.storage_request(),
-                    )
-                    .map_err(CassieError::from)
-            })();
-            if let Err(error) = pruning {
-                transaction.rollback_epoch = previous_epoch;
-                if adopted {
-                    if let Some(authority) = authority {
-                        authority.revert_savepoint(self, &transaction, previous_epoch);
-                    }
-                }
-                return Err(error);
-            }
-            after_prune();
-        }
+        let index =
+            prepare_savepoint_rollback(self, &mut transaction, name, authority, after_prune)?;
         restore_savepoint_modes(&mut transaction, index);
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
@@ -231,6 +176,67 @@ impl CassieSession {
         transaction.savepoints.truncate(index);
         Ok(())
     }
+}
+
+fn prepare_savepoint_rollback(
+    session: &CassieSession,
+    transaction: &mut super::SessionTransactionState,
+    name: &str,
+    authority: Option<&super::FailureAuthority>,
+    after_prune: impl FnOnce(),
+) -> Result<usize, CassieError> {
+    session.ensure_given_operation_current_locked(transaction, authority)?;
+    if !matches!(
+        transaction.status,
+        SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
+    ) {
+        return Err(CassieError::savepoint_outside_transaction(
+            "ROLLBACK TO SAVEPOINT",
+        ));
+    }
+
+    let index = savepoint_index(transaction, name)?;
+    let previous_epoch = transaction.rollback_epoch;
+    transaction.rollback_epoch = previous_epoch.checked_add(1).ok_or_else(|| {
+        CassieError::ResourceLimit("savepoint rollback epoch exhausted".to_owned())
+    })?;
+    let adopted = authority
+        .is_some_and(|authority| authority.advance_savepoint(session, transaction, previous_epoch));
+    if transaction.savepoints[index]
+        .storage_overlay
+        .has_sequence_cursors()
+    {
+        #[cfg(test)]
+        authority_test_hooks::before_prune(session, transaction.rollback_epoch);
+        let pruning = (|| {
+            let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+                .ok_or_else(|| {
+                    CassieError::Unsupported(
+                        "savepoint sequence recovery requires query controls".into(),
+                    )
+                })?;
+            transaction.savepoints[index]
+                .storage_overlay
+                .prune_sequence_cursors_with(
+                    transaction.savepoints[..=index]
+                        .iter()
+                        .map(|savepoint| &savepoint.storage_overlay),
+                    &controls.storage_request(),
+                )
+                .map_err(CassieError::from)
+        })();
+        if let Err(error) = pruning {
+            transaction.rollback_epoch = previous_epoch;
+            if adopted {
+                if let Some(authority) = authority {
+                    authority.revert_savepoint(session, transaction, previous_epoch);
+                }
+            }
+            return Err(error);
+        }
+        after_prune();
+    }
+    Ok(index)
 }
 
 fn savepoint_index(

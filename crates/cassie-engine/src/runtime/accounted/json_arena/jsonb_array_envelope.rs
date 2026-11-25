@@ -30,7 +30,6 @@ pub enum Progress {
 }
 
 #[doc(hidden)]
-
 pub struct Envelope<'a> {
     source: &'a [u8],
     dimensions: [Dimension; 6],
@@ -63,7 +62,6 @@ impl<'a> Envelope<'a> {
 }
 
 #[doc(hidden)]
-
 pub fn decode<'a, E>(
     source: &'a [u8],
     controls: &QueryExecutionControls,

@@ -98,6 +98,7 @@ use cache::{
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
 #[doc(hidden)]
+#[must_use]
 pub fn unsupported_sql_error(sql: &str) -> Option<CassieError> {
     error::unsupported_sql_error(sql)
 }

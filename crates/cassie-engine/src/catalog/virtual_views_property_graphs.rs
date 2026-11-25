@@ -310,6 +310,7 @@ fn graph_rows(name: &str, graph: &PropertyGraphMeta, database: &str) -> Vec<Virt
 
 /// The graphs of `current_database` whose every mapped table `session` may read.
 #[doc(hidden)]
+#[must_use]
 pub fn visible_property_graphs(
     catalog: &Catalog,
     session: Option<&CassieSession>,

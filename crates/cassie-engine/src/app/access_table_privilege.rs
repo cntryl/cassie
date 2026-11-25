@@ -78,6 +78,7 @@ fn resolved_table_privilege(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn relation_readable(
     catalog: &crate::catalog::Catalog,
     default_database: &str,

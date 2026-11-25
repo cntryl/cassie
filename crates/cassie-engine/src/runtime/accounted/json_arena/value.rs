@@ -72,6 +72,7 @@ pub fn parse_value_with_optional_controls(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn syntax_error(input: &[u8]) -> String {
     serde_json::from_slice::<serde_json::Value>(input)
         .err()

@@ -50,6 +50,7 @@ pub(super) struct OperationOwner {
 
 impl FailureAuthority {
     #[doc(hidden)]
+    #[must_use]
     pub fn identity(&self) -> Option<FailureAuthorityIdentity> {
         let owner = self.owner.lock();
         (owner.captured && !owner.admission_rejected).then_some(FailureAuthorityIdentity {
@@ -60,6 +61,7 @@ impl FailureAuthority {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn portal_adoption(&self) -> Option<(FailureAuthorityIdentity, FailureAuthorityIdentity)> {
         let owner = self.owner.lock();
         if owner.captured && !owner.admission_rejected {
@@ -95,12 +97,14 @@ impl FailureAuthority {
 
     /// Retained shared owner payload and Arc counters, excluding allocator metadata.
     #[doc(hidden)]
+    #[must_use]
     pub const fn shared_owner_bytes() -> usize {
         std::mem::size_of::<Mutex<OperationOwner>>() + 2 * std::mem::size_of::<usize>()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn identity_only_for_test(session: &CassieSession) -> Self {
         Self {
             root: Arc::downgrade(&session.transaction),
@@ -115,12 +119,13 @@ impl FailureAuthority {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn captures_session_for_test(&self, session: &CassieSession) -> bool {
         self.matches_root(session)
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn capture(session: &CassieSession) -> Self {
         Self::capture_with_contention(session, || {})
     }

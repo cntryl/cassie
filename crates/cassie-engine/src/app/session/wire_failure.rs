@@ -4,6 +4,7 @@ use super::{Arc, CassieSession, FailureAuthority, SessionTransactionStatus};
 
 impl FailureAuthority {
     #[doc(hidden)]
+    #[must_use]
     pub fn capture_for_operation(session: &CassieSession) -> Self {
         Self::capture_for_operation_with_contention(session, || {})
     }
@@ -245,6 +246,7 @@ impl CassieSession {
 
     /// Exact wire-ID cleanup deliberately uses the current connection namespace.
     #[doc(hidden)]
+    #[must_use]
     pub fn without_operation_failure_authority(&self) -> Self {
         let mut cleanup = self.clone();
         cleanup.operation_failure_authority = None;
@@ -252,6 +254,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn with_new_wire_operation(&self) -> Self {
         let mut operation = self.clone();
         operation.operation_failure_authority = Some(FailureAuthority {
@@ -308,6 +311,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn operation_failure_authority(&self) -> Option<&FailureAuthority> {
         self.operation_failure_authority.as_ref()
     }
@@ -329,6 +333,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn may_capture_protocol_owner(&self) -> bool {
         self.operation_failure_authority
             .as_ref()
@@ -339,6 +344,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn operation_was_rejected(&self) -> bool {
         self.operation_failure_authority
             .as_ref()

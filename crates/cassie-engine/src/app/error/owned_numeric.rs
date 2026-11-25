@@ -48,7 +48,6 @@ impl OwnedNumericLiteralError {
     }
 
     #[doc(hidden)]
-
     pub fn range(controls: &QueryExecutionControls) -> Result<Box<Self>, CassieError> {
         const MESSAGE: &str = "value overflows numeric format";
         Self::create("22003", MESSAGE.len(), controls, |message| {
@@ -89,14 +88,17 @@ impl OwnedNumericLiteralError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
     #[doc(hidden)]
+    #[must_use]
     pub fn sqlstate(&self) -> &'static str {
         self.sqlstate
     }
     #[doc(hidden)]
+    #[must_use]
     pub fn controls(&self) -> &QueryExecutionControls {
         &self.controls
     }

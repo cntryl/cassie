@@ -33,13 +33,15 @@ fn is_quote_or_escape(character: char, options: CopyCsvOptions<'_>) -> bool {
     character == options.quote || character == options.escape
 }
 
+type ParsedCsvRows = (Vec<Vec<Option<String>>>, QueryMemoryReservation);
+
 #[doc(hidden)]
 pub fn parse_csv_payload(
     payload: &[u8],
     options: CopyCsvOptions<'_>,
     empty_unquoted_is_null: bool,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
+) -> Result<ParsedCsvRows, CassieError> {
     super::copy_decode::validate_payload_utf8(payload, controls)?;
     let mut memory = controls.reserve_query_memory(0)?;
     let mut row_memory = controls.reserve_query_memory(0)?;

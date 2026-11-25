@@ -76,6 +76,7 @@ impl PublicationControlScope {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn enter_for_rest(
         cancellation: &crate::runtime::QueryCancellationHandle,
         deadline: std::time::Instant,
@@ -108,13 +109,12 @@ impl PublicationControlScope {
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn current_query_controls() -> Option<crate::runtime::QueryExecutionControls> {
         CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone())
     }
 
     #[doc(hidden)]
-
     pub fn enter(controls: Option<&crate::runtime::QueryExecutionControls>) -> Self {
         let previous = CURRENT_ENGINE_QUERY_CONTROLS.with(|current| current.borrow().clone());
         let active = previous.clone().or_else(|| controls.cloned());

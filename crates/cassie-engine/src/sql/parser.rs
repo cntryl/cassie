@@ -11,12 +11,18 @@ pub use cassie_sql::parser::{
 };
 
 /// Parses SQL syntax and rebinds its runtime-only subquery attachment type.
+///
+/// # Errors
+/// Returns the SQL syntax or resource-limit error from the parser.
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let parsed = cassie_sql::parse_statement(sql)?;
     Ok(cassie_sql::attachment::rebind_attachment(parsed))
 }
 
 /// Parses one expression and rebinds its runtime-only subquery attachment type.
+///
+/// # Errors
+/// Returns the syntax or resource-limit error from parsing the expression.
 pub fn parse_expression(sql: &str) -> Result<Expr, SqlError> {
     let expression = cassie_sql::parser::parse_expression(sql)?;
     Ok(cassie_sql::attachment::rebind_attachment(expression))

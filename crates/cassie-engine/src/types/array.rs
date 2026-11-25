@@ -282,6 +282,7 @@ fn nest_array_level(values: Vec<JsonValue>, lengths: &[usize]) -> JsonValue {
 /// Formats the one-dimensional JSON carrier using PostgreSQL array text
 /// syntax for a known SQL element type.
 #[doc(hidden)]
+#[must_use]
 pub fn format_text_array(value: &JsonValue, element_type: &DataType) -> Option<String> {
     let JsonValue::Array(values) = value else {
         return None;

@@ -164,6 +164,8 @@ pub(crate) fn constant_bound(bound: Option<&Expr>) -> Option<i64> {
     }
 }
 
+/// # Errors
+/// Returns an error when query pagination violates the supported clause contract.
 pub fn validate_statement(
     statement: &mut ParsedStatement,
     parameter_oids: Option<&[i32]>,

@@ -74,7 +74,7 @@ pub(super) fn execute_decoded_operation(
     let result = operation.execute_decoded_rows_with_controls(
         session,
         rows,
-        CopyExecutionOptions {
+        &CopyExecutionOptions {
             header,
             where_clause: request.where_clause.as_deref(),
             default_marker: request.default_marker.as_deref(),

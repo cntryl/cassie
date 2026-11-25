@@ -146,6 +146,7 @@ impl ColumnMeta {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_vector(&self) -> bool {
         self.data_type.eq_ignore_ascii_case("vector")
             || self

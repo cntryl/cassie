@@ -82,6 +82,7 @@ impl AdmittedParameterTypes {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn types(&self) -> &[i32] {
         &self.oids
     }
@@ -98,6 +99,8 @@ impl AdmittedParameterTypes {
 
     // This releases transient admission. The returned legacy Vec has no lease
     // for retained prepared-statement memory, which remains a separate owner.
+    /// # Errors
+    /// Returns an error if final parameter validation or request controls prevent admission.
     pub fn into_vec(self) -> Result<Vec<i32>, ParameterAdmissionError> {
         self.final_check()?;
         Ok(self.oids)

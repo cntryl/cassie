@@ -270,6 +270,7 @@ impl CassieError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),

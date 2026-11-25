@@ -21,6 +21,8 @@ impl From<bool> for BoundReadData {
 }
 
 impl Cassie {
+    /// # Errors
+    /// Returns an error if the statement or parameters cannot be bound or admitted.
     pub fn validate_pgwire_bind(
         &self,
         session: &CassieSession,

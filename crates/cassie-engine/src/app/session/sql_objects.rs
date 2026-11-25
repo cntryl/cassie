@@ -311,6 +311,7 @@ impl CassieSession {
     /// The epoch a connection compares to drop protocol statements that SQL
     /// deallocated.
     #[doc(hidden)]
+    #[must_use]
     pub fn prepared_wire_epoch(&self) -> u64 {
         self.session_objects.lock().wire_epoch
     }
@@ -318,6 +319,7 @@ impl CassieSession {
     /// Whether protocol statement `name` with connection id `id` is still
     /// registered.
     #[doc(hidden)]
+    #[must_use]
     pub fn has_wire_prepared(&self, name: &str, id: u64) -> bool {
         self.session_objects
             .lock()
@@ -335,6 +337,7 @@ impl CassieSession {
 
     /// Whether `name` is held by a SQL-level `PREPARE`.
     #[doc(hidden)]
+    #[must_use]
     pub fn has_sql_prepared(&self, name: &str) -> bool {
         self.session_objects
             .lock()

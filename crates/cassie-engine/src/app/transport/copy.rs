@@ -78,8 +78,11 @@ impl CopyFromOperation {
     ///
     /// # Errors
     /// Returns parse, authorization, transaction, schema, deadline, or memory errors.
+    ///
+    /// # Panics
+    /// Panics if internal owner/context selection produces neither an owned nor a fallback binding context.
     pub fn bind(
-        cassie: Arc<Cassie>,
+        cassie: &Cassie,
         session: &CassieSession,
         binding_sql: &str,
         force_null: &CopyForceSelection,
@@ -112,72 +115,35 @@ impl CopyFromOperation {
         } else {
             (None, None)
         };
-        let database = owned_context
-            .as_ref()
-            .map(|context| context.context().database.clone())
-            .unwrap_or_else(|| {
+        let database = owned_context.as_ref().map_or_else(
+            || {
                 session
                     .current_database()
                     .unwrap_or(cassie.default_database())
                     .to_owned()
-            });
-        let fallback_context = owner.is_none().then(|| {
-            let database = session
-                .current_database()
-                .unwrap_or(cassie.default_database())
-                .to_owned();
-            let search_path = cassie.binding_search_path(session);
-            if cassie.database_catalog_enforced() {
-                crate::sql::binder::BindingContext::scoped(database, search_path)
-            } else {
-                crate::sql::binder::BindingContext::unscoped(database, search_path)
-            }
-        });
+            },
+            |context| context.context().database.clone(),
+        );
+        let fallback_context = fallback_copy_context(cassie, session, owner.is_none());
         let context = owned_context
             .as_ref()
             .map(crate::app::CopyBindingContext::context)
             .or(fallback_context.as_ref())
             .expect("COPY binding context");
-        let scoped = owner.as_ref().map_or_else(
-            || (*cassie).clone(),
-            |owner| cassie.with_copy_command_owner(session, owner),
-        );
-        session.mark_transaction_query();
-        let bound = crate::sql::binder::bind_with_context(parsed, &scoped.catalog, context)?;
-        let QueryStatement::Copy(statement) = bound.statement.statement else {
-            return Err(CassieError::Parse(
-                "COPY FROM STDIN did not bind as a table copy".into(),
-            ));
-        };
-        if owner
-            .as_ref()
-            .is_some_and(|owner| !owner.matches_target(&statement.table))
-        {
-            return Err(CassieError::Execution(
-                "COPY target changed during binding".into(),
-            ));
-        }
-        let schema = scoped
-            .catalog
-            .get_schema(&statement.table)
-            .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".into()))?;
-        validate_force_columns(&statement, &schema.fields, force_null, "FORCE_NULL")?;
-        validate_force_columns(&statement, &schema.fields, force_not_null, "FORCE_NOT_NULL")?;
-        let owner_bytes = if owner.is_some() {
-            std::mem::size_of::<CopyCommandOwner>()
-        } else {
-            0
-        };
-        let admission_bytes = std::mem::size_of::<Self>()
-            .checked_sub(owner_bytes)
-            .ok_or_else(|| CassieError::ResourceLimit("COPY binding size underflow".into()))?;
-        let admission_bytes = admission_bytes
-            .checked_add(database.capacity())
-            .ok_or_else(|| CassieError::ResourceLimit("COPY binding size overflow".into()))?;
+        let (scoped, statement) = bind_copy_target(
+            cassie,
+            session,
+            parsed,
+            owner.as_ref(),
+            context,
+            force_null,
+            force_not_null,
+        )?;
+        let admission_bytes = copy_admission_bytes(owner.as_ref(), &database)?;
         authority.reserve_shared_owner(&controls)?;
         #[cfg(any(test, feature = "transport-test-hooks"))]
         let mut observed = binding_accounting_test_hooks::before_admission(
-            &cassie,
+            cassie,
             session,
             &mut controls,
             admission_bytes,
@@ -301,7 +267,9 @@ impl CopyFromOperation {
     }
 
     /// Typed target columns used by transport format decoders.
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the admitted target schema is no longer present or its column list is invalid.
     pub fn target_columns(&self) -> Result<Vec<CopyColumn>, CassieError> {
         let schema = self
             .cassie
@@ -325,7 +293,9 @@ impl CopyFromOperation {
     }
 
     /// Column positions forced to null by CSV decoding.
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the admitted target schema is no longer present or the column list is invalid.
     pub fn force_null_indices(
         &self,
         selection: &CopyForceSelection,
@@ -334,7 +304,9 @@ impl CopyFromOperation {
     }
 
     /// Column positions forced to non-null by CSV decoding.
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the admitted target schema is no longer present or the column list is invalid.
     pub fn force_not_null_indices(
         &self,
         selection: &CopyForceSelection,
@@ -345,6 +317,9 @@ impl CopyFromOperation {
     /// Supplies binary wire decoder type metadata from the same scoped catalog
     /// and database used to bind this operation. The descriptor allocation
     /// remains admitted until the callback returns.
+    ///
+    /// # Errors
+    /// Returns an error if memory reservation, interruption checks, or target-column lookup fails.
     pub fn with_binary_columns<T>(
         &self,
         controls: &QueryExecutionControls,
@@ -446,18 +421,21 @@ impl CopyFromOperation {
         self.execute_decoded_rows_with_controls(
             session,
             rows,
-            options,
+            &options,
             cancellation,
             &self.controls,
         )
     }
 
     /// Executes rows using the controls active in the originating request scope.
+    ///
+    /// # Errors
+    /// Returns an error for invalid headers, stale transaction ownership, failed row filtering, or publication failures.
     pub fn execute_decoded_rows_with_controls(
         &self,
         session: &CassieSession,
         mut rows: Vec<Vec<Option<String>>>,
-        options: CopyExecutionOptions<'_>,
+        options: &CopyExecutionOptions<'_>,
         cancellation: Option<&QueryCancellationHandle>,
         controls: &QueryExecutionControls,
     ) -> Result<CopyIngestResult, CopyOperationError> {
@@ -472,7 +450,7 @@ impl CopyFromOperation {
             #[cfg(any(test, feature = "transport-test-hooks"))]
             owner_check_test_hooks::after_owner_check(&self.cassie, session);
         }
-        let _filter_rows_memory;
+        let filter_rows_memory;
         if let Some(predicate) = options.where_clause {
             let (accepted, memory) = filter::filter_rows_for_operation(
                 &self.cassie,
@@ -483,9 +461,9 @@ impl CopyFromOperation {
                 (controls, Some(&self.authority)),
             )?;
             rows = accepted;
-            _filter_rows_memory = Some(memory);
+            filter_rows_memory = Some(memory);
         } else {
-            _filter_rows_memory = None;
+            filter_rows_memory = None;
         }
         #[cfg(any(test, feature = "transport-test-hooks"))]
         publication_memory_test_hooks::before_ingest(controls);
@@ -501,9 +479,75 @@ impl CopyFromOperation {
             },
             self.owner.as_ref(),
         )?;
-        drop(_filter_rows_memory);
+        drop(filter_rows_memory);
         Ok(result)
     }
+}
+
+fn fallback_copy_context(
+    cassie: &Cassie,
+    session: &CassieSession,
+    needed: bool,
+) -> Option<crate::sql::binder::BindingContext> {
+    if !needed {
+        return None;
+    }
+    let database = session
+        .current_database()
+        .unwrap_or(cassie.default_database())
+        .to_owned();
+    let search_path = cassie.binding_search_path(session);
+    Some(if cassie.database_catalog_enforced() {
+        crate::sql::binder::BindingContext::scoped(database, search_path)
+    } else {
+        crate::sql::binder::BindingContext::unscoped(database, search_path)
+    })
+}
+
+fn bind_copy_target(
+    cassie: &Cassie,
+    session: &CassieSession,
+    parsed: crate::sql::ast::ParsedStatement,
+    owner: Option<&CopyCommandOwner>,
+    context: &crate::sql::binder::BindingContext,
+    force_null: &CopyForceSelection,
+    force_not_null: &CopyForceSelection,
+) -> Result<(Cassie, CopyStatement), CassieError> {
+    let scoped = owner.map_or_else(
+        || cassie.clone(),
+        |owner| cassie.with_copy_command_owner(session, owner),
+    );
+    session.mark_transaction_query();
+    let bound = crate::sql::binder::bind_with_context(parsed, &scoped.catalog, context)?;
+    let QueryStatement::Copy(statement) = bound.statement.statement else {
+        return Err(CassieError::Parse(
+            "COPY FROM STDIN did not bind as a table copy".into(),
+        ));
+    };
+    if owner.is_some_and(|owner| !owner.matches_target(&statement.table)) {
+        return Err(CassieError::Execution(
+            "COPY target changed during binding".into(),
+        ));
+    }
+    let schema = scoped
+        .catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".into()))?;
+    validate_force_columns(&statement, &schema.fields, force_null, "FORCE_NULL")?;
+    validate_force_columns(&statement, &schema.fields, force_not_null, "FORCE_NOT_NULL")?;
+    Ok((scoped, statement))
+}
+
+fn copy_admission_bytes(
+    owner: Option<&CopyCommandOwner>,
+    database: &str,
+) -> Result<usize, CassieError> {
+    let owner_bytes = owner.map_or(0, |_| std::mem::size_of::<CopyCommandOwner>());
+    std::mem::size_of::<CopyFromOperation>()
+        .checked_sub(owner_bytes)
+        .ok_or_else(|| CassieError::ResourceLimit("COPY binding size underflow".into()))?
+        .checked_add(database.capacity())
+        .ok_or_else(|| CassieError::ResourceLimit("COPY binding size overflow".into()))
 }
 
 /// Schema-derived type descriptor for the PostgreSQL binary COPY decoder.
@@ -512,70 +556,6 @@ pub struct CopyBinaryColumn {
     pub oid: i64,
     pub is_vector: bool,
     pub expected_vector_dimensions: Option<usize>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CopyExecutionOptions, CopyForceSelection, CopyFromOperation, CopyHeaderMode};
-    use crate::app::Cassie;
-    use crate::config::CassieRuntimeConfig;
-    use std::sync::Arc;
-
-    #[test]
-    fn should_retain_where_filter_memory_through_copy_publication() {
-        // Arrange
-        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-            .expect("memory fixture");
-        cassie.startup().expect("startup");
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE copy_filter_lease (id INT)",
-                Vec::new(),
-            )
-            .expect("target table");
-        cassie
-            .execute_sql(&session, "BEGIN", Vec::new())
-            .expect("transaction");
-        let operation = CopyFromOperation::bind(
-            Arc::new(cassie.clone()),
-            &session,
-            "COPY copy_filter_lease (id) FROM STDIN",
-            &CopyForceSelection::None,
-            &CopyForceSelection::None,
-            None,
-        )
-        .expect("admitted COPY");
-        let controls = operation.controls().clone();
-        let retained_before_decode = controls.current_query_memory_bytes();
-        let (_guard, observed) = super::test_hooks::observe_before_ingest();
-
-        // Act
-        let result = operation.with_publication_scope(|active_controls| {
-            operation.execute_decoded_rows_with_controls(
-                &session,
-                vec![vec![Some("41".to_owned())]],
-                CopyExecutionOptions {
-                    header: CopyHeaderMode::None,
-                    where_clause: Some("id > 0"),
-                    default_marker: None,
-                    on_error_ignore: false,
-                    reject_limit: None,
-                },
-                None,
-                active_controls,
-            )
-        });
-        let retained_during_publication = observed.recv().expect("pre-ingest memory observation");
-
-        // Assert
-        assert_eq!(result.expect("COPY publication").count, 1);
-        assert!(retained_during_publication > retained_before_decode);
-        cassie
-            .execute_sql(&session, "ROLLBACK", Vec::new())
-            .expect("rollback");
-    }
 }
 
 fn force_indices(selection: &CopyForceSelection, columns: &[CopyColumn]) -> Vec<usize> {
@@ -656,4 +636,67 @@ fn validate_header(
         .into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CopyExecutionOptions, CopyForceSelection, CopyFromOperation, CopyHeaderMode};
+    use crate::app::Cassie;
+    use crate::config::CassieRuntimeConfig;
+
+    #[test]
+    fn should_retain_where_filter_memory_through_copy_publication() {
+        // Arrange
+        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+            .expect("memory fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE copy_filter_lease (id INT)",
+                Vec::new(),
+            )
+            .expect("target table");
+        cassie
+            .execute_sql(&session, "BEGIN", Vec::new())
+            .expect("transaction");
+        let operation = CopyFromOperation::bind(
+            &cassie,
+            &session,
+            "COPY copy_filter_lease (id) FROM STDIN",
+            &CopyForceSelection::None,
+            &CopyForceSelection::None,
+            None,
+        )
+        .expect("admitted COPY");
+        let controls = operation.controls().clone();
+        let retained_before_decode = controls.current_query_memory_bytes();
+        let (_guard, observed) = super::test_hooks::observe_before_ingest();
+
+        // Act
+        let result = operation.with_publication_scope(|active_controls| {
+            operation.execute_decoded_rows_with_controls(
+                &session,
+                vec![vec![Some("41".to_owned())]],
+                &CopyExecutionOptions {
+                    header: CopyHeaderMode::None,
+                    where_clause: Some("id > 0"),
+                    default_marker: None,
+                    on_error_ignore: false,
+                    reject_limit: None,
+                },
+                None,
+                active_controls,
+            )
+        });
+        let retained_during_publication = observed.recv().expect("pre-ingest memory observation");
+
+        // Assert
+        assert_eq!(result.expect("COPY publication").count, 1);
+        assert!(retained_during_publication > retained_before_decode);
+        cassie
+            .execute_sql(&session, "ROLLBACK", Vec::new())
+            .expect("rollback");
+    }
 }

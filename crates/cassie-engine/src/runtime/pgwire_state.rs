@@ -47,6 +47,7 @@ impl PgwireBackendRegistration {
     ///
     /// Panics if the pgwire backend registry is poisoned.
     #[doc(hidden)]
+    #[must_use]
     pub fn begin_query(&self) -> PgwireQueryCancellationGuard {
         self.begin_query_with_handle(QueryCancellationHandle::new(), true)
     }
@@ -55,6 +56,7 @@ impl PgwireBackendRegistration {
     ///
     /// Panics if the pgwire backend registry is poisoned.
     #[doc(hidden)]
+    #[must_use]
     pub fn resume_query(
         &self,
         _suspended: QueryCancellationHandle,
@@ -128,6 +130,7 @@ impl PgwireQueryCancellationGuard {
 
     #[cfg(test)]
     #[doc(hidden)]
+    #[must_use]
     pub fn suspend(self) -> QueryCancellationHandle {
         self.cancellation.clone()
     }

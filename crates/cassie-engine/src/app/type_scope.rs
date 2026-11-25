@@ -52,6 +52,9 @@ impl Cassie {
     }
 
     /// Parses `sql` with `session`'s composite type names in scope.
+    ///
+    /// # Errors
+    /// Returns an error when the syntax or session-scoped type names cannot be resolved.
     pub fn parse_statement_for_session(
         &self,
         session: Option<&CassieSession>,

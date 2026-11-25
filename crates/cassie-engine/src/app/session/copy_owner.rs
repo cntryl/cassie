@@ -188,6 +188,7 @@ impl CopyCommandOwner {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn matches_target(&self, target: &str) -> bool {
         self.target
             .as_ref()

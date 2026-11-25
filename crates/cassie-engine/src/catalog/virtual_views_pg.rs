@@ -314,7 +314,7 @@ pub(super) fn pg_attribute(
         }
         let Some(materialized) = projection
             .materialized
-            .filter(|metadata| crate::catalog::is_sql_materialized_view(metadata))
+            .filter(crate::catalog::is_sql_materialized_view)
         else {
             continue;
         };

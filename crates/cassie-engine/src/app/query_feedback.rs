@@ -11,6 +11,7 @@ impl Cassie {
     /// PostgreSQL, `$user` names the schema matching the session role, and
     /// entries naming schemas that do not exist are skipped rather than
     /// rejected when the path is set.
+    #[must_use]
     pub fn binding_search_path(&self, session: &CassieSession) -> Vec<String> {
         let database = session
             .current_database()

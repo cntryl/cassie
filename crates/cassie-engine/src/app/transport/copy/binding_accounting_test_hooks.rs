@@ -73,6 +73,7 @@ fn install(
     (Guard(id), receiver)
 }
 
+#[must_use]
 pub fn leave_before_charge(
     cassie: &Cassie,
     session: &CassieSession,
@@ -81,6 +82,7 @@ pub fn leave_before_charge(
     install(cassie, session, Action::Pressure(remaining))
 }
 
+#[must_use]
 pub fn cancel_after_validation(
     cassie: &Cassie,
     session: &CassieSession,
@@ -89,6 +91,7 @@ pub fn cancel_after_validation(
     install(cassie, session, Action::Cancel(cancellation))
 }
 
+#[must_use]
 pub fn expire_after_validation(
     cassie: &Cassie,
     session: &CassieSession,

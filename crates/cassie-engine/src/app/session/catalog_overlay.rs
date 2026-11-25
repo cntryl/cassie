@@ -14,6 +14,7 @@ pub(super) struct TransactionCatalogViews {
 
 impl CassieSession {
     #[doc(hidden)]
+    #[must_use]
     pub fn transaction_catalog_overlay(&self) -> Option<Catalog> {
         let transaction = self.transaction.lock();
         self.ensure_operation_current_locked(&transaction).ok()?;

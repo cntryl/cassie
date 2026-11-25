@@ -9,6 +9,7 @@ mod repeatable_write;
 impl CassieError {
     /// `PostgreSQL` 25P02 for work attempted inside a failed transaction block.
     #[doc(hidden)]
+    #[must_use]
     pub fn failed_transaction() -> Self {
         Self::Transaction {
             kind: TransactionErrorKind::FailedTransaction,
@@ -321,7 +322,40 @@ impl Cassie {
                 transactional_ddl,
             )
         };
-        let committed = if repeatable_write {
+        let committed = self
+            .publish_under_commit_write_gates(
+                session,
+                collections,
+                repeatable_write,
+                referential,
+                controls,
+                publish,
+            )
+            .inspect_err(|_| session.mark_transaction_failed())?;
+
+        if let Some(snapshot) = catalog_overlay.as_ref() {
+            self.publication_catalog
+                .publish_transaction_snapshot(snapshot);
+        }
+        self.cleanup_committed_role_grants(removed_role_grant_targets);
+        commit_seal.retire_committed();
+        if let Some(publication) = catalog_publication {
+            publication.retire();
+        }
+        self.finish_staged_write_batches(committed, Some(controls));
+        Ok(())
+    }
+
+    fn publish_under_commit_write_gates<T>(
+        &self,
+        session: &CassieSession,
+        collections: &[String],
+        repeatable_write: bool,
+        referential: bool,
+        controls: &crate::runtime::QueryExecutionControls,
+        publish: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        if repeatable_write {
             self.midge.with_transaction_write_gates(
                 collections,
                 referential,
@@ -343,19 +377,6 @@ impl Cassie {
         } else {
             self.midge.with_collection_gates(collections, publish)
         }
-        .inspect_err(|_| session.mark_transaction_failed())?;
-
-        if let Some(snapshot) = catalog_overlay.as_ref() {
-            self.publication_catalog
-                .publish_transaction_snapshot(snapshot);
-        }
-        self.cleanup_committed_role_grants(removed_role_grant_targets);
-        commit_seal.retire_committed();
-        if let Some(publication) = catalog_publication {
-            publication.retire();
-        }
-        self.finish_staged_write_batches(committed, Some(controls));
-        Ok(())
     }
 
     fn cleanup_committed_role_grants(

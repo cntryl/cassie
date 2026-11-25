@@ -24,6 +24,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn transaction_relation_exists(&self, catalog: &Catalog, relation: &str) -> bool {
         let transaction = self.transaction.lock();
         transaction.catalog_overlay.as_ref().map_or_else(
@@ -234,6 +235,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn transaction_generation(&self) -> u64 {
         self.transaction.lock().generation
     }
@@ -519,6 +521,7 @@ impl CassieSession {
     /// another thread the transaction is not usable, so it reads as failed
     /// until that COMMIT retires it (#1290).
     #[doc(hidden)]
+    #[must_use]
     pub fn ready_for_query_status(&self) -> SessionTransactionStatus {
         let transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::InTransaction
@@ -530,7 +533,6 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
-
     pub fn rollback_transaction(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.rollback_if_current(self);

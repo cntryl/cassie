@@ -258,6 +258,7 @@ impl SessionSettings {
     }
 }
 
+#[must_use]
 pub fn all() -> &'static [SettingSpec] {
     SETTINGS
 }

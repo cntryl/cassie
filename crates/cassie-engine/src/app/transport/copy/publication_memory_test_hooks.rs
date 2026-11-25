@@ -16,6 +16,11 @@ impl Drop for Guard {
     }
 }
 
+/// Installs a one-shot observer for memory held immediately before COPY ingest.
+///
+/// # Panics
+/// Panics if a memory observer is already installed on this thread.
+#[must_use]
 pub fn observe_before_ingest() -> (Guard, Receiver<usize>) {
     let (sender, receiver) = mpsc::sync_channel(1);
     NEXT.with(|slot| {

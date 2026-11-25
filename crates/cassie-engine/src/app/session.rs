@@ -330,6 +330,7 @@ impl CassieSession {
     /// Creates an authenticated session for cross-crate transport fixtures.
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn authenticated_for_test(user: String, database: Option<String>, is_admin: bool) -> Self {
         Self::authenticated(user, database, is_admin)
     }
@@ -395,7 +396,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn transaction_unique_owner_id(&self) -> Uuid {
         self.transaction.lock().unique_owner_id
     }
@@ -415,6 +416,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_authenticated_read_only(&self) -> bool {
         self.access == SessionAccess::AuthenticatedReadOnly
     }
@@ -424,7 +426,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
-
+    #[must_use]
     pub fn transaction_status_snapshot(&self) -> SessionTransactionStatus {
         self.transaction.lock().status
     }
@@ -538,6 +540,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_transaction_active(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::InTransaction
     }
@@ -639,12 +642,12 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_transaction_failed(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::Failed
     }
 
     #[doc(hidden)]
-
     pub fn mark_transaction_failed(&self) {
         if let Some(authority) = self.operation_failure_authority.as_ref() {
             authority.mark_failed_if_current(self);

@@ -241,7 +241,10 @@ impl CassieSession {
         if current_catalog_version != base_catalog_version
             || transaction.catalog_base_version != batch.base_catalog_base_version
             || *transaction.storage_overlay.lock() != batch.base_storage_overlay
-            || !same_private_outputs(&transaction.private_outputs, &batch.base_private_outputs)
+            || !same_private_outputs(
+                transaction.private_outputs.as_ref(),
+                batch.base_private_outputs.as_ref(),
+            )
         {
             return Err(CassieError::Execution(
                 "session transaction changed while statement was executing".to_string(),
@@ -287,14 +290,16 @@ impl CassieSession {
         transaction.catalog_base_version = batch_transaction.catalog_base_version;
         transaction.catalog_views = batch_transaction.catalog_views.clone();
         *transaction.storage_overlay.lock() = published;
-        transaction.private_outputs = batch_transaction.private_outputs.clone();
+        transaction
+            .private_outputs
+            .clone_from(&batch_transaction.private_outputs);
         Ok(())
     }
 }
 
 fn same_private_outputs(
-    left: &Option<Arc<crate::app::PrivateOutputs>>,
-    right: &Option<Arc<crate::app::PrivateOutputs>>,
+    left: Option<&Arc<crate::app::PrivateOutputs>>,
+    right: Option<&Arc<crate::app::PrivateOutputs>>,
 ) -> bool {
     match (left, right) {
         (Some(left), Some(right)) => Arc::ptr_eq(left, right),

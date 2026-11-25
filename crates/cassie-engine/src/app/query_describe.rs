@@ -26,6 +26,8 @@ impl Cassie {
         )
     }
 
+    /// # Errors
+    /// Returns an error if the session cannot bind or describe the supplied statement.
     pub fn describe_parsed_statement_for_session(
         &self,
         session: &super::CassieSession,
@@ -42,6 +44,8 @@ impl Cassie {
         )
     }
 
+    /// # Errors
+    /// Returns an error if authorization, admission, or statement description fails.
     pub fn describe_pgwire_parsed_statement_for_session(
         &self,
         session: &super::CassieSession,

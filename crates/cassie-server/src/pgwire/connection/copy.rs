@@ -267,7 +267,7 @@ fn bind_copy_from_stdin(
     let force_null = engine_force_selection(&request.force_null);
     let force_not_null = engine_force_selection(&request.force_not_null);
     let operation = crate::app::transport::copy::CopyFromOperation::bind(
-        Arc::new(cassie.clone()),
+        cassie,
         session,
         &binding_sql,
         &force_null,

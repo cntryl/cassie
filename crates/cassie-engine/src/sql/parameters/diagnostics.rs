@@ -24,6 +24,7 @@ pub enum ScalarLiteralDiagnostic {
 
 impl ScalarLiteralDiagnostic {
     #[doc(hidden)]
+    #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
             Self::Syntax(_) => "22P02",
@@ -31,6 +32,7 @@ impl ScalarLiteralDiagnostic {
         }
     }
     #[doc(hidden)]
+    #[must_use]
     pub fn capacity(self, input: &str) -> Option<usize> {
         if matches!(self, Self::FloatRange) {
             return input
@@ -142,6 +144,7 @@ pub enum ParameterSemanticDiagnostic {
 
 impl ParameterSemanticDiagnostic {
     #[doc(hidden)]
+    #[must_use]
     pub fn uses_execution_error(self) -> bool {
         matches!(
             self,
@@ -159,6 +162,7 @@ impl ParameterSemanticDiagnostic {
         )
     }
     #[doc(hidden)]
+    #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
             Self::ValuesWidth => "42601",
@@ -181,6 +185,7 @@ impl ParameterSemanticDiagnostic {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn message(self) -> String {
         let mut message = String::with_capacity(self.message_capacity());
         self.write_message(&mut message)
@@ -189,6 +194,7 @@ impl ParameterSemanticDiagnostic {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub const fn hint(self) -> Option<&'static str> {
         match self {
             Self::ToCharTimeTz { .. } => Some(UNDEFINED_FUNCTION_HINT),
@@ -197,6 +203,7 @@ impl ParameterSemanticDiagnostic {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn message_capacity(self) -> usize {
         match self {
             Self::ValuesWidth => "VALUES lists must all be the same length".len(),
@@ -327,6 +334,7 @@ impl ParameterSemanticDiagnostic {
 
     #[cfg(test)]
     #[doc(hidden)]
+    #[must_use]
     pub fn detail(self) -> Option<String> {
         let mut detail = String::with_capacity(self.detail_capacity()?);
         self.write_detail(&mut detail)
@@ -335,6 +343,7 @@ impl ParameterSemanticDiagnostic {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn detail_capacity(self) -> Option<usize> {
         match self {
             Self::Inconsistent {

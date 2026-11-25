@@ -227,6 +227,7 @@ impl QueryMemoryReservation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         self.core.belongs_to(&controls.memory)
     }
@@ -392,6 +393,11 @@ impl QueryExecutionControls {
         &self.memory
     }
 
+    /// Reserves request-owned memory from the configured query budget.
+    ///
+    /// # Errors
+    /// Returns `CassieError::ResourceLimit` if the requested bytes exceed the
+    /// request budget or the reservation cannot be represented.
     pub fn reserve_request_memory(
         &self,
         bytes: usize,

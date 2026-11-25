@@ -79,6 +79,8 @@ impl Cassie {
         })
     }
 
+    /// # Errors
+    /// Returns query admission, execution, interruption, or result conversion errors.
     pub fn execute_sql_with_cancellation_converted<T>(
         &self,
         session: &CassieSession,
@@ -97,7 +99,6 @@ impl Cassie {
     }
 
     #[doc(hidden)]
-
     pub fn execute_copy_where_with_controls(
         &self,
         session: &CassieSession,
@@ -109,7 +110,6 @@ impl Cassie {
     }
 
     #[doc(hidden)]
-
     pub fn execute_copy_where_with_authority(
         &self,
         session: &CassieSession,
@@ -252,6 +252,8 @@ impl Cassie {
         result
     }
 
+    /// # Errors
+    /// Returns admission, planning, interruption, or explain-output conversion errors.
     pub fn explain_sql_with_cancellation_converted<T>(
         &self,
         session: &CassieSession,

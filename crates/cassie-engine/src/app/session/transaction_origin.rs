@@ -31,6 +31,7 @@ impl CassieSession {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_implicit_transaction(&self) -> bool {
         self.transaction.lock().implicit
     }

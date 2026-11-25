@@ -245,6 +245,7 @@ pub(crate) use wildcard::{
     wildcard_output_shape_with_parameters,
 };
 
+#[must_use]
 pub fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)
 }

@@ -124,6 +124,27 @@ struct PreparedReplay {
     last_applied_event_id: Option<String>,
 }
 
+fn advance_replay_progress(
+    metadata: &mut crate::catalog::ProjectionMeta,
+    batch: &ProjectionReplayBatch,
+    prepared: &mut PreparedReplay,
+) {
+    if metadata.source_identity.is_none() {
+        metadata.source_identity = Some(batch.source_identity.clone());
+    }
+    metadata.replay_batch_id = Some(batch.batch_id.clone());
+    metadata.source_checkpoint = prepared.source_checkpoint.take();
+    metadata.source_position = prepared.source_position;
+    metadata.last_applied_event_id = prepared.last_applied_event_id.take();
+    metadata.applied_event_count = metadata
+        .applied_event_count
+        .saturating_add(prepared.applied);
+    metadata.skipped_duplicate_count = metadata
+        .skipped_duplicate_count
+        .saturating_add(prepared.skipped);
+    record_replay_lag(metadata, batch.lag);
+}
+
 impl Cassie {
     /// Replay a reconstructible projection with buffered local WAL or the
     /// configured cloud durability policy. A successful result need not survive
@@ -425,20 +446,7 @@ impl Cassie {
         commit: cassie_storage::native::WriteOptions,
     ) -> Result<ProjectionReplayReport, CassieError> {
         let previous_metadata = metadata.clone();
-        if metadata.source_identity.is_none() {
-            metadata.source_identity = Some(batch.source_identity.clone());
-        }
-        metadata.replay_batch_id = Some(batch.batch_id.clone());
-        metadata.source_checkpoint = prepared.source_checkpoint;
-        metadata.source_position = prepared.source_position;
-        metadata.last_applied_event_id = prepared.last_applied_event_id;
-        metadata.applied_event_count = metadata
-            .applied_event_count
-            .saturating_add(prepared.applied);
-        metadata.skipped_duplicate_count = metadata
-            .skipped_duplicate_count
-            .saturating_add(prepared.skipped);
-        record_replay_lag(&mut metadata, batch.lag);
+        advance_replay_progress(&mut metadata, &batch, &mut prepared);
         let failure_expected = stored_metadata.clone();
         let replay = ReplayBatchCommit {
             expected_metadata: stored_metadata,

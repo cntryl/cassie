@@ -18,6 +18,10 @@ pub enum TextVectorError {
 
 // A callback may observe a valid prefix before later input is rejected. Retained
 // output consumers must complete a no-op validation pass before construction.
+///
+/// # Errors
+/// Returns `Shape` for invalid JSON, malformed vector syntax, or a dimension
+/// mismatch, and `Range` when a component is not representable as a finite `f32`.
 pub fn visit_components_with_dimension(
     text: &str,
     expected_dimensions: Option<usize>,

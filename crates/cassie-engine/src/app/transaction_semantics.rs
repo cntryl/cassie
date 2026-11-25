@@ -80,6 +80,7 @@ pub(crate) fn transactional_ddl_supported(catalog: &Catalog, statement: &QuerySt
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn implicit_ddl_supported(catalog: &Catalog, statement: &QueryStatement) -> bool {
     !matches!(statement, QueryStatement::DropIndex(_))
         && transactional_ddl_supported(catalog, statement)

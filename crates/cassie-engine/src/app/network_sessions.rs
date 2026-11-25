@@ -47,6 +47,8 @@ struct PersistedSession {
     credential_fingerprint: String,
 }
 
+/// # Errors
+/// Returns an authentication error or a failure persisting the session token.
 pub fn login(
     cassie: &Cassie,
     user: &str,
@@ -194,6 +196,8 @@ fn issue_transaction(
     Ok(token)
 }
 
+/// # Errors
+/// Returns an error if the session is invalid, expired, revoked, or its role cannot be read.
 pub fn authenticate(cassie: &Cassie, token: &str) -> Result<NetworkPrincipal, CassieError> {
     let key = session_key(token);
     let Some(value) = cassie.midge.raw_get(StorageFamily::Schema, &key)? else {
@@ -219,6 +223,8 @@ pub fn authenticate(cassie: &Cassie, token: &str) -> Result<NetworkPrincipal, Ca
     }))
 }
 
+/// # Errors
+/// Returns an error when the stored session token cannot be removed.
 pub fn revoke(cassie: &Cassie, token: &str) -> Result<(), CassieError> {
     cassie
         .midge
@@ -288,6 +294,7 @@ fn session_key_impl(token: &str) -> Vec<u8> {
 
 #[cfg(any(test, feature = "transport-test-hooks"))]
 #[doc(hidden)]
+#[must_use]
 pub fn session_key(token: &str) -> Vec<u8> {
     session_key_impl(token)
 }

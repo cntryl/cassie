@@ -46,6 +46,7 @@ pub struct CopySkippedRow {
 impl CopySkippedRow {
     /// Returns the typed row failure for transport diagnostics.
     #[doc(hidden)]
+    #[must_use]
     pub fn error(&self) -> &CassieError {
         &self.error
     }

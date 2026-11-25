@@ -173,6 +173,11 @@ fn create_materialized_relation(
             .map_err(QueryError::from)?;
     }
     let output = empty_command(command_tag, controls)?;
+    let build_before_publish = with_data
+        && matches!(
+            initial_materialization,
+            InitialMaterialization::BeforeCatalogPublish
+        );
     let created = cassie.midge.with_collection_gates(
         &[name.to_string()],
         || -> Result<bool, QueryError> {
@@ -185,12 +190,7 @@ fn create_materialized_relation(
                 )));
             }
 
-            if with_data
-                && matches!(
-                    initial_materialization,
-                    InitialMaterialization::BeforeCatalogPublish
-                )
-            {
+            if build_before_publish {
                 if let Err(error) =
                     build_active_version(cassie, &mut metadata, user_functions, controls)
                 {
@@ -211,12 +211,7 @@ fn create_materialized_relation(
                 }
             }
             if let Err(error) = cassie.midge.put_projection_metadata(&metadata) {
-                if with_data
-                    && matches!(
-                        initial_materialization,
-                        InitialMaterialization::BeforeCatalogPublish
-                    )
-                {
+                if build_before_publish {
                     discard_unpublished_output(cassie, &metadata);
                 }
                 return Err(QueryError::General(error.to_string()));

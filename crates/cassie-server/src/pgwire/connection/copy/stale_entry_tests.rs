@@ -127,7 +127,7 @@ fn should_reject_binary_copy_into_a_staged_enum_with_feature_not_supported() {
             .expect("COPY request");
     let binding_sql = request.table_binding_sql().expect("table target");
     let operation = crate::app::transport::copy::CopyFromOperation::bind(
-        std::sync::Arc::new(cassie.clone()),
+        &cassie,
         &session,
         &binding_sql,
         &crate::app::transport::copy::CopyForceSelection::None,

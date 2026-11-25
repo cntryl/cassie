@@ -112,6 +112,7 @@ fn verify_receipt(directory: &Path, name: &str, expected: &str) -> Result<(), St
 
 /// Return true only in the selected child; the parent waits for and verifies it.
 #[doc(hidden)]
+#[must_use]
 pub fn enter_child(test_name: &str, case: &str) -> bool {
     if std::env::var_os(CHILD_CASE).is_some() {
         let (directory, token) = child_environment(case);
@@ -123,7 +124,6 @@ pub fn enter_child(test_name: &str, case: &str) -> bool {
 }
 
 #[doc(hidden)]
-
 pub fn complete_child(case: &str) {
     let (directory, token) = child_environment(case);
     write_receipt(&directory, "complete", &receipt(case, &token, "COMPLETE"));

@@ -138,6 +138,7 @@ pub struct BoundReadScope {
 
 impl BoundReadScope {
     #[doc(hidden)]
+    #[must_use]
     pub fn enter(owner: Option<Arc<BoundReadView>>) -> Self {
         Self {
             previous: PENDING.with(|slot| slot.replace(owner)),

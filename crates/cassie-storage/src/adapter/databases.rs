@@ -20,6 +20,8 @@ use super::{
 };
 
 mod lifecycle_recovery;
+#[cfg(test)]
+mod native_writer_create_tests;
 
 /// The resolved physical owner of one logical database.
 #[derive(Debug, Clone)]
@@ -622,7 +624,11 @@ impl Midge {
     }
 
     fn create_physical_family(&self, name: &str) -> Result<ColumnFamilyHandle, CassieError> {
-        self.create_physical_family_with(name, || self.engine.create_column_family(name))
+        self.create_physical_family_with(name, || {
+            #[cfg(test)]
+            native_writer_create_tests::observe_native_create(name);
+            self.engine.create_column_family(name)
+        })
     }
 
     fn create_physical_family_with(

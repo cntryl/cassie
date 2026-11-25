@@ -255,7 +255,6 @@ fn seed_rest_role_fixture(cassie: &Cassie, admin: &CassieSession, reader_passwor
 #[test]
 fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     // Arrange
-    let path = data_dir("statement_families");
     let admin_password = uuid::Uuid::new_v4().to_string();
     let reader_password = uuid::Uuid::new_v4().to_string();
     let blocked_password = uuid::Uuid::new_v4().to_string();
@@ -359,8 +358,6 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
         "authenticated admin should retain DDL"
     );
     assert!(trusted_result.is_ok(), "embedded session should retain DDL");
-
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]

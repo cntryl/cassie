@@ -180,6 +180,39 @@ fn should_find_decomposed_accent_word_given_accent_folding() {
 }
 
 #[test]
+fn should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
+        cassie.startup().unwrap();
+        run(&cassie, "CREATE TABLE dotted_i_ft (id INT NOT NULL, body TEXT)");
+        run(
+            &cassie,
+            "INSERT INTO dotted_i_ft (id, body) VALUES (1, 'İstanbul trip')",
+        );
+        run(
+            &cassie,
+            "CREATE INDEX dotted_i_ft_idx ON dotted_i_ft USING FULLTEXT (body) \
+                 WITH (analyzer = 'simple', accent_folding = 'false')",
+        );
+
+        // Act
+        let rows = run(
+            &cassie,
+            "SELECT id FROM dotted_i_ft WHERE search(body, 'istanbul')",
+        );
+
+        // Assert
+        assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+    });
+}
+
+#[test]
 fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

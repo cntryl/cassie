@@ -620,89 +620,94 @@ fn should_leave_dropped_index_artifacts_absent_when_an_old_rebuild_resumes() {
             unique: false,
             options,
         };
-        midge.put_index(&declaration).expect("create index");
-        let old = midge
-            .get_index(&collection, &declaration.name)
-            .expect("read catalog")
-            .expect("published index");
-        let old_prefix = rebuild_artifact_prefix(&old);
-        assert!(!midge
-            .raw_scan_prefix_for_collection(&collection, &old_prefix)
-            .expect("live artifacts")
-            .is_empty());
-        let (ready, captured) = mpsc::channel();
-        let (resume, wait) = mpsc::channel();
-        let (rebuilt, first_finished) = mpsc::channel();
-
-        // Act
-        let (after_drop, after_old_rebuild, replacement_prefix) = thread::scope(|scope| {
-            let (worker_midge, worker_old) = (&midge, &old);
-            let (worker_collection, worker_prefix) = (&collection, &old_prefix);
-            let worker = scope.spawn(move || {
-                ready.send(()).expect("old definition captured");
-                wait.recv_timeout(Duration::from_secs(5))
-                    .expect("drop completed");
-                rebuild_observed_index(worker_midge, worker_old);
-                let result =
-                    worker_midge.raw_scan_prefix_for_collection(worker_collection, worker_prefix);
-                rebuilt
-                    .send(result)
-                    .expect("record retired prefix before recreation");
-                wait.recv_timeout(Duration::from_secs(5))
-                    .expect("replacement published");
-                rebuild_observed_index(worker_midge, worker_old);
-            });
-            captured
-                .recv_timeout(Duration::from_secs(5))
-                .expect("rebuild input captured");
-            midge
-                .delete_index(&collection, &declaration.name)
-                .expect("drop index");
-            let after_drop = midge
-                .raw_scan_prefix_for_collection(&collection, &old_prefix)
-                .expect("inspect prefix after drop");
-            assert!(midge
-                .get_index(&collection, &declaration.name)
-                .expect("catalog read")
-                .is_none());
-            resume.send(()).expect("release rebuild");
-            let after_old_rebuild = first_finished
-                .recv_timeout(Duration::from_secs(5))
-                .expect("rebuild completed before recreation")
-                .expect("inspect dropped artifact prefix");
-            midge.put_index(&declaration).expect("recreate same name");
-            let replacement = midge
-                .get_index(&collection, &declaration.name)
-                .expect("read catalog")
-                .expect("replacement");
-            resume
-                .send(())
-                .expect("release stale post-recreation rebuild");
-            worker.join().expect("rebuild worker");
-            rebuild_observed_index(&midge, &replacement);
-            (
-                after_drop,
-                after_old_rebuild,
-                rebuild_artifact_prefix(&replacement),
-            )
-        });
-
-        // Assert
-        assert!(after_drop.is_empty());
-        assert!(after_old_rebuild.is_empty());
-        assert_ne!(old_prefix, replacement_prefix);
-        assert!(midge
-            .raw_scan_prefix_for_collection(&collection, &old_prefix)
-            .expect("inspect old prefix after recreation")
-            .is_empty());
-        assert!(!midge
-            .raw_scan_prefix_for_collection(&collection, &replacement_prefix)
-            .expect("inspect replacement prefix")
-            .is_empty());
-        midge
-            .delete_index(&collection, &declaration.name)
-            .expect("drop replacement");
+        assert_index_rebuild_stays_retired(&midge, &declaration);
     }
+}
+
+fn assert_index_rebuild_stays_retired(midge: &Midge, declaration: &IndexMeta) {
+    let collection = &declaration.collection;
+    midge.put_index(declaration).expect("create index");
+    let old = midge
+        .get_index(collection, &declaration.name)
+        .expect("read catalog")
+        .expect("published index");
+    let old_prefix = rebuild_artifact_prefix(&old);
+    assert!(!midge
+        .raw_scan_prefix_for_collection(collection, &old_prefix)
+        .expect("live artifacts")
+        .is_empty());
+    let (ready, captured) = mpsc::channel();
+    let (resume, wait) = mpsc::channel();
+    let (rebuilt, first_finished) = mpsc::channel();
+
+    // Act
+    let (after_drop, after_old_rebuild, replacement_prefix) = thread::scope(|scope| {
+        let (worker_midge, worker_old) = (midge, &old);
+        let (worker_collection, worker_prefix) = (collection, &old_prefix);
+        let worker = scope.spawn(move || {
+            ready.send(()).expect("old definition captured");
+            wait.recv_timeout(Duration::from_secs(5))
+                .expect("drop completed");
+            rebuild_observed_index(worker_midge, worker_old);
+            let result =
+                worker_midge.raw_scan_prefix_for_collection(worker_collection, worker_prefix);
+            rebuilt
+                .send(result)
+                .expect("record retired prefix before recreation");
+            wait.recv_timeout(Duration::from_secs(5))
+                .expect("replacement published");
+            rebuild_observed_index(worker_midge, worker_old);
+        });
+        captured
+            .recv_timeout(Duration::from_secs(5))
+            .expect("rebuild input captured");
+        midge
+            .delete_index(collection, &declaration.name)
+            .expect("drop index");
+        let after_drop = midge
+            .raw_scan_prefix_for_collection(collection, &old_prefix)
+            .expect("inspect prefix after drop");
+        assert!(midge
+            .get_index(collection, &declaration.name)
+            .expect("catalog read")
+            .is_none());
+        resume.send(()).expect("release rebuild");
+        let after_old_rebuild = first_finished
+            .recv_timeout(Duration::from_secs(5))
+            .expect("rebuild completed before recreation")
+            .expect("inspect dropped artifact prefix");
+        midge.put_index(declaration).expect("recreate same name");
+        let replacement = midge
+            .get_index(collection, &declaration.name)
+            .expect("read catalog")
+            .expect("replacement");
+        resume
+            .send(())
+            .expect("release stale post-recreation rebuild");
+        worker.join().expect("rebuild worker");
+        rebuild_observed_index(midge, &replacement);
+        (
+            after_drop,
+            after_old_rebuild,
+            rebuild_artifact_prefix(&replacement),
+        )
+    });
+
+    // Assert
+    assert!(after_drop.is_empty());
+    assert!(after_old_rebuild.is_empty());
+    assert_ne!(old_prefix, replacement_prefix);
+    assert!(midge
+        .raw_scan_prefix_for_collection(collection, &old_prefix)
+        .expect("inspect old prefix after recreation")
+        .is_empty());
+    assert!(!midge
+        .raw_scan_prefix_for_collection(collection, &replacement_prefix)
+        .expect("inspect replacement prefix")
+        .is_empty());
+    midge
+        .delete_index(collection, &declaration.name)
+        .expect("drop replacement");
 }
 
 fn rebuild_artifact_prefix(index: &IndexMeta) -> Vec<u8> {

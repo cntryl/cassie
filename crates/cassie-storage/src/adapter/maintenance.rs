@@ -504,7 +504,7 @@ impl Midge {
         index: &crate::catalog::IndexMeta,
         generation: u64,
     ) {
-        if self.rebuild_fulltext_index_for_index(index).is_ok() {
+        if matches!(self.rebuild_fulltext_index_for_index(index), Ok(true)) {
             let _ = self.clear_maintenance_debt(
                 collection,
                 &format!("{FULLTEXT_ARTIFACT_PREFIX}{}", index.name),

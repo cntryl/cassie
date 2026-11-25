@@ -3,9 +3,9 @@ use crate::ast::{
     AlterTableOperation, AlterTableStatement, ArraySubscript, CallProcedureStatement,
     CommonTableExpression, CreateIndexStatement, CreateRollupStatement, CreateTableAsClause,
     CreateTableStatement, CteCycle, CteQuery, DeclareCursorStatement, DeleteStatement,
-    ExplainStatement, Expr, FieldDefinition, FunctionCall, GraphColumn, GraphEdgePattern,
-    GraphPathPattern, GraphPathStep, GraphTable, GraphVertexPattern, InsertConflictAction,
-    InsertConflictClause, InsertSource, InsertStatement,
+    ExplainStatement, Expr, FunctionCall, GraphColumn, GraphEdgePattern, GraphPathPattern,
+    GraphPathStep, GraphTable, GraphVertexPattern, InsertConflictAction, InsertConflictClause,
+    InsertSource, InsertStatement,
 };
 
 impl MapAttachment for (String, Expr<()>) {

@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1914 |
 | Rust files | 1871 |
-| Rust test declarations | 11739 |
+| Rust test declarations | 11742 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11764 |
+| Static Rust registration instances | 11767 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -27,7 +27,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
-| [analytics](inventory/analytics.md) | 192 | 0 |
+| [analytics](inventory/analytics.md) | 193 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 648 | 0 |
@@ -59,7 +59,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [query_scan_controls](inventory/query_scan_controls.md) | 56 | 3 |
 | [relational_qualification](inventory/relational_qualification.md) | 77 | 0 |
 | [rest](inventory/rest.md) | 105 | 0 |
-| [search](inventory/search.md) | 184 | 0 |
+| [search](inventory/search.md) | 187 | 0 |
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 61 | 0 |
@@ -68,7 +68,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 12 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 295 | 0 |
-| [support](inventory/support.md) | 28 | 0 |
+| [support](inventory/support.md) | 27 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |

@@ -57,6 +57,9 @@ fancy-regex = { version = "=0.20.2", default-features = false, features = ["std"
 sql-json-path = "0.2.0"
 rust-stemmers = "1.2.0"
 
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.6", features = ["process"] }
+
 [dev-dependencies]
 cassie-core = { path = "../cassie-core" }
 cntryl-stress = "0.5.1"

@@ -71,16 +71,14 @@ async fn spawn_rest_server(
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
 
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown_and_admin_ui_dir(
-        addr.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_admin_ui_dir(
+        listener,
         cassie,
         shutdown.clone(),
         admin_ui_dir,
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     (format!("http://{addr}"), shutdown, server)
 }
@@ -145,15 +143,13 @@ async fn spawn_tls_rest_server(
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
 
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        addr.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         shutdown.clone(),
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     (format!("https://{addr}"), shutdown, server)
 }

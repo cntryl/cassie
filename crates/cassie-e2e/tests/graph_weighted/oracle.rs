@@ -106,28 +106,46 @@ pub fn should_return_the_zero_hop_path_before_the_closing_cycle_of_a_zero_cost_t
 
 #[test]
 pub fn should_order_equal_cost_paths_by_the_contract_path_order() {
-    // Arrange
-    let world = Wg::new(
-        4,
-        &[
-            fast(1, 1, 2, 1),
-            fast(2, 2, 4, 1),
-            fast(3, 1, 3, 1),
-            fast(4, 3, 4, 1),
-        ],
-    );
+    // Arrange: three paths cost two each, so k=2 cuts through the tie.
+    let links = [
+        fast(1, 1, 2, 1),
+        fast(2, 2, 5, 1),
+        fast(3, 1, 3, 1),
+        fast(4, 3, 5, 1),
+        fast(5, 1, 4, 1),
+        fast(6, 4, 5, 1),
+    ];
+    let mut reversed_links = links;
+    reversed_links.reverse();
+    let worlds = [Wg::new(5, &links), Wg::new(5, &reversed_links)];
 
     // Act
-    let rows = world
-        .call(1, 4, "'weight', 2, 'out', NULL, NULL, 5")
-        .expect("call succeeds");
+    let outcomes = worlds.map(|world| {
+        let rows = world
+            .call(1, 5, "'weight', 2, 'out', NULL, NULL, 2")
+            .expect("call succeeds");
+        let oracle = world
+            .oracle(1, 5, |_, _| OracleCall::new(2, 2))
+            .expect("oracle accepts");
+        (rows, oracle)
+    });
 
     // Assert
-    let expected = world
-        .oracle(1, 4, |_, _| OracleCall::new(2, 5))
-        .expect("oracle accepts");
-    assert_eq!(rows, expected);
-    assert_eq!(rows.len(), 2);
+    let expected = [
+        (1, 2 * SCALE, vec![1, 2, 5], vec![1, 2]),
+        (2, 2 * SCALE, vec![1, 3, 5], vec![3, 4]),
+    ];
+    for (rows, oracle) in outcomes {
+        assert_eq!(rows, oracle);
+        let ranked_paths = rows
+            .into_iter()
+            .map(|row| {
+                let edge_keys = row.edges.into_iter().map(|(_, id)| id).collect::<Vec<_>>();
+                (row.rank, row.cost, row.vertices, edge_keys)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ranked_paths, expected);
+    }
 }
 
 #[test]

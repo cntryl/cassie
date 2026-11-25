@@ -8,16 +8,11 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
 type QueryEndpointCase = (reqwest::Method, String, Option<serde_json::Value>);
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!(
-        "cassie-rest-admin-query-{label}-{}",
-        Uuid::new_v4()
-    ))
+    crate::support_temp_dirs::data_path(&format!("rest-admin-query-{label}"))
 }
 
 async fn spawn_rest_server(
@@ -31,15 +26,13 @@ async fn spawn_rest_server(
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
 
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        addr.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         shutdown.clone(),
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
 
     (format!("http://{addr}"), shutdown, server)
 }

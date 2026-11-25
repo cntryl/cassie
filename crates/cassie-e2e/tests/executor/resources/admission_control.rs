@@ -9,10 +9,9 @@ use uuid::Uuid;
 use super::support_tls::client_trusting_test_certificate;
 
 fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-admission-{label}-{}", Uuid::new_v4()));
-    path.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("admission-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn runtime_config_with_limits(pgwire_max: usize, rest_max: usize) -> CassieRuntimeConfig {
@@ -132,9 +131,10 @@ fn should_release_rest_admission_permit_after_overflow_503() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie.clone()));
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let server = tokio::spawn(cassie::rest::router::run_with_listener(
+            listener,
+            cassie.clone(),
+        ));
 
         let mut held = tokio::net::TcpStream::connect(addr)
             .await
@@ -265,9 +265,7 @@ fn should_return_rest_admission_503_over_tls() {
             .await
             .expect("reserve listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let server = tokio::spawn(cassie::rest::router::run_with_listener(listener, cassie));
         let held_client = client_trusting_test_certificate(&certificate);
         let held = held_client
             .get(format!("https://{addr}/health"))

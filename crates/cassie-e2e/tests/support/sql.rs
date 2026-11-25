@@ -84,10 +84,9 @@ pub fn new_in_memory_cassie() -> Result<Cassie, cassie::app::CassieError> {
 
 #[must_use]
 pub fn data_dir(label: &str) -> String {
-    crate::support_temp_dirs::sweep_stale_once();
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-sql-{}-{}", label, Uuid::new_v4()));
-    dir.to_string_lossy().to_string()
+    crate::support_temp_dirs::data_path(&format!("sql-{label}"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[must_use]

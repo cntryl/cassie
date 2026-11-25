@@ -2,7 +2,6 @@ use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use std::path::PathBuf;
-use uuid::Uuid;
 
 fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
@@ -11,8 +10,7 @@ fn use_local_storage() {
 }
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!("cassie-view-{label}-{}", Uuid::new_v4()))
+    crate::support_temp_dirs::data_path(&format!("view-{label}"))
 }
 
 fn seed_view_docs(cassie: &Cassie, collection: &str) {

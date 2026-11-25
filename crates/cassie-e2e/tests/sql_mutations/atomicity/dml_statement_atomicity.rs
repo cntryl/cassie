@@ -2,11 +2,9 @@ use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::runtime::QueryCancellationHandle;
 use cassie::types::Value;
 use std::path::PathBuf;
-use uuid::Uuid;
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!("cassie-dml-atomicity-{label}-{}", Uuid::new_v4()))
+    crate::support_temp_dirs::data_path(&format!("dml-atomicity-{label}"))
 }
 
 fn database(label: &str) -> (Cassie, CassieSession, PathBuf) {

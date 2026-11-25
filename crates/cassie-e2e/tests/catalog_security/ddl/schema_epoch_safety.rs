@@ -2,15 +2,13 @@ use cassie::app::Cassie;
 use cassie::midge::adapter::StorageFamily;
 use std::path::PathBuf;
 use std::sync::Arc;
-use uuid::Uuid;
 
 fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(name: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!("cassie-schema-epoch-{name}-{}", Uuid::new_v4()))
+    crate::support_temp_dirs::data_path(&format!("schema-epoch-{name}"))
 }
 
 fn compile_physical_plan(

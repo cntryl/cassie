@@ -5,11 +5,9 @@ use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
 fn data_dir(label: &str) -> PathBuf {
-    crate::support_temp_dirs::sweep_stale_once();
-    std::env::temp_dir().join(format!("cassie-rest-sessions-{label}-{}", Uuid::new_v4()))
+    crate::support_temp_dirs::data_path(&format!("rest-sessions-{label}"))
 }
 
 async fn spawn_rest_server(
@@ -23,14 +21,12 @@ async fn spawn_rest_server(
         .await
         .expect("bind listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        address.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         shutdown.clone(),
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
     (format!("http://{address}"), shutdown, server)
 }
 

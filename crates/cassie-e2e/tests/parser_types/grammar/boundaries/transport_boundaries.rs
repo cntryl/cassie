@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use cassie::app::CassieError;
 use reqwest::StatusCode;
@@ -49,14 +48,12 @@ fn should_apply_the_same_parser_complexity_limit_given_rest_pgwire_and_direct_sq
             .await
             .expect("bind REST");
         let rest_addr = listener.local_addr().expect("REST address");
-        drop(listener);
         let shutdown = Arc::new(Notify::new());
-        let rest = tokio::spawn(cassie::rest::router::run_with_shutdown(
-            rest_addr.to_string(),
+        let rest = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+            listener,
             cassie,
             Arc::clone(&shutdown),
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let client = reqwest::Client::new();
         let login = client
             .post(format!("http://{rest_addr}/api/v1/auth/login"))

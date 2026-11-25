@@ -5,7 +5,6 @@ use std::sync::Arc;
 use cassie::app::{Cassie, CassieError};
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
 async fn spawn_rest_server(
     cassie: Cassie,
@@ -18,14 +17,12 @@ async fn spawn_rest_server(
         .await
         .expect("bind listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        address.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         shutdown.clone(),
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
     (format!("http://{address}"), shutdown, server)
 }
 
@@ -50,8 +47,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
 #[test]
 fn should_map_idle_savepoint_controls_to_rest_bad_requests() {
     // Arrange
-    crate::support_temp_dirs::sweep_stale_once();
-    let data_dir = std::env::temp_dir().join(format!("cassie-rest-tx-errors-{}", Uuid::new_v4()));
+    let data_dir = crate::support_temp_dirs::data_path("rest-tx-errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

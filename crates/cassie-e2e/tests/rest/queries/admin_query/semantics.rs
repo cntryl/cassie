@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 #[test]
 fn should_scope_each_admin_request_to_its_explicit_database() {
     // Arrange

@@ -116,6 +116,21 @@ The organization pass extracted tests from every Cargo root and moved existing l
 
 Authored coverage, an observed failing test and complete feature qualification are separate states. The [validation record](validation.md) is a dated evidence archive. Current named-client and v1.0 qualification requirements are defined by the roadmap and live issues #847–#849; the former [compatibility inventory](../postgresql18-test-inventory.md) is historical.
 
+### Fixture lifetime
+
+Shared fixture paths belong to a directory for the test process under the
+Cassie e2e fixture namespace. On Unix, the namespace is private to the effective
+user, so users sharing a temporary directory can each run the suite. Each run
+holds the lock on its UUID-bearing ownership marker until it exits. The next
+sweep can remove a run that is at least six hours old after matching the marker
+and acquiring its lock. Storage fixtures use child paths so the ownership marker
+stays outside the Midge store.
+
+REST network fixtures bind the loopback listener before publishing its address
+and transfer the same socket to the server. The address-based production
+entry points and these bound listeners use the same REST accept loop and
+validate authentication and transport against the bound address.
+
 ## Regenerate or check the inventory
 
 The generator uses Rust syntax trees, Python ASTs and Cargo metadata. It follows `mod`, `#[path]` and literal `include!` registrations. It includes `#[ignore]` declarations, does not evaluate `cfg`, and does not execute tests or infer their results. Macro-generated test cases and runtime-discovered counts need their owning runner's listing.

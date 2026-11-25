@@ -15,7 +15,7 @@ use hyper::{
     header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, RETRY_AFTER},
     Method, Request, Response, StatusCode,
 };
-use tokio::sync::Notify;
+use tokio::{net::TcpListener, sync::Notify};
 
 use crate::app::Cassie;
 use crate::app::CassieSession;
@@ -75,6 +75,48 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
     admin_ui_dir: PathBuf,
 ) -> Result<(), crate::app::CassieError> {
     request_execution::run_server(addr, cassie, shutdown, admin_ui_dir).await
+}
+
+/// Serve an already bound REST listener.
+///
+/// # Errors
+///
+/// Returns an error if listener policy, TLS setup, or serving fails.
+#[doc(hidden)]
+pub async fn run_with_listener(
+    listener: TcpListener,
+    cassie: Cassie,
+) -> Result<(), crate::app::CassieError> {
+    run_with_listener_and_shutdown(listener, cassie, Arc::new(Notify::new())).await
+}
+
+/// Serve an already bound REST listener until shutdown is requested.
+///
+/// # Errors
+///
+/// Returns an error if listener policy, TLS setup, or serving fails.
+#[doc(hidden)]
+pub async fn run_with_listener_and_shutdown(
+    listener: TcpListener,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+) -> Result<(), crate::app::CassieError> {
+    run_with_listener_and_admin_ui_dir(listener, cassie, shutdown, default_admin_ui_dir()).await
+}
+
+/// Serve an already bound REST listener with a caller-selected UI directory.
+///
+/// # Errors
+///
+/// Returns an error if listener policy, TLS setup, or serving fails.
+#[doc(hidden)]
+pub async fn run_with_listener_and_admin_ui_dir(
+    listener: TcpListener,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+    admin_ui_dir: PathBuf,
+) -> Result<(), crate::app::CassieError> {
+    request_execution::run_bound_server(listener, cassie, shutdown, admin_ui_dir).await
 }
 
 #[derive(Clone)]

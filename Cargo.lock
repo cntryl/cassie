@@ -314,6 +314,7 @@ dependencies = [
  "regex-syntax",
  "reqwest",
  "rust-stemmers",
+ "rustix",
  "rustls",
  "serde",
  "serde_json",

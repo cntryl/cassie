@@ -232,6 +232,15 @@ Repository ORM metadata tests cover the complete supported column shape. Named-c
 limited to the read-model discovery performed by sqlx 0.8.3 and Diesel 2.2.6; it does not certify
 migration generation or PostgreSQL catalog introspection beyond these columns.
 
+### Relation discovery for psql describe (#1487)
+
+The relation-discovery query emitted by psql 18 uses the qualified binary
+regex operator `OPERATOR(pg_catalog.~)` and `COLLATE pg_catalog.default`.
+The qualified operator uses Cassie's existing regex semantics.
+`COLLATE pg_catalog.default` explicitly selects Cassie's default text
+collation for expressions and retains its identity for explicit-collation
+conflict checks. This does not enable locale-specific collation.
+
 ### Accepted psql constraint descriptions (#1487)
 
 This addition is accepted for implementation in

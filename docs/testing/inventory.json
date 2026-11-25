@@ -182,9 +182,9 @@
     ],
     "files": 1913,
     "rust_files": 1870,
-    "rust_test_declarations": 11730,
+    "rust_test_declarations": 11733,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11755,
+    "registered_rust_instances": 11758,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -244024,7 +244024,7 @@
       "name": "should_hide_ungranted_schema_items_from_restricted_rest_sessions",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
       "line": 301,
-      "end_line": 396,
+      "end_line": 399,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -244051,11 +244051,42 @@
       }
     },
     {
+      "id": "tests/rest/queries/admin_query/semantics.rs::should_limit_rest_schema_metadata_to_relations_with_select_privilege",
+      "name": "should_limit_rest_schema_metadata_to_relations_with_select_privilege",
+      "current_file": "tests/rest/queries/admin_query/semantics.rs",
+      "line": 535,
+      "end_line": 585,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "rest",
+          "name": "rest_admin_query::should_limit_rest_schema_metadata_to_relations_with_select_privilege"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "rest",
+        "category": "queries/admin_query",
+        "directory": "tests/rest/queries/admin_query",
+        "file": "tests/rest/queries/admin_query/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/rest/queries/admin_query/semantics.rs::should_return_admin_query_schema_sections_in_stable_order",
       "name": "should_return_admin_query_schema_sections_in_stable_order",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
-      "line": 399,
-      "end_line": 485,
+      "line": 588,
+      "end_line": 674,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -244085,8 +244116,8 @@
       "id": "tests/rest/queries/admin_query/semantics.rs::should_serve_restful_admin_aliases",
       "name": "should_serve_restful_admin_aliases",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
-      "line": 488,
-      "end_line": 598,
+      "line": 677,
+      "end_line": 787,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -244116,8 +244147,8 @@
       "id": "tests/rest/queries/admin_query/semantics.rs::should_resolve_mixed_case_collections_with_percent_decoded_quotes",
       "name": "should_resolve_mixed_case_collections_with_percent_decoded_quotes",
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
-      "line": 600,
-      "end_line": 689,
+      "line": 789,
+      "end_line": 880,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -247492,11 +247523,42 @@
       }
     },
     {
-      "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
-      "name": "should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
+      "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding",
+      "name": "should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
       "line": 183,
       "end_line": 216,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_analyzer_consistency::should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
+      "name": "should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
+      "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
+      "line": 219,
+      "end_line": 252,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -247526,8 +247588,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_not_highlight_case_mismatch_when_case_folding_is_disabled",
       "name": "should_not_highlight_case_mismatch_when_case_folding_is_disabled",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 219,
-      "end_line": 249,
+      "line": 255,
+      "end_line": 285,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -247557,8 +247619,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_keep_fulltext_scores_stable_after_filtered_hybrid_query",
       "name": "should_keep_fulltext_scores_stable_after_filtered_hybrid_query",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 252,
-      "end_line": 279,
+      "line": 288,
+      "end_line": 315,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -247588,8 +247650,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_score_hybrid_candidates_with_full_indexed_corpus_statistics",
       "name": "should_score_hybrid_candidates_with_full_indexed_corpus_statistics",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 282,
-      "end_line": 347,
+      "line": 318,
+      "end_line": 383,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -247619,8 +247681,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates",
       "name": "should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 350,
-      "end_line": 424,
+      "line": 386,
+      "end_line": 460,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -317614,6 +317676,37 @@
       }
     },
     {
+      "id": "tests/sql_queries/ordering/index_type_equivalence.rs::should_use_scalar_index_for_equality_on_domain_over_int",
+      "name": "should_use_scalar_index_for_equality_on_domain_over_int",
+      "current_file": "tests/sql_queries/ordering/index_type_equivalence.rs",
+      "line": 315,
+      "end_line": 337,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "index_type_equivalence::should_use_scalar_index_for_equality_on_domain_over_int"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "ordering",
+        "directory": "tests/sql_queries/ordering",
+        "file": "tests/sql_queries/ordering/index_type_equivalence.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_order_jsonb_values_by_their_native_type_order",
       "name": "should_order_jsonb_values_by_their_native_type_order",
       "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
@@ -384025,9 +384118,9 @@
       "current_file": "tests/rest/queries/admin_query/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 689,
-      "sha256": "0b396aed5f90112ab20ec60bd68aec0b8c24dcd8755faf8a9f75a18bb38ac3b9",
-      "test_declarations": 9,
+      "lines": 880,
+      "sha256": "8bd730a06f04997cb5e68bd81a094e6e99b842b6c209ef12527165c984ffb450",
+      "test_declarations": 10,
       "registered_suites": [
         "rest"
       ],
@@ -384340,9 +384433,9 @@
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 424,
-      "sha256": "743f71711a323317022c9950464b6b64dae82c8d13b385d50bb84ad11a3563df",
-      "test_declarations": 7,
+      "lines": 460,
+      "sha256": "d3549ef0f64fb6fc51473d5bed630fd41db354094155c4557fb084f1e475c79e",
+      "test_declarations": 8,
       "registered_suites": [
         "search"
       ],
@@ -384386,7 +384479,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 227,
-      "sha256": "4b271c2adba21ce138912807236d64a9b4f24d6dce836a9169d0a39f11f0b523",
+      "sha256": "3dd099de278a406927305e227fdeb672bcaca9e938d1146ed37d85a387698983",
       "test_declarations": 5,
       "registered_suites": [
         "search"
@@ -388764,11 +388857,11 @@
     },
     {
       "current_file": "tests/sql_queries/ordering/index_type_equivalence.rs",
-      "role": "test_support",
+      "role": "test_module",
       "action": "keep",
-      "lines": 304,
-      "sha256": "43ab2a96f881ffa12b96aa333cd4ad0a803e7f617cacc8a2a33dfd21d6e6369e",
-      "test_declarations": 0,
+      "lines": 337,
+      "sha256": "93dc3fcdec93a6d7294d87c963160834078607ae68b06828307ce336aba2e6b5",
+      "test_declarations": 1,
       "registered_suites": [
         "sql_queries"
       ],

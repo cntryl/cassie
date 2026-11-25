@@ -23,10 +23,29 @@ const OWNER_FILE: &str = "cache-loss-owner";
 const SOURCE_FILE: &str = "retained-source.json";
 const TABLE: &str = "cloud_cache_docs";
 const INDEX: &str = "cloud_cache_title_idx";
-const LEASE_TTL: Duration = Duration::from_secs(60);
+const LEASE_TTL: Duration = Duration::from_secs(18);
+const LEASE_CLOCK_SKEW: Duration = Duration::ZERO;
 const RECOVERY_DEADLINE: Duration = Duration::from_secs(120);
 const LEASE_RECHECK: Duration = Duration::from_millis(250);
 type TreeSnapshot = BTreeMap<PathBuf, Option<[u8; 32]>>;
+
+#[test]
+fn should_open_simulated_cloud_with_explicit_short_lease_skew() {
+    // Arrange
+    let fixture = CacheFixture::new();
+
+    // Act
+    let opened = Midge::new_cloud_simulated_with_lease_and_skew_for_test(
+        fixture.cache(),
+        "postgres",
+        false,
+        LEASE_TTL,
+        LEASE_CLOCK_SKEW,
+    );
+
+    // Assert
+    assert!(opened.is_ok(), "supported test lease options should open");
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Profile {
@@ -331,11 +350,12 @@ fn seed_cache_sentinels(owned: &CacheFixture) {
 
 fn open_cloud(cache: &Path, configured_strict: bool) -> Result<Cassie, CassieError> {
     let config = CassieRuntimeConfig::default();
-    let midge = Midge::new_cloud_simulated_with_lease_for_test(
+    let midge = Midge::new_cloud_simulated_with_lease_and_skew_for_test(
         cache,
         &config.database,
         configured_strict,
         LEASE_TTL,
+        LEASE_CLOCK_SKEW,
     )?;
     Cassie::new_with_test_midge_and_config(Arc::new(midge), config)
 }

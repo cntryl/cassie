@@ -228,6 +228,14 @@ fn should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execut
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
+        (
+            &indexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
+        (
+            &unindexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
     ]
     .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);
@@ -267,6 +275,14 @@ fn should_return_the_program_limit_error_for_an_excessive_typo_on_every_executio
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
+        (
+            &indexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
+        (
+            &unindexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
     ]
     .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);

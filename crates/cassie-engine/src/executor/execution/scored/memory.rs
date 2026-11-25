@@ -191,7 +191,10 @@ pub(super) fn reserve_tokenized_fulltext_documents(
         .map_err(QueryError::from)
 }
 
-pub(super) fn tokenized_text_upper_bound(text: &str, analyzer: &AnalyzerConfig) -> usize {
+pub(in crate::executor::execution) fn tokenized_text_upper_bound(
+    text: &str,
+    analyzer: &AnalyzerConfig,
+) -> usize {
     let token_count = if analyzer.tokenizer == "whitespace" {
         text.split_whitespace().count()
     } else {

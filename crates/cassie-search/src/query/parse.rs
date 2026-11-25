@@ -51,6 +51,25 @@ impl Expr {
     }
 }
 
+/// Whether a valid query contains a prefix or typo item requiring field-wide expansion.
+/// Invalid inputs report their syntax error when evaluated.
+#[must_use]
+pub fn requires_vocabulary(text: &str) -> bool {
+    fn contains_expansion(expr: &Expr) -> bool {
+        match expr {
+            Expr::Prefix(_) | Expr::Typo(_) => true,
+            Expr::And(children) | Expr::Or(children) => children.iter().any(contains_expansion),
+            Expr::Not(child) => contains_expansion(child),
+            Expr::Word(_) | Expr::Phrase { .. } => false,
+        }
+    }
+    parse(text)
+        .ok()
+        .flatten()
+        .as_ref()
+        .is_some_and(contains_expansion)
+}
+
 /// Parses `text`. A blank query parses to `None`.
 pub(super) fn parse(text: &str) -> Result<Option<Expr>, super::SearchQueryError> {
     if text.len() > MAX_QUERY_BYTES {

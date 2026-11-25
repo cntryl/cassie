@@ -242,6 +242,31 @@ impl SingleFieldSearchContext {
 }
 
 impl SearchContext {
+    pub(crate) fn with_analyzers(field_analyzer: HashMap<String, AnalyzerConfig>) -> Self {
+        Self {
+            field_analyzer,
+            ..Default::default()
+        }
+    }
+
+    pub(crate) fn add_snippet_terms(
+        &mut self,
+        field: &str,
+        terms: Vec<String>,
+        memory: &mut crate::runtime::QueryMemoryReservation,
+    ) -> Result<(), crate::app::CassieError> {
+        let vocabulary = self.doc_frequency.entry(field.to_owned()).or_default();
+        for term in terms {
+            if !vocabulary.contains_key(&term) {
+                let bytes =
+                    crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(1)?;
+                memory.try_grow(bytes.saturating_add(term.capacity()))?;
+                vocabulary.insert(term, 1);
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn from_persisted_field_statistics(
         field: &str,
         statistics: &PersistedFieldStatistics<'_>,

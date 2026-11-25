@@ -2,7 +2,7 @@
 //! for the friends-of-friends and weighted-route workloads. Shared by the Tier 2 and Tier 3
 //! graph benchmarks.
 
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::{Cassie, CassieError, CassieSession};
 
 pub const GRAPH: &str = "bench_social";
 const MULTIPLIER: i64 = 7919;
@@ -56,7 +56,7 @@ impl Plan {
                         panic!(
                             "graph fixture rows of {} failed with SQLSTATE {}",
                             load.table,
-                            error.sql_state()
+                            CassieError::from(error).sql_state()
                         )
                     });
                 first = last + 1;

@@ -619,7 +619,7 @@ fn should_reject_unprepared_non_null_check_metadata() {
         .expect("readback");
     // Assert
     assert!(matches!(result, Err(StorageError::Unsupported(_))));
-    assert!(stored.is_empty());
+    assert_eq!(stored, Vec::new());
 }
 
 #[test]

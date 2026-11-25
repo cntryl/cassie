@@ -180,6 +180,7 @@ fn prepare_join_collections(
             .midge
             .put_documents(JOIN_USERS, users)
             .map(|_| ())
+            .map_err(CassieError::from)
     })?;
     for_each_tier3_domain_batch(dataset_rows, "join orders", |range| {
         let orders = range
@@ -198,6 +199,7 @@ fn prepare_join_collections(
             .midge
             .put_fresh_documents(JOIN_ORDERS, orders)
             .map(|_| ())
+            .map_err(CassieError::from)
     })?;
     Ok(())
 }
@@ -244,6 +246,7 @@ fn prepare_time_series(
             .midge
             .put_fresh_time_series_documents(TIME_SERIES, documents)
             .map(|_| ())
+            .map_err(CassieError::from)
     })?;
     Ok(())
 }

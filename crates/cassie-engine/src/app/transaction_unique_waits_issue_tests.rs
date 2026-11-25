@@ -351,9 +351,8 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
     let retired_result = receive_event(&events);
     worker.join().expect("retired unique waiter");
     let waits_after_retirement = cassie.transaction_unique_waits.waiting_count();
-    let contender = cassie.create_session("issue_1500_retained_owner_waiter", None);
     let (contender_events, contender_worker) =
-        start_observed_insert(cassie.clone(), contender, "INSERT INTO u VALUES (5, 3)");
+        start_observed_insert(cassie.clone(), owner.clone(), "INSERT INTO u VALUES (5, 3)");
     let retained_wait_event = receive_event(&contender_events);
     cassie
         .execute_sql(&waiter, "ROLLBACK", Vec::new())
@@ -363,8 +362,8 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
         .join()
         .expect("retained-key contender worker");
     cassie
-        .execute_sql(&owner, "ROLLBACK", Vec::new())
-        .expect("release the blocking owner");
+        .execute_sql(&owner, "COMMIT", Vec::new())
+        .expect("commit the former blocker after it acquires the retained key");
 
     // Assert
     assert!(matches!(retired_result, WaitEvent::Completed(Err(_))));
@@ -374,7 +373,7 @@ fn should_retire_unique_wait_after_concurrent_savepoint_rollback() {
     assert_eq!(
         rows(&cassie, &owner),
         vec![
-            vec![Value::Int64(1), Value::Int64(1)],
+            vec![Value::Int64(1), Value::Int64(99)],
             vec![Value::Int64(2), Value::Int64(2)],
             vec![Value::Int64(5), Value::Int64(3)],
         ]
@@ -824,6 +823,52 @@ fn should_not_wait_for_insert_of_another_value_after_noop_update() {
             vec![Value::Int64(1), Value::Int64(1)],
             vec![Value::Int64(2), Value::Int64(2)],
             vec![Value::Int64(3), Value::Int64(50)],
+        ]
+    );
+}
+
+#[test]
+fn should_clear_canceled_insert_wait_on_an_update_owner() {
+    // Arrange
+    let (cassie, owner) = fixture("issue_1465_canceled_update_wait");
+    for sql in ["BEGIN", "UPDATE u SET v = 99 WHERE id = 1"] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage UPDATE unique value");
+    }
+    let waiter = cassie.create_session("issue_1465_canceled_waiter", None);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let wait_cancellation = cancellation.clone();
+    let _observer = observe_next_unique_transaction_wait_for_test(move || {
+        wait_cancellation.cancel();
+    });
+
+    // Act
+    let result = cassie.execute_sql_with_cancellation(
+        &waiter,
+        "INSERT INTO u VALUES (3, 99)",
+        Vec::new(),
+        &cancellation,
+    );
+    let remaining_waits = cassie.transaction_unique_waits.waiting_count();
+    let owner_commit = cassie.execute_sql(&owner, "COMMIT", Vec::new());
+
+    // Assert
+    assert!(cancellation.is_canceled(), "INSERT reached the owner wait");
+    assert_eq!(
+        result
+            .expect_err("INSERT was canceled")
+            .descriptor()
+            .sql_state,
+        "57014"
+    );
+    assert_eq!(remaining_waits, 0);
+    assert!(owner_commit.is_ok());
+    assert_eq!(
+        rows(&cassie, &owner),
+        vec![
+            vec![Value::Int64(1), Value::Int64(99)],
+            vec![Value::Int64(2), Value::Int64(2)],
         ]
     );
 }

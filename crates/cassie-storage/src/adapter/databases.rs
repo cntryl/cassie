@@ -282,6 +282,8 @@ impl Midge {
     pub fn drop_database(&self, name: &str) -> Result<(), CassieError> {
         let schema = self.ensure_families_ready()?.schema.clone();
         self.ensure_database_droppable(name)?;
+        #[cfg(test)]
+        publication_tests::pause_after_drop_empty_check();
         let metadata = self
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;

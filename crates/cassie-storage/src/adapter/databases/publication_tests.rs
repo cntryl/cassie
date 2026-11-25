@@ -2,6 +2,7 @@ use super::super::Midge;
 use crate::adapter::request_test_support::TestRequest;
 use crate::adapter::NativePublicationControlScope;
 use crate::adapter::{CassieError, StorageRetryKind};
+use std::cell::RefCell;
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
@@ -232,7 +233,6 @@ fn should_recheck_family_after_waiting_for_schema_publication() {
 
 #[test]
 fn should_refuse_database_drop_for_a_current_row_without_catalog_or_sidecars() {
-    use cassie_core::types::{DataType, FieldSchema, Schema};
     use cntryl_midge::TransactionMode;
 
     // Arrange
@@ -241,17 +241,7 @@ fn should_refuse_database_drop_for_a_current_row_without_catalog_or_sidecars() {
     midge
         .create_database(database, None)
         .expect("create database");
-    let mut schema = crate::row_blob::RowSchema::from_schema(&Schema {
-        fields: vec![FieldSchema {
-            name: "value".to_owned(),
-            data_type: DataType::Int,
-            nullable: false,
-        }],
-    });
-    schema.relation_id = 42;
-    let key = super::key_encoding::row_key(schema.relation_id, "native-row");
-    let row = crate::row_blob::encode_row(&schema, &serde_json::json!({"value": 7}))
-        .expect("encode a current-format row");
+    let (key, row) = retained_row();
     let mut writer = midge
         .database_tx(database, TransactionMode::ReadWrite)
         .expect("native writer");
@@ -283,7 +273,7 @@ fn should_refuse_database_drop_for_a_current_row_without_catalog_or_sidecars() {
 
 #[test]
 fn should_refuse_database_drop_for_retained_hash_or_catalog_contents() {
-    use cassie_core::types::Schema;
+    use cassie_core::types::{DataType, FieldSchema, Schema};
     use cntryl_midge::TransactionMode;
 
     // Arrange
@@ -308,7 +298,13 @@ fn should_refuse_database_drop_for_retained_hash_or_catalog_contents() {
     midge
         .create_collection(
             "retained_catalog.public.docs",
-            Schema { fields: Vec::new() },
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_owned(),
+                    data_type: DataType::Int,
+                    nullable: false,
+                }],
+            },
         )
         .expect("create empty table");
 
@@ -327,4 +323,121 @@ fn should_refuse_database_drop_for_retained_hash_or_catalog_contents() {
         .get_database("empty")
         .expect("read registry")
         .is_none());
+}
+
+type DropPause = Box<dyn FnOnce()>;
+
+thread_local! {
+    static AFTER_DROP_EMPTY_CHECK: RefCell<Option<DropPause>> = const { RefCell::new(None) };
+}
+
+pub(super) fn pause_after_drop_empty_check() {
+    let pause = AFTER_DROP_EMPTY_CHECK.with(|slot| slot.borrow_mut().take());
+    if let Some(pause) = pause {
+        pause();
+    }
+}
+
+#[test]
+fn should_never_discard_a_native_write_racing_an_empty_database_drop() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-racing-drop-{}", uuid::Uuid::new_v4()));
+    let midge = Midge::new_strict_with_data_dir(&path).expect("open local fixture");
+    let database = "racing_drop";
+    midge
+        .create_database(database, None)
+        .expect("create database");
+    let physical_name = midge
+        .get_database(database)
+        .expect("read registry")
+        .expect("registered database")
+        .physical_family;
+    let (key, row) = retained_row();
+
+    // Act
+    let (write_result, drop_result) = write_after_drop_empty_check(&midge, database, &key, &row);
+    drop(midge);
+    let reopened = Midge::new_strict_with_data_dir(&path).expect("reopen local store");
+    let metadata = reopened
+        .get_database(database)
+        .expect("read durable registry");
+    let family = reopened.engine.get_column_family(&physical_name);
+
+    // Assert
+    assert!(
+        write_result.is_ok() || drop_result.is_ok(),
+        "both failed: {write_result:?}, {drop_result:?}"
+    );
+    assert_eq!(
+        metadata.is_some(),
+        family.is_some(),
+        "registry/family diverged"
+    );
+    if write_result.is_ok() {
+        assert!(drop_result.is_err(), "drop discarded a committed row");
+        assert_eq!(
+            reopened
+                .raw_get_database(database, &key)
+                .expect("read retained row"),
+            Some(row)
+        );
+    } else {
+        drop_result.expect("drop completed before writer admission");
+        assert!(metadata.is_none());
+    }
+    drop(reopened);
+    std::fs::remove_dir_all(&path).expect("remove local fixture");
+}
+
+fn write_after_drop_empty_check(
+    midge: &Midge,
+    database: &str,
+    key: &[u8],
+    row: &[u8],
+) -> (Result<(), CassieError>, Result<(), CassieError>) {
+    let (paused, checked) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    std::thread::scope(|scope| {
+        let dropper = scope.spawn(move || {
+            AFTER_DROP_EMPTY_CHECK.with(|slot| {
+                slot.replace(Some(Box::new(move || {
+                    paused.send(()).expect("drop verified emptiness");
+                    proceed
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("writer attempted commit");
+                })));
+            });
+            midge.drop_database(database)
+        });
+        checked
+            .recv_timeout(Duration::from_secs(5))
+            .expect("drop paused at empty check");
+        let write = midge
+            .database_tx(database, cntryl_midge::TransactionMode::ReadWrite)
+            .and_then(|mut tx| {
+                tx.put(key.to_vec(), row.to_vec(), None)
+                    .map_err(CassieError::from)?;
+                tx.commit(midge.write_options_sync())
+                    .map_err(CassieError::from)
+            });
+        release.send(()).expect("resume database retirement");
+        (write, dropper.join().expect("drop worker"))
+    })
+}
+
+fn retained_row() -> (Vec<u8>, Vec<u8>) {
+    use cassie_core::types::{DataType, FieldSchema, Schema};
+
+    let mut schema = crate::row_blob::RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "value".to_owned(),
+            data_type: DataType::Int,
+            nullable: false,
+        }],
+    });
+    schema.relation_id = 42;
+    let key = super::key_encoding::row_key(schema.relation_id, "native-row");
+    let row = crate::row_blob::encode_row(&schema, &serde_json::json!({"value": 7}))
+        .expect("encode a current-format row");
+    (key, row)
 }

@@ -1,4 +1,4 @@
-use crate::embeddings::VectorIndexRecord;
+use crate::embeddings::{Embedding, VectorIndexRecord};
 
 use super::{Cassie, CassieError};
 
@@ -51,10 +51,17 @@ impl Cassie {
         let source = source_value
             .as_str()
             .map_or_else(|| source_value.to_string(), str::to_string);
-        let embedding = self
+        let embeddings = self
             .embedding_provider
-            .embed_query(&source)
+            .embed_documents(&[source])
             .map_err(CassieError::from)?;
+        let [embedding]: [Embedding; 1] =
+            embeddings.try_into().map_err(|batch: Vec<Embedding>| {
+                CassieError::InvalidEmbedding(format!(
+                    "expected one document embedding, provider returned {}",
+                    batch.len()
+                ))
+            })?;
         Self::validate_embedding_payload(index, &embedding)?;
         Ok(serde_json::Value::Array(
             embedding

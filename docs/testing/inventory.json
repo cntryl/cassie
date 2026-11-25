@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11742,
+    "rust_test_declarations": 11748,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11767,
+    "registered_rust_instances": 11773,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -54267,8 +54267,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_openai_retry_backoff_to_query_deadline",
       "name": "should_clamp_openai_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 239,
-      "end_line": 259,
+      "line": 242,
+      "end_line": 262,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54298,8 +54298,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_openai_compatible_retry_backoff_to_query_deadline",
       "name": "should_clamp_openai_compatible_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 262,
-      "end_line": 283,
+      "line": 265,
+      "end_line": 286,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54329,8 +54329,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_tei_retry_backoff_to_query_deadline",
       "name": "should_clamp_tei_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 286,
-      "end_line": 306,
+      "line": 289,
+      "end_line": 309,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54360,8 +54360,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_ollama_retry_backoff_to_query_deadline",
       "name": "should_clamp_ollama_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 309,
-      "end_line": 329,
+      "line": 312,
+      "end_line": 332,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54391,8 +54391,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_voyage_retry_backoff_to_query_deadline",
       "name": "should_clamp_voyage_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 332,
-      "end_line": 353,
+      "line": 335,
+      "end_line": 356,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54422,8 +54422,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_clamp_cohere_retry_backoff_to_query_deadline",
       "name": "should_clamp_cohere_retry_backoff_to_query_deadline",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 356,
-      "end_line": 377,
+      "line": 359,
+      "end_line": 380,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54453,8 +54453,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_cancel_an_active_provider_request_without_waiting_for_transport_timeout",
       "name": "should_cancel_an_active_provider_request_without_waiting_for_transport_timeout",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 380,
-      "end_line": 430,
+      "line": 383,
+      "end_line": 433,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54484,8 +54484,8 @@
       "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_not_retry_mid_body_reset_for_any_remote_provider",
       "name": "should_not_retry_mid_body_reset_for_any_remote_provider",
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
-      "line": 433,
-      "end_line": 526,
+      "line": 436,
+      "end_line": 529,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -54494,6 +54494,68 @@
         {
           "suite": "configuration_isolated",
           "name": "embedding_provider_controls::should_not_retry_mid_body_reset_for_any_remote_provider"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "configuration_isolated",
+        "category": "configuration",
+        "directory": "tests/configuration_isolated/configuration",
+        "file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_count_remote_retries_after_the_initial_request",
+      "name": "should_count_remote_retries_after_the_initial_request",
+      "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
+      "line": 532,
+      "end_line": 574,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "configuration_isolated",
+          "name": "embedding_provider_controls::should_count_remote_retries_after_the_initial_request"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "configuration_isolated",
+        "category": "configuration",
+        "directory": "tests/configuration_isolated/configuration",
+        "file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/configuration_isolated/configuration/embedding_provider_controls.rs::should_check_remote_controls_before_accepting_empty_documents",
+      "name": "should_check_remote_controls_before_accepting_empty_documents",
+      "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
+      "line": 651,
+      "end_line": 703,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "configuration_isolated",
+          "name": "embedding_provider_controls::should_check_remote_controls_before_accepting_empty_documents"
         }
       ],
       "attributes": [
@@ -356479,11 +356541,42 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/embeddings/embedding_self_hosted.rs::should_reject_compatible_provider_coordinates_that_overflow_f32",
+      "name": "should_reject_compatible_provider_coordinates_that_overflow_f32",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_self_hosted.rs",
+      "line": 500,
+      "end_line": 522,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_self_hosted::should_reject_compatible_provider_coordinates_that_overflow_f32"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_self_hosted.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/embeddings/embedding_validation.rs::should_reject_ingest_when_query_provider_model_mismatch",
       "name": "should_reject_ingest_when_query_provider_model_mismatch",
       "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
-      "line": 83,
-      "end_line": 154,
+      "line": 87,
+      "end_line": 158,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -356513,8 +356606,8 @@
       "id": "tests/vector_embeddings/embeddings/embedding_validation.rs::should_reject_ingest_when_dimensions_change",
       "name": "should_reject_ingest_when_dimensions_change",
       "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
-      "line": 157,
-      "end_line": 196,
+      "line": 161,
+      "end_line": 200,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -356544,8 +356637,8 @@
       "id": "tests/vector_embeddings/embeddings/embedding_validation.rs::should_reject_query_when_metric_different",
       "name": "should_reject_query_when_metric_different",
       "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
-      "line": 199,
-      "end_line": 244,
+      "line": 203,
+      "end_line": 248,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -356554,6 +356647,68 @@
         {
           "suite": "vector_embeddings",
           "name": "embedding_validation::should_reject_query_when_metric_different"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_validation.rs::should_dispatch_each_embedding_request_to_its_provider_role",
+      "name": "should_dispatch_each_embedding_request_to_its_provider_role",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
+      "line": 335,
+      "end_line": 371,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_validation::should_dispatch_each_embedding_request_to_its_provider_role"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/vector_embeddings/embeddings/embedding_validation.rs::should_reject_nonfinite_query_embeddings_before_cache_admission",
+      "name": "should_reject_nonfinite_query_embeddings_before_cache_admission",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
+      "line": 374,
+      "end_line": 417,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_validation::should_reject_nonfinite_query_embeddings_before_cache_admission"
         }
       ],
       "attributes": [
@@ -360603,11 +360758,42 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/providers/openai_provider.rs::should_restore_openai_batch_order_from_reversed_response_indices",
+      "name": "should_restore_openai_batch_order_from_reversed_response_indices",
+      "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
+      "line": 232,
+      "end_line": 267,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "openai_provider::should_restore_openai_batch_order_from_reversed_response_indices"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "providers",
+        "directory": "tests/vector_embeddings/providers",
+        "file": "tests/vector_embeddings/providers/openai_provider.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/providers/openai_provider.rs::should_retry_transient_failures",
       "name": "should_retry_transient_failures",
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
-      "line": 232,
-      "end_line": 266,
+      "line": 270,
+      "end_line": 304,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -360637,8 +360823,8 @@
       "id": "tests/vector_embeddings/providers/openai_provider.rs::should_return_timeout_error",
       "name": "should_return_timeout_error",
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
-      "line": 269,
-      "end_line": 292,
+      "line": 307,
+      "end_line": 330,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -360668,8 +360854,8 @@
       "id": "tests/vector_embeddings/providers/openai_provider.rs::should_parse_openai_response_with_usage",
       "name": "should_parse_openai_response_with_usage",
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
-      "line": 295,
-      "end_line": 321,
+      "line": 333,
+      "end_line": 359,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -360699,8 +360885,8 @@
       "id": "tests/vector_embeddings/providers/openai_provider.rs::should_return_embedding_with_expected_dimensions",
       "name": "should_return_embedding_with_expected_dimensions",
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
-      "line": 324,
-      "end_line": 350,
+      "line": 362,
+      "end_line": 388,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -370367,9 +370553,9 @@
       "current_file": "tests/configuration_isolated/configuration/embedding_provider_controls.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 526,
-      "sha256": "0b1fab9ccc4c5ffe09932c35696a8549c372fd87df64dcaf844c32584f64fe32",
-      "test_declarations": 8,
+      "lines": 703,
+      "sha256": "764d84c924bed7ba415f30ab2da5b971bd1445f90653223a2e94b19b924eb2cb",
+      "test_declarations": 10,
       "registered_suites": [
         "configuration_isolated"
       ],
@@ -392896,9 +393082,9 @@
       "current_file": "tests/vector_embeddings/embeddings/embedding_self_hosted.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 561,
-      "sha256": "16ca07ab327a0267c74aa779761d0f1463dc181bdc051107b4a7f76fce9eb16d",
-      "test_declarations": 12,
+      "lines": 586,
+      "sha256": "bd5e1b85718a73beb04d8c2304107b26b26d3fc8aab93faf080d3da2984881da",
+      "test_declarations": 13,
       "registered_suites": [
         "vector_embeddings"
       ],
@@ -392911,9 +393097,9 @@
       "current_file": "tests/vector_embeddings/embeddings/embedding_validation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 244,
-      "sha256": "c0b2586e70dab7cc11e95bed0086b615e9af581a2c7892869577ac8dfb315950",
-      "test_declarations": 3,
+      "lines": 417,
+      "sha256": "7e82e76080414962f6a6c573dfb6494398eead33721db490b3796dfea39895eb",
+      "test_declarations": 5,
       "registered_suites": [
         "vector_embeddings"
       ],
@@ -393287,9 +393473,9 @@
       "current_file": "tests/vector_embeddings/providers/openai_provider.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 350,
-      "sha256": "3eda2125bb968d8da7677ec904acbb05fad8904c0c344ce40b46d029c00d7be0",
-      "test_declarations": 5,
+      "lines": 388,
+      "sha256": "e81b8672a0e65225bdb54553c04d955078f3326b70f9a8da8c7c30777196791a",
+      "test_declarations": 6,
       "registered_suites": [
         "vector_embeddings"
       ],

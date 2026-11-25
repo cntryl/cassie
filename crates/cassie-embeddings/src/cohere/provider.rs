@@ -3,8 +3,10 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
-use crate::response::read_response;
+use crate::provider::{
+    check_controls, controlled_request_timeout, retry_after_failure, run_controlled_request,
+};
+use crate::response::{read_response, validate_response_components};
 use crate::EmbeddingProvider;
 use crate::{Embedding, EmbeddingError};
 use cassie_core::request::Interruption;
@@ -94,7 +96,7 @@ impl CohereProvider {
             client,
             request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
-            max_retries: config.max_retries.max(1),
+            max_retries: config.max_retries,
             base_url: config.base_url,
             max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
@@ -126,9 +128,9 @@ impl CohereProvider {
         };
         let endpoint = format!("{}/v2/embed", self.base_url.trim_end_matches('/'));
 
-        let mut attempt = 0usize;
+        let mut retries = 0usize;
         loop {
-            attempt += 1;
+            let attempt = retries.saturating_add(1);
             let timeout = controlled_request_timeout(
                 self.provider_name(),
                 self.request_timeout,
@@ -166,12 +168,8 @@ impl CohereProvider {
                         self.dimensions,
                     );
                 }
-                Ok((status, body)) if is_transient_status(status) && attempt < self.max_retries => {
-                    controlled_backoff(
-                        self.provider_name(),
-                        Duration::from_millis(50 * attempt as u64),
-                        interruption,
-                    )?;
+                Ok((status, body)) if is_transient_status(status) && retries < self.max_retries => {
+                    retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                     tracing::warn!(
                         provider = %self.provider_name(),
                         model = %self.model,
@@ -194,13 +192,9 @@ impl CohereProvider {
                     )));
                 }
                 Err(error)
-                    if (error.is_timeout() || error.is_connect()) && attempt < self.max_retries =>
+                    if (error.is_timeout() || error.is_connect()) && retries < self.max_retries =>
                 {
-                    controlled_backoff(
-                        self.provider_name(),
-                        Duration::from_millis(50 * attempt as u64),
-                        interruption,
-                    )?;
+                    retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                 }
                 Err(error) if error.is_timeout() => {
                     return Err(EmbeddingError::Timeout {
@@ -251,6 +245,7 @@ impl EmbeddingProvider for CohereProvider {
         inputs: &[String],
         interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
+        check_controls(self.provider_name(), interruption)?;
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
             out.extend(self.embed_batch(chunk, "search_document", Some(interruption))?);
@@ -295,6 +290,7 @@ fn validate_embeddings(
                 embedding.len()
             )));
         }
+        validate_response_components("Cohere", embedding)?;
     }
 
     Ok(embeddings

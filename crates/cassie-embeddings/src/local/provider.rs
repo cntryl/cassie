@@ -177,4 +177,43 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn should_preserve_local_embedding_coordinates_across_digest_blocks() {
+        // Arrange
+        let provider = LocalProvider::with_config(LocalProviderConfig {
+            model: "compat-model".to_owned(),
+            dimensions: 9,
+        })
+        .expect("local provider");
+        let input = "same input";
+        // Independently expanded with SHA-256 counters zero and one, then normalized together.
+        let expected = [
+            [
+                -0.400_621, -0.344_522, -0.392_750, 0.128_813, 0.284_886, -0.046_391, -0.387_360,
+                0.390_419, -0.405_186,
+            ],
+            [
+                -0.357_582, -0.578_595, 0.025_101, 0.141_678, -0.401_549, 0.324_587, -0.390_672,
+                -0.192_437, 0.245_775,
+            ],
+        ];
+
+        // Act
+        let documents = provider
+            .embed_documents(&[input.to_owned()])
+            .expect("document");
+        let query = provider.embed_query(input).expect("query");
+
+        // Assert
+        for (embedding, expected) in [&documents[0], &query].into_iter().zip(expected) {
+            assert_eq!(embedding.values.len(), expected.len());
+            for (actual, expected) in embedding.values.iter().zip(expected) {
+                assert!(
+                    (actual - expected).abs() < 0.000_002,
+                    "actual {actual}, expected {expected}"
+                );
+            }
+        }
+    }
 }

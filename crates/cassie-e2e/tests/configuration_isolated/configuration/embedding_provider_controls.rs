@@ -26,26 +26,29 @@ fn controlled_request_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// A local server that answers every request with a transient 429 until it is
-/// stopped, so a provider keeps retrying until something else interrupts it.
-struct TransientServer {
+/// A local server that answers every request with the selected status until stopped.
+struct StatusServer {
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     thread: std::thread::JoinHandle<usize>,
 }
 
-impl TransientServer {
-    /// Stops the server and returns how many 429 responses it wrote.
+impl StatusServer {
+    /// Stops the server and returns how many responses it wrote.
     fn stop(self) -> usize {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
         self.thread.join().expect("transient server")
     }
 }
 
-fn transient_server() -> (String, TransientServer) {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind transient server");
+fn transient_server() -> (String, StatusServer) {
+    status_server(429)
+}
+
+fn status_server(status: u16) -> (String, StatusServer) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind status server");
     listener
         .set_nonblocking(true)
-        .expect("configure transient server");
+        .expect("configure status server");
     let base_url = format!("http://{}", listener.local_addr().expect("server address"));
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let stopped = std::sync::Arc::clone(&stop);
@@ -64,9 +67,9 @@ fn transient_server() -> (String, TransientServer) {
                     if !matches!(stream.read(&mut request), Ok(bytes_read) if bytes_read > 0) {
                         continue;
                     }
-                    let body = r#"{"error":"retry later"}"#;
+                    let body = r#"{"error":"test response"}"#;
                     let response = format!(
-                        "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        "HTTP/1.1 {status} Test Response\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
                         body.len()
                     );
                     if stream.write_all(response.as_bytes()).is_ok() {
@@ -81,7 +84,7 @@ fn transient_server() -> (String, TransientServer) {
         }
         response_count
     });
-    (base_url, TransientServer { stop, thread })
+    (base_url, StatusServer { stop, thread })
 }
 
 fn delayed_tei_server() -> (
@@ -523,4 +526,178 @@ fn should_not_retry_mid_body_reset_for_any_remote_provider() {
         active_controlled_request_workers_for_diagnostics(),
         baseline_workers
     );
+}
+
+#[test]
+fn should_count_remote_retries_after_the_initial_request() {
+    // Arrange
+    let _guard = controlled_request_guard();
+    for (max_retries, status, expected_attempts) in
+        [(0, 503, 1), (1, 503, 2), (3, 503, 4), (3, 400, 1)]
+    {
+        let (base_url, server) = status_server(status);
+        let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
+            base_url,
+            api_key: None,
+            model: "retry-budget-fixture".to_string(),
+            dimensions: 3,
+            timeout: Duration::from_secs(1),
+            max_batch_size: 1,
+            max_retries,
+        })
+        .expect("compatible provider");
+
+        // Act
+        let error = provider
+            .embed_documents(&["alpha".to_string()])
+            .expect_err("fixture returns only errors");
+        let attempts = server.stop();
+
+        // Assert
+        assert_eq!(
+            attempts, expected_attempts,
+            "{status}, {max_retries} retries"
+        );
+        if status == 503 {
+            assert!(
+                matches!(error, EmbeddingError::RetryExhausted { attempts, .. }
+                    if attempts == expected_attempts),
+                "{error:?}"
+            );
+        } else {
+            assert!(
+                matches!(error, EmbeddingError::RequestError(_)),
+                "{error:?}"
+            );
+        }
+    }
+}
+
+fn remote_providers_at(base_url: &str) -> [Box<dyn EmbeddingProvider>; 6] {
+    [
+        Box::new(
+            OpenAiProvider::with_config(OpenAiProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "text-embedding-3-small".to_string(),
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+                base_url: base_url.to_string(),
+            })
+            .expect("OpenAI provider"),
+        ),
+        Box::new(
+            OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
+                base_url: base_url.to_string(),
+                api_key: None,
+                model: "compatible-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+            })
+            .expect("compatible provider"),
+        ),
+        Box::new(
+            TeiProvider::with_config(TeiProviderConfig {
+                base_url: base_url.to_string(),
+                model: "tei-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+            })
+            .expect("TEI provider"),
+        ),
+        Box::new(
+            OllamaProvider::with_config(OllamaProviderConfig {
+                base_url: base_url.to_string(),
+                model: "ollama-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+            })
+            .expect("Ollama provider"),
+        ),
+        Box::new(
+            VoyageProvider::with_config(VoyageProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "voyage-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+                base_url: base_url.to_string(),
+            })
+            .expect("Voyage provider"),
+        ),
+        Box::new(
+            CohereProvider::with_config(CohereProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "cohere-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 1,
+                max_retries: 0,
+                base_url: base_url.to_string(),
+            })
+            .expect("Cohere provider"),
+        ),
+    ]
+}
+
+#[test]
+fn should_check_remote_controls_before_accepting_empty_documents() {
+    // Arrange
+    let _guard = controlled_request_guard();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind unused HTTP listener");
+    listener
+        .set_nonblocking(true)
+        .expect("nonblocking listener");
+    let address = format!(
+        "http://{}",
+        listener.local_addr().expect("listener address")
+    );
+    let providers = remote_providers_at(&address);
+    let limits = CassieRuntimeLimits {
+        query_timeout_ms: 0,
+        ..CassieRuntimeLimits::default()
+    };
+    let canceled = QueryCancellationHandle::new();
+    canceled.cancel();
+    let canceled = QueryExecutionControls::with_cancellation(&limits, Instant::now(), canceled);
+    let active = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let expired = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_timeout_ms: 1,
+            ..limits
+        },
+        Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .expect("representable expired request start"),
+    );
+
+    for provider in providers {
+        // Act
+        let canceled = provider.embed_documents_with_interruption(&[], canceled.interruption());
+        let expired = provider.embed_documents_with_interruption(&[], expired.interruption());
+        let active = provider.embed_documents_with_interruption(&[], active.interruption());
+
+        // Assert
+        let name = provider.provider_name();
+        assert!(
+            matches!(canceled, Err(EmbeddingError::Canceled { .. })),
+            "{name}"
+        );
+        assert!(
+            matches!(expired, Err(EmbeddingError::Timeout { .. })),
+            "{name}"
+        );
+        assert!(active.expect("active empty request").is_empty(), "{name}");
+        assert!(
+            matches!(listener.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock),
+            "{name} unexpectedly connected to the HTTP endpoint"
+        );
+    }
 }

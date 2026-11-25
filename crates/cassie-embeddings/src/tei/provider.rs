@@ -1,5 +1,7 @@
-use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
-use crate::response::read_response;
+use crate::provider::{
+    check_controls, controlled_request_timeout, retry_after_failure, run_controlled_request,
+};
+use crate::response::{read_response, validate_response_components};
 use crate::EmbeddingProvider;
 use cassie_core::request::Interruption;
 use std::time::Duration;
@@ -73,7 +75,7 @@ impl TeiProvider {
             client,
             request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
-            max_retries: config.max_retries.max(1),
+            max_retries: config.max_retries,
             max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
@@ -99,9 +101,9 @@ impl TeiProvider {
         };
         let endpoint = format!("{}/embed", self.base_url.trim_end_matches('/'));
 
-        let mut attempt = 0usize;
+        let mut retries = 0usize;
         loop {
-            attempt += 1;
+            let attempt = retries.saturating_add(1);
             let timeout = controlled_request_timeout(
                 self.provider_name(),
                 self.request_timeout,
@@ -129,12 +131,8 @@ impl TeiProvider {
                     })?;
                     return validate_vectors("TEI", vectors, inputs.len(), self.dimensions);
                 }
-                Ok((status, _)) if is_transient_status(status) && attempt < self.max_retries => {
-                    controlled_backoff(
-                        self.provider_name(),
-                        Duration::from_millis(50 * attempt as u64),
-                        interruption,
-                    )?;
+                Ok((status, _)) if is_transient_status(status) && retries < self.max_retries => {
+                    retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                 }
                 Ok((status, body)) if is_transient_status(status) => {
                     return Err(EmbeddingError::RetryExhausted {
@@ -149,13 +147,9 @@ impl TeiProvider {
                     )));
                 }
                 Err(error)
-                    if (error.is_timeout() || error.is_connect()) && attempt < self.max_retries =>
+                    if (error.is_timeout() || error.is_connect()) && retries < self.max_retries =>
                 {
-                    controlled_backoff(
-                        self.provider_name(),
-                        Duration::from_millis(50 * attempt as u64),
-                        interruption,
-                    )?;
+                    retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                 }
                 Err(error) if error.is_timeout() => {
                     return Err(EmbeddingError::Timeout {
@@ -197,6 +191,7 @@ impl EmbeddingProvider for TeiProvider {
         inputs: &[String],
         interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
+        check_controls(self.provider_name(), interruption)?;
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
             out.extend(self.embed_documents_batch(chunk, Some(interruption))?);
@@ -228,6 +223,7 @@ fn validate_vectors(
                 vector.len()
             )));
         }
+        validate_response_components(provider, vector)?;
     }
     Ok(vectors
         .into_iter()

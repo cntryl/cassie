@@ -187,10 +187,20 @@ An unknown provider fails startup. Settings for providers other than the
 selected provider have no effect.
 
 Remote providers retry transient connection failures and HTTP 429 or 5xx responses up to the
-selected provider's `*_MAX_RETRIES` value. Retry waits are bounded by the request timeout and the
-active query deadline; cancellation interrupts an active request. Cassie does not infer a hosted
-service's quota or override `Retry-After`, so operators should choose retry counts and query
-deadlines from that service's current rate-limit policy and monitor rejected requests. Authentication
+selected provider's `*_MAX_RETRIES` value **after** the initial request. Zero disables retries.
+Retry waits are bounded by the request timeout and the active query deadline. Cancellation
+interrupts an active request. A controlled empty document batch still observes cancellation and
+deadlines, and an active empty batch skips the remote request.
+
+Cassie uses the provider's document operation when deriving a vector from a stored row,
+including SQL writes and index backfill. Vector search uses the query operation. Remote
+responses must have finite coordinates after conversion to `f32`. Cassie also checks dimensions
+and finiteness before publishing a query embedding from any provider into its cache. A rejected
+response leaves the query eligible to fetch a replacement.
+
+Cassie does not infer a hosted service's quota or override `Retry-After`, so operators should
+choose retry counts and query deadlines from that service's current rate-limit policy and
+monitor rejected requests. Authentication
 and rate-limit behavior is verified with deterministic mock providers; this is protocol evidence,
 not a hosted-availability or account-authorization guarantee.
 

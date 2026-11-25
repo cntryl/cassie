@@ -46,6 +46,7 @@ impl Cassie {
             .embedding_provider
             .embed_query_with_interruption(query, controls.interruption())
             .map_err(CassieError::from)?;
+        Self::validate_embedding_values(key.dimensions, &embedding)?;
         let bytes = checked_mul(embedding.values.len(), size_of::<f32>())?;
         if bytes > memory.bytes() {
             memory.try_grow(bytes - memory.bytes())?;

@@ -227,11 +227,22 @@ impl Cassie {
         index: &VectorIndexRecord,
         embedding: &Embedding,
     ) -> Result<(), CassieError> {
-        if embedding.values.len() != index.metadata.dimensions {
+        Self::validate_embedding_values(index.metadata.dimensions, embedding)
+    }
+
+    pub(super) fn validate_embedding_values(
+        expected_dimensions: usize,
+        embedding: &Embedding,
+    ) -> Result<(), CassieError> {
+        if embedding.values.len() != expected_dimensions {
             return Err(CassieError::InvalidEmbedding(format!(
-                "embedding dimension mismatch: index requires {} and got {}",
-                index.metadata.dimensions,
+                "embedding dimension mismatch: index requires {expected_dimensions} and got {}",
                 embedding.values.len()
+            )));
+        }
+        if let Some(index) = embedding.values.iter().position(|value| !value.is_finite()) {
+            return Err(CassieError::InvalidEmbedding(format!(
+                "embedding component at index {index} is not finite"
             )));
         }
 

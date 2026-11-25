@@ -72,6 +72,18 @@ pub(crate) async fn read_response(
     }
 }
 
+pub(crate) fn validate_response_components(
+    provider: &str,
+    values: &[f32],
+) -> Result<(), EmbeddingError> {
+    if let Some(index) = values.iter().position(|value| !value.is_finite()) {
+        return Err(EmbeddingError::ParseError(format!(
+            "{provider} embedding component at index {index} is not finite"
+        )));
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_response_indices(
     provider: &str,
     indices: impl IntoIterator<Item = usize>,

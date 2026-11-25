@@ -258,6 +258,40 @@ fn should_reject_float_remainder_in_a_where_clause_on_an_empty_table() {
 }
 
 #[test]
+fn should_reject_float_remainder_in_having_on_an_empty_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1477-floating-remainder-empty-having",
+        &["CREATE TABLE tf (x DOUBLE PRECISION)"],
+    );
+
+    // Act
+    let error = fixture.error("SELECT x FROM tf GROUP BY x HAVING x % 2 = 0");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42883");
+    assert_eq!(
+        error.to_string(),
+        "operator does not exist: double precision % integer"
+    );
+}
+
+#[test]
+fn should_keep_bigint_result_for_mixed_integer_remainder() {
+    // Arrange
+    let fixture = sql_fixture("issue-1477-mixed-integer-remainder", &[]);
+
+    // Act
+    let result = fixture
+        .execute("SELECT 7::BIGINT % 2::INT")
+        .expect("mixed integer remainder overload");
+
+    // Assert
+    assert_eq!(result.rows(), &[vec![Value::Int64(1)]]);
+    assert_eq!(result.columns()[0].type_oid, 20);
+}
+
+#[test]
 fn should_keep_integer_numeric_float8_operator_results() {
     // Arrange
     let fixture = sql_fixture("issue-1477-remainder-compatible-overloads", &[]);

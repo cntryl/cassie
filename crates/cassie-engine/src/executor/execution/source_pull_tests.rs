@@ -79,10 +79,10 @@ fn should_highlight_standalone_snippets_without_advancing_past_limit() {
         &[vec![marked.clone(), marked]]
     );
     assert_eq!(advances, 1);
-    assert!(zero
-        .expect("LIMIT 0 never opens the series")
-        .rows()
-        .is_empty());
+    assert_eq!(
+        zero.expect("LIMIT 0 never opens the series").rows(),
+        &[] as &[Vec<Value>],
+    );
 }
 
 #[test]

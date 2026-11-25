@@ -257,11 +257,11 @@ impl SearchContext {
     ) -> Result<(), crate::app::CassieError> {
         let vocabulary = self.doc_frequency.entry(field.to_owned()).or_default();
         for term in terms {
-            if !vocabulary.contains_key(&term) {
+            if let std::collections::hash_map::Entry::Vacant(entry) = vocabulary.entry(term) {
                 let bytes =
                     crate::executor::retained_memory::hash_table_bytes::<(String, usize)>(1)?;
-                memory.try_grow(bytes.saturating_add(term.capacity()))?;
-                vocabulary.insert(term, 1);
+                memory.try_grow(bytes.saturating_add(entry.key().capacity()))?;
+                entry.insert(1);
             }
         }
         Ok(())

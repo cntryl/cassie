@@ -45,13 +45,12 @@ pub(super) fn build(
         let mut context = context.unwrap_or_default();
         let mut memory = env.controls.reserve_query_memory(0)?;
         for field in &fields.expanded {
-            let texts = batches
-                .iter()
-                .flatten()
-                .filter_map(|row| row.get(field)?.as_str());
             let analyzer = context.analyzer_for_field(field);
-            for text in texts {
+            for row in batches.iter().flatten() {
                 env.controls.check_interruption()?;
+                let Some(text) = row.get(field).and_then(crate::types::Value::as_str) else {
+                    continue;
+                };
                 let _scratch = env.controls.reserve_query_memory(
                     super::super::scored::tokenized_text_upper_bound(text, &analyzer),
                 )?;

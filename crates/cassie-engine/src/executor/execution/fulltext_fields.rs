@@ -61,11 +61,12 @@ impl SearchFields {
     fn function(&mut self, call: &FunctionCall, params: &[Value]) {
         if let Some(Expr::Column(field)) = call.args.first() {
             if call.name.eq_ignore_ascii_case("snippet") {
-                let key = crate::sql::ColumnIdentifierPath::reference_field_key(field);
                 if snippet_needs_vocabulary(call, params) {
-                    self.expanded.insert(key.clone());
+                    // Row lookup must distinguish identically named columns on either side of a join.
+                    self.expanded.insert(field.clone());
                 }
-                self.snippets.insert(key);
+                self.snippets
+                    .insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
             } else if call.name.eq_ignore_ascii_case("search")
                 || call.name.eq_ignore_ascii_case("search_score")
             {

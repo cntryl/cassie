@@ -229,3 +229,102 @@ fn should_recheck_family_after_waiting_for_schema_publication() {
     // Assert
     assert_eq!(result.id(), existing.id());
 }
+
+#[test]
+fn should_refuse_database_drop_for_a_current_row_without_catalog_or_sidecars() {
+    use cassie_core::types::{DataType, FieldSchema, Schema};
+    use cntryl_midge::TransactionMode;
+
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("memory adapter");
+    let database = "retained_row";
+    midge
+        .create_database(database, None)
+        .expect("create database");
+    let mut schema = crate::row_blob::RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "value".to_owned(),
+            data_type: DataType::Int,
+            nullable: false,
+        }],
+    });
+    schema.relation_id = 42;
+    let key = super::key_encoding::row_key(schema.relation_id, "native-row");
+    let row = crate::row_blob::encode_row(&schema, &serde_json::json!({"value": 7}))
+        .expect("encode a current-format row");
+    let mut writer = midge
+        .database_tx(database, TransactionMode::ReadWrite)
+        .expect("native writer");
+    writer
+        .put(key.clone(), row.clone(), None)
+        .expect("store raw row");
+    writer
+        .commit(midge.write_options_sync())
+        .expect("publish raw row");
+    assert!(midge
+        .database_catalog_entries(database)
+        .expect("catalog")
+        .is_empty());
+
+    // Act
+    let result = midge.drop_database(database);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::Unsupported(message))
+        if message.contains("is not empty")));
+    let reader = midge
+        .database_tx(database, TransactionMode::ReadOnly)
+        .expect("database remains registered");
+    assert_eq!(
+        reader.get(&key).expect("read retained row").as_deref(),
+        Some(row.as_slice())
+    );
+}
+
+#[test]
+fn should_refuse_database_drop_for_retained_hash_or_catalog_contents() {
+    use cassie_core::types::Schema;
+    use cntryl_midge::TransactionMode;
+
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("memory adapter");
+    midge
+        .create_database("retained_hash", None)
+        .expect("hash database");
+    midge
+        .create_database("retained_catalog", None)
+        .expect("catalog database");
+    midge
+        .create_database("empty", None)
+        .expect("empty database");
+    let mut writer = midge
+        .database_tx("retained_hash", TransactionMode::ReadWrite)
+        .expect("native writer");
+    let key = super::key_encoding::row_hash_key("retained_hash.public.docs", "native-row");
+    writer.put(key, vec![1], None).expect("store retained hash");
+    writer
+        .commit(midge.write_options_sync())
+        .expect("publish retained hash");
+    midge
+        .create_collection(
+            "retained_catalog.public.docs",
+            Schema { fields: Vec::new() },
+        )
+        .expect("create empty table");
+
+    // Act
+    let hash = midge.drop_database("retained_hash");
+    let catalog = midge.drop_database("retained_catalog");
+    let empty = midge.drop_database("empty");
+
+    // Assert
+    for result in [hash, catalog] {
+        assert!(matches!(result, Err(CassieError::Unsupported(message))
+            if message.contains("is not empty")));
+    }
+    empty.expect("drop without retained contents");
+    assert!(midge
+        .get_database("empty")
+        .expect("read registry")
+        .is_none());
+}

@@ -30,6 +30,20 @@ the catalog record only after the family exists. Empty-only database drops use
 the same journal so startup can finish an interrupted drop or remove an
 orphaned create/restore family.
 
+Before journaling an empty-only drop, Cassie holds the destination family's
+publication gate from the emptiness check through retirement. A raw native
+write cannot enter that family after retirement is admitted. If Cassie has
+already returned a writable native transaction for the family, DROP fails
+before changing the catalog or physical data, even if the caller reports
+having finished the transaction. The published Midge API exposes neither a
+destination-specific writable lifetime and commit outcome nor an atomic
+empty-family drop. After closing every old handle, reopen the storage
+instance and retry against the recovered contents. Other database families
+and read-only native handles retain their normal admission. If an already
+journaled drop is interrupted after registry retirement, that family stays
+closed to writers while startup finishes recovery.
+[#1538](https://github.com/cntryl/cassie/issues/1538)
+
 A create retry can publish a new family while the first create intent is still
 in the journal. During cold startup, Cassie checks the journal key against the
 operation ID and validates the generated family identities. The recovered

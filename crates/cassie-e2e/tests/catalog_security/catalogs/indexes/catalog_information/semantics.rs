@@ -38,6 +38,88 @@ fn should_report_created_index_definition_in_pg_indexes() {
 }
 
 #[test]
+fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
+    // Arrange
+    let directory = crate::support_temp_dirs::IsolatedDataDir::new("issue-1518-legacy-index-oids");
+    let config =
+        crate::support_sql::with_test_root_password(cassie::config::CassieRuntimeConfig::default());
+    let cassie =
+        cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config.clone())
+            .expect("open local Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE orders (col1 INT, col2 INT, col3 INT)",
+        "CREATE INDEX idx_prokjabdil ON orders (col1)",
+        "CREATE INDEX idx_sdxbzixofw ON orders (col2)",
+        "CREATE INDEX idx_allocated_control ON orders (col3)",
+    ] {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("create index fixture");
+    }
+    let join = "SELECT c.relname, i.indkey, c.oid::text \
+                FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON i.indexrelid = c.oid \
+                WHERE c.relname IN ('idx_allocated_control', 'idx_prokjabdil', 'idx_sdxbzixofw') \
+                ORDER BY c.relname, i.indkey";
+    let fresh = cassie
+        .execute_sql(&session, join, vec![])
+        .expect("read fresh indexes");
+    let collection = cassie.midge.canonical_collection_name("orders");
+    // These two supported no-OID catalog entries share the old hash.
+    for name in ["idx_prokjabdil", "idx_sdxbzixofw"] {
+        let mut index = cassie
+            .midge
+            .get_index(&collection, name)
+            .expect("read durable index")
+            .expect("index");
+        assert!(index.options.remove("__cassie_catalog_oid").is_some());
+        cassie
+            .midge
+            .put_index(&index)
+            .expect("store legacy identity");
+        cassie.catalog.unregister_index(&collection, name);
+        cassie.catalog.register_index(index);
+    }
+
+    // Act
+    let legacy = cassie
+        .execute_sql(&session, join, vec![])
+        .expect("read legacy indexes");
+    drop(session);
+    cassie.shutdown();
+    drop(cassie);
+    let reopened = cassie::Cassie::new_local_with_data_dir_and_config(directory.path(), config)
+        .expect("reopen local Cassie");
+    reopened.startup().expect("hydrate legacy index identity");
+    let session = reopened.create_session("tester", None);
+    let hydrated = reopened
+        .execute_sql(&session, join, vec![])
+        .expect("join reopened indexes");
+
+    // Assert
+    let expected = [
+        ("idx_allocated_control", "3"),
+        ("idx_prokjabdil", "1"),
+        ("idx_sdxbzixofw", "2"),
+    ];
+    for rows in [fresh.rows(), legacy.rows(), hydrated.rows()] {
+        assert_eq!(rows.len(), expected.len());
+        for (row, (name, key)) in rows.iter().zip(expected) {
+            assert_eq!(row[0], Value::String(name.into()));
+            assert_eq!(row[1], Value::String(key.into()));
+        }
+        assert_ne!(rows[0][2], rows[1][2]);
+        assert_ne!(rows[1][2], rows[2][2]);
+        assert_ne!(rows[0][2], rows[2][2]);
+    }
+    assert_eq!(fresh.rows()[0], legacy.rows()[0]);
+    assert_eq!(legacy.rows(), hydrated.rows());
+    drop(session);
+    reopened.shutdown();
+}
+
+#[test]
 fn should_quote_index_definition_identifiers_that_need_quoting() {
     // Arrange
     let fixture = sql_fixture(

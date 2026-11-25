@@ -292,6 +292,7 @@ dependencies = [
  "argon2",
  "bytes",
  "cassie",
+ "cassie-core",
  "chrono",
  "cntryl-lexkey",
  "cntryl-midge",

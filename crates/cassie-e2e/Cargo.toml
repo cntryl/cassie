@@ -58,6 +58,7 @@ sql-json-path = "0.2.0"
 rust-stemmers = "1.2.0"
 
 [dev-dependencies]
+cassie-core = { path = "../cassie-core" }
 cntryl-stress = "0.5.1"
 jiff-tzdb = "1.0.0"
 rcgen = "0.14"

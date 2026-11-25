@@ -3,13 +3,13 @@
 
 use std::cmp::Ordering;
 
-use cassie::catalog::graph_schema::build_graph_types;
 use cassie::types::graph::{
     compare_paths, validate_record, Direction, ElementKind, ElementRef, GraphDescriptors, KeyPart,
     Path,
 };
 use cassie::types::typed::TypedValue;
 use cassie::types::Value;
+use cassie_core::catalog::graph_schema::build_graph_types;
 use uuid::Uuid;
 
 const PATH_COUNT: usize = 16;
@@ -67,7 +67,7 @@ impl GraphPathKernel {
         let mut next = 100;
         let types = build_graph_types("main", || {
             next += 1;
-            Ok(next)
+            Ok::<_, std::convert::Infallible>(next)
         })
         .expect("build the reserved graph types");
         let descriptors = GraphDescriptors {

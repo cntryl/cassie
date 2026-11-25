@@ -271,7 +271,7 @@ fn replace_retention_duration(cassie: &Cassie, policy: &str, duration: &str) {
         .catalog
         .get_retention_policy(&canonical_name(policy))
         .expect("retention policy metadata");
-    metadata.retention_duration = duration.to_owned();
+    duration.clone_into(&mut metadata.retention_duration);
     cassie.midge.put_retention_policy(&metadata).unwrap();
     cassie.catalog.register_retention_policy(metadata);
 }

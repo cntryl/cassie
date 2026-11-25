@@ -1,5 +1,6 @@
 //! Fixed BYTEA builtins and shared signature-selection helpers.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
+#[must_use]
 pub const fn is_bytea_function(id: FunctionId) -> bool {
     matches!(
         id,
@@ -124,6 +125,7 @@ pub enum BitInputSelection {
     PendingBit,
 }
 
+#[must_use]
 pub fn bit_input_selection(
     id: FunctionId,
     first_unknown: bool,
@@ -144,6 +146,7 @@ pub fn bit_input_selection(
 }
 
 /// A visible SQL routine with another arity cannot hide a matching fixed builtin.
+#[must_use]
 pub fn has_distinct_builtin_arity(name: &str, actual: usize, declared: usize) -> bool {
     actual != declared
         && super::function(name).is_some_and(|metadata| {

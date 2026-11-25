@@ -14,6 +14,11 @@ enum ScanState {
     BlockComment(usize),
 }
 
+/// Checks SQL size, nesting, and token limits before parsing.
+///
+/// # Errors
+/// Returns a syntax or resource-limit error when a SQL limit is exceeded or
+/// the input contains an unterminated construct.
 pub fn preflight_sql(sql: &str) -> Result<(), SqlError> {
     if sql.len() > MAX_SQL_BYTES {
         return Err(SqlError::resource_limit(format!(

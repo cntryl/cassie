@@ -92,6 +92,11 @@ struct ControlledCachedNode {
     _memory: RequestMemoryReservation,
 }
 
+/// Searches the graph using the caller's node loader and query controls.
+///
+/// # Errors
+/// Returns loader, interruption, or memory errors, or reports that the graph
+/// entry point or its layer metadata needs repair.
 pub fn search_graph_with_controlled_node_loader<E>(
     request: &ControlledHnswSearchRequest<'_>,
     interruption: Interruption<'_>,

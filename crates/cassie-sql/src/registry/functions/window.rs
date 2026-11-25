@@ -24,6 +24,7 @@ pub struct WindowFunction {
 }
 
 impl WindowFunction {
+    #[must_use]
     pub fn signature(&self, arity: usize) -> Option<&'static [WindowArgumentType]> {
         self.signatures
             .iter()
@@ -78,6 +79,7 @@ const FUNCTIONS: &[WindowFunction] = &[
     },
 ];
 
+#[must_use]
 pub fn window_function(name: &str) -> Option<&'static WindowFunction> {
     let local_name = name.rsplit('.').next()?;
     FUNCTIONS
@@ -86,6 +88,7 @@ pub fn window_function(name: &str) -> Option<&'static WindowFunction> {
 }
 
 /// The finite aggregate families admitted by the existing window evaluator.
+#[must_use]
 pub fn aggregate_window_function(name: &str) -> Option<&'static super::ScalarFunction> {
     let function = super::function(name)?;
     (matches!(

@@ -211,6 +211,7 @@ const CLOCK_INPUTS: [&str; 4] = ["now", "today", "tomorrow", "yesterday"];
 
 /// Whether a serialized statement reads the clock, through a clock function
 /// or a `'now'`/`'today'` style input, so its result must not be reused.
+#[must_use]
 pub fn clock_dependent(encoded: &str) -> bool {
     let lower = encoded.to_ascii_lowercase();
     CLOCK_FUNCTIONS.iter().any(|name| {
@@ -222,6 +223,7 @@ pub fn clock_dependent(encoded: &str) -> bool {
 }
 
 /// Whether `name` is a date/time builtin.
+#[must_use]
 pub fn is_temporal(name: &str) -> bool {
     super::function(name).is_some_and(|metadata| {
         matches!(
@@ -267,6 +269,7 @@ fn shape(data_type: Option<&DataType>) -> Option<Shape> {
 }
 
 /// The result type of `left op right` when either operand is temporal.
+#[must_use]
 pub fn binary_type(
     op: &crate::sql::ast::BinaryOp,
     left: Option<&DataType>,
@@ -312,6 +315,7 @@ pub fn binary_type(
 
 /// Whether an aggregate accepts a temporal input (`sum`/`avg` of
 /// `interval`; `min`/`max` of every temporal type).
+#[must_use]
 pub fn aggregate_input(id: FunctionId, data_type: &DataType) -> bool {
     let DataType::Extended(kind) = data_type else {
         return false;

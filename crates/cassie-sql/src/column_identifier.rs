@@ -10,6 +10,7 @@ pub struct ColumnIdentifierPath {
 
 impl ColumnIdentifierPath {
     #[doc(hidden)]
+    #[must_use]
     pub fn is_qualified_wildcard(raw: &str) -> bool {
         raw.ends_with(".*")
             && Self::parse(raw).is_ok_and(|path| path.is_qualified() && path.final_name() == "*")
@@ -18,6 +19,7 @@ impl ColumnIdentifierPath {
     /// Retains quoted qualifier identity for an alias namespace. Catalog
     /// qualifier lookup keeps using its historical folded key.
     #[doc(hidden)]
+    #[must_use]
     pub fn namespace_key(&self) -> String {
         let last = self.components.len() - 1;
         self.components
@@ -44,6 +46,7 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn namespace_qualifier(&self) -> Option<String> {
         (self.components.len() == 2).then(|| {
             let component = &self.components[0];
@@ -56,6 +59,7 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn namespace_prefix_keys(&self) -> Vec<String> {
         let final_index = self.components.len() - 1;
         (0..final_index)
@@ -69,12 +73,14 @@ impl ColumnIdentifierPath {
     }
     /// Returns the canonical key for a SQL column reference's final component.
     #[doc(hidden)]
+    #[must_use]
     pub fn reference_field_key(raw: &str) -> String {
         Self::parse(raw).map_or_else(|_| raw.to_ascii_lowercase(), |path| path.field_lookup_key())
     }
 
     /// Returns the canonical key for a catalog field's stored spelling.
     #[doc(hidden)]
+    #[must_use]
     pub fn stored_field_key(raw: &str) -> String {
         Self::from_field_name(raw).lookup_key()
     }
@@ -82,6 +88,7 @@ impl ColumnIdentifierPath {
     /// Returns a row entry key with relation qualifiers folded and the final
     /// stored field spelling retained exactly.
     #[doc(hidden)]
+    #[must_use]
     pub fn stored_row_lookup_key(raw: &str) -> String {
         let mut path = Self::parse(raw).unwrap_or_else(|_| Self::from_field_name(raw));
         let final_index = path.components.len() - 1;
@@ -92,6 +99,7 @@ impl ColumnIdentifierPath {
 
     /// Returns the exact stored spelling of a row entry's final field.
     #[doc(hidden)]
+    #[must_use]
     pub fn stored_row_field_key(raw: &str) -> String {
         let path = Self::parse(raw).unwrap_or_else(|_| Self::from_field_name(raw));
         Self::stored_field_key(path.final_name())
@@ -100,6 +108,7 @@ impl ColumnIdentifierPath {
     /// Matches either a literal catalog field name or an encoded SQL column
     /// reference to a stored catalog field name.
     #[doc(hidden)]
+    #[must_use]
     pub fn matches_stored_field(reference: &str, stored_name: &str) -> bool {
         reference == stored_name
             || Self::reference_field_key(reference) == Self::stored_field_key(stored_name)
@@ -170,6 +179,7 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn from_field_name(name: &str) -> Self {
         Self {
             components: vec![IdentifierComponent::delimited(name)],
@@ -177,12 +187,14 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn matches_field_name(&self, name: &str) -> bool {
         self.field_lookup_key() == Self::from_field_name(name).lookup_key()
     }
 
     /// Returns the canonical key used by binder and executor lookup.
     #[doc(hidden)]
+    #[must_use]
     pub fn lookup_key(&self) -> String {
         let last = self.components.len() - 1;
         self.components
@@ -211,6 +223,7 @@ impl ColumnIdentifierPath {
 
     /// Returns the key for the final component, with its SQL folding applied.
     #[doc(hidden)]
+    #[must_use]
     pub fn field_lookup_key(&self) -> String {
         let component = self
             .components
@@ -223,6 +236,7 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn final_name(&self) -> &str {
         self.components
             .last()
@@ -231,6 +245,7 @@ impl ColumnIdentifierPath {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn declared_name(&self) -> String {
         let component = self
             .components
@@ -247,17 +262,20 @@ impl ColumnIdentifierPath {
     /// Quoted final components keep their declared case; unquoted components
     /// use SQL's folded identifier spelling.
     #[doc(hidden)]
+    #[must_use]
     pub fn implicit_output_label(&self) -> String {
         self.declared_name()
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn is_qualified(&self) -> bool {
         self.components.len() > 1
     }
 
     /// Candidate row keys in qualifier preference order, then the bare field.
     #[doc(hidden)]
+    #[must_use]
     pub fn row_lookup_candidates(&self) -> Vec<String> {
         let last = self.components.len() - 1;
         let field = self.final_name();
@@ -290,6 +308,7 @@ impl ColumnIdentifierPath {
 
     /// Returns parseable SQL that keeps the exact final column spelling.
     #[doc(hidden)]
+    #[must_use]
     pub fn canonical_sql(&self) -> String {
         let last = self.components.len() - 1;
         self.components

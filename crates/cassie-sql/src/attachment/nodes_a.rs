@@ -1,5 +1,12 @@
 use super::MapAttachment;
-use crate::ast::*;
+use crate::ast::{
+    AlterTableOperation, AlterTableStatement, ArraySubscript, CallProcedureStatement,
+    CommonTableExpression, CreateIndexStatement, CreateRollupStatement, CreateTableAsClause,
+    CreateTableStatement, CteCycle, CteQuery, DeclareCursorStatement, DeleteStatement,
+    ExplainStatement, Expr, FieldDefinition, FunctionCall, GraphColumn, GraphEdgePattern,
+    GraphPathPattern, GraphPathStep, GraphTable, GraphVertexPattern, InsertConflictAction,
+    InsertConflictClause, InsertSource, InsertStatement,
+};
 
 impl MapAttachment for (String, Expr<()>) {
     type Rebound<B> = (String, Expr<B>);
@@ -276,110 +283,122 @@ impl MapAttachment for ExplainStatement<()> {
 impl MapAttachment for Expr<()> {
     type Rebound<B> = Expr<B>;
     fn rebind_attachment<B>(self) -> Self::Rebound<B> {
-        match self {
-            Self::Column(value0) => Expr::<B>::Column(value0),
-            Self::Param(value0) => Expr::<B>::Param(value0),
-            Self::StringLiteral(value0) => Expr::<B>::StringLiteral(value0),
-            Self::NumberLiteral(value0) => Expr::<B>::NumberLiteral(value0),
-            Self::IntegerLiteral(value0) => Expr::<B>::IntegerLiteral(value0),
-            Self::NumericLiteral(value0) => Expr::<B>::NumericLiteral(value0),
-            Self::BoolLiteral(value0) => Expr::<B>::BoolLiteral(value0),
-            Self::Null => Expr::<B>::Null,
-            Self::Case {
-                operand,
-                branches,
-                else_expr,
-            } => Expr::<B>::Case {
-                operand: operand.rebind_attachment::<B>(),
-                branches: branches.rebind_attachment::<B>(),
-                else_expr: else_expr.rebind_attachment::<B>(),
-            },
-            Self::Binary { left, op, right } => Expr::<B>::Binary {
-                left: left.rebind_attachment::<B>(),
-                op,
-                right: right.rebind_attachment::<B>(),
-            },
-            Self::TruthTest {
-                expr,
-                truth,
-                negated,
-            } => Expr::<B>::TruthTest {
-                expr: expr.rebind_attachment::<B>(),
-                truth,
-                negated,
-            },
-            Self::IsNull { expr, negated } => Expr::<B>::IsNull {
-                expr: expr.rebind_attachment::<B>(),
-                negated,
-            },
-            Self::InList {
-                expr,
-                values,
-                negated,
-            } => Expr::<B>::InList {
-                expr: expr.rebind_attachment::<B>(),
-                values: values.rebind_attachment::<B>(),
-                negated,
-            },
-            Self::Like {
-                expr,
-                pattern,
-                escape,
-                case_insensitive,
-            } => Expr::<B>::Like {
-                expr: expr.rebind_attachment::<B>(),
-                pattern: pattern.rebind_attachment::<B>(),
-                escape: escape.rebind_attachment::<B>(),
-                case_insensitive,
-            },
-            Self::Between {
-                expr,
-                low,
-                high,
-                negated,
-                symmetric,
-            } => Expr::<B>::Between {
-                expr: expr.rebind_attachment::<B>(),
-                low: low.rebind_attachment::<B>(),
-                high: high.rebind_attachment::<B>(),
-                negated,
-                symmetric,
-            },
-            Self::Not { expr } => Expr::<B>::Not {
-                expr: expr.rebind_attachment::<B>(),
-            },
-            Self::Cast {
-                expr,
-                data_type,
-                source_type,
-                identity,
-            } => Expr::<B>::Cast {
-                expr: expr.rebind_attachment::<B>(),
-                data_type,
-                source_type,
-                identity,
-            },
-            Self::Collate { expr, collation } => Expr::<B>::Collate {
-                expr: expr.rebind_attachment::<B>(),
-                collation,
-            },
-            Self::ArraySubscript { array, subscripts } => Expr::<B>::ArraySubscript {
-                array: array.rebind_attachment::<B>(),
-                subscripts: subscripts.rebind_attachment::<B>(),
-            },
-            Self::UnaryNumeric { expr, op } => Expr::<B>::UnaryNumeric {
-                expr: expr.rebind_attachment::<B>(),
-                op,
-            },
-            Self::IntegerNegate { expr, width } => Expr::<B>::IntegerNegate {
-                expr: expr.rebind_attachment::<B>(),
-                width,
-            },
-            Self::RowCompare(value0) => Expr::<B>::RowCompare(value0.rebind_attachment::<B>()),
-            Self::Exists(value0) => Expr::<B>::Exists(value0.rebind_attachment::<B>()),
-            Self::Subquery(value0) => Expr::<B>::Subquery(value0.rebind_attachment::<B>()),
-            Self::Function(value0) => Expr::<B>::Function(value0.rebind_attachment::<B>()),
-        }
+        rebind_expr(self)
+    }
+}
+
+fn rebind_expr<B>(expression: Expr<()>) -> Expr<B> {
+    match expression {
+        Expr::Column(value) => Expr::Column(value),
+        Expr::Param(value) => Expr::Param(value),
+        Expr::StringLiteral(value) => Expr::StringLiteral(value),
+        Expr::NumberLiteral(value) => Expr::NumberLiteral(value),
+        Expr::IntegerLiteral(value) => Expr::IntegerLiteral(value),
+        Expr::NumericLiteral(value) => Expr::NumericLiteral(value),
+        Expr::BoolLiteral(value) => Expr::BoolLiteral(value),
+        Expr::Null => Expr::Null,
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => rebind_case(operand, branches, else_expr),
+        Expr::Binary { left, op, right } => Expr::<B>::Binary {
+            left: left.rebind_attachment::<B>(),
+            op,
+            right: right.rebind_attachment::<B>(),
+        },
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => Expr::<B>::TruthTest {
+            expr: expr.rebind_attachment::<B>(),
+            truth,
+            negated,
+        },
+        Expr::IsNull { expr, negated } => Expr::<B>::IsNull {
+            expr: expr.rebind_attachment::<B>(),
+            negated,
+        },
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => Expr::<B>::InList {
+            expr: expr.rebind_attachment::<B>(),
+            values: values.rebind_attachment::<B>(),
+            negated,
+        },
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+            case_insensitive,
+        } => Expr::<B>::Like {
+            expr: expr.rebind_attachment::<B>(),
+            pattern: pattern.rebind_attachment::<B>(),
+            escape: escape.rebind_attachment::<B>(),
+            case_insensitive,
+        },
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+            symmetric,
+        } => Expr::<B>::Between {
+            expr: expr.rebind_attachment::<B>(),
+            low: low.rebind_attachment::<B>(),
+            high: high.rebind_attachment::<B>(),
+            negated,
+            symmetric,
+        },
+        Expr::Not { expr } => Expr::<B>::Not {
+            expr: expr.rebind_attachment::<B>(),
+        },
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => Expr::<B>::Cast {
+            expr: expr.rebind_attachment::<B>(),
+            data_type,
+            source_type,
+            identity,
+        },
+        Expr::Collate { expr, collation } => Expr::<B>::Collate {
+            expr: expr.rebind_attachment::<B>(),
+            collation,
+        },
+        Expr::ArraySubscript { array, subscripts } => Expr::<B>::ArraySubscript {
+            array: array.rebind_attachment::<B>(),
+            subscripts: subscripts.rebind_attachment::<B>(),
+        },
+        Expr::UnaryNumeric { expr, op } => Expr::<B>::UnaryNumeric {
+            expr: expr.rebind_attachment::<B>(),
+            op,
+        },
+        Expr::IntegerNegate { expr, width } => Expr::<B>::IntegerNegate {
+            expr: expr.rebind_attachment::<B>(),
+            width,
+        },
+        Expr::RowCompare(value0) => Expr::<B>::RowCompare(value0.rebind_attachment::<B>()),
+        Expr::Exists(value0) => Expr::<B>::Exists(value0.rebind_attachment::<B>()),
+        Expr::Subquery(value0) => Expr::<B>::Subquery(value0.rebind_attachment::<B>()),
+        Expr::Function(value0) => Expr::<B>::Function(value0.rebind_attachment::<B>()),
+    }
+}
+
+fn rebind_case<B>(
+    operand: Option<Box<Expr<()>>>,
+    branches: Vec<(Expr<()>, Expr<()>)>,
+    else_expr: Option<Box<Expr<()>>>,
+) -> Expr<B> {
+    Expr::Case {
+        operand: operand.rebind_attachment::<B>(),
+        branches: branches.rebind_attachment::<B>(),
+        else_expr: else_expr.rebind_attachment::<B>(),
     }
 }
 

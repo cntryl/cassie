@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::types::{IvfFlatTrainingState, NormalizedVectorRecord};
 
-/// Version of the IVFFlat training state recognized by the index algorithms.
+/// Version of the `IVFFlat` training state recognized by the index algorithms.
 pub const TRAINING_VERSION: u32 = 1;
 
 #[must_use]

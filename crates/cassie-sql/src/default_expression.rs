@@ -10,6 +10,7 @@ pub enum VolatileDefault {
 }
 
 impl VolatileDefault {
+    #[must_use]
     pub fn parse(raw: &str) -> Option<Self> {
         let normalized = raw
             .chars()
@@ -36,6 +37,7 @@ impl VolatileDefault {
         }
     }
 
+    #[must_use]
     pub const fn canonical(self) -> &'static str {
         match self {
             Self::Now => "now()",

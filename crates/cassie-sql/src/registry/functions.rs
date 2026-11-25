@@ -426,35 +426,6 @@ pub fn is_server_file_helper(name: &str) -> bool {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{function, registry, FunctionArity, FunctionId};
-    use std::collections::HashSet;
-
-    #[test]
-    fn should_preserve_function_registry_identity() {
-        // Arrange
-        let mut names = HashSet::new();
-
-        // Act
-        let functions = registry();
-
-        // Assert
-        for function in functions {
-            assert!(names.insert(function.name.to_ascii_lowercase()));
-        }
-        assert!(function("lag").is_none());
-        assert_eq!(
-            function("regexp_replace").map(|metadata| metadata.id),
-            Some(FunctionId::RegexpReplace)
-        );
-        assert_eq!(
-            function("count").map(|metadata| metadata.arity),
-            Some(FunctionArity::Exact(1))
-        );
-    }
-}
-
 fn scalar_functions() -> impl Iterator<Item = &'static ScalarFunction> {
     arrays::FUNCTIONS
         .iter()
@@ -752,3 +723,32 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: true,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::{function, registry, FunctionArity, FunctionId};
+    use std::collections::HashSet;
+
+    #[test]
+    fn should_preserve_function_registry_identity() {
+        // Arrange
+        let mut names = HashSet::new();
+
+        // Act
+        let functions = registry();
+
+        // Assert
+        for function in functions {
+            assert!(names.insert(function.name.to_ascii_lowercase()));
+        }
+        assert!(function("lag").is_none());
+        assert_eq!(
+            function("regexp_replace").map(|metadata| metadata.id),
+            Some(FunctionId::RegexpReplace)
+        );
+        assert_eq!(
+            function("count").map(|metadata| metadata.arity),
+            Some(FunctionArity::Exact(1))
+        );
+    }
+}

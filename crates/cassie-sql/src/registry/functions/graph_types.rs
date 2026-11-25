@@ -90,6 +90,7 @@ pub const TABLE_FUNCTIONS: [&str; 3] = [
 ];
 
 /// Whether `name` is one of the FROM-only graph type functions.
+#[must_use]
 pub fn is_table_function(name: &str) -> bool {
     TABLE_FUNCTIONS
         .iter()
@@ -97,6 +98,7 @@ pub fn is_table_function(name: &str) -> bool {
 }
 
 /// The argument count of a table function.
+#[must_use]
 pub fn table_arity(name: &str) -> usize {
     if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[2]) {
         2
@@ -106,6 +108,7 @@ pub fn table_arity(name: &str) -> usize {
 }
 
 /// Whether the `vertex` and `edge` columns of `name` are `graph_element_ref`s.
+#[must_use]
 pub fn has_element_columns(name: &str) -> bool {
     TABLE_FUNCTIONS[1..]
         .iter()
@@ -115,12 +118,14 @@ pub fn has_element_columns(name: &str) -> bool {
 /// Output columns of a table function with the element columns untyped, for callers with
 /// no catalog. The descriptor is per database, so the binder resolves it and the typed
 /// columns come from [`table_columns_typed`].
+#[must_use]
 pub fn table_columns(name: &str) -> Option<Vec<(String, DataType)>> {
     table_columns_typed(name, &DataType::Null)
 }
 
 /// Output columns of a table function whose `vertex` and `edge` columns have the
 /// `element` type.
+#[must_use]
 pub fn table_columns_typed(name: &str, element: &DataType) -> Option<Vec<(String, DataType)>> {
     let element = element.clone();
     let columns: Vec<(&str, DataType)> = if name.eq_ignore_ascii_case(TABLE_FUNCTIONS[0]) {

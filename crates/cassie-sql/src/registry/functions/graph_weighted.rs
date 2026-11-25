@@ -23,6 +23,7 @@ pub const ARGUMENTS: [&str; 9] = [
 pub const REQUIRED: usize = 5;
 
 /// Whether `name` is the weighted path function.
+#[must_use]
 pub fn is_weighted_paths(name: &str) -> bool {
     name.eq_ignore_ascii_case(NAME)
 }
@@ -33,6 +34,7 @@ fn numeric() -> DataType {
 
 /// Output columns; `path` is typed by the bound database's `graph_path`
 /// descriptor when it is known and untyped before.
+#[must_use]
 pub fn columns(path: Option<DataType>) -> Vec<(String, DataType)> {
     vec![
         ("path_rank".to_owned(), DataType::BigInt),

@@ -102,6 +102,9 @@ where
     }
 
     /// The stored vector of `id`, when it is a node.
+    ///
+    /// # Errors
+    /// Returns the node loader error if reading the stored node fails.
     pub fn stored_vector(&mut self, id: &str) -> MaintainResult<Option<(Vec<f32>, f64)>, E> {
         Ok(self
             .node(id)?
@@ -296,6 +299,9 @@ where
 
     /// Inserts `record` as a new node linked both ways to its nearest
     /// neighbors on every layer it owns.
+    ///
+    /// # Errors
+    /// Returns a loader error or reports inconsistent graph links or node metadata.
     pub fn insert(&mut self, record: &NormalizedVectorRecord) -> MaintainResult<(), E> {
         if self.node(&record.id)?.is_some() {
             return inconsistent("duplicate-node-id");
@@ -352,6 +358,9 @@ where
 
     /// Deletes `id`, reconnecting its neighbors to one another. Returns whether
     /// the node existed.
+    ///
+    /// # Errors
+    /// Returns a loader error or reports an inconsistent graph during deletion.
     pub fn remove(&mut self, id: &str) -> MaintainResult<bool, E> {
         let Some(removed) = self.node(id)?.cloned() else {
             return Ok(false);

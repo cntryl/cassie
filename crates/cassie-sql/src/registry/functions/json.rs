@@ -253,6 +253,7 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ),
 ];
 
+#[must_use]
 pub fn is_variadic_array_argument<A>(expression: &crate::sql::ast::Expr<A>) -> bool {
     matches!(
         expression,
@@ -352,6 +353,7 @@ const fn mutation(
     }
 }
 
+#[must_use]
 pub const fn inputs(kind: JsonFunction) -> Option<&'static [i32]> {
     match kind {
         JsonFunction::Typeof(false)

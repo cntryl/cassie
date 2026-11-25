@@ -181,6 +181,11 @@ impl IndexMeta {
             .or_insert_with(|| oid.to_string());
     }
 
+    /// Sets the unique reservation generation for the physical index.
+    ///
+    /// # Errors
+    /// Returns an error when the generation is zero, differs from the index
+    /// storage ID, or the index has no valid relation ID.
     pub fn set_reservation_generation(&mut self, identity: u64) -> Result<(), String> {
         if identity == 0
             || self.storage_id() != Some(identity)
@@ -251,7 +256,10 @@ impl IndexMeta {
     }
 
     /// Checks stored expression definitions and reports malformed metadata so
-    /// DROP COLUMN can abort before publishing any schema changes.
+    /// `DROP COLUMN` can abort before publishing any schema changes.
+    ///
+    /// # Errors
+    /// Returns an error when a stored scalar expression or predicate is malformed.
     pub fn references_field_checked(&self, field: &str) -> Result<bool, String> {
         let partition_references_field = self.options.get("partition_by").is_some_and(|fields| {
             fields.split(',').map(str::trim).any(|candidate| {
@@ -585,6 +593,51 @@ pub fn materialized_output_collection(name: &str, version_id: &str) -> String {
     })
 }
 
+impl IndexMeta {
+    pub fn preserve_identity_before_name_change(&mut self) {
+        let name = self.name.clone();
+        self.set_catalog_oid_if_missing(cassie_core::catalog::object_identity::stable_index_oid(
+            &name,
+        ));
+        if self.unique {
+            self.set_unique_reservation_name_if_missing(&name);
+        }
+    }
+
+    /// Returns the legacy or generation-based key for unique reservations.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid generation, storage ID, or relation ID.
+    pub fn reservation_identity_details(&self) -> Result<ReservationIdentity<'_>, String> {
+        let Some(raw) = self.options.get(Self::UNIQUE_RESERVATION_GENERATION_OPTION) else {
+            return Ok(ReservationIdentity::Legacy(self.unique_reservation_name()));
+        };
+        let identity = raw
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value != 0)
+            .filter(|value| {
+                self.storage_id() == Some(*value) && self.relation_id().is_some_and(|id| id != 0)
+            })
+            .ok_or_else(|| "invalid unique index reservation generation".to_owned())?;
+        Ok(ReservationIdentity::Generation(identity))
+    }
+
+    #[must_use]
+    pub fn unique_violation_details(&self, collection: &str) -> UniqueViolationDetails {
+        let column = if self.normalized_fields().is_empty() {
+            self.normalized_expressions().join(", ")
+        } else {
+            self.normalized_fields().join(", ")
+        };
+        UniqueViolationDetails {
+            table: collection.to_owned(),
+            column,
+            constraint: cassie_core::catalog::scope::local_name(&self.name),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{IndexKind, IndexMeta, MaterializedProjectionSpec, ProjectionMeta};
@@ -652,47 +705,5 @@ mod tests {
             "SELECT id FROM public.events"
         );
         assert_eq!(materialized_bytes["versions"][0]["version_id"], "v1");
-    }
-}
-
-impl IndexMeta {
-    pub fn preserve_identity_before_name_change(&mut self) {
-        let name = self.name.clone();
-        self.set_catalog_oid_if_missing(cassie_core::catalog::object_identity::stable_index_oid(
-            &name,
-        ));
-        if self.unique {
-            self.set_unique_reservation_name_if_missing(&name);
-        }
-    }
-
-    #[must_use]
-    pub fn reservation_identity_details(&self) -> Result<ReservationIdentity<'_>, String> {
-        let Some(raw) = self.options.get(Self::UNIQUE_RESERVATION_GENERATION_OPTION) else {
-            return Ok(ReservationIdentity::Legacy(self.unique_reservation_name()));
-        };
-        let identity = raw
-            .parse::<u64>()
-            .ok()
-            .filter(|value| *value != 0)
-            .filter(|value| {
-                self.storage_id() == Some(*value) && self.relation_id().is_some_and(|id| id != 0)
-            })
-            .ok_or_else(|| "invalid unique index reservation generation".to_owned())?;
-        Ok(ReservationIdentity::Generation(identity))
-    }
-
-    #[must_use]
-    pub fn unique_violation_details(&self, collection: &str) -> UniqueViolationDetails {
-        let column = if self.normalized_fields().is_empty() {
-            self.normalized_expressions().join(", ")
-        } else {
-            self.normalized_fields().join(", ")
-        };
-        UniqueViolationDetails {
-            table: collection.to_owned(),
-            column,
-            constraint: cassie_core::catalog::scope::local_name(&self.name),
-        }
     }
 }

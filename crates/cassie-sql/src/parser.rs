@@ -357,6 +357,7 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn is_concurrent_materialized_view_refresh(sql: &str) -> bool {
     materialized_view::is_concurrent_refresh(sql)
 }

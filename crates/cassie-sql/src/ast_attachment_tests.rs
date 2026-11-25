@@ -1,15 +1,15 @@
 use crate::ast::{FunctionCall, ParsedStatement, SubqueryExpr, SubqueryKind};
 
+struct RuntimeOnly;
+
 #[test]
 fn should_default_function_call_without_defaulting_its_attachment() {
     // Arrange
-    struct RuntimeOnly;
-
     // Act
     let call = FunctionCall::<RuntimeOnly>::default();
 
     // Assert
-    assert!(call.name.is_empty());
+    assert_eq!(call.name, "");
     assert!(call.args.is_empty());
     assert_eq!(call.quantifier, crate::ast::AggregateQuantifier::Default);
     assert!(call.filter.is_none());
@@ -38,8 +38,6 @@ fn should_omit_runtime_attachment_when_syntax_ast_is_serialized() {
             set: None,
         })),
     };
-    struct RuntimeOnly;
-
     let expression = SubqueryExpr::<RuntimeOnly> {
         kind: SubqueryKind::Scalar,
         query: Box::new(query),

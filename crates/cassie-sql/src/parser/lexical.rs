@@ -41,6 +41,7 @@ fn dollar_quote_delimiter(input: &str, start: usize) -> Option<&str> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn dollar_quoted_content(input: &str) -> Option<&str> {
     let delimiter = dollar_quote_delimiter(input, 0)?;
     let start = delimiter.len();
@@ -49,6 +50,7 @@ pub fn dollar_quoted_content(input: &str) -> Option<&str> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
     let delimiter = dollar_quote_delimiter(input, start)?;
     let content_start = start + delimiter.len();
@@ -62,6 +64,7 @@ pub fn dollar_quoted_end(input: &str, start: usize) -> Option<usize> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn escape_string_prefix(input: &str, quote: usize) -> bool {
     input[..quote]
         .strip_suffix(['e', 'E'])

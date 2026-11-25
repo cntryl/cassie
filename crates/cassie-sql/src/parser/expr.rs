@@ -67,6 +67,10 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
     super::aggregate_call::parse_function(raw)
 }
 
+/// Parses one SQL expression.
+///
+/// # Errors
+/// Returns a syntax or resource-limit error when the input cannot be parsed.
 pub fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
     let _preflight = depth::enter_expression_preflight(raw)?;
     let raw = super::lexical::trim_separators(raw);

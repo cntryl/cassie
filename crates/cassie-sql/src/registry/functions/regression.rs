@@ -107,6 +107,7 @@ pub const FUNCTIONS: &[ScalarFunction] = &[
     ),
 ];
 
+#[must_use]
 pub const fn is_regression_function(id: FunctionId) -> bool {
     matches!(
         id,

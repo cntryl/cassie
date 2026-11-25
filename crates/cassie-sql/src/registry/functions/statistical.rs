@@ -27,6 +27,7 @@ pub const FUNCTIONS: &[ScalarFunction] = &[
     aggregate(FunctionId::Stddev, "pg_catalog.stddev"),
 ];
 
+#[must_use]
 pub const fn is_statistical_function(id: FunctionId) -> bool {
     matches!(
         id,

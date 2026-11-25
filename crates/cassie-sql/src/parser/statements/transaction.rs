@@ -60,7 +60,7 @@ pub(in crate::parser) fn parse_transaction_statement(
         }
         ["savepoint", ..] => return Err(SqlError::syntax("SAVEPOINT requires a name".into())),
         ["release", ..] => {
-            return Err(SqlError::syntax("RELEASE requires a savepoint name".into()))
+            return Err(SqlError::syntax("RELEASE requires a savepoint name".into()));
         }
         _ => return Err(invalid_transaction()),
     };
@@ -75,6 +75,7 @@ fn parsed(sql: &str, statement: TransactionStatement) -> ParsedStatement {
     }
 }
 
+#[must_use]
 pub fn parse_terminal_transaction_control(sql: &str) -> Option<TransactionStatement> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let mut tokens = trimmed.split_whitespace();

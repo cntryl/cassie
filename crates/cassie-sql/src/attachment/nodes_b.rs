@@ -1,5 +1,12 @@
 use super::MapAttachment;
-use crate::ast::*;
+use crate::ast::{
+    FieldDefinition, JsonBehavior, JsonTableColumn, JsonTableNested, JsonTableSpec,
+    JsonTableValueColumn, MergeAction, MergeClause, MergeStatement, MutationSource, OrderExpr,
+    ParsedStatement, PrepareStatement, QuerySource, QueryStatement, RowComparison,
+    RowSubqueryAssignment, SelectItem, SelectSet, SelectStatement, SessionObjectStatement,
+    SubqueryExpr, SubqueryKind, TableFunctionForm, UpdateStatement, UpdateTarget,
+    WindowFunctionCall,
+};
 use crate::declarations::{ConstraintCheck, FieldConstraint};
 
 impl MapAttachment for JsonBehavior<()> {

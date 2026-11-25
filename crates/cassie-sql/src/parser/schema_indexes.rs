@@ -82,8 +82,8 @@ pub(in crate::parser) fn parse_create_index_statement(
         return Err(SqlError::new("unsupported CREATE INDEX syntax".to_string()));
     }
 
-    validate_index_method_keys(&kind, &fields, &expressions)?;
-    insert_access_method_option(&mut options, &kind, access_method);
+    validate_index_method_keys(kind, &fields, &expressions)?;
+    insert_access_method_option(&mut options, kind, access_method);
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -768,7 +768,7 @@ fn parse_create_index_name(raw_name: &str) -> Result<String, SqlError> {
 }
 
 fn validate_index_method_keys(
-    kind: &IndexKind,
+    kind: IndexKind,
     fields: &[String],
     expressions: &[Expr],
 ) -> Result<(), SqlError> {
@@ -789,7 +789,7 @@ fn validate_index_method_keys(
 
 fn insert_access_method_option(
     options: &mut std::collections::BTreeMap<String, String>,
-    kind: &IndexKind,
+    kind: IndexKind,
     access_method: Option<&str>,
 ) {
     let ((IndexKind::Scalar, Some(selected @ "hash"))

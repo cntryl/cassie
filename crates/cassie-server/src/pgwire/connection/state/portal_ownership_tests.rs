@@ -40,7 +40,7 @@ fn should_retire_old_portals_without_clearing_the_replacement_transaction() {
         .identity()
         .expect("owner A");
     state
-        .publish_bound_portal(portal("old"), old, None, &cassie.runtime(), 2)
+        .publish_bound_portal(portal("old"), old, None, cassie.runtime(), 2)
         .expect("portal A");
     cassie
         .execute_sql(&session, "ROLLBACK", Vec::new())
@@ -52,10 +52,10 @@ fn should_retire_old_portals_without_clearing_the_replacement_transaction() {
         .identity()
         .expect("owner B");
     state
-        .publish_bound_portal(portal("current"), current, None, &cassie.runtime(), 2)
+        .publish_bound_portal(portal("current"), current, None, cassie.runtime(), 2)
         .expect("portal B");
     // Act
-    state.clear_portals_owned_by(old, &cassie.runtime());
+    state.clear_portals_owned_by(old, cassie.runtime());
     // Assert
     assert!(!state.portals.contains_key("old"));
     assert!(state.portals.contains_key("current"));
@@ -72,7 +72,7 @@ fn should_retain_idle_bound_portals_only_for_their_own_implicit_start() {
     let authority = FailureAuthority::capture_for_operation(&operation);
     let before = authority.identity().expect("preparation owner");
     state
-        .publish_bound_portal(portal("bound"), before, None, &cassie.runtime(), 1)
+        .publish_bound_portal(portal("bound"), before, None, cassie.runtime(), 1)
         .expect("idle portal");
     operation
         .begin_implicit_transaction_for_operation(Some(&authority))
@@ -80,7 +80,7 @@ fn should_retain_idle_bound_portals_only_for_their_own_implicit_start() {
     let after = authority.identity().expect("implicit owner");
     // Act
     state.adopt_operation_portals(&authority);
-    state.reconcile_portals(after, &cassie.runtime());
+    state.reconcile_portals(after, cassie.runtime());
     // Assert
     assert!(state.portals.contains_key("bound"));
     assert!(state.portal_owners.belongs_to("bound", after));
@@ -91,7 +91,7 @@ fn should_retain_idle_bound_portals_only_for_their_own_implicit_start() {
     let replacement = FailureAuthority::capture(&session)
         .identity()
         .expect("replacement owner");
-    state.reconcile_portals(replacement, &cassie.runtime());
+    state.reconcile_portals(replacement, cassie.runtime());
     assert!(state.portals.is_empty());
     assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
 }
@@ -104,7 +104,7 @@ fn should_release_portal_owner_metadata_when_a_prepared_statement_closes() {
         .identity()
         .expect("preparation owner");
     state
-        .publish_bound_portal(portal("p"), owner, None, &cassie.runtime(), 1)
+        .publish_bound_portal(portal("p"), owner, None, cassie.runtime(), 1)
         .expect("portal");
     // Act
     let removed = state.remove_portals_for_prepared_id(1);

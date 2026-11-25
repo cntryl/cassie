@@ -475,7 +475,7 @@ fn should_cancel_an_active_materialized_portal_page_at_a_frame_boundary() {
     let secret_key = backend.secret_key();
     let session = cassie.create_session("tester", None);
     let mut writer = CancelAtFlushWrite {
-        runtime: std::sync::Arc::clone(&cassie.runtime()),
+        runtime: std::sync::Arc::clone(cassie.runtime()),
         process_id,
         secret_key,
         attempted: false,
@@ -534,7 +534,7 @@ fn should_keep_cancellation_registered_while_streaming_portal_pages_are_written(
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime()),
+            runtime: std::sync::Arc::clone(cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -581,7 +581,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime()),
+            runtime: std::sync::Arc::clone(cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -592,7 +592,7 @@ fn should_keep_cancellation_registered_while_prepared_portal_pages_are_written()
         // Act
         let error = runtime().block_on(super::super::execute_prepared_portal(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut writer,
             &mut state,
             &session,
@@ -651,7 +651,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         let backend = state.backend_registration.as_ref().expect("backend");
         let (process_id, secret_key) = (backend.process_id(), backend.secret_key());
         let mut writer = CancelAtFlushWrite {
-            runtime: std::sync::Arc::clone(&cassie.runtime()),
+            runtime: std::sync::Arc::clone(cassie.runtime()),
             process_id,
             secret_key,
             attempted: false,
@@ -662,7 +662,7 @@ fn should_acknowledge_success_after_a_transaction_publication() {
         // Act
         let outcome = runtime().block_on(super::super::handle_execute(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut writer,
             &mut state,
             &session,

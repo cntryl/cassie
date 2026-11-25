@@ -16,7 +16,7 @@ pub(in crate::pgwire::connection::extended) fn after_registry(
         actions
             .lock()
             .unwrap()
-            .remove(&(std::sync::Arc::as_ptr(&cassie.runtime()) as usize))
+            .remove(&(std::sync::Arc::as_ptr(cassie.runtime()) as usize))
     });
     if let Some(action) = action {
         action(session);
@@ -29,7 +29,7 @@ fn install(cassie: &Cassie, action: impl FnOnce(&CassieSession) + Send + 'static
         .lock()
         .unwrap()
         .insert(
-            std::sync::Arc::as_ptr(&cassie.runtime()) as usize,
+            std::sync::Arc::as_ptr(cassie.runtime()) as usize,
             Box::new(action)
         )
         .is_none());
@@ -48,7 +48,7 @@ fn fixture() -> (
     let root = cassie.create_session("registry_publication", None);
     root.begin_transaction(None).unwrap();
     let operation = root.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     let mut state = SessionState::new(&cassie.runtime().limits());
     state.session = Some(root.clone());
     (cassie, root, operation, state)
@@ -96,7 +96,7 @@ fn should_not_publish_named_or_unnamed_parse_after_registry_owner_replacement() 
         // Act
         let result = runtime().block_on(super::super::parse::handle_parse(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut output,
             &mut state,
             &operation,
@@ -140,7 +140,7 @@ fn should_not_publish_close_or_remove_portals_after_registry_owner_replacement()
     // Act
     let result = runtime().block_on(super::super::handle_close(
         std::sync::Arc::clone(&cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut output,
         (&mut state, &operation),
         super::super::DescribeTarget::Statement,
@@ -165,7 +165,7 @@ fn should_apply_prepared_namespace_changes_for_the_current_frame_owner() {
     runtime().block_on(async {
         super::super::parse::handle_parse(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut output,
             &mut state,
             &operation,
@@ -180,7 +180,7 @@ fn should_apply_prepared_namespace_changes_for_the_current_frame_owner() {
         assert!(state.prepared_statements.contains_key("source"));
         super::super::handle_close(
             std::sync::Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut output,
             (&mut state, &operation),
             super::super::DescribeTarget::Statement,
@@ -223,7 +223,7 @@ fn should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf() {
             },
             owner,
             None,
-            &cassie.runtime(),
+            cassie.runtime(),
             999,
         )
         .unwrap();
@@ -232,7 +232,7 @@ fn should_preserve_b_namespace_when_an_a_close_reaches_the_shared_leaf() {
     // Act
     let result = runtime().block_on(super::super::handle_close(
         std::sync::Arc::clone(&cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut output,
         (&mut state, &operation),
         super::super::DescribeTarget::Statement,
@@ -271,7 +271,7 @@ fn should_not_remove_b_portals_for_an_a_portal_close() {
             },
             owner,
             None,
-            &cassie.runtime(),
+            cassie.runtime(),
             999,
         )
         .unwrap();
@@ -280,7 +280,7 @@ fn should_not_remove_b_portals_for_an_a_portal_close() {
     // Act
     let result = runtime().block_on(super::super::handle_close(
         std::sync::Arc::clone(&cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut output,
         (&mut state, &operation),
         super::super::DescribeTarget::Portal,

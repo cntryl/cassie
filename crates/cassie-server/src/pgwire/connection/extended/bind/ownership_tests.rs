@@ -24,7 +24,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
         .execute_sql(&session, "BEGIN", Vec::new())
         .expect("begin A");
     let operation = session.with_new_wire_operation();
-    FailureAuthority::capture_for_operation(&operation);
+    drop(FailureAuthority::capture_for_operation(&operation));
     cassie
         .execute_sql(&session, "ROLLBACK", Vec::new())
         .expect("rollback A");
@@ -63,7 +63,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
             },
             current,
             None,
-            &cassie.runtime(),
+            cassie.runtime(),
             1,
         )
         .expect("portal B");
@@ -71,7 +71,7 @@ fn should_reject_stale_bind_without_replacing_a_newer_portal() {
     // Act
     let result = runtime().block_on(handle_bind(
         Arc::clone(&cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut output,
         &mut state,
         &operation,
@@ -121,7 +121,7 @@ fn should_publish_an_idle_bind_without_starting_a_mutation_transaction() {
     runtime()
         .block_on(handle_bind(
             Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut output,
             &mut state,
             &operation,

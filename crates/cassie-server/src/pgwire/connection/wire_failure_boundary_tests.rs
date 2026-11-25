@@ -58,7 +58,7 @@ async fn handle_frame(
     let mut output = Vec::new();
     let step = super::handle_ready(
         Arc::clone(cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut reader,
         &mut output,
         state,
@@ -348,7 +348,7 @@ fn should_keep_the_replacement_healthy_after_a_simple_worker_error() {
     runtime
         .block_on(simple_execution::run_batch(
             Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut output,
             &mut state,
             &session,
@@ -425,7 +425,7 @@ fn should_keep_the_replacement_healthy_after_an_extended_worker_error() {
         let mut awaiting_sync = false;
         extended::handle_frontend_message(
             Arc::clone(&cassie),
-            &cassie.runtime(),
+            cassie.runtime(),
             &mut reader,
             &mut output,
             &mut state,

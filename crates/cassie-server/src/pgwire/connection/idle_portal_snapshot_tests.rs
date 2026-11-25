@@ -124,7 +124,7 @@ async fn handle_frame(
     let mut output = Vec::new();
     let step = super::handle_ready(
         Arc::clone(cassie),
-        &cassie.runtime(),
+        cassie.runtime(),
         &mut reader,
         &mut output,
         state,
@@ -167,7 +167,7 @@ fn assert_failed_snapshot_retains_portal(site: Site) {
     let mut awaiting_sync = matches!(site, Site::SyncWait);
     let output = match site {
         Site::Direct => {
-            super::transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
+            super::transactions::clear_idle_portals(cassie.runtime(), &mut state, &session);
             Vec::new()
         }
         Site::Sync | Site::SyncWait => runtime.block_on(handle_frame(
@@ -257,7 +257,7 @@ fn should_clear_idle_portals_only_after_idle_snapshot() {
     let (cassie, session, mut state) = fixture();
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
+    transactions::clear_idle_portals(cassie.runtime(), &mut state, &session);
 
     // Assert
     assert!(state.portals.is_empty());
@@ -272,7 +272,7 @@ fn should_retain_portals_after_active_snapshot() {
     stamp_current_portal(&session, &mut state);
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
+    transactions::clear_idle_portals(cassie.runtime(), &mut state, &session);
     session.rollback_transaction();
 
     // Assert
@@ -289,7 +289,7 @@ fn should_retain_portals_after_failed_snapshot() {
     session.mark_transaction_failed();
 
     // Act
-    transactions::clear_idle_portals(&cassie.runtime(), &mut state, &session);
+    transactions::clear_idle_portals(cassie.runtime(), &mut state, &session);
     session.rollback_transaction();
 
     // Assert

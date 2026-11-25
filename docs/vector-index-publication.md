@@ -180,13 +180,22 @@ the unrelated collection is scanned, hydrated, read or rewritten.
   vector writes nothing.
 - **Deletion** unlinks the node from each neighbor on every layer, reconnects
   the orphaned neighbors to one another when both have room (nearest first), and
-  deletes the node record. A deleted entry point is replaced by its tallest
-  neighbor on its highest populated layer, which also resets `max_layer`.
+  deletes the node record. A deleted entry point is replaced by a surviving
+  neighbor at the highest remaining node layer. The maintainer checks that a
+  candidate owns this layer, preferring the highest shared layer and then the
+  nearest candidate by distance and ID. A valid rebuild publishes a replacement
+  when no visited neighbor owns the required layer.
 - **Cost.** Only visited nodes are point-read from the transaction. Written
   records are the new or changed nodes plus the manifest (entry point, layer,
   row count, source fingerprint) and the source summary. The source fingerprint
   is folded in and out per record instead of recomputed, so it is an opaque
-  change token that readers compare only between manifest and summary.
+  change token that readers compare only between manifest and summary. The
+  HNSW source summary optionally records 17 counts of nodes at each exact
+  height, from layers zero through 16. Builds count the nodes they produce.
+  Local maintenance reads the matching generation, fingerprint, and row count,
+  validates the counts against the manifest, and adjusts them in the same
+  transaction as the nodes and manifest. Counts establish the highest occupied
+  layer. The existing link checks still establish adjacency validity.
 - **Normalized vectors** are restamped for changed documents only. Unchanged
   records keep the generation they were last written at, so the sidecar fence
   accepts a record stamped between the generation of the last full publication
@@ -199,7 +208,12 @@ A write falls back to a full rebuild, never to a failed write, when the persiste
 graph cannot be trusted: no or undecodable manifest, an older generation than the
 write expects, a different metric, dimension count or graph version, a missing or
 undecodable node, a neighbor too short for its layer, an entry point that cannot
-be re-elected, or a batch above 128 documents. A rebuilt graph estimated at 256
+be re-elected, or a batch above 128 documents. An older summary without
+height counts still supports same-height re-election and ordinary maintenance.
+A nonempty graph that might have to lower its entry-point layer without counts
+uses the existing rebuild path. The optional JSON field requires no layout
+migration. Older readers ignore it, and IVFFlat summaries omit it.
+A rebuilt graph estimated at 256
 KiB or less is written inside the commit. A larger one is unpublished in the
 commit (manifest and source summary deleted, readers take the labelled exact
 fallback), recorded as durable `vector:<field>` maintenance debt, and rebuilt in

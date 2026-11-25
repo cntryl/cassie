@@ -433,9 +433,9 @@ impl Midge {
                 super::key_encoding::hnsw_source_summary_key(row_schema.relation_id, field_id);
             if let Some(raw) = tx.get(&summary_key).map_err(CassieError::from)? {
                 if let Ok(mut summary) =
-                    serde_json::from_slice::<vector_retrieval::HnswSourceSummary>(&raw)
+                    serde_json::from_slice::<incremental::HnswMaintenanceSummary>(&raw)
                 {
-                    summary.built_generation = built_generation;
+                    summary.source.built_generation = built_generation;
                     tx.put(
                         summary_key,
                         serde_json::to_vec(&summary)

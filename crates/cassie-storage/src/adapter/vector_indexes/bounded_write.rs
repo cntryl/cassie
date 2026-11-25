@@ -13,7 +13,9 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use super::codec::{encode_hnsw_node, encode_normalized_vector};
+use super::incremental::HnswMaintenanceSummary;
 use super::stall_retry::retry_bulk_write_stall;
+use super::vector_retrieval::HnswSourceSummary;
 use super::{
     check_document_write_failure_point, collect_scan, CassieError, DocumentWriteFailurePoint,
     Midge, NormalizedVectorRecord, Query, VectorIndexState,
@@ -208,21 +210,21 @@ impl Midge {
         let source = state
             .hnsw_graph
             .as_ref()
-            .map(|graph| (graph.source_fingerprint, graph.row_count))
+            .map(|graph| HnswMaintenanceSummary::for_graph(state.built_generation, graph))
             .or_else(|| {
                 state
                     .ivfflat_training
                     .as_ref()
-                    .map(|training| (training.source_fingerprint, training.row_count))
+                    .map(|training| HnswMaintenanceSummary {
+                        source: HnswSourceSummary {
+                            built_generation: state.built_generation,
+                            source_fingerprint: training.source_fingerprint,
+                            row_count: training.row_count,
+                        },
+                        hnsw_layer_counts: None,
+                    })
             });
-        if let (SummaryPolicy::Refresh, Some((source_fingerprint, row_count))) =
-            (summary_policy, source)
-        {
-            let summary = super::vector_retrieval::HnswSourceSummary {
-                built_generation: state.built_generation,
-                source_fingerprint,
-                row_count,
-            };
+        if let (SummaryPolicy::Refresh, Some(summary)) = (summary_policy, source) {
             publish_ops.push(SidecarOp::Put(
                 super::super::key_encoding::ivfflat_source_summary_key(relation_id, field_id),
                 serde_json::to_vec(&summary)

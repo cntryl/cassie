@@ -904,23 +904,6 @@ impl Midge {
         Ok(Some(record))
     }
 
-    pub(super) fn write_hnsw_source_summary_to_tx(
-        tx: &mut crate::adapter::AdapterTransaction,
-        relation_id: u64,
-        field_id: u32,
-        generation: u64,
-        graph: &crate::embeddings::HnswGraphState,
-    ) -> Result<(), CassieError> {
-        Self::write_vector_source_summary_to_tx(
-            tx,
-            relation_id,
-            field_id,
-            generation,
-            graph.source_fingerprint,
-            graph.row_count,
-        )
-    }
-
     pub(super) fn write_vector_source_summary_to_tx(
         tx: &mut crate::adapter::AdapterTransaction,
         relation_id: u64,

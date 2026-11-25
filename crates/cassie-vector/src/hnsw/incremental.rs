@@ -11,8 +11,8 @@
 //! overflows `m`, the neighbor drops its farthest link *and* that node drops
 //! the link back. Deletion therefore finds every in-link in the deleted node's
 //! own lists, unlinks them, and reconnects the orphaned neighbors to one
-//! another. When the entry point is deleted, the tallest neighbor on its
-//! highest populated layer becomes the entry point.
+//! another. When the entry point is deleted, a surviving neighbor becomes the
+//! replacement only if it owns the highest surviving layer.
 //!
 //! Any stored state that contradicts the graph (a missing neighbor, a neighbor
 //! too short for a layer, an entry point that cannot be re-elected) surfaces as
@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     deterministic_level, graph_distance, pop_nearest, GraphDistanceQuery, OrderedCandidateSet,
-    SearchCandidate,
+    SearchCandidate, MAX_DETERMINISTIC_LAYER,
 };
 use crate::source_fingerprint::{fold_record_fingerprint, normalized_vector_record_fingerprint};
 use crate::types::{DistanceMetric, HnswGraphNode, HnswIndexOptions, NormalizedVectorRecord};
@@ -57,6 +57,26 @@ pub struct MaintainedGraph {
     pub row_count: usize,
     pub source_fingerprint: u64,
     pub nodes_read: usize,
+    pub layer_counts: Option<HnswLayerCounts>,
+}
+
+/// Counts of nodes at each exact HNSW height, including the base layer.
+pub type HnswLayerCounts = [usize; MAX_DETERMINISTIC_LAYER + 1];
+
+/// Counts the heights of the nodes produced by a full graph build.
+/// Returns `None` if a node does not have a supported height.
+#[must_use]
+pub fn count_node_heights(nodes: &[HnswGraphNode]) -> Option<HnswLayerCounts> {
+    let mut counts = HnswLayerCounts::default();
+    for node in nodes {
+        let height = node.layers.len().checked_sub(1)?;
+        *counts.get_mut(height)? += 1;
+    }
+    Some(counts)
+}
+
+fn highest_occupied_layer(counts: &HnswLayerCounts) -> Option<usize> {
+    counts.iter().rposition(|&count| count > 0)
 }
 
 pub struct GraphMaintainer<L, E> {
@@ -67,6 +87,7 @@ pub struct GraphMaintainer<L, E> {
     entry_point: Option<String>,
     max_layer: usize,
     row_count: usize,
+    layer_counts: Option<HnswLayerCounts>,
     source_fingerprint: u64,
     metric: DistanceMetric,
     m: usize,
@@ -93,12 +114,27 @@ where
             entry_point: seed.entry_point,
             max_layer: seed.max_layer,
             row_count: seed.row_count,
+            layer_counts: (seed.row_count == 0).then(HnswLayerCounts::default),
             source_fingerprint: seed.source_fingerprint,
             metric: seed.metric,
             m: seed.options.m.max(1),
             ef_construction: seed.options.ef_construction.max(1),
             error: std::marker::PhantomData,
         }
+    }
+
+    /// Supplies counts from the source summary for this exact graph generation.
+    /// Counts inconsistent with the header cannot establish a lower maximum.
+    #[must_use]
+    pub fn with_layer_counts(mut self, counts: Option<HnswLayerCounts>) -> Self {
+        let expected_maximum = (self.row_count != 0).then_some(self.max_layer);
+        if let Some(verified) = counts.filter(|counts| {
+            counts.iter().copied().try_fold(0, usize::checked_add) == Some(self.row_count)
+                && highest_occupied_layer(counts) == expected_maximum
+        }) {
+            self.layer_counts = Some(verified);
+        }
+        self
     }
 
     /// The stored vector of `id`, when it is a node.
@@ -129,6 +165,7 @@ where
             row_count: self.row_count,
             source_fingerprint: self.source_fingerprint,
             nodes_read: self.nodes_read,
+            layer_counts: self.layer_counts,
         }
     }
 
@@ -310,7 +347,7 @@ where
         let query = GraphDistanceQuery::from_record(record);
         let mut layers = vec![Vec::new(); level.saturating_add(1)];
         if let Some(entry) = self.entry_point.clone() {
-            if self.require(&entry)?.layers.len() <= self.max_layer {
+            if self.require(&entry)?.layers.len().checked_sub(1) != Some(self.max_layer) {
                 return inconsistent("entry-point-layer");
             }
             let mut current = entry;
@@ -352,6 +389,9 @@ where
             self.entry_point = Some(record.id.clone());
         }
         self.row_count = self.row_count.saturating_add(1);
+        if let Some(counts) = &mut self.layer_counts {
+            counts[level] = counts[level].saturating_add(1);
+        }
         self.fold(&record.id, &record.values, record.magnitude);
         Ok(())
     }
@@ -375,6 +415,19 @@ where
                 self.remove_link(neighbor, id, layer)?;
             }
             self.reconnect(&ring, layer)?;
+        }
+        if let Some(counts) = &mut self.layer_counts {
+            let height = removed
+                .layers
+                .len()
+                .checked_sub(1)
+                .ok_or(MaintainError::Inconsistent("invalid-node-height"))?;
+            let count = counts
+                .get_mut(height)
+                .ok_or(MaintainError::Inconsistent("invalid-node-height"))?;
+            *count = count
+                .checked_sub(1)
+                .ok_or(MaintainError::Inconsistent("layer-population"))?;
         }
         if self.entry_point.as_deref() == Some(id) {
             self.reelect_entry_point(&removed)?;
@@ -417,38 +470,55 @@ where
         Ok(())
     }
 
-    /// Promotes the tallest neighbor on the deleted entry point's highest
-    /// populated layer.
+    /// Elects a neighbor that owns the actual highest layer remaining.
     fn reelect_entry_point(&mut self, removed: &HnswGraphNode) -> MaintainResult<(), E> {
-        let query = GraphDistanceQuery::from_parts(removed.vector.clone(), removed.magnitude);
-        for layer in (0..removed.layers.len()).rev() {
-            let mut best: Option<(usize, f64, String)> = None;
-            for neighbor in &removed.layers[layer] {
-                let height = self.require(neighbor)?.layers.len();
-                let distance = self.distance_to(&query, neighbor)?;
-                let better = best
-                    .as_ref()
-                    .is_none_or(|(best_height, best_distance, best_id)| {
-                        best_height
-                            .cmp(&height)
-                            .then_with(|| distance.total_cmp(best_distance))
-                            .then_with(|| neighbor.cmp(best_id))
-                            .is_lt()
-                    });
-                if better {
-                    best = Some((height, distance, neighbor.clone()));
-                }
-            }
-            if let Some((height, _, id)) = best {
-                self.entry_point = Some(id);
-                self.max_layer = height.saturating_sub(1);
-                return Ok(());
-            }
-        }
         if self.row_count == 1 {
             self.entry_point = None;
             self.max_layer = 0;
             return Ok(());
+        }
+        if removed.layers.len().checked_sub(1) != Some(self.max_layer) {
+            return inconsistent("entry-point-layer");
+        }
+        // A legacy graph can retain its old maximum by finding a surviving
+        // neighbor of that height. Lowering requires proof that taller nodes
+        // are absent because pruning can disconnect an upper layer.
+        let target_layer = match &self.layer_counts {
+            Some(counts) => highest_occupied_layer(counts)
+                .ok_or(MaintainError::Inconsistent("layer-population"))?,
+            None => self.max_layer,
+        };
+        let query = GraphDistanceQuery::from_parts(removed.vector.clone(), removed.magnitude);
+        for links in removed.layers.iter().rev() {
+            let mut best: Option<(f64, String)> = None;
+            for neighbor in links {
+                let neighbor_layer = self
+                    .require(neighbor)?
+                    .layers
+                    .len()
+                    .checked_sub(1)
+                    .ok_or(MaintainError::Inconsistent("invalid-node-height"))?;
+                if neighbor_layer > target_layer {
+                    return inconsistent("layer-population");
+                }
+                if neighbor_layer != target_layer {
+                    continue;
+                }
+                let distance = self.distance_to(&query, neighbor)?;
+                if best.as_ref().is_none_or(|(best_distance, best_id)| {
+                    distance
+                        .total_cmp(best_distance)
+                        .then_with(|| neighbor.cmp(best_id))
+                        .is_lt()
+                }) {
+                    best = Some((distance, neighbor.clone()));
+                }
+            }
+            if let Some((_, id)) = best {
+                self.entry_point = Some(id);
+                self.max_layer = target_layer;
+                return Ok(());
+            }
         }
         inconsistent("entry-point-reelection")
     }

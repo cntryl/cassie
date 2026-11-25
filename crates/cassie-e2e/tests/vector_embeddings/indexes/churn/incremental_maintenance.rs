@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use cassie::app::{Cassie, CassieSession};
 use cassie::embeddings::{HnswGraphState, HnswIndexOptions};
 use cassie::midge::adapter::StorageFamily;
+use cassie::types::Value;
 use cassie::vector::hnsw::{graph_validity_violation, search_graph};
 
 use super::support::{
@@ -279,6 +280,115 @@ fn should_keep_the_graph_valid_through_seeded_churn_with_entry_point_deletes() {
             score >= RECALL_FLOOR,
             "recall@{RECALL_K} {score} fell below {RECALL_FLOOR} after churn"
         );
+    });
+}
+
+#[test]
+fn should_publish_the_highest_surviving_layer_after_hnsw_entry_deletions() {
+    // Arrange
+    with_memory_fixture(|cassie, session| {
+        let table = "incremental_entry_deletions";
+        // The seed-four witness uses two dimensions. A trailing zero retains the
+        // same L2 geometry while using the shared three-dimensional fixture.
+        let coordinates = [
+            [-12.0, 0.0, 0.0],
+            [-14.0, 10.0, 0.0],
+            [-1.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [4.0, 6.0, 0.0],
+            [10.0, -13.0, 0.0],
+            [8.0, 6.0, 0.0],
+            [0.0, -10.0, 0.0],
+            [6.0, 15.0, 0.0],
+            [3.0, 11.0, 0.0],
+            [-6.0, 5.0, 0.0],
+            [-1.0, -13.0, 0.0],
+        ];
+        let mut population = coordinates
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, vector)| (format!("row-4-{ordinal}"), vector))
+            .collect::<Population>();
+        create_table(cassie, session, table);
+        seed_rows(cassie, table, &population);
+        create_index(
+            cassie,
+            session,
+            table,
+            "index_type = hnsw, m = 2, ef_construction = 64, ef_search = 40",
+        );
+        let original = persisted_graph(cassie, table);
+        assert_eq!(original.entry_point.as_deref(), Some("row-4-1"));
+        assert_eq!(original.max_layer, 1);
+        assert_eq!(graph_validity_violation(&original, 2), None);
+
+        // Act
+        for id in ["row-4-1", "row-4-10", "row-4-9"] {
+            assert!(cassie.midge.delete_document(table, id).expect("delete row"));
+            population.remove(id);
+            let graph = persisted_graph(cassie, table);
+            assert_eq!(
+                graph_validity_violation(&graph, 2),
+                None,
+                "after deleting {id}"
+            );
+        }
+        let before_query = counters(cassie, "hnsw");
+        let result = cassie
+            .execute_sql(
+                session,
+                "SELECT label, embedding <-> '[10,-13,0]' AS distance FROM incremental_entry_deletions \
+                 ORDER BY embedding <-> '[10,-13,0]' LIMIT 1",
+                vec![],
+            )
+            .expect("search graph after repeated entry deletions");
+        let after_query = counters(cassie, "hnsw");
+
+        // Assert
+        let graph = persisted_graph(cassie, table);
+        assert_eq!(graph.row_count, 9);
+        assert_eq!(graph.max_layer, 1);
+        assert_eq!(graph.entry_point.as_deref(), Some("row-4-5"));
+        assert_valid_graph(cassie, table, &population, "after entry deletions");
+        assert_eq!(
+            result.rows(),
+            &[vec![Value::String("row-4-5".into()), Value::Float64(0.0)]]
+        );
+        assert_eq!(after_query.executions, before_query.executions + 1);
+        assert_eq!(after_query.fallbacks, before_query.fallbacks);
+
+        // Move the surviving entry to the deleted original entry's coordinates.
+        let replacement = [-14.0, 10.0, 0.0];
+        upsert(cassie, table, "row-4-5", replacement);
+        population.insert("row-4-5".into(), replacement);
+        let updated = persisted_graph(cassie, table);
+        assert_eq!(updated.row_count, 9);
+        assert_eq!(graph_validity_violation(&updated, 2), None);
+        assert_valid_graph(
+            cassie,
+            table,
+            &population,
+            "after replacing the surviving entry",
+        );
+        let before_update_query = counters(cassie, "hnsw");
+        let updated_result = cassie
+            .execute_sql(
+                session,
+                "SELECT label, embedding <-> '[-14,10,0]' AS distance FROM incremental_entry_deletions \
+                 ORDER BY embedding <-> '[-14,10,0]' LIMIT 1",
+                vec![],
+            )
+            .expect("indexed search at the updated coordinates");
+        let after_update_query = counters(cassie, "hnsw");
+        assert_eq!(
+            updated_result.rows(),
+            &[vec![Value::String("row-4-5".into()), Value::Float64(0.0)]]
+        );
+        assert_eq!(
+            after_update_query.executions,
+            before_update_query.executions + 1
+        );
+        assert_eq!(after_update_query.fallbacks, before_update_query.fallbacks);
     });
 }
 

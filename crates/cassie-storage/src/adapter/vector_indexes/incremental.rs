@@ -16,13 +16,22 @@
 
 use std::collections::BTreeMap;
 
-use super::codec::{decode_hnsw_node, decode_vector_index_state, encode_hnsw_node};
+use serde::{Deserialize, Serialize};
+
+use super::codec::{
+    decode_hnsw_node, decode_vector_index_state, encode_hnsw_node, PersistedHnswManifest,
+};
+use super::vector_retrieval::HnswSourceSummary;
 use super::{
     check_document_write_failure_point, vector_field_id, CassieError, DocumentWriteFailurePoint,
     Midge, NormalizedVectorRecord, VectorIndexRecord, VectorIndexState,
 };
+use crate::adapter::{key_encoding, AdapterTransaction};
 use crate::embeddings::{HnswGraphState, VectorIndexType};
-use crate::vector::hnsw::{GraphMaintainer, MaintainError, MaintainerSeed, HNSW_GRAPH_VERSION};
+use crate::vector::hnsw::{
+    count_node_heights, GraphMaintainer, HnswLayerCounts, MaintainError, MaintainerSeed,
+    HNSW_GRAPH_VERSION,
+};
 
 /// Largest number of documents one commit maintains node by node. A larger
 /// batch is repaired like a damaged graph, because inserting thousands of nodes
@@ -34,6 +43,66 @@ const INCREMENTAL_DOCUMENT_LIMIT: usize = 128;
 const IN_COMMIT_REBUILD_MAX_BYTES: usize = 256 * 1024;
 
 type Deltas = [(String, Option<NormalizedVectorRecord>)];
+
+/// Maintenance-only extension of the JSON summary. Ordinary index reads still
+/// decode the unchanged three source fields, as do older releases.
+#[derive(Debug, Deserialize, Serialize)]
+pub(super) struct HnswMaintenanceSummary {
+    #[serde(flatten)]
+    pub(super) source: HnswSourceSummary,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) hnsw_layer_counts: Option<HnswLayerCounts>,
+}
+
+impl HnswMaintenanceSummary {
+    pub(super) fn for_graph(built_generation: u64, graph: &HnswGraphState) -> Self {
+        Self {
+            source: HnswSourceSummary {
+                built_generation,
+                source_fingerprint: graph.source_fingerprint,
+                row_count: graph.row_count,
+            },
+            hnsw_layer_counts: count_node_heights(&graph.nodes),
+        }
+    }
+
+    fn load_layer_counts(
+        tx: &AdapterTransaction,
+        (relation_id, field_id): (u64, u32),
+        built_generation: u64,
+        manifest: &PersistedHnswManifest,
+    ) -> Result<Option<HnswLayerCounts>, CassieError> {
+        let raw = tx
+            .get(&key_encoding::hnsw_source_summary_key(
+                relation_id,
+                field_id,
+            ))
+            .map_err(CassieError::from)?;
+        Ok(raw
+            .and_then(|raw| serde_json::from_slice::<Self>(&raw).ok())
+            .filter(|summary| {
+                summary.source.built_generation == built_generation
+                    && summary.source.source_fingerprint == manifest.source_fingerprint
+                    && summary.source.row_count == manifest.row_count
+            })
+            .and_then(|summary| summary.hnsw_layer_counts))
+    }
+
+    fn stage(
+        &self,
+        tx: &mut AdapterTransaction,
+        (relation_id, field_id): (u64, u32),
+    ) -> Result<(), CassieError> {
+        let bytes =
+            serde_json::to_vec(self).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(
+            key_encoding::hnsw_source_summary_key(relation_id, field_id),
+            bytes,
+            None,
+        )
+        .map_err(CassieError::from)
+    }
+}
 
 /// Final normalized-vector state of every document one batch wrote, for one
 /// indexed field. `None` means the document no longer has an eligible vector.
@@ -238,7 +307,7 @@ impl Midge {
         };
         Self::write_vector_index_state_to_tx(tx, ids.0, ids.1, &state)?;
         if let Some(graph) = state.hnsw_graph.as_ref() {
-            Self::write_hnsw_source_summary_to_tx(tx, ids.0, ids.1, 0, graph)?;
+            HnswMaintenanceSummary::for_graph(0, graph).stage(tx, ids)?;
         }
         outcome.tallies.push(tally);
         Ok(())
@@ -277,12 +346,16 @@ impl Midge {
         else {
             return Ok(Incremental::Rebuild { rows_hint: None });
         };
-        let Some(manifest) = decode_vector_index_state(&raw)
+        let Some((generation, manifest)) = decode_vector_index_state(&raw)
             .ok()
             .filter(|persisted| {
                 persisted.built_generation.checked_add(1) == Some(target_generation)
             })
-            .and_then(|persisted| persisted.hnsw_graph)
+            .and_then(|persisted| {
+                persisted
+                    .hnsw_graph
+                    .map(|manifest| (persisted.built_generation, manifest))
+            })
         else {
             return Ok(Incremental::Rebuild { rows_hint: None });
         };
@@ -293,8 +366,11 @@ impl Midge {
         if !current || deltas.len() > INCREMENTAL_DOCUMENT_LIMIT {
             return Ok(Incremental::Rebuild { rows_hint });
         }
+        let ids = (relation_id, field_id);
+        let layer_counts =
+            HnswMaintenanceSummary::load_layer_counts(tx, ids, generation, &manifest)?;
         let (maintained, documents) = {
-            let reader: &crate::adapter::AdapterTransaction = tx;
+            let reader: &AdapterTransaction = tx;
             let mut maintainer = GraphMaintainer::new(
                 MaintainerSeed {
                     entry_point: manifest.entry_point.clone(),
@@ -318,7 +394,8 @@ impl Midge {
                         .map(Some)
                         .map_err(|_| MaintainError::<CassieError>::Inconsistent("invalid-node"))
                 },
-            );
+            )
+            .with_layer_counts(layer_counts);
             match Self::apply_deltas_to_maintainer(&mut maintainer, deltas) {
                 Ok(documents) => (maintainer.finish(), documents),
                 Err(MaintainError::Inconsistent(reason)) => {
@@ -340,7 +417,7 @@ impl Midge {
             nodes_deleted: maintained.deletes.len(),
             full_rebuild: false,
         };
-        Self::write_maintained_graph(tx, (relation_id, field_id), &manifest, maintained)?;
+        Self::write_maintained_graph(tx, ids, &manifest, maintained)?;
         Ok(Incremental::Applied(tally))
     }
 
@@ -348,7 +425,7 @@ impl Midge {
     fn write_maintained_graph(
         tx: &mut crate::adapter::AdapterTransaction,
         (relation_id, field_id): (u64, u32),
-        manifest: &super::codec::PersistedHnswManifest,
+        manifest: &PersistedHnswManifest,
         maintained: crate::vector::hnsw::MaintainedGraph,
     ) -> Result<(), CassieError> {
         for node in &maintained.puts {
@@ -383,9 +460,15 @@ impl Midge {
             ivfflat_training: None,
         };
         Self::write_vector_index_manifest_to_tx(tx, relation_id, field_id, &state)?;
-        if let Some(graph) = state.hnsw_graph.as_ref() {
-            Self::write_hnsw_source_summary_to_tx(tx, relation_id, field_id, 0, graph)?;
+        HnswMaintenanceSummary {
+            source: HnswSourceSummary {
+                built_generation: 0,
+                source_fingerprint: maintained.source_fingerprint,
+                row_count: maintained.row_count,
+            },
+            hnsw_layer_counts: maintained.layer_counts,
         }
+        .stage(tx, (relation_id, field_id))?;
         check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
         Ok(())
     }
@@ -494,5 +577,43 @@ impl Midge {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HnswMaintenanceSummary, HnswSourceSummary};
+    use crate::vector::hnsw::HnswLayerCounts;
+
+    #[test]
+    fn should_keep_hnsw_height_counts_compatible_with_legacy_source_summaries() {
+        // Arrange
+        let before = br#"{"built_generation":3,"source_fingerprint":17,"row_count":5}"#;
+        let mut counts = HnswLayerCounts::default();
+        counts[0] = 4;
+        counts[1] = 1;
+
+        // Act
+        let mut extended: HnswMaintenanceSummary =
+            serde_json::from_slice(before).expect("decode legacy summary for maintenance");
+        assert_eq!(extended.hnsw_layer_counts, None);
+        assert_eq!(
+            serde_json::to_vec(&extended)
+                .expect("encode absent counts")
+                .as_slice(),
+            before.as_slice()
+        );
+        extended.hnsw_layer_counts = Some(counts);
+        let bytes = serde_json::to_vec(&extended).expect("encode extended summary");
+        let decoded: HnswMaintenanceSummary =
+            serde_json::from_slice(&bytes).expect("decode extended summary");
+        let read_only: HnswSourceSummary =
+            serde_json::from_slice(&bytes).expect("legacy reader ignores counts");
+
+        // Assert
+        assert_eq!(decoded.hnsw_layer_counts, Some(counts));
+        assert_eq!(read_only.built_generation, 3);
+        assert_eq!(read_only.source_fingerprint, 17);
+        assert_eq!(read_only.row_count, 5);
     }
 }

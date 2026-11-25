@@ -86,6 +86,55 @@ fn execute(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value
 }
 
 #[test]
+fn should_ignore_a_late_cached_result_after_another_session_commits() {
+    // Arrange
+    let cassie = Arc::new(
+        Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default()).unwrap(),
+    );
+    let reader = cassie.create_session("reader", None);
+    let writer = cassie.create_session("writer", None);
+    execute(&cassie, &writer, "CREATE TABLE cache_late_rows (id INT)");
+    execute(&cassie, &writer, "INSERT INTO cache_late_rows VALUES (1)");
+    let publisher = Arc::clone(&cassie);
+    let hook = CacheStoreHook::install(move || {
+        std::thread::spawn(move || {
+            execute(&publisher, &writer, "BEGIN");
+            execute(
+                &publisher,
+                &writer,
+                "INSERT INTO cache_late_rows VALUES (2)",
+            );
+            execute(&publisher, &writer, "COMMIT");
+        })
+        .join()
+        .expect("publish second row before first result is cached");
+    });
+    let query = "SELECT id FROM cache_late_rows ORDER BY id";
+
+    // Act
+    let late = execute(&cassie, &reader, query);
+    drop(hook);
+    let hits_after_late = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .unwrap();
+    let fresh = execute(&cassie, &reader, query);
+    let hits_after_fresh = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .unwrap();
+    let warm = execute(&cassie, &reader, query);
+    let hits_after_warm = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .unwrap();
+
+    // Assert
+    assert_eq!(late, vec![vec![Value::Int64(1)]]);
+    assert_eq!(fresh, vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]);
+    assert_eq!(warm, fresh);
+    assert_eq!(hits_after_fresh, hits_after_late);
+    assert_eq!(hits_after_warm, hits_after_fresh + 1);
+}
+
+#[test]
 fn should_keep_captured_data_visible_after_another_session_commits() {
     // Arrange
     let path = std::env::temp_dir().join(format!("cassie-statement-data-{}", uuid::Uuid::new_v4()));

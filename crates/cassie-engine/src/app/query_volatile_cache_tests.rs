@@ -86,6 +86,53 @@ fn should_replay_pure_select_results_from_execution_cache() {
 }
 
 #[test]
+fn should_bypass_result_cache_for_virtual_catalogs_inside_sql_expressions() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let run = |sql: &str| {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("select")
+            .rows()
+            .to_vec()
+    };
+    let metrics = || cassie.metrics()["execution_result_cache"].clone();
+    let before = metrics();
+
+    // Act
+    let direct = run("SELECT count(*) FROM pg_catalog.pg_class");
+    let scalar = run("SELECT (SELECT count(*) FROM pg_catalog.pg_class)");
+    let scalar_again = run("SELECT (SELECT count(*) FROM pg_catalog.pg_class)");
+    let exists = run("SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_catalog.pg_class)");
+    let exists_again = run("SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_catalog.pg_class)");
+    let after_catalog = metrics();
+    let ordinary = run("SELECT value FROM volatile_cache_rows");
+    let ordinary_again = run("SELECT value FROM volatile_cache_rows");
+    let after_ordinary = metrics();
+
+    // Assert
+    assert!(
+        matches!(direct.as_slice(), [row] if matches!(row.as_slice(), [Value::Int64(n)] if *n > 0))
+    );
+    assert_eq!(scalar, direct);
+    assert_eq!(scalar_again, direct);
+    assert_eq!(exists, vec![vec![Value::Int64(1)]]);
+    assert_eq!(exists_again, exists);
+    let bypasses = |value: &serde_json::Value| {
+        value["bypass_reasons"]["virtual_catalog"]
+            .as_u64()
+            .unwrap_or_default()
+    };
+    assert_eq!(bypasses(&after_catalog) - bypasses(&before), 5);
+    assert_eq!(after_catalog["hits"], before["hits"]);
+    assert_eq!(ordinary_again, ordinary);
+    assert_eq!(
+        after_ordinary["hits"].as_u64().unwrap(),
+        after_catalog["hits"].as_u64().unwrap() + 1
+    );
+}
+
+#[test]
 fn should_not_replay_volatile_results_hidden_in_scalar_subquery_or_exists() {
     // Arrange
     let (cassie, session) = fixture();

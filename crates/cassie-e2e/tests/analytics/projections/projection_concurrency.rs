@@ -110,14 +110,10 @@ fn concurrent_projection_fixture() -> (Arc<Cassie>, CassieSession) {
     (cassie, session)
 }
 
-#[test]
-fn should_serialize_concurrent_materialized_projection_refreshes() {
-    // Arrange
-    let _guard = projection_concurrency_test_guard();
-    let (cassie, setup) = concurrent_projection_fixture();
+fn create_concurrent_refresh_projections(cassie: &Cassie, session: &CassieSession) {
     execute_setup(
-        &cassie,
-        &setup,
+        cassie,
+        session,
         &[
             "CREATE TABLE projection_concurrent_source (title TEXT, score INT)",
             "INSERT INTO projection_concurrent_source VALUES ('alpha', 1), ('bravo', 2)",
@@ -127,6 +123,14 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
              SELECT title FROM projection_concurrent_source WHERE score = 1",
         ],
     );
+}
+
+#[test]
+fn should_serialize_concurrent_materialized_projection_refreshes() {
+    // Arrange
+    let _guard = projection_concurrency_test_guard();
+    let (cassie, setup) = concurrent_projection_fixture();
+    create_concurrent_refresh_projections(&cassie, &setup);
     let dropped = Arc::new(Barrier::new(2));
     let resume = Arc::new(Barrier::new(2));
     let replace_ready = Arc::new(Barrier::new(2));

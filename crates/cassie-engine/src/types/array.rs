@@ -122,21 +122,16 @@ pub fn parse_text_array_with_dimensions(
                 .and_then(|length| total.checked_mul(length))
                 .ok_or_else(|| TextArrayError::Invalid("array dimension exceeds size limit".into()))
         })?;
-        if flat_elements.len() != declared_elements {
-            return Err(TextArrayError::Invalid(
-                "array dimensions do not match array contents".to_string(),
-            ));
-        }
-        if !parsed_dimensions.is_empty()
-            && (parsed_dimensions.len() != explicit_dimensions.len()
-                || parsed_dimensions
+        let shape_matches = parsed_dimensions.is_empty()
+            || (parsed_dimensions.len() == explicit_dimensions.len()
+                && parsed_dimensions
                     .iter()
                     .zip(&explicit_dimensions)
-                    .any(|(actual, declared)| actual.length != declared.length))
-        {
-            return Err(TextArrayError::Invalid(
-                "array dimensions do not match array contents".to_string(),
-            ));
+                    .all(|(actual, declared)| actual.length == declared.length));
+        if flat_elements.len() != declared_elements || !shape_matches {
+            return Err(TextArrayError::Invalid(format!(
+                "malformed array literal: \"{input}\""
+            )));
         }
         explicit_dimensions
     };

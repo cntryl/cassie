@@ -244,6 +244,42 @@ with 15 index entries and 15 row fetches and no full-row read. Validation is
 therefore the dominant bounded cost, about 7,000 times the expanded edges. It stays
 O(selected edge rows) and no sidecar removes it.
 
+### Reopened local weighted fixture
+
+The opt-in run loads the same 30,000 people and 70,000 edges into a fresh local
+directory, closes the engine and opens the committed fixture again. It executes
+the weighted query twice on the same reopened instance, then captures the plan.
+Both invocations must match the independent three-path oracle and validate all
+70,000 edges. Each invocation must also report indexed expansion, zero full
+expansion rows and zero result-cache hits. The runtime query budget remains
+64 MiB. The artifact records the native limits read back from the local engine,
+which uses the local constructor defaults.
+
+```sh
+CASSIE_BENCH_GRAPH_DISK_REOPEN=1 \
+  cargo bench --locked -p cassie-e2e --bench tier3_system_graph
+```
+
+The report is `target/graph-evidence/tier3_system_graph_disk_reopen.json` unless
+`CASSIE_BENCH_GRAPH_EVIDENCE_DIR` is set. Cold means the first graph query on
+the reopened engine. The operating system file cache can retain pages from
+setup. The storage counters describe logical work and this run records no
+latencies. The default invocation still runs the memory workloads.
+
+For a weighted timing comparison, run the same memory workload separately from
+the issue baseline `33a80d480c1436f9beb2b422a6fd6b29d4fadf` and the candidate.
+From each checkout's repository root, use the same sample selection and profile
+with the disk option unset. Each checkout retains its own results.
+
+```sh
+cargo bench --locked --bench tier3_system_graph -- \
+  --workload graph_weighted_routes_query --samples 30 --warmup-samples 5
+```
+
+Repeat on the same host with matched controls. Retain each artifact and its
+source, host, configuration and measured noise before interpreting the p95
+difference. This procedure does not supply the missing comparison.
+
 ### What stays open
 
 - Repeated timing distributions, the p95 comparison against the paired baseline and the first

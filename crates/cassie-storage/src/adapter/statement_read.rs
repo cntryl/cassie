@@ -87,6 +87,7 @@ impl NativeRequestControls {
 }
 
 impl<'a> StorageRequestContext<'a> {
+    #[must_use]
     pub fn new(
         snapshot: Option<&'a NativeStatementSnapshot>,
         interruption: Interruption<'_>,

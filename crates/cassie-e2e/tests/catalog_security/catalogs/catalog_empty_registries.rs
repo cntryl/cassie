@@ -656,3 +656,68 @@ fn should_expose_the_same_role_oid_to_policy_lookups_and_regrole() {
         ]
     );
 }
+
+#[test]
+fn should_bind_oid_and_regclass_catalog_helpers_with_their_distinct_input_types() {
+    // Arrange
+    let fixture = sql_fixture(
+        "describe-helper-types",
+        &["CREATE TABLE described_helper (id INTEGER)"],
+    );
+    let rejected = [
+        "pg_get_statisticsobjdef_columns('123'::text)",
+        "pg_get_statisticsobjdef_columns('123'::varchar)",
+        "pg_relation_is_publishable(1::regtype)",
+        "pg_relation_is_publishable(1::regnamespace)",
+        "pg_relation_is_publishable('described_helper'::name)",
+    ];
+
+    // Act
+    let accepted = fixture
+        .execute(
+            "SELECT pg_get_statisticsobjdef_columns(123::regtype),
+        pg_get_statisticsobjdef_columns(1::bigint), pg_get_statisticsobjdef_columns('123'),
+        pg_relation_is_publishable('described_helper'::text),
+        pg_relation_is_publishable('described_helper'::varchar),
+        pg_relation_is_publishable(1::bigint)",
+        )
+        .expect("input signatures");
+
+    // Assert
+    assert_eq!(
+        accepted.rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Null
+        ]]
+    );
+    for expression in rejected {
+        let error = fixture
+            .execute(&format!("SELECT {expression}"))
+            .expect_err("wrong input type");
+        assert_eq!(
+            error.descriptor().sql_state,
+            "42883",
+            "{expression}: {error}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_relation_name_lookup_for_the_pg_attribute_relation_oid_sibling() {
+    // Arrange
+    let fixture = sql_fixture(
+        "describe-oid-sibling",
+        &["CREATE TABLE described_relation (id INTEGER)"],
+    );
+
+    // Act
+    let direct = fixture.execute("SELECT attname FROM pg_catalog.pg_attribute WHERE attrelid = 'described_relation' AND attname = 'id'").expect("relation name lookup");
+
+    // Assert
+    assert_eq!(direct.rows(), &[vec![Value::String("id".into())]]);
+}

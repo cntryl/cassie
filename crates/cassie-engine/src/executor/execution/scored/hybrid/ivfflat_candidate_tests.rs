@@ -189,11 +189,20 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
     let expected = rank_ivfflat_candidate_ids(traversed.clone(), &[1.0, 0.0], 1, &controls(4096))
         .expect("rank every vector in probed lists")
         .0;
+    let session = cassie.create_session("root", None);
+    let before = cassie.metrics()["vector"]["ivfflat_executions"]
+        .as_u64()
+        .expect("IVFFlat counter");
     let standalone = cassie
-        .midge
-        .persisted_vector_candidate_ids(&spec.collection, "embedding", &[1.0, 0.0], 1)
-        .expect("run standalone IVFFlat retrieval")
-        .expect("use standalone IVFFlat candidates");
+        .execute_sql(
+            &session,
+            "SELECT id FROM ivf_rank ORDER BY vector_distance(embedding, '[1,0]') ASC LIMIT 1",
+            Vec::new(),
+        )
+        .expect("run the standalone IVFFlat query");
+    let after = cassie.metrics()["vector"]["ivfflat_executions"]
+        .as_u64()
+        .expect("IVFFlat counter");
 
     // Act
     let hybrid_controls = controls(64 * 1024);
@@ -212,7 +221,8 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
         expected.iter().map(String::as_str).collect::<Vec<_>>(),
         [nearest_id.as_str()]
     );
-    assert_eq!(standalone, expected);
+    assert_eq!(standalone.rows(), &[vec![crate::types::Value::Int64(2)]]);
+    assert_eq!(after, before + 1, "standalone query must execute IVFFlat");
     assert_eq!(actual.ids, expected);
 }
 

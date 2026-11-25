@@ -266,6 +266,14 @@ Catalogs for absent object families expose their defined columns and zero
 matching rows. Qualification uses an unmodified client and the SQL it emits
 against both Cassie and PostgreSQL 18.6.
 
+The psql description reads the policy, publication, extended-statistics and
+inheritance registries. Cassie has no objects in these registries.
+`pg_get_statisticsobjdef_columns(oid)` therefore returns SQL NULL.
+`pg_relation_is_publishable(regclass)` reports eligibility for an ordinary
+user table. System relations, views, indexes and other supported relation
+kinds are ineligible. An unknown numeric relation OID or SQL NULL returns
+SQL NULL. These lookups use the session's database and relation identities.
+
 ## Retained client evidence
 
 | Client | Source revision | Workflow run | Certified catalog workflow |

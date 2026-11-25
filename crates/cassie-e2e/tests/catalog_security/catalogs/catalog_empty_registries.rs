@@ -475,3 +475,148 @@ fn should_describe_pg_parameter_acl_given_a_fresh_catalog_when_no_objects_exist(
         vec!["oid", "parname", "paracl"]
     );
 }
+
+#[test]
+fn should_read_empty_object_families_with_the_psql_table_description_queries() {
+    // Arrange
+    let fixture = sql_fixture(
+        "psql-describe-absent-registries",
+        &["CREATE TABLE describe_empty (id INTEGER)"],
+    );
+    let result = fixture
+        .execute("SELECT oid FROM pg_catalog.pg_class WHERE relname = 'describe_empty'")
+        .expect("table OID");
+    let Value::Int64(oid) = result.rows()[0][0] else {
+        panic!("expected a table OID")
+    };
+    let queries = [
+        r"SELECT pol.polname, pol.polpermissive,
+  CASE WHEN pol.polroles = '{0}' THEN NULL ELSE pg_catalog.array_to_string(array(select rolname from pg_catalog.pg_roles where oid = any (pol.polroles) order by 1),',') END,
+  pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),
+  pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),
+  CASE pol.polcmd
+    WHEN 'r' THEN 'SELECT'
+    WHEN 'a' THEN 'INSERT'
+    WHEN 'w' THEN 'UPDATE'
+    WHEN 'd' THEN 'DELETE'
+    END AS cmd
+FROM pg_catalog.pg_policy pol
+WHERE pol.polrelid = '{oid}' ORDER BY 1",
+        r"SELECT oid, stxrelid::pg_catalog.regclass, stxnamespace::pg_catalog.regnamespace::pg_catalog.text AS nsp, stxname,
+pg_catalog.pg_get_statisticsobjdef_columns(oid) AS columns,
+  'd' = any(stxkind) AS ndist_enabled,
+  'f' = any(stxkind) AS deps_enabled,
+  'm' = any(stxkind) AS mcv_enabled,
+stxstattarget
+FROM pg_catalog.pg_statistic_ext
+WHERE stxrelid = '{oid}'
+ORDER BY nsp, stxname",
+        r"SELECT pubname
+     , NULL
+     , NULL
+FROM pg_catalog.pg_publication p
+     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+WHERE pc.oid ='{oid}' and pg_catalog.pg_relation_is_publishable('{oid}')
+UNION
+SELECT pubname
+     , pg_get_expr(pr.prqual, c.oid)
+     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+         (SELECT string_agg(attname, ', ')
+           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,
+                pg_catalog.pg_attribute
+          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+        ELSE NULL END) FROM pg_catalog.pg_publication p
+     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+WHERE pr.prrelid = '{oid}'
+UNION
+SELECT pubname
+     , NULL
+     , NULL
+FROM pg_catalog.pg_publication p
+WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('{oid}')
+ORDER BY 1",
+        r"SELECT c.oid::pg_catalog.regclass
+FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+WHERE c.oid = i.inhparent AND i.inhrelid = '{oid}'
+  AND c.relkind != 'p' AND c.relkind != 'I'
+ORDER BY inhseqno",
+        r"SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
+FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+WHERE c.oid = i.inhrelid AND i.inhparent = '{oid}'
+ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = 'DEFAULT', c.oid::pg_catalog.regclass::pg_catalog.text",
+    ];
+
+    // Act
+    for query in queries {
+        let query = query.replace("{oid}", &oid.to_string());
+        let result = fixture
+            .execute(&query)
+            .unwrap_or_else(|error| panic!("{query}: {error}"));
+
+        // Assert
+        assert!(result.rows().is_empty(), "{query}");
+    }
+}
+
+#[test]
+fn should_resolve_publishability_and_missing_extended_statistics_by_identity() {
+    // Arrange
+    let fixture = sql_fixture(
+        "describe-object-identity",
+        &[
+            "CREATE TABLE published_kind (id INTEGER)",
+            "CREATE INDEX published_kind_id ON published_kind (id)",
+            "CREATE VIEW published_view AS SELECT id FROM published_kind",
+        ],
+    );
+
+    // Act
+    let selected = fixture.execute(
+        "SELECT pg_catalog.pg_relation_is_publishable('published_kind'),                 pg_relation_is_publishable('published_kind_id'::regclass),                 pg_relation_is_publishable('pg_catalog.pg_class'),                 pg_relation_is_publishable('published_view'),                 pg_relation_is_publishable('0'), pg_relation_is_publishable(NULL),                 pg_catalog.pg_get_statisticsobjdef_columns(0::oid),                 pg_get_statisticsobjdef_columns(NULL)"
+    ).expect("evaluate psql catalog helpers");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null
+        ]]
+    );
+}
+
+#[test]
+fn should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal() {
+    // Arrange
+    let fixture = sql_fixture(
+        "describe-oid-literal",
+        &["CREATE TABLE described_oid (id INTEGER)"],
+    );
+    let table = fixture
+        .execute("SELECT oid FROM pg_catalog.pg_class WHERE relname='described_oid'")
+        .expect("lookup OID");
+    let Value::Int64(oid) = table.rows()[0][0] else {
+        panic!("expected an OID")
+    };
+
+    // Act
+    let result = fixture
+        .execute(&format!(
+            "SELECT relname FROM pg_catalog.pg_class WHERE oid = '{oid}' AND '{oid}' = oid"
+        ))
+        .expect("compare OID");
+
+    // Assert
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("described_oid".into())]]
+    );
+}

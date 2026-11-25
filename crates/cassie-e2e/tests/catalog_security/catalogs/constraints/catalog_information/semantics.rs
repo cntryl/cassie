@@ -303,3 +303,55 @@ fn should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_
     );
     assert!(missing_name.is_err());
 }
+
+#[test]
+fn should_bind_partition_ancestor_arguments_using_the_regclass_input_signature() {
+    // Arrange
+    let fixture = sql_fixture(
+        "ancestor-input-types",
+        &["CREATE TABLE ancestor_inputs (id INTEGER)"],
+    );
+    let accepted = [
+        "'ancestor_inputs'::text",
+        "'ancestor_inputs'::varchar(32)",
+        "'ancestor_inputs'::regclass",
+        "1::smallint",
+        "1::integer",
+        "1::bigint",
+        "1::oid",
+        "NULL",
+    ];
+    let rejected = [
+        "1::regtype",
+        "1::regnamespace",
+        "true",
+        "1::numeric",
+        "'ancestor_inputs'::name",
+        "'ancestor_inputs'::char(32)",
+    ];
+
+    // Act
+    for argument in accepted {
+        let sql =
+            format!("SELECT relid FROM pg_catalog.pg_partition_ancestors({argument}) AS a(relid)");
+        let result = fixture
+            .execute(&sql)
+            .unwrap_or_else(|err| panic!("{sql}: {err}"));
+
+        // Assert
+        assert_eq!(result.columns()[0].type_oid, 2205);
+        assert!(result.rows().is_empty(), "{sql}");
+    }
+    for argument in rejected {
+        let sql = format!("SELECT pg_catalog.pg_partition_ancestors({argument})");
+        let error = fixture
+            .execute(&sql)
+            .expect_err("incompatible regclass argument");
+
+        // Assert
+        assert!(
+            error.to_string().contains("does not exist"),
+            "{sql}: {error}"
+        );
+    }
+}

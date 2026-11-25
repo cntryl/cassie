@@ -41,7 +41,10 @@ empty-family drop. After closing every old handle, reopen the storage
 instance and retry against the recovered contents. Other database families
 and read-only native handles retain their normal admission. If an already
 journaled drop is interrupted after registry retirement, that family stays
-closed to writers while startup finishes recovery.
+closed to writers while startup finishes recovery. When the same logical
+name has since acquired a replacement, startup verifies both physical identities
+and exclusive registry ownership under the schema publication guard. It retires
+only the old journaled family and preserves the replacement and its rows.
 [#1538](https://github.com/cntryl/cassie/issues/1538)
 
 A create retry can publish a new family while the first create intent is still

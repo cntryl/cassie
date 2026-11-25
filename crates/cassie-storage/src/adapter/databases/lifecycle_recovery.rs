@@ -69,13 +69,20 @@ impl Midge {
         let metadata = self.load_database_without_layout(&record.name, schema)?;
         match (&record.kind, metadata) {
             (_, None) => Ok(FamilyRecovery::DropIfPresent),
-            (DatabaseLifecycleKind::Drop, Some(_)) => Ok(FamilyRecovery::Keep),
+            (DatabaseLifecycleKind::Drop, Some(owner))
+                if owner.physical_family == record.physical_family =>
+            {
+                Ok(FamilyRecovery::Keep)
+            }
             (DatabaseLifecycleKind::Create, Some(owner))
                 if owner.physical_family == record.physical_family =>
             {
                 Ok(FamilyRecovery::EnsurePresent)
             }
-            (DatabaseLifecycleKind::Create, Some(replacement)) => {
+            (kind, Some(replacement)) => {
+                if !record.has_generated_identity() {
+                    return Err(record.family_mismatch("invalid journaled database identity"));
+                }
                 self.validate_replacement_owner(schema, record, &replacement)?;
                 if journal.iter().any(|other| {
                     other.name != record.name
@@ -85,13 +92,16 @@ impl Midge {
                     return Err(record
                         .family_mismatch("another database journal references the same family"));
                 }
-                Ok(FamilyRecovery::Keep)
+                match kind {
+                    DatabaseLifecycleKind::Create => Ok(FamilyRecovery::Keep),
+                    DatabaseLifecycleKind::Drop => Ok(FamilyRecovery::DropIfPresent),
+                }
             }
         }
     }
 
-    // Called only for a mismatched Create during cold bootstrap. The schema
-    // publication guard covers these observations through the journal commit.
+    // During cold bootstrap the schema publication guard keeps this evidence
+    // stable through journal recovery.
     fn validate_replacement_owner(
         &self,
         schema: &ColumnFamilyHandle,
@@ -140,12 +150,16 @@ impl Midge {
             .engine
             .list_column_families()
             .map_err(CassieError::from)?;
-        if active
+        let journaled_family_present = active
             .iter()
-            .any(|family| family.name() == record.physical_family)
-            || !active
-                .iter()
-                .any(|family| family.name() == replacement.physical_family)
+            .any(|family| family.name() == record.physical_family);
+        let replacement_present = active
+            .iter()
+            .any(|family| family.name() == replacement.physical_family);
+        // A Create retry only supersedes a missing older family. A retired
+        // Drop can leave its old family present for startup to remove.
+        if !replacement_present
+            || (matches!(record.kind, DatabaseLifecycleKind::Create) && journaled_family_present)
         {
             return Err(record.family_mismatch("active families do not confirm the replacement"));
         }
@@ -160,17 +174,19 @@ impl DatabaseLifecycleRecord {
                 "database lifecycle journal key disagrees with operation ID".to_owned(),
             ));
         }
-        if matches!(self.kind, DatabaseLifecycleKind::Create)
-            && (self.name.is_empty()
-                || !is_generated_family(&self.physical_family)
-                || generated_uuid(&self.operation_id)
-                    .is_none_or(|id| id.to_string() != self.operation_id))
-        {
+        if matches!(self.kind, DatabaseLifecycleKind::Create) && !self.has_generated_identity() {
             return Err(CassieError::StorageBootstrap(
                 "invalid database create lifecycle identity".to_owned(),
             ));
         }
         Ok(())
+    }
+
+    fn has_generated_identity(&self) -> bool {
+        !self.name.is_empty()
+            && is_generated_family(&self.physical_family)
+            && generated_uuid(&self.operation_id)
+                .is_some_and(|id| id.to_string() == self.operation_id)
     }
 
     fn family_mismatch(&self, reason: &str) -> CassieError {

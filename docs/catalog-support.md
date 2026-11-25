@@ -256,6 +256,16 @@ and join work in [#1486](https://github.com/cntryl/cassie/issues/1486) and
 [#1489](https://github.com/cntryl/cassie/issues/1489). The named-client subset
 above describes currently retained evidence.
 
+For a table description, catalog rows must report the visible relation's
+columns, defaults, indexes and declared constraints from the same catalog
+identities used by direct SQL. The selected psql 18.6 fixture has a primary
+key, a secondary index, an integer default, a CHECK and a foreign key. The
+client must display each of them. A relation without PostgreSQL-style triggers
+reports no triggers, including when Cassie enforces a foreign key directly.
+Catalogs for absent object families expose their defined columns and zero
+matching rows. Qualification uses an unmodified client and the SQL it emits
+against both Cassie and PostgreSQL 18.6.
+
 ## Retained client evidence
 
 | Client | Source revision | Workflow run | Certified catalog workflow |

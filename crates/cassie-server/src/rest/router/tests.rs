@@ -301,6 +301,141 @@ fn should_percent_decode_a_quoted_collection_segment_through_the_http_router() {
 }
 
 #[test]
+fn should_resolve_quoted_mixed_case_collections_exactly_through_the_http_router() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Arc::new(
+            Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+                .expect("cassie"),
+        );
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE \"Cities\" (id BIGINT PRIMARY KEY, name TEXT)",
+                Vec::new(),
+            )
+            .expect("create quoted table");
+
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let server_cassie = Arc::clone(&cassie);
+        let service = hyper::service::service_fn(move |request: Request<Incoming>| {
+            let cassie = Arc::clone(&server_cassie);
+            async move {
+                let response = match route_request(request, cassie).await {
+                    Ok(response) => response,
+                    Err((status, message)) => {
+                        json_response(status, &serde_json::json!({"error": message}))
+                    }
+                };
+                Ok::<_, Infallible>(response)
+            }
+        });
+        let server = tokio::spawn(async move {
+            hyper::server::conn::http1::Builder::new()
+                .serve_connection(hyper_util::rt::TokioIo::new(server_io), service)
+                .await
+                .expect("server connection");
+        });
+        let (mut sender, connection) =
+            hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(client_io))
+                .await
+                .expect("client handshake");
+        let client = tokio::spawn(async move {
+            connection.await.expect("client connection");
+        });
+        let fuzzy_request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/collections/cities/documents")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from_static(br#"{"id":1,"name":"wrong"}"#)))
+            .expect("fuzzy request");
+
+        // Act
+        let fuzzy_response = sender
+            .send_request(fuzzy_request)
+            .await
+            .expect("fuzzy response");
+        let fuzzy_status = fuzzy_response.status();
+        fuzzy_response
+            .into_body()
+            .collect()
+            .await
+            .expect("fuzzy response body");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE cities (id BIGINT PRIMARY KEY, name TEXT)",
+                Vec::new(),
+            )
+            .expect("create lowercase table");
+        let quoted_request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/collections/%22Cities%22/documents")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from_static(
+                br#"{"id":2,"name":"quoted"}"#,
+            )))
+            .expect("quoted request");
+        let quoted_response = sender
+            .send_request(quoted_request)
+            .await
+            .expect("quoted response");
+        let quoted_status = quoted_response.status();
+        quoted_response
+            .into_body()
+            .collect()
+            .await
+            .expect("quoted response body");
+        let lowercase_request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/collections/cities/documents")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from_static(
+                br#"{"id":3,"name":"lowercase"}"#,
+            )))
+            .expect("lowercase request");
+        let lowercase_response = sender
+            .send_request(lowercase_request)
+            .await
+            .expect("lowercase response");
+
+        // Assert
+        assert_eq!(fuzzy_status, StatusCode::NOT_FOUND);
+        assert_eq!(quoted_status, StatusCode::OK);
+        assert_eq!(lowercase_response.status(), StatusCode::OK);
+        assert_eq!(
+            cassie
+                .midge
+                .scan_documents("postgres.public.\"Cities\"")
+                .expect("scan quoted collection")
+                .len(),
+            1
+        );
+        assert_eq!(
+            cassie
+                .midge
+                .scan_documents("postgres.public.cities")
+                .expect("scan lowercase collection")
+                .len(),
+            1
+        );
+        drop(sender);
+        tokio::time::timeout(Duration::from_secs(1), server)
+            .await
+            .expect("server deadline")
+            .expect("server task");
+        client.await.expect("client task");
+    });
+}
+
+#[test]
 fn should_reject_encoded_collection_separators_with_traversal() {
     // Arrange
     let invalid = [
@@ -375,12 +510,16 @@ fn should_emit_hsts_only_for_secure_transport() {
     let plain_response = with_security_headers(response, false, false);
 
     // Assert
-    assert!(secure_response
-        .headers()
-        .contains_key("strict-transport-security"));
-    assert!(!plain_response
-        .headers()
-        .contains_key("strict-transport-security"));
+    assert!(
+        secure_response
+            .headers()
+            .contains_key("strict-transport-security")
+    );
+    assert!(
+        !plain_response
+            .headers()
+            .contains_key("strict-transport-security")
+    );
 }
 
 #[test]

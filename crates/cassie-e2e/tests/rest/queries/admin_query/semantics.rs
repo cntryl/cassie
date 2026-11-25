@@ -346,8 +346,11 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
         ] {
             cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
         }
-        let secret_index =
-            crate::support_sql::canonical_test_index(&cassie, "rest_schema_secret", "rest_schema_secret_idx");
+        let secret_index = crate::support_sql::canonical_test_index(
+            &cassie,
+            "rest_schema_secret",
+            "rest_schema_secret_idx",
+        );
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let reader_cookie =
@@ -388,6 +391,142 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
         assert!(!contains_item(
             section_items(&payload, "indexes"),
             &secret_index
+        ));
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
+fn should_limit_rest_schema_items_and_columns_to_relations_with_select_privilege() {
+    // Arrange
+    let data_dir = data_dir("selected-schema-visibility");
+    let reader_password = Uuid::new_v4().to_string();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        cassie.startup().expect("startup");
+        let admin = cassie
+            .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
+            .expect("admin session");
+        cassie
+            .execute_sql(
+                &admin,
+                &format!("CREATE ROLE rest_acl_reader LOGIN PASSWORD '{reader_password}'"),
+                Vec::new(),
+            )
+            .expect("create restricted schema reader");
+        for sql in [
+            "CREATE TABLE rest_acl_visible (id INTEGER, title TEXT)",
+            "CREATE TABLE rest_acl_secret (id INTEGER, token TEXT)",
+            "CREATE INDEX rest_acl_visible_idx ON rest_acl_visible (title)",
+            "CREATE INDEX rest_acl_secret_idx ON rest_acl_secret (token)",
+            "CREATE VIEW rest_acl_visible_view AS SELECT title FROM rest_acl_visible",
+            "CREATE VIEW rest_acl_secret_view AS SELECT token FROM rest_acl_secret",
+            "GRANT CONNECT ON DATABASE postgres TO rest_acl_reader",
+            "GRANT USAGE ON SCHEMA public TO rest_acl_reader",
+            "GRANT SELECT ON TABLE public.rest_acl_visible TO rest_acl_reader",
+        ] {
+            cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
+        }
+        let visible_index = crate::support_sql::canonical_test_index(
+            &cassie,
+            "rest_acl_visible",
+            "rest_acl_visible_idx",
+        );
+        let secret_index = crate::support_sql::canonical_test_index(
+            &cassie,
+            "rest_acl_secret",
+            "rest_acl_secret_idx",
+        );
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let reader_cookie =
+            login_cookie_as(&client, &base_url, "rest_acl_reader", &reader_password).await;
+        let root_cookie = login_cookie_as(
+            &client,
+            &base_url,
+            "root",
+            crate::support_sql::test_root_password(),
+        )
+        .await;
+
+        // Act
+        let restricted_response = client
+            .get(format!(
+                "{base_url}/api/v1/admin/query/schema?database=postgres"
+            ))
+            .header("cookie", &reader_cookie)
+            .send()
+            .await
+            .expect("restricted schema request");
+        let restricted = restricted_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("restricted schema json");
+        let root_response = client
+            .get(format!(
+                "{base_url}/api/v1/admin/query/schema?database=postgres"
+            ))
+            .header("cookie", &root_cookie)
+            .send()
+            .await
+            .expect("root schema request");
+        let root = root_response
+            .json::<serde_json::Value>()
+            .await
+            .expect("root schema json");
+
+        // Assert
+        let visible_table = section_items(&restricted, "tables")
+            .iter()
+            .find(|item| {
+                item["label"] == canonical_relation_name("postgres", "public", "rest_acl_visible")
+            })
+            .expect("visible table");
+        assert_eq!(
+            visible_table["columns"]
+                .as_array()
+                .expect("visible columns")
+                .len(),
+            2
+        );
+        assert!(!contains_item(
+            section_items(&restricted, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_acl_secret")
+        ));
+        assert!(contains_item(
+            section_items(&restricted, "indexes"),
+            &visible_index
+        ));
+        assert!(!contains_item(
+            section_items(&restricted, "indexes"),
+            &secret_index
+        ));
+        assert!(contains_item(
+            section_items(&restricted, "views"),
+            &canonical_relation_name("postgres", "public", "rest_acl_visible_view")
+        ));
+        assert!(!contains_item(
+            section_items(&restricted, "views"),
+            &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
+        ));
+        assert!(contains_item(
+            section_items(&root, "tables"),
+            &canonical_relation_name("postgres", "public", "rest_acl_secret")
+        ));
+        assert!(contains_item(
+            section_items(&root, "indexes"),
+            &secret_index
+        ));
+        assert!(contains_item(
+            section_items(&root, "views"),
+            &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
         ));
 
         stop_rest_server(shutdown, server).await;
@@ -638,7 +777,9 @@ fn should_resolve_mixed_case_collections_with_percent_decoded_quotes() {
             .await
             .expect("lowercase collection write");
         let mixed = client
-            .post(format!("{base_url}/api/v1/collections/%22Cities%22/documents"))
+            .post(format!(
+                "{base_url}/api/v1/collections/%22Cities%22/documents"
+            ))
             .header("cookie", &cookie)
             .json(&serde_json::json!({"id": 2, "name": "mixed"}))
             .send()

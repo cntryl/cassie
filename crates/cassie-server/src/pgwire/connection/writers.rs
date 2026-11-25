@@ -1,0 +1,729 @@
+use super::codecs::{validate_result_formats, value_to_text};
+use super::errors::PgWireError;
+use super::result_frames::QueryResultFrames;
+use super::{AsyncWrite, AsyncWriteExt, CassieSession};
+use crate::types::Value;
+use std::{collections::HashMap, convert::TryFrom, io, str};
+
+pub(super) const MAX_BACKEND_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
+pub(super) async fn write_auth_ok(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
+    let mut frame = Vec::new();
+    frame.push(b'R');
+    frame.extend_from_slice(&8_i32.to_be_bytes());
+    frame.extend_from_slice(&0_i32.to_be_bytes());
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) async fn write_auth_cleartext(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    let mut frame = Vec::new();
+    frame.push(b'R');
+    frame.extend_from_slice(&8_i32.to_be_bytes());
+    frame.extend_from_slice(&3_i32.to_be_bytes());
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) async fn write_parameter_statuses(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+) -> io::Result<HashMap<String, String>> {
+    let statuses = parameter_status_values(session)?;
+    for (key, value) in &statuses {
+        write_parameter_status(write_half, key, value).await?;
+    }
+    Ok(statuses.into_iter().collect())
+}
+
+pub(super) async fn write_changed_parameter_statuses(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    previous: &mut HashMap<String, String>,
+) -> io::Result<()> {
+    let statuses = parameter_status_values(session)?;
+    for (key, value) in &statuses {
+        if previous.get(key) != Some(value) {
+            write_parameter_status(write_half, key, value).await?;
+        }
+    }
+    *previous = statuses.into_iter().collect();
+    Ok(())
+}
+
+fn parameter_status_values(session: &CassieSession) -> io::Result<Vec<(String, String)>> {
+    let mut statuses = Vec::new();
+    for spec in crate::app::all_session_settings() {
+        if matches!(
+            spec.name,
+            "search_path"
+                | "client_min_messages"
+                | "bytea_output"
+                | "extra_float_digits"
+                | "timezone_abbreviations"
+                | "check_function_bodies"
+                | "default_table_access_method"
+                | "idle_in_transaction_session_timeout"
+                | "idle_session_timeout"
+                | "lock_timeout"
+                | "row_security"
+                | "statement_timeout"
+                | "transaction_timeout"
+                | "xmloption"
+        ) {
+            continue;
+        }
+        let key = match spec.name {
+            "datestyle" => "DateStyle",
+            "timezone" => "TimeZone",
+            "intervalstyle" => "IntervalStyle",
+            name => name,
+        };
+        let value = session.setting(spec.name).map_err(io::Error::other)?;
+        statuses.push((key.to_string(), value));
+    }
+    Ok(statuses)
+}
+
+async fn write_parameter_status(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    key: &str,
+    value: &str,
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(key.as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(value.as_bytes());
+    payload.push(0);
+    write_backend_frame(write_half, b'S', &payload).await
+}
+
+pub(super) async fn write_backend_key_data(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    process_id: i32,
+    secret_key: i32,
+) -> io::Result<()> {
+    let mut payload = Vec::with_capacity(8);
+    payload.extend_from_slice(&process_id.to_be_bytes());
+    payload.extend_from_slice(&secret_key.to_be_bytes());
+    write_backend_frame(write_half, b'K', &payload).await
+}
+
+pub(super) async fn write_ssl_not_supported(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_half.write_all(b"N").await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) async fn write_error_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    error: &PgWireError,
+) -> io::Result<()> {
+    if let Some(frame) = error.encoded_semantic_frame() {
+        write_half.write_all(frame).await?;
+        return write_half.flush().await;
+    }
+    let mut payload = Vec::new();
+    payload.extend_from_slice(b"S");
+    payload.extend_from_slice(error.severity.as_str().as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(b"C");
+    payload.extend_from_slice(error.code.as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(b"M");
+    payload.extend_from_slice(error.message.as_bytes());
+    payload.push(0);
+    append_error_field(&mut payload, b'D', error.detail.as_deref());
+    append_error_field(&mut payload, b'H', error.hint.as_deref());
+    append_error_field(&mut payload, b's', error.schema.as_deref());
+    append_error_field(&mut payload, b't', error.table.as_deref());
+    append_error_field(&mut payload, b'c', error.column.as_deref());
+    append_error_field(&mut payload, b'n', error.constraint.as_deref());
+    if let Some(position) = error.position {
+        append_error_field(&mut payload, b'P', Some(&position.to_string()));
+    }
+    payload.push(0);
+
+    let mut frame = Vec::new();
+    append_backend_frame(&mut frame, b'E', &payload)?;
+
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+fn append_error_field(payload: &mut Vec<u8>, tag: u8, value: Option<&str>) {
+    let Some(value) = value else {
+        return;
+    };
+    payload.push(tag);
+    payload.extend_from_slice(value.as_bytes());
+    payload.push(0);
+}
+
+pub(super) async fn write_simple_query_result(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    result: crate::executor::QueryResult,
+) -> io::Result<()> {
+    let columns = result.columns();
+    let rows = result.rows();
+    if !columns.is_empty() {
+        ensure_row_widths(rows, columns)?;
+    }
+    let mut frames = QueryResultFrames::try_new(&result, rows, &[]).map_err(io::Error::other)?;
+
+    if !columns.is_empty() {
+        frames.description(columns, &[])?;
+        write_half.write_all(frames.bytes()).await?;
+        for (index, row) in rows.iter().enumerate() {
+            frames.row(index, row, columns, &[])?;
+            write_half.write_all(frames.bytes()).await?;
+        }
+        frames.completion(false)?;
+        write_half.write_all(frames.bytes()).await?;
+        write_half.flush().await?;
+        return Ok(());
+    }
+
+    frames.completion(false)?;
+    write_half.write_all(frames.bytes()).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) async fn write_parse_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'1', &[]).await
+}
+
+pub(super) async fn write_bind_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'2', &[]).await
+}
+
+pub(super) async fn write_close_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'3', &[]).await
+}
+
+pub(super) async fn write_parameter_description(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    parameter_type_oids: &[i32],
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(
+        &i16::try_from(parameter_type_oids.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many parameters"))?
+            .to_be_bytes(),
+    );
+    for oid in parameter_type_oids {
+        payload.extend_from_slice(&oid.to_be_bytes());
+    }
+    write_backend_frame(write_half, b't', &payload).await
+}
+
+pub(super) async fn write_no_data(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
+    write_backend_frame(write_half, b'n', &[]).await
+}
+
+/// `EmptyQueryResponse`: stands in for `CommandComplete` when the query
+/// string held no statement at all.
+pub(super) async fn write_empty_query_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'I', &[]).await
+}
+
+pub(super) fn append_row_description_frame(
+    frame: &mut Vec<u8>,
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+) -> io::Result<()> {
+    validate_result_formats(columns, result_formats)?;
+    let mut payload = Vec::new();
+    payload.extend_from_slice(
+        &i16::try_from(columns.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many columns"))?
+            .to_be_bytes(),
+    );
+
+    for (index, column) in columns.iter().enumerate() {
+        payload.extend_from_slice(column.name.as_bytes());
+        payload.push(0);
+        payload.extend_from_slice(&0_i32.to_be_bytes());
+        payload.extend_from_slice(&0_i16.to_be_bytes());
+        payload.extend_from_slice(
+            &i32::try_from(column.type_oid)
+                .map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "column oid out of range")
+                })?
+                .to_be_bytes(),
+        );
+        payload.extend_from_slice(&column.typlen.to_be_bytes());
+        payload.extend_from_slice(&column.atttypmod.to_be_bytes());
+        let format_code = result_format_for_index(result_formats, index);
+        payload.extend_from_slice(&format_code.to_be_bytes());
+    }
+
+    append_backend_frame(frame, b'T', &payload)
+}
+
+pub(super) fn append_data_row_frame(
+    frame: &mut Vec<u8>,
+    row: &[Value],
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+    postgres_array_text_columns: &[usize],
+) -> io::Result<()> {
+    append_data_row_frame_in(
+        frame,
+        row,
+        columns,
+        result_formats,
+        postgres_array_text_columns,
+        crate::types::extended::temporal::default_session(),
+    )
+}
+
+pub(super) fn append_data_row_frame_in(
+    frame: &mut Vec<u8>,
+    row: &[Value],
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+    postgres_array_text_columns: &[usize],
+    session: &crate::types::extended::temporal::TemporalSession,
+) -> io::Result<()> {
+    validate_result_formats(columns, result_formats)?;
+    ensure_row_width(row, columns)?;
+
+    let mut payload = Vec::new();
+    payload.extend_from_slice(
+        &i16::try_from(row.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many row values"))?
+            .to_be_bytes(),
+    );
+
+    for (index, value) in row.iter().enumerate() {
+        match value {
+            Value::Null => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
+            other => {
+                let format_code = result_format_for_index(result_formats, index);
+                let bytes = if let Some(enum_column) = columns[index].enum_column() {
+                    super::codecs::enum_value::encode(other, enum_column, format_code)?
+                } else if let Some(descriptor) = columns[index].record_array() {
+                    super::codecs::record_array::encode(other, descriptor, format_code, session)?
+                } else if format_code == 0 {
+                    if postgres_array_text_columns.binary_search(&index).is_ok() {
+                        super::codecs::value_to_postgres_array_text_in(
+                            other,
+                            columns[index].type_oid,
+                            session,
+                        )
+                        .unwrap_or_else(|| value_to_text(other, columns[index].type_oid))
+                        .into_bytes()
+                    } else {
+                        super::codecs::value_to_postgres_array_text_in(
+                            other,
+                            columns[index].type_oid,
+                            session,
+                        )
+                        .unwrap_or_else(|| value_to_text(other, columns[index].type_oid))
+                        .into_bytes()
+                    }
+                } else if format_code == 1 {
+                    let record = super::codecs::record::from_rendered(other, &columns[index])?;
+                    super::codecs::value_to_binary_with_typmod_and_vector(
+                        record.as_ref().unwrap_or(other),
+                        columns[index].type_oid,
+                        columns[index].atttypmod,
+                        columns[index].is_vector(),
+                    )?
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "unsupported result format",
+                    ));
+                };
+                payload.extend_from_slice(
+                    &i32::try_from(bytes.len())
+                        .map_err(|_| {
+                            io::Error::new(io::ErrorKind::InvalidInput, "value too large")
+                        })?
+                        .to_be_bytes(),
+                );
+                payload.extend_from_slice(&bytes);
+            }
+        }
+    }
+
+    append_backend_frame(frame, b'D', &payload)
+}
+
+/// A result row whose width differs from its `RowDescription`. Encoding it
+/// would either index past the column list or emit a `DataRow` that clients
+/// reject, so the statement fails with an `ErrorResponse` instead.
+#[derive(Debug)]
+struct RowShapeMismatch {
+    row_width: usize,
+    column_count: usize,
+}
+
+impl std::fmt::Display for RowShapeMismatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "result row has {} values but its row description declares {} columns",
+            self.row_width, self.column_count
+        )
+    }
+}
+
+impl std::error::Error for RowShapeMismatch {}
+
+pub(super) fn is_row_shape_mismatch(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(<dyn std::error::Error + Send + Sync>::is::<RowShapeMismatch>)
+}
+
+pub(super) fn ensure_row_widths(
+    rows: &[Vec<Value>],
+    columns: &[crate::executor::ColumnMeta],
+) -> io::Result<()> {
+    rows.iter()
+        .try_for_each(|row| ensure_row_width(row, columns))
+}
+
+fn ensure_row_width(row: &[Value], columns: &[crate::executor::ColumnMeta]) -> io::Result<()> {
+    if row.len() == columns.len() {
+        return Ok(());
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        RowShapeMismatch {
+            row_width: row.len(),
+            column_count: columns.len(),
+        },
+    ))
+}
+
+pub(super) async fn write_command_complete(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    command: &str,
+) -> io::Result<()> {
+    let mut frame = Vec::new();
+    append_command_complete_frame(&mut frame, command)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) async fn write_notice_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    message: &str,
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(b"SNOTICE\0C00000\0M");
+    payload.extend_from_slice(message.as_bytes());
+    payload.push(0);
+    payload.push(0);
+    write_backend_frame(write_half, b'N', &payload).await
+}
+
+pub(super) async fn write_copy_in_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    column_count: usize,
+    format_code: i16,
+) -> io::Result<()> {
+    let payload = copy_response_payload(column_count, format_code)?;
+    write_backend_frame(write_half, b'G', &payload).await
+}
+
+pub(super) async fn write_copy_out_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    column_count: usize,
+    format_code: i16,
+) -> io::Result<()> {
+    let payload = copy_response_payload(column_count, format_code)?;
+    write_backend_frame(write_half, b'H', &payload).await
+}
+
+/// `CopyInResponse`/`CopyOutResponse` body: Int8 overall format,
+/// Int16 column count, then one Int16 format code per column.
+fn copy_response_payload(column_count: usize, format_code: i16) -> io::Result<Vec<u8>> {
+    if !matches!(format_code, 0 | 1) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsupported COPY format code",
+        ));
+    }
+    let mut payload = Vec::with_capacity(3 + 2 * column_count);
+    payload.push(u8::try_from(format_code).map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidInput, "unsupported COPY format code")
+    })?);
+    payload.extend_from_slice(
+        &i16::try_from(column_count)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "too many columns"))?
+            .to_be_bytes(),
+    );
+    for _ in 0..column_count {
+        payload.extend_from_slice(&format_code.to_be_bytes());
+    }
+    Ok(payload)
+}
+
+pub(super) async fn write_copy_data(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    data: &[u8],
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'd', data).await
+}
+
+pub(super) async fn write_copy_done(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
+    write_backend_frame(write_half, b'c', &[]).await
+}
+
+/// Result sets report the rows this query or portal execution returned.
+/// Command-only outcomes retain their operator's affected-row count, including
+/// `CREATE TABLE AS`. A bare empty `SELECT` still reports zero rows.
+pub(super) fn select_command_tag(command: &str, rows: Option<usize>) -> std::borrow::Cow<'_, str> {
+    let is_select = command.eq_ignore_ascii_case("SELECT")
+        || command.split_once(' ').is_some_and(|(verb, count)| {
+            verb.eq_ignore_ascii_case("SELECT") && count.parse::<u64>().is_ok()
+        });
+    if is_select {
+        match rows {
+            Some(rows) => std::borrow::Cow::Owned(format!("SELECT {rows}")),
+            None if command.eq_ignore_ascii_case("SELECT") => {
+                std::borrow::Cow::Borrowed("SELECT 0")
+            }
+            None => std::borrow::Cow::Borrowed(command),
+        }
+    } else {
+        std::borrow::Cow::Borrowed(command)
+    }
+}
+
+pub(super) fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(command.as_bytes());
+    payload.push(0);
+    append_backend_frame(frame, b'C', &payload)
+}
+
+pub(super) fn append_portal_suspended_frame(frame: &mut Vec<u8>) -> io::Result<()> {
+    append_backend_frame(frame, b's', &[])
+}
+
+pub(super) async fn write_ready_for_query(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+) -> io::Result<()> {
+    write_ready_for_query_inner(write_half, session, || {}).await
+}
+
+#[cfg(test)]
+async fn write_ready_for_query_observed(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    write_ready_for_query_inner(write_half, session, after_snapshot).await
+}
+
+async fn write_ready_for_query_inner(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    after_snapshot: impl FnOnce(),
+) -> io::Result<()> {
+    let status = match session.ready_for_query_status() {
+        crate::app::SessionTransactionStatus::Idle => b'I',
+        crate::app::SessionTransactionStatus::InTransaction => b'T',
+        crate::app::SessionTransactionStatus::Failed => b'E',
+    };
+    after_snapshot();
+    write_backend_frame(write_half, b'Z', &[status]).await
+}
+
+async fn write_backend_frame(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    tag: u8,
+    payload: &[u8],
+) -> io::Result<()> {
+    let mut frame = Vec::new();
+    append_backend_frame(&mut frame, tag, payload)?;
+    write_half.write_all(&frame).await?;
+    write_half.flush().await?;
+    Ok(())
+}
+
+pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8]) -> io::Result<()> {
+    let frame_length = payload
+        .len()
+        .checked_add(4)
+        .ok_or_else(backend_frame_too_large_error)?;
+    if frame_length > MAX_BACKEND_FRAME_BYTES {
+        return Err(backend_frame_too_large_error());
+    }
+    frame.push(tag);
+    frame.extend_from_slice(
+        &i32::try_from(frame_length)
+            .map_err(|_| backend_frame_too_large_error())?
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    Ok(())
+}
+
+pub(super) fn is_backend_frame_too_large(error: &io::Error) -> bool {
+    error.to_string() == "pgwire backend frame exceeds 16777216 bytes"
+}
+
+pub(super) fn query_memory_error(error: &io::Error) -> Option<&crate::app::CassieError> {
+    error.get_ref()?.downcast_ref::<crate::app::CassieError>()
+}
+
+fn backend_frame_too_large_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "pgwire backend frame exceeds 16777216 bytes",
+    )
+}
+
+pub(super) fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
+    match result_formats.len() {
+        0 => 0,
+        1 => result_formats[0],
+        _ => result_formats[index],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        append_backend_frame, is_backend_frame_too_large, write_ready_for_query,
+        write_ready_for_query_observed, MAX_BACKEND_FRAME_BYTES,
+    };
+    use crate::app::CassieSession;
+
+    fn session() -> CassieSession {
+        CassieSession::new("tester".to_owned(), None)
+    }
+
+    fn ready_frame(session: &CassieSession) -> Vec<u8> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut output = Vec::new();
+        runtime
+            .block_on(write_ready_for_query(&mut output, session))
+            .expect("ready frame");
+        output
+    }
+
+    #[test]
+    fn should_encode_idle_ready_status() {
+        // Arrange
+        let session = session();
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'I']);
+        assert_eq!(session.transaction_status(), "idle");
+    }
+
+    #[test]
+    fn should_encode_active_ready_status() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'T']);
+        assert_eq!(session.transaction_status(), "in_transaction");
+    }
+
+    #[test]
+    fn should_encode_failed_ready_status() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+        session.mark_transaction_failed();
+
+        // Act
+        let output = ready_frame(&session);
+
+        // Assert
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'E']);
+        assert_eq!(session.transaction_status(), "failed");
+    }
+
+    #[test]
+    fn should_preserve_ready_snapshot_when_transaction_fails_before_write() {
+        // Arrange
+        let session = session();
+        session.begin_transaction(None).expect("begin");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut output = Vec::new();
+        let (transition_tx, transition_rx) = std::sync::mpsc::sync_channel(1);
+        let concurrent_session = session.clone();
+        let mut worker = None;
+        let mut transitioned_before_write = false;
+
+        // Act: transition at the post-snapshot, pre-write boundary.
+        runtime
+            .block_on(write_ready_for_query_observed(
+                &mut output,
+                &session,
+                || {
+                    worker = Some(std::thread::spawn(move || {
+                        concurrent_session.mark_transaction_failed();
+                        transition_tx.send(()).expect("transition reported");
+                    }));
+                    transitioned_before_write = transition_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .is_ok();
+                },
+            ))
+            .expect("ready frame");
+        worker.expect("transition worker").join().expect("worker");
+
+        // Assert
+        assert!(transitioned_before_write, "snapshot must release the mutex");
+        assert_eq!(output, [b'Z', 0, 0, 0, 5, b'T']);
+        assert_eq!(session.transaction_status(), "failed");
+    }
+
+    #[test]
+    fn should_reject_an_individual_backend_frame_over_sixteen_mebibytes() {
+        // Arrange
+        let payload = vec![0_u8; MAX_BACKEND_FRAME_BYTES - 3];
+        let mut frame = Vec::new();
+
+        // Act
+        let error =
+            append_backend_frame(&mut frame, b'D', &payload).expect_err("oversized backend frame");
+
+        // Assert
+        assert!(is_backend_frame_too_large(&error));
+        assert_eq!(frame, [] as [u8; 0]);
+    }
+}

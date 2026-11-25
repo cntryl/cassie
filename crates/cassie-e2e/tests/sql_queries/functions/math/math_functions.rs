@@ -1,0 +1,933 @@
+#[test]
+fn should_retain_float8_type_when_rounding() {
+    // Arrange
+    let sql = "SELECT ROUND(CAST(42.4 AS FLOAT)), ROUND(CAST(-42.8 AS FLOAT))";
+
+    // Act
+    let fixture = sql_fixture("issue-813-round-float8", &[]);
+    let result = fixture.execute(sql);
+
+    // Assert
+    let result = result.expect("float8 rounding");
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Float64(42.0), Value::Float64(-43.0)]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701, 701]
+    );
+}
+
+#[test]
+fn should_round_numeric_ties_away_from_zero_at_the_requested_scale() {
+    // Arrange
+    let sql = "SELECT ROUND(CAST('1.245' AS NUMERIC), 2) = CAST('1.25' AS NUMERIC) AND ROUND(CAST('-1.245' AS NUMERIC), 2) = CAST('-1.25' AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-round-numeric-ties", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_round_numeric_values_at_negative_scales() {
+    // Arrange
+    let sql = "SELECT ROUND(CAST(1234.56 AS NUMERIC), -1) = CAST(1230 AS NUMERIC) AND ROUND(CAST(-1234.56 AS NUMERIC), -1) = CAST(-1230 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-round-negative-scale", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_truncate_numeric_values_toward_zero_at_signed_scales() {
+    // Arrange
+    let sql = "SELECT TRUNC(CAST('42.4382' AS NUMERIC), 2) = CAST('42.43' AS NUMERIC) AND TRUNC(CAST('-125.9' AS NUMERIC), -1) = CAST('-120' AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-trunc-numeric-scales", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_floor_float8_values_on_both_sides_of_zero() {
+    // Arrange
+    let sql = "SELECT FLOOR(CAST(42.8 AS FLOAT)) = 42.0 AND FLOOR(CAST(-42.8 AS FLOAT)) = -43.0";
+
+    // Act
+    let rows = predicate_rows("issue-813-floor-float8", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_ceil_float8_values_on_both_sides_of_zero() {
+    // Arrange
+    let sql = "SELECT CEIL(CAST(42.2 AS FLOAT)) = 43.0 AND CEIL(CAST(-42.8 AS FLOAT)) = -42.0";
+
+    // Act
+    let rows = predicate_rows("issue-813-ceil-float8", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_preserve_numeric_types_for_floor_ceil() {
+    // Arrange
+    let sql = "SELECT FLOOR(CAST(42.8 AS NUMERIC)) = CAST(42 AS NUMERIC) AND CEIL(CAST(-42.8 AS NUMERIC)) = CAST(-42 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-floor-ceil-numeric", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_support_ceiling_as_the_ceil_alias() {
+    // Arrange
+    let sql = "SELECT CEILING(CAST(95.3 AS FLOAT)) = CEIL(CAST(95.3 AS FLOAT))";
+
+    // Act
+    let rows = predicate_rows("issue-813-ceiling-alias", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_propagate_null_through_rounding_functions() {
+    // Arrange
+    let sql = "SELECT ROUND(CAST(NULL AS FLOAT)) IS NULL AND TRUNC(CAST(NULL AS FLOAT)) IS NULL AND FLOOR(CAST(NULL AS FLOAT)) IS NULL AND CEILING(CAST(NULL AS FLOAT)) IS NULL";
+
+    // Act
+    let rows = predicate_rows("issue-813-rounding-null", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_propagate_null_through_selected_numeric_scalar_functions() {
+    // Arrange
+    let sql = "SELECT ROUND(NULL::NUMERIC) IS NULL AND ROUND(NULL::NUMERIC, 2) IS NULL AND TRUNC(NULL::NUMERIC, 2) IS NULL AND FLOOR(NULL::NUMERIC) IS NULL AND CEILING(NULL::FLOAT8) IS NULL AND MOD(NULL::BIGINT, 2::BIGINT) IS NULL AND MOD(NULL::NUMERIC, 2::NUMERIC) IS NULL AND POWER(NULL::NUMERIC, 2::NUMERIC) IS NULL AND POWER(NULL::FLOAT8, 2::FLOAT8) IS NULL AND (NULL::NUMERIC ^ 2::NUMERIC) IS NULL";
+
+    // Act
+    let rows = predicate_rows("issue-813-numeric-functions-null", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_numeric_modulo_with_the_dividend_sign() {
+    // Arrange
+    let sql = "SELECT MOD(9, 4) = 1 AND MOD(-9, 4) = -1 AND MOD(9, -4) = 1";
+
+    // Act
+    let rows = predicate_rows("issue-813-mod-sign", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_divide_numeric_values_by_truncating_toward_zero() {
+    // Arrange
+    let sql = "SELECT DIV(9, 4) = 2 AND DIV(-9, 4) = -2 AND DIV(9, -4) = -2";
+
+    // Act
+    let rows = predicate_rows("issue-813-div-truncation", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_preserve_exact_numeric_modulo_quotient_values() {
+    // Arrange
+    let sql = "SELECT MOD(CAST(-9.5 AS NUMERIC), CAST(4 AS NUMERIC)) = CAST(-1.5 AS NUMERIC) AND DIV(CAST(-9.5 AS NUMERIC), CAST(4 AS NUMERIC)) = CAST(-2 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-mod-div-numeric", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_zero_for_bigint_minimum_modulo_negative_one() {
+    // Arrange
+    let sql = "SELECT MOD('-9223372036854775808'::bigint, -1::bigint) = 0::bigint";
+
+    // Act
+    let rows = predicate_rows("issue-813-mod-bigint-min-over-minus-one", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_reject_float_remainder_overloads_with_operator_sqlstates() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1477-floating-remainder-overloads",
+        &[
+            "CREATE TABLE tf (x DOUBLE PRECISION)",
+            "CREATE TABLE tr (r REAL)",
+        ],
+    );
+    let cases = [
+        (
+            "SELECT x % 2 FROM tf",
+            "operator does not exist: double precision % integer",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 2",
+            "operator does not exist: double precision % integer",
+        ),
+        (
+            "SELECT r % 2 FROM tr",
+            "operator does not exist: real % integer",
+        ),
+        (
+            "SELECT 7::BIGINT % 2.5::DOUBLE PRECISION",
+            "operator does not exist: bigint % double precision",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 2.5::DOUBLE PRECISION",
+            "operator does not exist: double precision % double precision",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % 1.2::NUMERIC(5,1)",
+            "operator does not exist: double precision % numeric",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % B'101'::BIT(3)",
+            "operator does not exist: double precision % bit",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % '12:00:00'::TIME(2)",
+            "operator does not exist: double precision % time",
+        ),
+        (
+            "SELECT 7.5::DOUBLE PRECISION % ARRAY[1.2]::NUMERIC(5,1)[]",
+            "operator does not exist: double precision % numeric[]",
+        ),
+    ];
+
+    // Act
+    let errors = cases.map(|(sql, _)| fixture.error(sql));
+
+    // Assert
+    for ((sql, message), error) in cases.into_iter().zip(errors) {
+        assert_eq!(error.sql_state(), "42883", "{sql}");
+        assert_eq!(error.to_string(), message, "{sql}");
+    }
+}
+
+#[test]
+fn should_reject_float_remainder_in_a_where_clause_on_an_empty_table() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1477-floating-remainder-empty-where",
+        &["CREATE TABLE tf (x DOUBLE PRECISION)"],
+    );
+
+    // Act
+    let error = fixture.error("SELECT x FROM tf WHERE x % 2 = 0");
+
+    // Assert
+    assert_eq!(error.sql_state(), "42883");
+    assert_eq!(
+        error.to_string(),
+        "operator does not exist: double precision % integer"
+    );
+}
+
+#[test]
+fn should_keep_integer_numeric_float8_operator_results() {
+    // Arrange
+    let fixture = sql_fixture("issue-1477-remainder-compatible-overloads", &[]);
+
+    // Act
+    let remainders = fixture
+        .execute("SELECT 7 % 2 = 1, 7.5::NUMERIC % 2 = 1.5, 7 % 2.5 = 2.0")
+        .expect("integer and numeric remainder overloads");
+    let addition = fixture
+        .execute("SELECT 1.5::FLOAT8 + 1")
+        .expect("float8 addition");
+
+    // Assert
+    assert_eq!(remainders.rows(), &[vec![Value::Bool(true); 3]]);
+    assert_eq!(addition.rows(), &[vec![Value::Float64(2.5)]]);
+    assert_eq!(addition.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_keep_power_result_types_for_both_inputs() {
+    // Arrange
+    let sql = "SELECT POWER(CAST(9 AS NUMERIC), CAST(3 AS NUMERIC)) = CAST(729 AS NUMERIC) AND POWER(CAST(9 AS FLOAT), CAST(0.5 AS FLOAT)) = CAST(3 AS FLOAT)";
+
+    // Act
+    let rows = predicate_rows("issue-813-power-overloads", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_apply_the_power_operator_left_to_right() {
+    // Arrange
+    let sql = "SELECT 2 ^ 3 ^ 3 AS power";
+
+    // Act
+    let fixture = sql_fixture("issue-813-power-operator", &[]);
+    let result = fixture.execute(sql);
+
+    // Assert
+    let result = result.expect("left-associative PostgreSQL power operator");
+    assert_eq!(result.rows(), &[vec![Value::Float64(512.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_calculate_the_prefix_square_root_operator() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-square-root-operator", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT |/ 25.0 AS square_root");
+
+    // Assert
+    let result = result.expect("PostgreSQL prefix square-root operator");
+    assert_eq!(result.rows(), &[vec![Value::Float64(5.0)]]);
+    assert_eq!(result.columns()[0].type_oid, 701);
+}
+
+#[test]
+fn should_calculate_square_roots_for_each_numeric_type() {
+    // Arrange
+    let sql = "SELECT SQRT(CAST(4 AS NUMERIC)) = CAST(2 AS NUMERIC) AND SQRT(CAST(25 AS FLOAT)) = CAST(5 AS FLOAT)";
+
+    // Act
+    let rows = predicate_rows("issue-813-sqrt-overloads", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_evaluate_exponential_logarithm_functions() {
+    // Arrange
+    let sql = "SELECT EXP(CAST(1 AS FLOAT)), LN(CAST(1 AS FLOAT)), LOG(CAST(1000 AS FLOAT)), LOG10(CAST(1000 AS FLOAT))";
+
+    // Act
+    let values = scalar_values("issue-813-log-family", sql);
+
+    // Assert
+    assert_float_values(values, &[E, 0.0, 3.0, 3.0]);
+}
+
+#[test]
+fn should_calculate_logarithms_with_an_explicit_base() {
+    // Arrange
+    let sql = "SELECT LOG(CAST(2 AS NUMERIC), CAST(64 AS NUMERIC)) = CAST(6 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-log-base", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_sign_values_for_signed_float8_inputs() {
+    // Arrange
+    let sql =
+        "SELECT SIGN(CAST(-8.4 AS FLOAT)), SIGN(CAST(0.0 AS FLOAT)), SIGN(CAST(-0.0 AS FLOAT))";
+
+    // Act
+    let values = scalar_values("issue-813-sign-signed-zero", sql);
+
+    // Assert
+    assert_float_values(values, &[-1.0, 0.0, 0.0]);
+}
+
+#[test]
+fn should_return_pi_as_a_float8_value() {
+    // Arrange
+    let sql = "SELECT PI() > 3.14 AND PI() < 3.15";
+
+    // Act
+    let rows = predicate_rows("issue-813-pi", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_calculate_gcd_for_integer_values_including_zero_inputs() {
+    // Arrange
+    let sql = "SELECT GCD(1071, 462) = 21 AND GCD(0, 0) = 0";
+
+    // Act
+    let rows = predicate_rows("issue-813-gcd", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_calculate_lcm_for_integer_values_including_zero_inputs() {
+    // Arrange
+    let sql = "SELECT LCM(1071, 462), LCM(0, 9)";
+
+    // Act
+    let values = scalar_values("issue-813-lcm", sql);
+
+    // Assert
+    assert_eq!(values, vec![Value::Int64(23_562), Value::Int64(0)]);
+}
+
+#[test]
+fn should_return_factorial_as_an_exact_numeric_value() {
+    // Arrange
+    let sql = "SELECT FACTORIAL(21) = CAST('51090942171709440000' AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-factorial-exact", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_assign_width_buckets_with_both_bound_orders() {
+    // Arrange
+    let sql = "SELECT WIDTH_BUCKET(5.35, 0.024, 10.06, 5) = 3 AND WIDTH_BUCKET(0.023, 0.024, 10.06, 5) = 0 AND WIDTH_BUCKET(10.06, 0.024, 10.06, 5) = 6 AND WIDTH_BUCKET(9, 10, 0, 10) = 2";
+
+    // Act
+    let rows = predicate_rows("issue-813-width-bucket", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_assign_width_bucket_from_sorted_array_thresholds() {
+    // Arrange
+    let sql = "SELECT WIDTH_BUCKET(2, ARRAY[1, 3, 7]) = 1 AND WIDTH_BUCKET(0, ARRAY[1, 3, 7]) = 0 AND WIDTH_BUCKET(7, ARRAY[1, 3, 7]) = 3";
+
+    // Act
+    let rows = predicate_rows("issue-813-width-bucket-array", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_preserve_width_bucket_array_boundaries_for_exact_values() {
+    // Arrange
+    let sql = "SELECT WIDTH_BUCKET(9007199254740993::BIGINT, ARRAY[9007199254740992::BIGINT, 9007199254740993::BIGINT]), WIDTH_BUCKET(1, ARRAY[]::INT[]), WIDTH_BUCKET(NULL, ARRAY[1]), WIDTH_BUCKET(1.5::NUMERIC, ARRAY[1.5::NUMERIC, 2.5::NUMERIC]), CARDINALITY((ARRAY[]::TEXT[])::INT[])";
+
+    // Act
+    let values = scalar_values("issue-813-width-bucket-boundaries", sql);
+
+    // Assert
+    assert_eq!(
+        values,
+        vec![
+            Value::Int64(2),
+            Value::Int64(0),
+            Value::Null,
+            Value::Int64(1),
+            Value::Int64(0)
+        ]
+    );
+}
+
+#[test]
+fn should_reject_invalid_width_bucket_threshold_arrays() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-invalid", &[]);
+
+    // Act
+    let multidimensional = fixture.execute("SELECT WIDTH_BUCKET(1, '{{1,2},{3,4}}'::INT[])");
+    let null_element = fixture.execute("SELECT WIDTH_BUCKET(1, ARRAY[1,NULL])");
+
+    // Assert
+    assert!(
+        matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"),
+        "{multidimensional:?}"
+    );
+    assert!(
+        matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"),
+        "{null_element:?}"
+    );
+}
+
+#[test]
+fn should_report_numeric_scale_metrics() {
+    // Arrange
+    let sql = "SELECT SCALE(CAST(8.4100 AS NUMERIC)) = 4 AND MIN_SCALE(CAST(8.4100 AS NUMERIC)) = 2 AND TRIM_SCALE(CAST(8.4100 AS NUMERIC)) = CAST(8.41 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-numeric-scale-functions", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_convert_angle_units() {
+    // Arrange
+    let sql = "SELECT DEGREES(3.141592653589793), RADIANS(180.0)";
+
+    // Act
+    let values = scalar_values("issue-813-angle-conversions", sql);
+
+    // Assert
+    assert_float_values(values, &[180.0, PI]);
+}
+
+#[test]
+fn should_evaluate_radian_trigonometric_functions() {
+    // Arrange
+    let sql = "SELECT SIN(1.0), COS(0.0), TAN(1.0), COT(0.5), ACOS(1.0), ASIN(1.0), ATAN(1.0), ATAN2(1.0, 0.0)";
+
+    // Act
+    let values = scalar_values("issue-813-trigonometric-radians", sql);
+
+    // Assert
+    assert_float_values(
+        values,
+        &[
+            0.841_470_984_807_896_5,
+            1.0,
+            1.557_407_724_654_902_3,
+            1.830_487_721_712_452,
+            0.0,
+            FRAC_PI_2,
+            FRAC_PI_4,
+            FRAC_PI_2,
+        ],
+    );
+}
+
+#[test]
+fn should_evaluate_degree_trigonometric_functions() {
+    // Arrange
+    let sql = "SELECT SIND(30.0), COSD(60.0), TAND(45.0), COTD(45.0), ASIND(0.5), ACOSD(0.5), ATAND(1.0), ATAN2D(1.0, 0.0)";
+
+    // Act
+    let values = scalar_values("issue-813-trigonometric-degrees", sql);
+
+    // Assert
+    assert_float_values(values, &[0.5, 0.5, 1.0, 1.0, 30.0, 60.0, 45.0, 90.0]);
+}
+
+#[test]
+fn should_evaluate_hyperbolic_functions() {
+    // Arrange
+    let sql = "SELECT SINH(1.0), COSH(0.0), TANH(1.0), ASINH(1.0), ACOSH(1.0), ATANH(0.5)";
+
+    // Act
+    let values = scalar_values("issue-813-hyperbolic-functions", sql);
+
+    // Assert
+    assert_float_values(
+        values,
+        &[
+            1.175_201_193_643_801_4,
+            1.0,
+            0.761_594_155_955_764_9,
+            0.881_373_587_019_543,
+            0.0,
+            0.549_306_144_334_054_8,
+        ],
+    );
+}
+
+#[test]
+fn should_evaluate_erf_pair() {
+    // Arrange
+    let sql = "SELECT ERF(1.0), ERFC(1.0)";
+
+    // Act
+    let values = scalar_values("issue-813-error-functions", sql);
+
+    // Assert
+    assert_float_values(values, &[0.842_700_792_949_714_9, 0.157_299_207_050_285_13]);
+}
+
+#[test]
+fn should_evaluate_gamma_functions() {
+    // Arrange
+    let sql = "SELECT GAMMA(6.0), LGAMMA(1.0)";
+
+    // Act
+    let values = scalar_values("issue-813-gamma-functions", sql);
+
+    // Assert
+    assert_float_values(values, &[120.0, 0.0]);
+}
+
+#[test]
+fn should_return_random_float8_values_in_the_half_open_unit_interval() {
+    // Arrange
+    let sql = "SELECT RANDOM()";
+
+    // Act
+    let values = scalar_values("issue-813-random-float8", sql);
+
+    // Assert
+    let [Value::Float64(value)] = values.as_slice() else {
+        panic!("random() should return one float8 value: {values:?}");
+    };
+    assert!((0.0..1.0).contains(value), "random() returned {value}");
+}
+
+#[test]
+fn should_return_random_integer_values_inside_the_inclusive_bounds() {
+    // Arrange
+    let sql = "SELECT RANDOM(1, 10)";
+
+    // Act
+    let values = scalar_values("issue-813-random-integer-bounds", sql);
+
+    // Assert
+    let [Value::Int64(value)] = values.as_slice() else {
+        panic!("random(integer, integer) should return int4: {values:?}");
+    };
+    assert!((1..=10).contains(value), "random(1, 10) returned {value}");
+}
+
+#[test]
+fn should_return_random_bigint_values_inside_the_inclusive_bounds() {
+    // Arrange
+    let sql = "SELECT RANDOM(CAST(9007199254740992 AS BIGINT), CAST(9007199254740994 AS BIGINT))";
+
+    // Act
+    let values = scalar_values("issue-813-random-bigint-bounds", sql);
+
+    // Assert
+    let [Value::Int64(value)] = values.as_slice() else {
+        panic!("random(bigint, bigint) should return int8: {values:?}");
+    };
+    assert!(
+        (9_007_199_254_740_992..=9_007_199_254_740_994).contains(value),
+        "random(bigint bounds) returned {value}"
+    );
+}
+
+#[test]
+fn should_return_random_numeric_values_with_the_maximum_bound_scale() {
+    // Arrange
+    let sql = "SELECT RANDOM(CAST(1.0 AS NUMERIC), CAST(2.00 AS NUMERIC)) BETWEEN CAST(1.00 AS NUMERIC) AND CAST(2.00 AS NUMERIC)";
+
+    // Act
+    let rows = predicate_rows("issue-813-random-numeric-bounds", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_support_random_normal_arities() {
+    // Arrange
+    let sql = "SELECT RANDOM_NORMAL(), RANDOM_NORMAL(0.0), RANDOM_NORMAL(0.0, 1.0)";
+
+    // Act
+    let values = scalar_values("issue-813-random-normal-arity", sql);
+
+    // Assert
+    assert_eq!(values.len(), 3);
+    assert!(values
+        .iter()
+        .all(|value| matches!(value, Value::Float64(_))));
+}
+
+#[test]
+fn should_repeat_random_sequences_after_reseeding_the_session() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-seeded-random-sequence", &[]);
+    fixture
+        .execute("SELECT SETSEED(0.12345)")
+        .expect("seed random sequence");
+
+    // Act
+    let first = fixture
+        .execute("SELECT RANDOM(), RANDOM_NORMAL()")
+        .expect("first seeded sequence")
+        .rows()
+        .to_vec();
+    fixture
+        .execute("SELECT SETSEED(0.12345)")
+        .expect("reset random sequence");
+    let repeated = fixture
+        .execute("SELECT RANDOM(), RANDOM_NORMAL()")
+        .expect("repeated seeded sequence")
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert_eq!(first, repeated);
+}
+
+#[test]
+fn should_preserve_numeric_rounding_results_at_extreme_negative_scale() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-extreme-zero-rounding", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ROUND(5::numeric, -2147483648) = 0::numeric AND TRUNC(-5::numeric, -2147483648) = 0::numeric AND ROUND(5::numeric, -1) = 10::numeric AND ROUND(-5::numeric, -1) = -10::numeric");
+
+    // Assert
+    assert_eq!(
+        result.expect("numeric rounding").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_bucket_float_values_across_an_overflowing_span() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-float-span", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(0::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET('5e307'::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET(0::float8, '1e308'::float8, '-1e308'::float8, 10), WIDTH_BUCKET('-5e307'::float8, '1e308'::float8, '-1e308'::float8, 10)");
+
+    // Assert
+    assert_eq!(
+        result.expect("wide float buckets").rows(),
+        &[vec![
+            Value::Int64(6),
+            Value::Int64(8),
+            Value::Int64(6),
+            Value::Int64(8)
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_float_bucket_bounds_that_differ_only_by_zero_sign() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-signed-zero", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0::float8, 0::float8, '-0'::float8, 10)",
+        "SELECT WIDTH_BUCKET(0::float8, '-0'::float8, 0::float8, 10)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "lower bound cannot equal upper bound")
+        );
+    }
+}
+
+#[test]
+fn should_reject_four_argument_width_bucket_results_above_int4() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-overflow", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(1::float8, 0::float8, 1::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::float8, 1::float8, 0::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(1::numeric, 0::numeric, 1::numeric, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::numeric, 1::numeric, 0::numeric, 2147483647)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+        let recovered = fixture.execute("SELECT 1");
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range"),
+            "{query}"
+        );
+        assert_eq!(
+            recovered.expect("session recovery").rows(),
+            &[vec![Value::Int64(1)]]
+        );
+    }
+}
+
+#[test]
+fn should_preserve_width_bucket_error_priority() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-boundary", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET('0.9999999999999999'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(0.9999999999::numeric, 0::numeric, 1::numeric, 2147483647), WIDTH_BUCKET('-Infinity'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 0) IS NULL");
+    let invalid_count =
+        fixture.execute("SELECT WIDTH_BUCKET('NaN'::float8, 0::float8, 1::float8, 0)");
+
+    // Assert
+    assert_eq!(
+        valid.expect("valid buckets").rows(),
+        &[vec![
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(0),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+}
+
+#[test]
+fn should_reject_undefined_width_bucket_count_types_before_null_evaluation() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-overload", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, 1::numeric)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::float8)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::real)",
+        "SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 2147483648)",
+    ];
+
+    // Act
+    let rejected: Vec<_> = queries.iter().map(|sql| fixture.execute(sql)).collect();
+    let controls = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::smallint), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::int), WIDTH_BUCKET(2, ARRAY[1, 3])");
+    let qualified = fixture
+        .execute("SELECT pg_catalog.width_bucket(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    for result in rejected {
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
+        );
+    }
+    assert!(
+        matches!(qualified, Err(cassie::app::CassieError::Execution(message)) if message.contains("width_bucket(") && message.ends_with(" does not exist"))
+    );
+    assert_eq!(
+        controls.expect("valid sibling overloads").rows(),
+        &[vec![Value::Int64(1), Value::Null, Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_preserve_width_bucket_resolution_when_a_distinct_arity_routine_is_visible() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create distinct-arity routine");
+
+    // Act
+    let user_function = fixture.execute("SELECT WIDTH_BUCKET(7)");
+    let builtin =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::int)");
+    let unsupported_count =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    assert_eq!(user_function.expect("one-argument routine").rows(), &[vec![Value::Int64(7)]]);
+    assert_eq!(builtin.expect("four-argument builtin").rows(), &[vec![Value::Int64(1)]]);
+    assert!(matches!(
+        unsupported_count,
+        Err(cassie::app::CassieError::Execution(message))
+            if message.starts_with("function width_bucket(") && message.ends_with(" does not exist")
+    ));
+}
+
+#[test]
+fn should_coerce_unknown_width_bucket_count_literals_as_int4_before_nulls() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-literal", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '  +2 '), WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, '0x2'), WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '2_0'), WIDTH_BUCKET(0.5::numeric(2,1), 0::numeric(3,1), 1::numeric(4,1), '0x2')");
+    let bad = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(NULL::numeric, 0::numeric, 1::numeric, '2147483648')");
+
+    // Assert
+    assert_eq!(
+        valid.expect("coerced counts").rows(),
+        &[vec![
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Int64(11),
+            Value::Int64(2)
+        ]]
+    );
+    assert!(
+        matches!(bad, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::Execution(message)) if message == "value \"2147483648\" is out of range for type integer")
+    );
+}
+
+#[test]
+fn should_validate_width_bucket_count_literal_for_a_visible_distinct_arity_routine() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-literal-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create routine");
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::Execution(message))
+            if message == "invalid input syntax for type integer: \"bad\""
+    ));
+}
+
+#[test]
+fn should_use_float_width_bucket_for_integer_operands() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-integer-overload", &[]);
+
+    // Act
+    let precision = fixture.execute("SELECT WIDTH_BUCKET(9007199254740993::bigint, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(9007199254740993::bigint, 9007199254740994::bigint, 9007199254740992::bigint, 2), WIDTH_BUCKET(9007199254740993::numeric, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(1::smallint, 0::integer, 2::bigint, 2), WIDTH_BUCKET(NULL::bigint, 0::bigint, 1::bigint, 0) IS NULL");
+    let invalid_count = fixture.execute("SELECT WIDTH_BUCKET(0::bigint, 0::bigint, 0::bigint, 0)");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(1::bigint, 0::bigint, 1::bigint, 2147483647)");
+
+    // Assert
+    assert_eq!(
+        precision.expect("integer and numeric buckets").rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::Int64(3),
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range")
+    );
+}

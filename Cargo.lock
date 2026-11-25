@@ -245,30 +245,15 @@ dependencies = [
 name = "cassie"
 version = "0.1.0"
 dependencies = [
- "argon2",
  "bytes",
- "chrono",
- "cntryl-lexkey",
- "cntryl-midge",
+ "cassie-engine",
  "cntryl-stress",
- "fancy-regex",
- "getrandom 0.4.3",
  "http-body-util",
  "hyper",
  "hyper-util",
- "jiff",
- "jiff-tzdb",
- "lz4_flex",
- "md-5",
  "num-bigint 0.5.1",
- "num-integer",
- "num-traits",
- "parking_lot 0.13.0",
  "rcgen",
- "regex-automata",
- "regex-syntax",
  "reqwest",
- "rust-stemmers",
  "rustls",
  "serde",
  "serde_json",
@@ -277,21 +262,37 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
- "tokio-postgres",
  "tokio-rustls",
  "tracing",
  "tracing-subscriber",
- "url",
  "uuid",
 ]
 
 [[package]]
-name = "cassie-integration-tests"
+name = "cassie-core"
+version = "0.2.0"
+dependencies = [
+ "jiff",
+ "jiff-tzdb",
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "cassie-e2e"
 version = "0.1.0"
 dependencies = [
  "argon2",
  "bytes",
  "cassie",
+ "cassie-core",
  "chrono",
  "cntryl-lexkey",
  "cntryl-midge",
@@ -328,6 +329,110 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "cassie-embeddings"
+version = "0.1.0"
+dependencies = [
+ "cassie-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "cassie-engine"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "bytes",
+ "cassie-core",
+ "cassie-embeddings",
+ "cassie-search",
+ "cassie-sql",
+ "cassie-storage",
+ "cassie-vector",
+ "chrono",
+ "cntryl-lexkey",
+ "cntryl-midge",
+ "fancy-regex",
+ "getrandom 0.4.3",
+ "jiff",
+ "jiff-tzdb",
+ "md-5",
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
+ "parking_lot 0.13.0",
+ "regex-automata",
+ "regex-syntax",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sql-json-path",
+ "thiserror",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "cassie-search"
+version = "0.2.0"
+dependencies = [
+ "rust-stemmers",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cassie-sql"
+version = "0.1.0"
+dependencies = [
+ "cassie-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cassie-storage"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "cassie-core",
+ "cassie-search",
+ "cassie-sql",
+ "cassie-vector",
+ "cntryl-lexkey",
+ "cntryl-midge",
+ "lz4_flex",
+ "parking_lot 0.13.0",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "time",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "cassie-vector"
+version = "0.2.0"
+dependencies = [
+ "cassie-core",
+ "serde",
 ]
 
 [[package]]

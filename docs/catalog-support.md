@@ -33,7 +33,7 @@ or PostgreSQL catalog behavior is implemented.
 | Consumer | Catalog relation | Selected fields |
 | --- | --- | --- |
 | #818 object identifiers | `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl` |
-| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions` |
+| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions`; #1489 adds `reltoastrelid` for the psql describe join |
 | #818 object identifiers | `pg_type` | `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`, `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`, `typrelid` |
 | #818 object identifiers | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation` |
 | #828 composites and domains | `pg_class` addition | `reltype` |
@@ -52,6 +52,38 @@ extension. The `#818` conversion and lookup contract is owned by #818 (privilege
 unqualified visibility is implemented and tested, see the
 [object identifier contract](object-identifier-contract.md#visibility)); the base relation descriptors
 do not establish that lookup behavior by themselves.
+
+### Selected OID joins and definition helpers (#1486, #1489)
+
+For the documented `psql \d` describe joins, standard OID columns carry their
+relation or index OID as PostgreSQL `oid`. This includes
+`pg_class.relnamespace`, `pg_attribute.attrelid`, `pg_attrdef.adrelid`,
+`pg_index.indexrelid` and `indrelid`, and `pg_constraint.conrelid`,
+`conindid`, and `confrelid`. Existing auxiliary `*_oid` fields remain
+available where present. `pg_attrdef.adsrc` is retained, and `adbin` exposes
+the same supported stored expression text for `pg_get_expr`; it does not claim
+that Cassie stores PostgreSQL's internal `pg_node_tree` representation.
+
+`pg_class.reltoastrelid` is OID zero because Cassie does not create PostgreSQL
+TOAST relations. `pg_publication_rel` remains a typed empty catalog; the
+publication join binds and returns no rows. These fields do not synthesize
+TOAST relations or publication membership. The scope covers the explicitly
+listed describe joins and definition helper signatures, not general catalog
+parity.
+
+`format_type(oid, NULL)` returns the resolved bare type name; a NULL OID still
+returns SQL NULL. `pg_get_expr(expr, relid)` and its boolean-pretty form return
+the supported stored expression text, with a NULL expression returning SQL
+NULL. `pg_get_indexdef(oid)` and `pg_get_indexdef(oid, column, pretty)` return
+the full definition for column zero, the selected key name for a positive
+column, and empty text when the positive column is beyond the index keys. The
+pretty flag does not change the rendered output for these supported forms.
+`pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, pretty)` render the
+PRIMARY KEY, UNIQUE, CHECK, and FOREIGN KEY definitions already exposed by
+`pg_constraint`; NULL and an unmatched or inaccessible OID return SQL NULL.
+Restricted authenticated roles see only tables and constraints for which they
+hold SELECT, including in the REST schema payload. The contract does not add
+other pg_catalog visibility rules.
 
 Evidence for the #843 catalog rows (executed in the final full run on
 1d0750c19): descriptors in
@@ -282,6 +314,12 @@ pinned built-in `pg_proc` identity table; user-defined routine signatures are
 not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
 `pg_is_other_temp_schema(oid)` returns false because Cassie does not create
 temporary schemas.
+
+Stored views record stable identities for user-defined functions resolved at
+view creation. `DROP FUNCTION` and `DROP FUNCTION IF EXISTS` return `2BP01`
+before removing the function when a direct or transitive view dependency uses
+that identity. `DROP FUNCTION ... CASCADE` is an explicit `0A000` limitation:
+Cassie does not remove dependent views as part of routine DDL.
 
 For scalar indexes, `pg_index.indpred` retains Cassie's TEXT
 (OID 25) descriptor. It returns SQL NULL when an index has no partial

@@ -1,0 +1,353 @@
+use super::{CassieSession, ReadyState};
+use crate::pgwire::protocol::{Portal, PreparedStatement};
+use crate::runtime::{QueryExecutionControls, RuntimeState};
+use std::collections::HashMap;
+
+#[path = "state/portal_owners.rs"]
+mod portal_owners;
+use portal_owners::PortalOwners;
+
+#[cfg(test)]
+#[path = "state/portal_ownership_tests.rs"]
+mod portal_ownership_tests;
+
+#[derive(Debug)]
+pub(super) enum HandshakeState {
+    AwaitStartup,
+    AwaitPassword {
+        user: String,
+        database: Option<String>,
+    },
+    Ready,
+}
+
+#[derive(Debug)]
+pub(super) enum StartupFrame {
+    SslRequest,
+    CancelRequest { process_id: i32, secret_key: i32 },
+    Startup(HashMap<String, String>),
+}
+
+#[derive(Debug)]
+pub(super) enum HandshakeError {
+    Closed,
+    Invalid(String),
+}
+
+#[derive(Debug)]
+pub(super) enum FrontendMessage {
+    Parse {
+        name: String,
+        query: String,
+        parameter_type_oids: Vec<i32>,
+    },
+    Bind {
+        portal: String,
+        statement: String,
+        parameter_formats: Vec<i16>,
+        parameters: Vec<Option<Vec<u8>>>,
+        result_formats: Vec<i16>,
+    },
+    Describe {
+        target: DescribeTarget,
+        name: String,
+    },
+    Execute {
+        portal: String,
+        max_rows: i32,
+    },
+    Close {
+        target: DescribeTarget,
+        name: String,
+    },
+    CopyData(Vec<u8>),
+    CopyDone,
+    CopyFail(String),
+    FunctionCall,
+    Sync,
+    Flush,
+    Terminate,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DescribeTarget {
+    Statement,
+    Portal,
+}
+
+#[derive(Debug)]
+pub(super) struct SessionState {
+    pub(super) session: Option<CassieSession>,
+    pub(super) startup_user: Option<String>,
+    pub(super) startup_database: Option<String>,
+    pub(super) startup_parameters: HashMap<String, String>,
+    /// `ParameterStatus` values most recently sent to the frontend.
+    pub(super) parameter_statuses: HashMap<String, String>,
+    pub(super) authenticated: bool,
+    pub(super) ready: ReadyState,
+    pub(super) prepared_statements: HashMap<String, PreparedStatement>,
+    pub(super) prepared_result_descriptors:
+        HashMap<u64, std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>>,
+    pub(super) portals: HashMap<String, Portal>,
+    pub(super) portal_owners: PortalOwners,
+    pub(super) portal_cursors: HashMap<String, crate::app::transport::portal::RetainedPortal>,
+    pub(super) portal_frames: super::result_frames::PortalFrameOwners,
+    pub(super) portal_memory_controls: QueryExecutionControls,
+    pub(super) portal_reads: super::portal_reads::PortalReadOwners,
+    pub(super) next_prepared_id: u64,
+    /// The session's protocol-statement epoch this connection last applied.
+    pub(super) prepared_wire_epoch: u64,
+    pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
+    pub(super) invalidate_portals_on_sync: bool,
+    pub(super) portal_invalidation_owner: Option<crate::app::FailureAuthority>,
+    pub(super) extended_cycle: super::transactions::ExtendedCycle,
+}
+
+impl SessionState {
+    pub(super) fn new(limits: &crate::config::CassieRuntimeLimits) -> Self {
+        // A connection may retain portals longer than one statement deadline.
+        // Live executions keep their own cancellation and deadline controls.
+        let mut portal_memory_controls =
+            QueryExecutionControls::from_limits(limits, std::time::Instant::now());
+        portal_memory_controls.deadline = None;
+        Self {
+            session: None,
+            startup_user: None,
+            startup_database: None,
+            startup_parameters: HashMap::new(),
+            parameter_statuses: HashMap::new(),
+            authenticated: false,
+            ready: ReadyState::InTransaction,
+            prepared_statements: HashMap::new(),
+            prepared_result_descriptors: HashMap::new(),
+            portals: HashMap::new(),
+            portal_owners: PortalOwners::default(),
+            portal_cursors: HashMap::new(),
+            portal_frames: super::result_frames::PortalFrameOwners::default(),
+            portal_memory_controls,
+            portal_reads: super::portal_reads::PortalReadOwners::default(),
+            next_prepared_id: 1,
+            prepared_wire_epoch: 0,
+            backend_registration: None,
+            invalidate_portals_on_sync: false,
+            portal_invalidation_owner: None,
+            extended_cycle: super::transactions::ExtendedCycle::default(),
+        }
+    }
+
+    pub(super) fn next_prepared_id(&mut self) -> u64 {
+        let id = self.next_prepared_id;
+        self.next_prepared_id = self.next_prepared_id.saturating_add(1);
+        id
+    }
+
+    pub(super) fn clear_portal_execution(&mut self, name: &str) {
+        let cancellation = self
+            .portals
+            .get_mut(name)
+            .and_then(|portal| portal.suspended.take())
+            .and_then(|suspended| suspended.cancellation);
+        self.portal_cursors.remove(name);
+        self.portal_frames.remove(name);
+        if let (Some(registration), Some(cancellation)) =
+            (self.backend_registration.as_ref(), cancellation.as_ref())
+        {
+            registration.clear_query(cancellation);
+        }
+    }
+
+    pub(super) fn remove_portal(&mut self, name: &str) -> Option<Portal> {
+        self.clear_portal_execution(name);
+        self.portal_reads.remove(name);
+        self.portal_owners.remove(name);
+        self.portals.remove(name)
+    }
+
+    /// Called only inside the captured Bind owner's publication guard.
+    pub(super) fn publish_bound_portal(
+        &mut self,
+        portal: Portal,
+        identity: crate::app::FailureAuthorityIdentity,
+        read_view: Option<std::sync::Arc<crate::app::BoundReadView>>,
+        runtime: &RuntimeState,
+        limit: usize,
+    ) -> Result<(), crate::app::CassieError> {
+        let replaced = self.portals.contains_key(&portal.name);
+        if !replaced && self.portals.len() >= limit {
+            return Err(crate::app::CassieError::ResourceLimit(
+                "portal limit exceeded".to_owned(),
+            ));
+        }
+        let owner =
+            self.portal_owners
+                .prepare(&portal.name, identity, &self.portal_memory_controls)?;
+        if let Some(read_view) = read_view {
+            if let Err(error) =
+                self.portal_reads
+                    .insert(&portal.name, read_view, &self.portal_memory_controls)
+            {
+                self.portal_owners.release_empty();
+                return Err(error);
+            }
+        } else {
+            self.portal_reads.remove(&portal.name);
+        }
+        self.clear_portal_execution(&portal.name);
+        self.portal_owners.publish(owner);
+        self.portals.insert(portal.name.clone(), portal);
+        if !replaced {
+            runtime.record_pgwire_portal_delta(1);
+        }
+        Ok(())
+    }
+
+    pub(super) fn adopt_operation_portals(&mut self, authority: &crate::app::FailureAuthority) {
+        if let Some((before, after)) = authority.portal_adoption() {
+            self.portal_owners.adopt(before, after);
+        }
+    }
+
+    pub(super) fn portal_owner_identity(
+        &self,
+        name: &str,
+    ) -> Option<crate::app::FailureAuthorityIdentity> {
+        self.portal_owners.identity(name)
+    }
+
+    pub(super) fn reconcile_portals(
+        &mut self,
+        identity: crate::app::FailureAuthorityIdentity,
+        runtime: &RuntimeState,
+    ) {
+        let removed = self
+            .portals
+            .keys()
+            .filter(|name| !self.portal_owners.belongs_to(name, identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.remove_owned_portal_names(&removed, runtime);
+    }
+
+    pub(super) fn clear_portals_owned_by(
+        &mut self,
+        identity: crate::app::FailureAuthorityIdentity,
+        runtime: &RuntimeState,
+    ) {
+        let removed = self
+            .portals
+            .keys()
+            .filter(|name| self.portal_owners.belongs_to(name, identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.remove_owned_portal_names(&removed, runtime);
+    }
+
+    fn remove_owned_portal_names(&mut self, names: &[String], runtime: &RuntimeState) {
+        for name in names {
+            self.remove_portal(name);
+        }
+        record_negative_delta(names.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
+    }
+
+    pub(super) fn remove_portals_for_prepared_id(&mut self, prepared_id: u64) -> usize {
+        let names = self
+            .portals
+            .iter()
+            .filter_map(|(name, portal)| {
+                (portal.prepared_id == prepared_id).then_some(name.clone())
+            })
+            .collect::<Vec<_>>();
+        for name in &names {
+            self.remove_portal(name);
+        }
+        names.len()
+    }
+
+    pub(super) fn reset_unnamed_query_objects(&mut self, runtime: &RuntimeState) {
+        if let Some(statement) = self.prepared_statements.remove("") {
+            runtime.record_pgwire_prepared_delta(-1);
+            self.prepared_result_descriptors.remove(&statement.id);
+            let removed = self.remove_portals_for_prepared_id(statement.id);
+            record_negative_delta(removed, |delta| runtime.record_pgwire_portal_delta(delta));
+        }
+        if self.remove_portal("").is_some() {
+            runtime.record_pgwire_portal_delta(-1);
+        }
+    }
+
+    /// Drops named protocol statements that SQL `DEALLOCATE` or
+    /// `DISCARD ALL` removed from the session's shared namespace.
+    pub(super) fn sync_sql_deallocations(
+        &mut self,
+        session: &CassieSession,
+        runtime: &RuntimeState,
+    ) {
+        let epoch = session.prepared_wire_epoch();
+        if epoch == self.prepared_wire_epoch {
+            return;
+        }
+        self.prepared_wire_epoch = epoch;
+        let removed = self
+            .prepared_statements
+            .iter()
+            .filter(|(name, prepared)| {
+                !name.is_empty() && !session.has_wire_prepared(name, prepared.id)
+            })
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        for name in removed {
+            if let Some(prepared) = self.prepared_statements.remove(&name) {
+                runtime.record_pgwire_prepared_delta(-1);
+                self.prepared_result_descriptors.remove(&prepared.id);
+                let portals = self.remove_portals_for_prepared_id(prepared.id);
+                record_negative_delta(portals, |delta| runtime.record_pgwire_portal_delta(delta));
+            }
+        }
+    }
+
+    pub(super) fn clear_query_cancellation(
+        &self,
+        cancellation: &crate::runtime::QueryCancellationHandle,
+    ) {
+        if let Some(registration) = self.backend_registration.as_ref() {
+            registration.clear_query(cancellation);
+        }
+    }
+
+    pub(super) fn cleanup_pgwire_objects(&mut self, runtime: &RuntimeState) {
+        record_negative_delta(self.prepared_statements.len(), |delta| {
+            runtime.record_pgwire_prepared_delta(delta);
+        });
+        record_negative_delta(self.portals.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
+        self.prepared_statements.clear();
+        self.prepared_result_descriptors.clear();
+        let portal_names = self.portals.keys().cloned().collect::<Vec<_>>();
+        for name in portal_names {
+            self.remove_portal(&name);
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn clear_all_portals(&mut self, runtime: &RuntimeState) {
+        record_negative_delta(self.portals.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
+        let portal_names = self.portals.keys().cloned().collect::<Vec<_>>();
+        for name in portal_names {
+            self.remove_portal(&name);
+        }
+    }
+}
+
+fn record_negative_delta(count: usize, record: impl FnOnce(isize)) {
+    if count == 0 {
+        return;
+    }
+    let delta = isize::try_from(count).unwrap_or(isize::MAX);
+    record(-delta);
+}

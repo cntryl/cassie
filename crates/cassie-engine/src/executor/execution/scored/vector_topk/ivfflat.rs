@@ -1,0 +1,279 @@
+use std::time::Instant;
+
+use crate::app::{Cassie, CassieSession};
+use crate::executor::batch::BatchRow;
+use crate::runtime::QueryExecutionControls;
+
+use super::candidate::{
+    candidate_sort_value, vector_rows_from_top, AccountedVectorTopK, SqlVectorCandidate,
+};
+use super::diagnostics::{
+    record_ivfflat_concurrent_source_change, source_generation_matches, wait_at_ann_rerank_boundary,
+};
+use super::{
+    adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json, QueryError,
+    VectorDistanceTopKSpec,
+};
+
+pub(super) fn execute_ivfflat_vector_top_k(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let Some(snapshot) = ivfflat_training(cassie, spec, stored_vector_field, controls)? else {
+        return Ok(None);
+    };
+    if !matches!(spec.direction, super::SortDirection::Asc) {
+        cassie.runtime.record_ivfflat_fallback("unsupported-sort");
+        return Ok(None);
+    }
+    let (manifest_generation, training, membership_count, manifest_reads, manifest_memory) =
+        snapshot.into_parts();
+    let started_at = Instant::now();
+    let normalized_query = crate::vector::normalize(&spec.query)
+        .map_or_else(|| spec.query.clone(), |normalized| normalized.values);
+    if let Some(reason) = crate::vector::ivfflat::compact_manifest_fallback_reason(
+        &training,
+        spec.query.len(),
+        membership_count,
+    ) {
+        cassie.runtime.record_ivfflat_fallback(reason);
+        return Ok(None);
+    }
+    let Some(probed_lists) = select_probe_lists(cassie, spec, &normalized_query, &training) else {
+        return Ok(None);
+    };
+    let _probe_memory = controls.reserve_query_memory(
+        probed_lists
+            .len()
+            .saturating_mul(std::mem::size_of::<usize>()),
+    )?;
+    let batch = match cassie.midge.ivfflat_candidate_vectors_controlled(
+        &spec.collection,
+        stored_vector_field,
+        &training,
+        &probed_lists,
+        &controls.storage_request(),
+    ) {
+        Ok(batch) => batch,
+        Err(error) => return handle_ivfflat_storage_error(cassie, error.into()),
+    };
+    let (built_generation, records, membership_reads, vector_reads, candidate_memory) =
+        batch.into_parts();
+
+    wait_at_ann_rerank_boundary(cassie);
+    if built_generation != manifest_generation
+        || !source_generation_matches(cassie, spec, built_generation)?
+    {
+        record_ivfflat_concurrent_source_change(cassie);
+        return Ok(None);
+    }
+    let top_needed = spec.top_needed();
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
+    let Some((top, top_memory, candidate_count)) = rerank_ivfflat_candidates(
+        cassie,
+        IvfFlatRerankContext {
+            session,
+            spec,
+            controls,
+            generation: built_generation,
+            stored_vector_field,
+        },
+        records,
+        top_needed,
+    )?
+    else {
+        return Ok(None);
+    };
+    if candidate_count == 0 {
+        cassie.runtime.record_ivfflat_fallback("empty-probed-lists");
+        return Ok(None);
+    }
+    if !source_generation_matches(cassie, spec, built_generation)? {
+        record_ivfflat_concurrent_source_change(cassie);
+        return Ok(None);
+    }
+    if candidate_count < top_needed.min(training.row_count) {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("candidate-exhausted");
+        return Ok(None);
+    }
+
+    let rows = vector_rows_from_top(top, spec);
+    drop(top_memory);
+    drop(candidate_memory);
+    drop(manifest_memory);
+    let ann_reads = manifest_reads
+        .saturating_add(1)
+        .saturating_add(membership_reads)
+        .saturating_add(vector_reads);
+    cassie
+        .runtime
+        .record_vector_execution(started_at.elapsed(), candidate_count, rows.len());
+    cassie
+        .runtime
+        .record_vector_retrieval_diagnostics(ann_reads, candidate_count, candidate_count);
+    cassie
+        .runtime
+        .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
+    cassie
+        .runtime
+        .record_ann_observed_generation(built_generation);
+    record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
+    Ok(Some(rows))
+}
+
+/// Chooses the lists to probe. Inner product depends on magnitude, which the
+/// directional lists do not encode, so a `dot` query ranks lists by the best
+/// inner product each can still hold; other metrics rank by direction.
+fn select_probe_lists(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    normalized_query: &[f32],
+    training: &crate::embeddings::IvfFlatTrainingState,
+) -> Option<std::collections::BTreeSet<usize>> {
+    if spec.metric != crate::embeddings::DistanceMetric::Dot {
+        return Some(crate::vector::ivfflat::probe_lists(
+            normalized_query,
+            training,
+        ));
+    }
+    let lists = crate::vector::ivfflat::probe_lists_by_inner_product(&spec.query, training);
+    if lists.is_none() {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("missing-list-bounds");
+    }
+    lists
+}
+
+fn ivfflat_training(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
+    controls: &QueryExecutionControls,
+) -> Result<Option<crate::midge::adapter::PersistedIvfFlatTrainingSnapshot>, QueryError> {
+    let index = cassie
+        .midge
+        .get_vector_index_definition(&spec.collection, stored_vector_field)?;
+    let Some(index) = index else {
+        return Ok(None);
+    };
+    if index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat {
+        return Ok(None);
+    }
+    if index.metadata.metric != spec.metric {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("incompatible-metric");
+        return Ok(None);
+    }
+    if spec.is_degenerate_ann_query() {
+        cassie.runtime.record_ivfflat_fallback("zero-query-exact");
+        return Ok(None);
+    }
+    let training = match cassie.midge.get_ivfflat_training_manifest_controlled(
+        &spec.collection,
+        stored_vector_field,
+        &controls.storage_request(),
+    ) {
+        Ok(training) => training,
+        Err(error) => {
+            // A stale or inconsistent manifest is a diagnosed fallback, never a
+            // query failure: the exact path answers instead.
+            handle_ivfflat_storage_error(cassie, error.into())?;
+            return Ok(None);
+        }
+    };
+    if training.is_none() {
+        cassie.runtime.record_ivfflat_fallback("missing-training");
+    }
+    Ok(training)
+}
+
+#[derive(Clone, Copy)]
+struct IvfFlatRerankContext<'a> {
+    session: Option<&'a CassieSession>,
+    spec: &'a VectorDistanceTopKSpec,
+    controls: &'a QueryExecutionControls,
+    generation: u64,
+    stored_vector_field: &'a str,
+}
+
+fn rerank_ivfflat_candidates(
+    cassie: &Cassie,
+    context: IvfFlatRerankContext<'_>,
+    records: Vec<crate::embeddings::NormalizedVectorRecord>,
+    top_needed: usize,
+) -> Result<
+    Option<(
+        std::collections::BinaryHeap<SqlVectorCandidate>,
+        crate::runtime::QueryMemoryReservation,
+        usize,
+    )>,
+    QueryError,
+> {
+    let IvfFlatRerankContext {
+        session,
+        spec,
+        controls,
+        generation,
+        stored_vector_field,
+    } = context;
+    let mut top = AccountedVectorTopK::try_new(controls)?;
+    let mut candidate_count = 0usize;
+    for record in records {
+        super::super::super::check_timeout(controls)?;
+        if !source_generation_matches(cassie, spec, generation)? {
+            record_ivfflat_concurrent_source_change(cassie);
+            return Ok(None);
+        }
+        let document = cassie.get_document_for_session(session, &spec.collection, &record.id)?;
+        let Some(document) = document else {
+            record_ivfflat_concurrent_source_change(cassie);
+            return Ok(None);
+        };
+        let Some(vector) = vector_from_json(&document.payload[stored_vector_field]) else {
+            record_ivfflat_concurrent_source_change(cassie);
+            return Ok(None);
+        };
+        if vector.len() != spec.query.len() || vector.is_empty() {
+            record_ivfflat_concurrent_source_change(cassie);
+            return Ok(None);
+        }
+        if !source_generation_matches(cassie, spec, generation)? {
+            record_ivfflat_concurrent_source_change(cassie);
+            return Ok(None);
+        }
+        let score = spec.exact_distance(&vector);
+        candidate_count = candidate_count.saturating_add(1);
+        top.try_push(
+            SqlVectorCandidate {
+                sort_value: candidate_sort_value(&spec.direction, score),
+                score,
+                id: record.id,
+            },
+            top_needed,
+        )?;
+    }
+    let (top, memory) = top.into_parts();
+    Ok(Some((top, memory, candidate_count)))
+}
+
+fn handle_ivfflat_storage_error(
+    cassie: &Cassie,
+    error: crate::app::CassieError,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let message = error.to_string();
+    if let Some(reason) = message
+        .split_once("ivfflat fallback:")
+        .map(|(_, reason)| reason)
+    {
+        cassie.runtime.record_ivfflat_fallback(reason);
+        return Ok(None);
+    }
+    Err(QueryError::from(error))
+}

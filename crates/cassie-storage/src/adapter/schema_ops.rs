@@ -1,0 +1,930 @@
+#[path = "schema_ops/atomic_add_column.rs"]
+mod atomic_add_column;
+#[path = "schema_ops/copy_identity.rs"]
+mod copy_identity;
+#[path = "schema_ops/descriptor.rs"]
+mod descriptor;
+#[path = "schema_ops/drop_collection.rs"]
+mod drop_collection;
+
+use super::{
+    check_collection_drop_failure_point, check_collection_rename_failure_point,
+    check_field_add_backfill_failure_point, check_field_add_failure_point,
+    check_field_drop_failure_point, check_field_rename_failure_point, collect_scan, key_encoding,
+    CassieError, CollectionMeta, DocumentWriteBatchOptions, DocumentWriteOp, FieldConstraint,
+    FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta, Query,
+    RetentionPolicyMeta, RowSchema, Schema,
+};
+
+#[path = "schema_ops_field_maintenance.rs"]
+mod schema_ops_field_maintenance;
+#[path = "schema_ops_helpers.rs"]
+mod schema_ops_helpers;
+use schema_ops_helpers::PendingFieldDrop;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingCollectionRename {
+    current_name: String,
+    next_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct PendingFieldAdd {
+    pub(super) collection: String,
+    pub(super) field: FieldSchema,
+    #[serde(default)]
+    pub(super) default_value: Option<serde_json::Value>,
+    pub(super) target_generation: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PendingFieldRename {
+    collection: String,
+    current_name: String,
+    next_name: String,
+    target_generation: u64,
+}
+
+impl Midge {
+    #[doc(hidden)]
+    pub fn validate_drop_column_index_metadata(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(), CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&canonical)?;
+        schema_ops_helpers::validate_drop_column_index_metadata(&tx, &canonical, field)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn create_collection(&self, name: &str, schema: Schema) -> Result<(), CassieError> {
+        let result = self
+            .create_collection_with_meta(name, &schema, &CollectionMeta::new(name, None))
+            .map(|_| ());
+        let Schema { fields } = schema;
+        let _ = fields;
+        result
+    }
+    pub fn list_namespaces(&self) -> Vec<String> {
+        self.list_namespaces_raw()
+    }
+
+    pub fn list_namespaces_canonical(&self) -> Vec<String> {
+        self.list_namespaces_raw()
+            .into_iter()
+            .map(|namespace| self.canonical_namespace_name(&namespace))
+            .collect()
+    }
+
+    fn list_namespaces_raw(&self) -> Vec<String> {
+        let mut namespaces = Vec::new();
+        for database in self.database_names() {
+            let Ok(tx) = self.begin_database_readonly_tx(&database) else {
+                return Vec::new();
+            };
+            if let Ok(mut values) = Self::load_namespaces(&tx) {
+                if !values.is_empty() {
+                    namespaces.append(&mut values);
+                    continue;
+                }
+            }
+            let Ok(scan) = tx
+                .scan(&Query::new().prefix(Self::namespace_prefix().into()))
+                .map_err(CassieError::from)
+                .and_then(collect_scan)
+            else {
+                return Vec::new();
+            };
+            let namespace_prefix = Self::namespace_prefix();
+            for (raw_key, _raw_value) in scan {
+                if let Some(name) =
+                    key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
+                {
+                    namespaces.push(name);
+                }
+            }
+        }
+
+        namespaces.sort();
+        namespaces.dedup();
+        namespaces
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn drop_namespace(&self, namespace: &str) -> Result<(), CassieError> {
+        let canonical = self.canonical_namespace_name(namespace);
+        let mut tx = self.begin_namespace_rw_tx(&canonical)?;
+        let mut namespaces = Self::load_namespaces(&tx)?;
+        let stored = namespaces
+            .iter()
+            .find(|entry| self.canonical_namespace_name(entry) == canonical)
+            .cloned()
+            .or_else(|| {
+                tx.get(&Self::namespace_key(&canonical))
+                    .ok()
+                    .flatten()
+                    .map(|_| canonical.clone())
+            });
+        let Some(stored) = stored else {
+            return Err(CassieError::NotFound(format!(
+                "namespace '{namespace}' does not exist"
+            )));
+        };
+
+        tx.delete(Self::namespace_key(&stored))
+            .map_err(CassieError::from)?;
+        namespaces.retain(|entry| entry != &stored);
+        Self::save_namespaces(&mut tx, &namespaces)?;
+
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rename_namespace(&self, current_name: &str, next_name: &str) -> Result<(), CassieError> {
+        self.rename_namespace_metadata(current_name, next_name, &[], &[])
+    }
+
+    /// Atomically publishes a schema rename and its routine/view metadata rewrites.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rename_namespace_metadata(
+        &self,
+        current_name: &str,
+        next_name: &str,
+        function_renames: &[(String, crate::catalog::FunctionMeta)],
+        view_renames: &[(String, crate::catalog::ViewMeta)],
+    ) -> Result<(), CassieError> {
+        let current_canonical = self.canonical_namespace_name(current_name);
+        let next_canonical = self.canonical_namespace_name(next_name);
+        let mut tx = self.begin_namespace_rw_tx(&current_canonical)?;
+        let mut namespaces = Self::load_namespaces(&tx)?;
+        let current_name = namespaces
+            .iter()
+            .find(|entry| self.canonical_namespace_name(entry) == current_canonical)
+            .cloned()
+            .unwrap_or_else(|| current_canonical.clone());
+        let current_key = Self::namespace_key(&current_name);
+        let next_key = Self::namespace_key(&next_canonical);
+
+        let current_raw = tx
+            .get(&current_key)
+            .map_err(CassieError::from)?
+            .ok_or_else(|| {
+                CassieError::NotFound(format!("namespace '{current_name}' does not exist"))
+            })?;
+
+        if tx.get(&next_key).map_err(CassieError::from)?.is_some()
+            || namespaces
+                .iter()
+                .any(|entry| self.canonical_namespace_name(entry) == next_canonical)
+        {
+            return Err(CassieError::Unsupported(format!(
+                "namespace '{next_name}' already exists"
+            )));
+        }
+
+        let metadata: NamespaceMeta = serde_json::from_slice(&current_raw)
+            .map_err(|error| CassieError::Parse(format!("invalid namespace metadata: {error}")))?;
+        if namespaces.is_empty() {
+            let scan = collect_scan(
+                tx.scan(&Query::new().prefix(Self::namespace_prefix().into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            let namespace_prefix = Self::namespace_prefix();
+            for (raw_key, _raw_value) in scan {
+                if let Some(name) =
+                    key_encoding::utf8_suffix_after_prefix(&raw_key, &namespace_prefix)
+                {
+                    namespaces.push(name);
+                }
+            }
+        }
+
+        namespaces.retain(|entry| entry != &current_name);
+        namespaces.push(next_canonical.clone());
+        namespaces.sort();
+        namespaces.dedup();
+
+        tx.delete(current_key).map_err(CassieError::from)?;
+        let mut renamed = metadata;
+        renamed.name = next_canonical;
+        tx.put(
+            next_key,
+            serde_json::to_vec(&renamed).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        Self::save_namespaces(&mut tx, &namespaces)?;
+        for (current, function) in function_renames {
+            let mut function = function.clone();
+            function.name = self.canonical_collection_name(&function.name);
+            tx.delete(Self::function_key(&self.canonical_collection_name(current)))
+                .map_err(CassieError::from)?;
+            tx.put(
+                Self::function_key(&function.name),
+                serde_json::to_vec(&function)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        for (current, view) in view_renames {
+            let mut view = view.clone();
+            cassie_sql::definition_guard::query(view.definition_semantics_version, &view.query)?;
+            self.require_definition_version(view.definition_semantics_version)?;
+            view.name = self.canonical_collection_name(&view.name);
+            tx.delete(Self::view_key(&self.canonical_collection_name(current)))
+                .map_err(CassieError::from)?;
+            tx.put(
+                Self::view_key(&view.name),
+                serde_json::to_vec(&view).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+
+        super::check_namespace_metadata_rename_failure_point()?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn alter_collection_add_column(
+        &self,
+        collection: &str,
+        field: FieldSchema,
+    ) -> Result<(), CassieError> {
+        self.alter_collection_add_column_with_default(collection, field, None)
+    }
+
+    ///
+    /// # Errors
+    /// Returns an error when the field definition or default is invalid, or the change cannot be persisted.
+    pub fn alter_collection_add_column_with_default(
+        &self,
+        collection: &str,
+        field: FieldSchema,
+        default_value: Option<serde_json::Value>,
+    ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+
+        if schema.fields.iter().any(|entry| entry.name == field.name) {
+            return Err(CassieError::Unsupported(format!(
+                "field '{0}' already exists on collection '{collection}'",
+                field.name
+            )));
+        }
+
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&schema));
+        row_schema.add_field(field.clone())?;
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
+
+        let field_name = field.name.clone();
+        schema.fields.push(field);
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+        let pending = PendingFieldAdd {
+            collection: collection.to_string(),
+            field: schema
+                .fields
+                .iter()
+                .find(|entry| entry.name == field_name)
+                .cloned()
+                .ok_or_else(|| {
+                    CassieError::Execution("added field missing from updated schema".to_string())
+                })?,
+            default_value,
+            target_generation,
+        };
+        tx.put(
+            Self::field_add_operation_key(collection, &field_name),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        check_field_add_failure_point()?;
+        self.complete_field_add_data(&pending)?;
+        self.clear_pending_field_add(collection, &field_name)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn alter_collection_drop_column(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+        let original_schema = schema.clone();
+        let field_count_before = schema.fields.len();
+        schema.fields.retain(|entry| entry.name != field);
+        if schema.fields.len() == field_count_before {
+            return Err(CassieError::Unsupported(format!(
+                "field '{field}' not found in collection '{collection}'",
+            )));
+        }
+
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&original_schema));
+        if !row_schema.retire_field(field) {
+            return Err(CassieError::Unsupported(format!(
+                "field '{field}' not found in collection '{collection}'",
+            )));
+        }
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
+
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+        let dropped_indexes =
+            schema_ops_helpers::drop_referencing_indexes_in_tx(&mut tx, collection, field)?;
+        let pending = PendingFieldDrop {
+            collection: collection.to_string(),
+            field: field.to_string(),
+            target_generation,
+            column_names: dropped_indexes.columns.clone(),
+            column_storage_ids: dropped_indexes.column_storage_ids.clone(),
+            scalar_names: dropped_indexes.scalars.clone(),
+            scalar_reservation_generations: dropped_indexes.scalar_reservation_generations.clone(),
+            scalar_storage_ids: dropped_indexes.scalar_storage_ids.clone(),
+            time_series_names: dropped_indexes.time_series.clone(),
+            time_series_storage_ids: dropped_indexes.time_series_storage_ids.clone(),
+            fulltext_names: dropped_indexes.fulltext.clone(),
+            fulltext_storage_ids: dropped_indexes.fulltext_storage_ids.clone(),
+            vector_names: dropped_indexes.vectors.clone(),
+        };
+        tx.put(
+            Self::field_drop_operation_key(collection, field),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        check_field_drop_failure_point()?;
+        schema_ops_field_maintenance::complete_field_drop_data(self, &pending)?;
+        schema_ops_helpers::clear_pending_field_drop(self, collection, field)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn alter_collection_rename_column(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        self.alter_collection_rename_column_with_views(collection, current_name, next_name, &[])
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the atomic schema/view publication or subsequent data rename fails.
+    pub fn alter_collection_rename_column_with_views(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+        views: &[crate::catalog::ViewMeta],
+    ) -> Result<(), CassieError> {
+        let collection_storage = self.canonical_collection_name(collection);
+        let collection = collection_storage.as_str();
+        let write_gate = self.collection_write_gate(collection);
+        let _write_guard = write_gate.lock();
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let schema_key = Self::collection_schema_key(collection);
+        let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
+        let Some(schema_raw) = schema_raw else {
+            return Err(CassieError::CollectionNotFound(collection.to_string()));
+        };
+
+        let mut schema: Schema = serde_json::from_slice(&schema_raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
+        })?;
+        let original_schema = schema.clone();
+        if schema.fields.iter().any(|entry| entry.name == next_name) {
+            return Err(CassieError::Unsupported(format!(
+                "field '{next_name}' already exists on collection '{collection}'"
+            )));
+        }
+
+        let Some(field) = schema
+            .fields
+            .iter_mut()
+            .find(|entry| entry.name == current_name)
+        else {
+            return Err(CassieError::Unsupported(format!(
+                "field '{current_name}' not found in collection '{collection}'"
+            )));
+        };
+        field.name = next_name.to_string();
+
+        let mut row_schema = Self::load_row_schema_from_tx(&tx, collection)?
+            .unwrap_or_else(|| RowSchema::from_schema(&original_schema));
+        row_schema.rename_field(current_name, next_name)?;
+        Self::save_row_schema_to_tx(&mut tx, collection, &row_schema)?;
+        Self::update_projection_schema_version_to_tx(
+            &mut tx,
+            collection,
+            row_schema.schema_version,
+        )?;
+
+        let schema_bytes =
+            serde_json::to_vec(&schema).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(schema_key, schema_bytes, None)
+            .map_err(CassieError::from)?;
+        schema_ops_helpers::rename_constraints_in_tx(&mut tx, collection, current_name, next_name)?;
+        schema_ops_helpers::rename_indexes_in_tx(&mut tx, collection, current_name, next_name)?;
+        schema_ops_helpers::rename_vector_indexes_in_tx(
+            &mut tx,
+            collection,
+            current_name,
+            next_name,
+        )?;
+
+        let pending = PendingFieldRename {
+            collection: collection.to_string(),
+            current_name: current_name.to_string(),
+            next_name: next_name.to_string(),
+            target_generation,
+        };
+        tx.put(
+            Self::field_rename_operation_key(collection, current_name, next_name),
+            serde_json::to_vec(&pending).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+
+        for view in views {
+            cassie_sql::definition_guard::query(view.definition_semantics_version, &view.query)?;
+            self.require_definition_version(view.definition_semantics_version)?;
+            let canonical = self.canonical_collection_name(&view.name);
+            tx.put(
+                Self::view_key(&canonical),
+                serde_json::to_vec(view).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        super::check_view_rename_publication_failure_point()?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        check_field_rename_failure_point()?;
+        schema_ops_field_maintenance::complete_field_rename_data(self, &pending)?;
+        self.clear_pending_field_rename(collection, current_name, next_name)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rename_collection(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let current_name_storage = self.canonical_collection_name(current_name);
+        let next_name_storage = self.canonical_collection_name(next_name);
+        let current_name = current_name_storage.as_str();
+        let next_name = next_name_storage.as_str();
+        let write_gate = self.collection_write_gate(current_name);
+        let _write_guard = write_gate.lock();
+        let mut schema_tx = self.begin_data_rw_tx_for(current_name)?;
+        schema_ops_helpers::rename_collection_schema_entries(
+            &mut schema_tx,
+            current_name,
+            next_name,
+        )?;
+        schema_ops_helpers::rename_collection_vector_indexes(
+            &mut schema_tx,
+            current_name,
+            next_name,
+        )?;
+        schema_ops_helpers::rename_collection_indexes(&mut schema_tx, current_name, next_name)?;
+        schema_ops_helpers::rename_collection_pending_index_cleanups(
+            &mut schema_tx,
+            current_name,
+            next_name,
+        )?;
+        schema_ops_helpers::rename_collection_retention_policies(
+            &mut schema_tx,
+            current_name,
+            next_name,
+        )?;
+        schema_ops_helpers::transfer_collection_sidecars(&mut schema_tx, current_name, next_name)?;
+
+        let pending = PendingCollectionRename {
+            current_name: current_name.to_string(),
+            next_name: next_name.to_string(),
+        };
+        schema_tx
+            .put(
+                Self::schema_operation_key(current_name, next_name),
+                serde_json::to_vec(&pending)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        super::check_view_rename_publication_failure_point()?;
+        schema_tx
+            .commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        check_collection_rename_failure_point()?;
+        self.complete_collection_rename_data(current_name, next_name)?;
+        schema_ops_helpers::clear_pending_collection_rename(self, current_name, next_name)
+    }
+
+    fn complete_collection_rename_data(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let relation_id = self.row_schema(next_name)?.relation_id;
+        let mut data_tx = self.begin_data_rw_tx_for(current_name)?;
+        schema_ops_helpers::rename_collection_column_batch_metadata(
+            &mut data_tx,
+            current_name,
+            next_name,
+            relation_id,
+        )?;
+        schema_ops_helpers::rename_collection_prefixed_data(
+            &mut data_tx,
+            current_name,
+            next_name,
+            relation_id,
+        )?;
+        Self::rename_collection_maintenance_debt_in_tx(&mut data_tx, current_name, next_name)?;
+        if let Some(generation) = data_tx
+            .get(&Self::collection_generation_key(current_name))
+            .map_err(CassieError::from)?
+        {
+            data_tx
+                .delete(Self::collection_generation_key(current_name))
+                .map_err(CassieError::from)?;
+            data_tx
+                .put(
+                    Self::collection_generation_key(next_name),
+                    generation.to_vec(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
+        if let Some(root) = data_tx
+            .get(&Self::root_hash_key(current_name))
+            .map_err(CassieError::from)?
+        {
+            data_tx
+                .delete(Self::root_hash_key(current_name))
+                .map_err(CassieError::from)?;
+            data_tx
+                .put(Self::root_hash_key(next_name), root.to_vec(), None)
+                .map_err(CassieError::from)?;
+        }
+        data_tx
+            .commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        self.rebuild_time_series_indexes_for_collection(next_name)?;
+        self.rebuild_projection_hashes(next_name)?;
+        Ok(())
+    }
+
+    fn rename_collection_maintenance_debt_in_tx(
+        tx: &mut crate::adapter::AdapterTransaction,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::maintenance_debt_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
+        for (key, value) in entries {
+            let Ok(mut debt) =
+                serde_json::from_slice::<super::maintenance::MaintenanceDebt>(&value)
+            else {
+                continue;
+            };
+            if debt.collection != current_name {
+                continue;
+            }
+            debt.collection = next_name.to_string();
+            tx.delete(key).map_err(CassieError::from)?;
+            tx.put(
+                Self::maintenance_debt_key(next_name, &debt.artifact),
+                serde_json::to_vec(&debt).map_err(|error| CassieError::Parse(error.to_string()))?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+        Ok(())
+    }
+
+    /// Replays schema operations whose catalog commit completed before derived-state cleanup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a journal record cannot be read, replayed, or cleared.
+    pub fn replay_pending_schema_operations(&self) -> Result<(), CassieError> {
+        let entries = self.scan_database_families(&Self::schema_operation_prefix())?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingCollectionRename>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid schema operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for rename in pending {
+            if self.collection_schema(&rename.next_name).is_some() {
+                self.complete_collection_rename_data(&rename.current_name, &rename.next_name)?;
+            }
+            schema_ops_helpers::clear_pending_collection_rename(
+                self,
+                &rename.current_name,
+                &rename.next_name,
+            )?;
+        }
+        self.replay_pending_field_adds()?;
+        self.replay_pending_field_renames()?;
+        self.replay_pending_field_drops()?;
+        Ok(())
+    }
+
+    fn complete_field_add_data(&self, pending: &PendingFieldAdd) -> Result<(), CassieError> {
+        if let Some(default_value) = pending.default_value.as_ref() {
+            self.backfill_added_field_default(pending, default_value)?;
+        }
+        let current_generation = self.collection_generation(&pending.collection)?;
+        let generation = current_generation.max(pending.target_generation);
+        let mut data_tx = self.begin_data_rw_tx_for(&pending.collection)?;
+        if current_generation < pending.target_generation {
+            data_tx
+                .put(
+                    Self::collection_generation_key(&pending.collection),
+                    generation.to_be_bytes().to_vec(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+        }
+        Self::delete_normalized_vector_keys_with_prefix(&mut data_tx, {
+            let (relation_id, field_id) =
+                self.vector_storage_ids(&pending.collection, &pending.field.name)?;
+            Self::normalized_vector_prefix(relation_id, field_id)
+        })?;
+        Self::record_column_batch_maintenance_debt_in_tx(
+            &mut data_tx,
+            &pending.collection,
+            generation,
+        )?;
+        Self::record_projection_hash_maintenance_debt_in_tx(
+            &mut data_tx,
+            &pending.collection,
+            generation,
+        )?;
+        data_tx
+            .commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        self.complete_column_batch_maintenance(&pending.collection, generation, None)?;
+        self.complete_projection_hash_maintenance(&pending.collection, generation, 0)
+    }
+
+    fn backfill_added_field_default(
+        &self,
+        pending: &PendingFieldAdd,
+        default_value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if default_value.is_null() {
+            return Ok(());
+        }
+
+        let mut write_options = DocumentWriteBatchOptions::sync(self.write_options_sync());
+        write_options.normalized_vector_collection = Some(pending.collection.clone());
+        write_options.refresh_after_commit = false;
+        for batch in self.scan_documents_batched(&pending.collection, 256)? {
+            let mut operations = Vec::new();
+            for document in batch {
+                let mut payload = document.payload;
+                let Some(object) = payload.as_object_mut() else {
+                    return Err(CassieError::Parse(format!(
+                        "row '{}' in '{}' is not a JSON object",
+                        document.id, pending.collection
+                    )));
+                };
+                if object.contains_key(&pending.field.name) {
+                    continue;
+                }
+                object.insert(pending.field.name.clone(), default_value.clone());
+                operations.push(DocumentWriteOp::Put {
+                    id: document.id,
+                    payload,
+                });
+            }
+            if !operations.is_empty() {
+                self.apply_document_write_batch_with_options(
+                    &pending.collection,
+                    operations,
+                    &write_options,
+                )?;
+                check_field_add_backfill_failure_point()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn replay_pending_field_adds(&self) -> Result<(), CassieError> {
+        let entries = self.scan_database_families(&Self::field_add_operation_prefix())?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldAdd>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field add operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for add in pending {
+            let committed = self
+                .collection_schema(&add.collection)
+                .is_some_and(|schema| {
+                    schema
+                        .fields
+                        .iter()
+                        .any(|entry| entry.name == add.field.name)
+                });
+            if committed {
+                self.complete_field_add_data(&add)?;
+            }
+            self.clear_pending_field_add(&add.collection, &add.field.name)?;
+        }
+        Ok(())
+    }
+
+    /// Finishes an `ADD COLUMN` whose schema commit succeeded but whose backfill
+    /// did not, so the statement can be retried instead of reporting a duplicate.
+    ///
+    /// Returns whether a journal for this column existed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the journal is malformed or the backfill fails again.
+    pub fn resume_pending_field_add(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<bool, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::field_add_operation_key(&collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(false);
+        };
+        drop(tx);
+        let pending = serde_json::from_slice::<PendingFieldAdd>(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid field add operation: {error}")))?;
+        self.complete_field_add_data(&pending)?;
+        self.clear_pending_field_add(&collection, field)?;
+        Ok(true)
+    }
+
+    fn clear_pending_field_add(&self, collection: &str, field: &str) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        tx.delete(Self::field_add_operation_key(collection, field))
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    fn replay_pending_field_renames(&self) -> Result<(), CassieError> {
+        let entries = self.scan_database_families(&Self::field_rename_operation_prefix())?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldRename>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field rename operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for rename in pending {
+            let schema_rename_committed =
+                self.collection_schema(&rename.collection)
+                    .is_some_and(|schema| {
+                        schema
+                            .fields
+                            .iter()
+                            .any(|field| field.name == rename.next_name)
+                            && !schema
+                                .fields
+                                .iter()
+                                .any(|field| field.name == rename.current_name)
+                    });
+            if schema_rename_committed {
+                schema_ops_field_maintenance::complete_field_rename_data(self, &rename)?;
+            }
+            self.clear_pending_field_rename(
+                &rename.collection,
+                &rename.current_name,
+                &rename.next_name,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn clear_pending_field_rename(
+        &self,
+        collection: &str,
+        current: &str,
+        next: &str,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        tx.delete(Self::field_rename_operation_key(collection, current, next))
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    fn replay_pending_field_drops(&self) -> Result<(), CassieError> {
+        let entries = self.scan_database_families(&Self::field_drop_operation_prefix())?;
+        let pending = entries
+            .into_iter()
+            .map(|(_, raw)| {
+                serde_json::from_slice::<PendingFieldDrop>(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid field drop operation: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        for drop in pending {
+            let committed = self
+                .collection_schema(&drop.collection)
+                .is_some_and(|schema| !schema.fields.iter().any(|entry| entry.name == drop.field));
+            if committed {
+                schema_ops_field_maintenance::complete_field_drop_data(self, &drop)?;
+            }
+            schema_ops_helpers::clear_pending_field_drop(self, &drop.collection, &drop.field)?;
+        }
+        Ok(())
+    }
+}

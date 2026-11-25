@@ -13,7 +13,7 @@ its existing registrations into four observable contracts:
 
 Leaf files, assertions, attributes and module aliases remain intact. Each
 behavior test must have exactly one owner. Shared fixtures remain in
-`tests/support/`. The `cassie-integration-tests` workspace package has a library,
+`crates/cassie-e2e/tests/support/`. The `cassie-e2e` workspace package has a library,
 `cassie_test_support`, that compiles
 the common wire and SQL fixture API once; integration roots import its modules by
 their established names. Specialized helpers remain ordinary source modules.
@@ -72,7 +72,7 @@ cycles and socket/listener stop separately. Accepted connection tasks and runtim
 destruction are outside the listener-stop timer. Run it with the correctness fixture profile:
 
 ```sh
-cargo bench --locked -p cassie-integration-tests --bench tier4_pgwire_fixture_profile --profile test
+cargo bench --locked -p cassie-e2e --bench tier4_pgwire_fixture_profile --profile test
 ```
 
 `CASSIE_FIXTURE_PROFILE_SAMPLES` selects the number of matched sample pairs
@@ -86,10 +86,10 @@ measurements and the remaining storage boundary are recorded in
 
 The integration package owns its test executables and fixture library and depends
 one way on the production Cassie package. Cassie's unit-test build has no helper
-package dependency. The root and integration package are default workspace
-members, preserving ordinary `cargo test --locked` and `cargo test --test NAME`.
-Explicit `-p cassie` selects production-package tests only. Integration leaves
-stay in place; their Cargo target paths are explicit in `tests/Cargo.toml`.
+package dependency. All nine crates are default workspace members, preserving
+ordinary `cargo test --locked` and `cargo test --test NAME`. Explicit
+`-p cassie` selects the server package. Integration targets are declared in
+`crates/cassie-e2e/Cargo.toml`, with test source under that crate's `tests/`.
 
 The unpublished integration package version stays aligned with Cassie because
 existing version-contract assertions compare `CARGO_PKG_VERSION`. External

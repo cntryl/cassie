@@ -27,9 +27,9 @@ baseline and Cassie-owned persistent formats start at version 1. Use the
 - [0.1.0 release baseline](docs/release-baseline.md)
 - [POC quickstart](docs/poc-quickstart.md)
 
-The locked `cntryl-midge` 0.5.1 dependency uses database FORMAT 9 and SST V5.
-Midge 0.4.x stores require logical export/import into a fresh store; there is
-no in-place upgrade. See the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-051-fresh-store-boundary-2026-10-30).
+Cassie uses published `cntryl-midge` 0.5.3. The Midge 0.5 series introduced
+database FORMAT 9 and SST V5. Midge 0.4.x stores require logical export and
+import into a fresh store. See the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-051-fresh-store-boundary-2026-10-30).
 
 ## Local Development
 
@@ -58,14 +58,7 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 ## Container
 
-The repository has `Publish` and `Containers` workflows configured for
-`ghcr.io/cntryl/cassie`, but GitHub Actions are disabled by current user
-direction. Do not enable or dispatch them until the user explicitly changes
-that direction. The configured release flow is documented here for reference;
-hosted publishing is currently blocked.
-
-When authorized, the `Publish` workflow releases `ghcr.io/cntryl/cassie` from
-`main`. Its called
+The `Publish` workflow releases `ghcr.io/cntryl/cassie` from `main`. Its called
 `Containers` workflow publishes the immutable `:<semver>` manifest plus
 `:main` and `:latest`, then `Publish` creates the matching annotated `v<semver>` source
 tag only after the container succeeds. The standalone `Containers` workflow publishes

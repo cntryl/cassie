@@ -1,0 +1,319 @@
+//! Admit EXISTS RETURNING copies through the complete public materialization boundary.
+use std::mem::size_of;
+use std::sync::Arc;
+
+use super::super::projection_handoff::ProjectionOutputMemory;
+use super::super::{
+    check_timeout, exists_projection, scan, source, Batch, CteContext, QuerySource,
+};
+use super::{
+    dml_returning_columns, BatchRow, CollectionSchema, DataType, DmlResultContext, QueryError,
+    QueryResult, Value,
+};
+use crate::executor::batch::OperatorMemory;
+use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+
+pub(super) struct ProjectionSchema {
+    pub(super) schema: Option<CollectionSchema>,
+    _memory: Option<QueryMemoryReservation>,
+}
+
+pub(super) fn prepare_projection_schema(
+    context: &DmlResultContext<'_>,
+) -> Result<ProjectionSchema, QueryError> {
+    if let Some(schema) = context.returning_schema {
+        let mut bytes = add(size_of::<CollectionSchema>(), schema.collection.capacity())?;
+        bytes = add(
+            bytes,
+            mul(schema.fields.len(), size_of::<crate::catalog::FieldMeta>())?,
+        )?;
+        for field in &schema.fields {
+            bytes = add(
+                bytes,
+                add(
+                    field.name.capacity(),
+                    data_type_clone_bytes(&field.data_type)?,
+                )?,
+            )?;
+        }
+        let memory = context.controls.reserve_query_memory(bytes)?;
+        return Ok(ProjectionSchema {
+            schema: Some(schema.clone()),
+            _memory: Some(memory),
+        });
+    }
+    let (schema, memory) = context
+        .cassie
+        .catalog
+        .clone_schema_with_controls(context.table, context.controls)?;
+    Ok(ProjectionSchema {
+        schema,
+        _memory: memory,
+    })
+}
+
+pub(super) fn build(
+    context: &DmlResultContext<'_>,
+    affected_count: usize,
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let schema = prepare_projection_schema(context)?;
+    let projected = project(context, &schema, rows)?;
+    #[cfg(test)]
+    super::dml_returning_tests::observe(
+        super::dml_returning_tests::Phase::Projected,
+        context.controls,
+        affected_count,
+        &projected,
+        projected.capacity(),
+    );
+    finish_projected(context, &schema, affected_count, projected)
+}
+
+pub(super) fn project(
+    context: &DmlResultContext<'_>,
+    projection_schema: &ProjectionSchema,
+    mut rows: Vec<BatchRow>,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let capacity = rows.capacity();
+    prepare_inputs(
+        &mut rows,
+        capacity,
+        projection_schema.schema.as_ref(),
+        context.controls,
+    )?;
+    let mut batches = vec![rows];
+    let (memory, _scratch) =
+        ProjectionOutputMemory::admit(context.controls, &batches, context.returning, true, true)?;
+    let source = QuerySource::Collection(
+        crate::sql::IdentifierPath::parse(context.table).map_err(QueryError::General)?,
+    );
+    let binding_context = context.cassie.binding_context_for_session(context.session);
+    let env = source::SourceExecutionEnv {
+        cassie: context.cassie,
+        session: context.session,
+        binding_context: Some(&binding_context),
+        user_functions: context.user_functions,
+        params: context.params,
+        parameter_type_oids: &[],
+        controls: context.statement_read_controls,
+    };
+    {
+        let (_read_scope, _overlay_scope) =
+            super::super::entrypoints::enter_statement_read(context.statement_read_controls);
+        batches = exists_projection::project(
+            &env,
+            &CteContext::new(),
+            &source,
+            batches,
+            context.returning,
+            None,
+        )?;
+    }
+    let _memory = memory.retain(context.controls, &mut batches)?;
+    let count = batches
+        .iter()
+        .try_fold(0, |count, batch| add(count, batch.len()))?;
+    let _flatten_slots = context
+        .controls
+        .reserve_query_memory(mul(count, size_of::<BatchRow>())?)?;
+    let mut projected = Vec::new();
+    projected
+        .try_reserve_exact(count)
+        .map_err(|error| allocation_error(&error))?;
+    projected.extend(batches.into_iter().flatten());
+    Ok(projected)
+}
+
+pub(super) fn finish_projected(
+    context: &DmlResultContext<'_>,
+    projection_schema: &ProjectionSchema,
+    affected_count: usize,
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let columns = dml_returning_columns(
+        context.returning,
+        projection_schema.schema.as_ref(),
+        context.user_functions,
+    );
+    finish(context, affected_count, &columns, rows)
+}
+
+#[cfg(test)]
+#[path = "dml_returning/character_array_inputs_tests.rs"]
+mod character_array_inputs_tests;
+
+#[cfg(test)]
+thread_local! {
+    static METADATA_OWNER: std::cell::RefCell<Option<std::sync::Weak<QueryMemoryReservation>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Raw bodies are admitted before adding typed metadata or logical padding.
+pub(super) fn prepare_inputs(
+    rows: &mut [BatchRow],
+    capacity: usize,
+    schema: Option<&CollectionSchema>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    admit_inputs(rows, capacity, controls)?;
+    let Some(schema) = schema.filter(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, DataType::Array(_)))
+    }) else {
+        return Ok(());
+    };
+    for row in rows.iter_mut() {
+        prepare_row_types(row, schema, controls)?;
+    }
+    for row in rows {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = scan::hydrate_character_arrays(owned, controls)?;
+    }
+    Ok(())
+}
+
+fn prepare_row_types(
+    row: &mut BatchRow,
+    schema: &CollectionSchema,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    controls.check_interruption()?;
+    let mut bytes = size_of::<Vec<DataType>>() + 2 * size_of::<usize>();
+    let maximum_type = schema.fields.iter().try_fold(0, |maximum, field| {
+        Ok::<_, crate::app::CassieError>(maximum.max(data_type_clone_bytes(&field.data_type)?))
+    })?;
+    bytes = add(
+        bytes,
+        mul(
+            row.entries().len(),
+            add(size_of::<DataType>(), maximum_type)?,
+        )?,
+    )?;
+    for name in row
+        .entries()
+        .iter()
+        .map(|(name, _)| name)
+        .chain(schema.fields.iter().map(|field| &field.name))
+    {
+        bytes = add(bytes, mul(name.len(), 64)?)?;
+    }
+    bytes = add(
+        bytes,
+        1024 + size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>(),
+    )?;
+    let metadata = Arc::new(controls.reserve_query_memory(bytes)?);
+    #[cfg(test)]
+    METADATA_OWNER.with(|slot| *slot.borrow_mut() = Some(Arc::downgrade(&metadata)));
+    let types = Arc::new(
+        row.entries()
+            .iter()
+            .map(|(name, _)| {
+                schema
+                    .fields
+                    .iter()
+                    .find(|field| field.name == *name)
+                    .or_else(|| {
+                        let reference = crate::sql::ColumnIdentifierPath::parse(name).ok()?;
+                        schema
+                            .fields
+                            .iter()
+                            .find(|field| reference.matches_field_name(&field.name))
+                    })
+                    .map_or(DataType::Null, |field| field.data_type.clone())
+            })
+            .collect(),
+    );
+    row.set_data_types(types);
+    row.attach_operator_memory(controls, metadata)?;
+    Ok(())
+}
+
+fn admit_inputs(
+    rows: &mut [BatchRow],
+    capacity: usize,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    check_timeout(controls)?;
+    let slots = add(mul(capacity, size_of::<BatchRow>())?, size_of::<Batch>())?;
+    let bytes = rows.iter().try_fold(
+        add(
+            slots,
+            size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>(),
+        )?,
+        |bytes, row| {
+            add(
+                bytes,
+                add(row.unleased_body_bytes()?, row.pending_lookup_bytes()?)?,
+            )
+        },
+    )?;
+    let memory = Arc::new(controls.reserve_query_memory(bytes)?);
+    for row in rows {
+        check_timeout(controls)?;
+        row.attach_operator_memory(controls, Arc::clone(&memory))?;
+    }
+    Ok(())
+}
+
+pub(super) fn finish(
+    context: &DmlResultContext<'_>,
+    affected_count: usize,
+    columns: &[super::ColumnMeta],
+    rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    let controls = context.controls;
+    if rows.len() > controls.max_result_rows {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "query result row limit exceeded".to_owned(),
+        )
+        .into());
+    }
+    let _parents = OperatorMemory::hold_rows(controls, &rows)?;
+    let mut output = QueryResult::try_builder(controls)?;
+    for column in columns {
+        output.try_push_column(column)?;
+    }
+    super::super::command_output::set_counted(&mut output, context.command_prefix, affected_count)?;
+    let slots = rows
+        .iter()
+        .try_fold(mul(rows.len(), size_of::<Vec<Value>>())?, |bytes, row| {
+            add(bytes, mul(row.entries().len(), size_of::<Value>())?)
+        })?;
+    let _slots = controls.reserve_query_memory(slots)?;
+    let mut materialized = Vec::new();
+    materialized
+        .try_reserve_exact(rows.len())
+        .map_err(|error| allocation_error(&error))?;
+    for row in rows {
+        #[cfg(test)]
+        super::dml_returning_tests::observe(
+            super::dml_returning_tests::Phase::Materializing(materialized.len()),
+            controls,
+            affected_count,
+            std::slice::from_ref(&row),
+            1,
+        );
+        check_timeout(controls)?;
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(row.entries().len())
+            .map_err(|error| allocation_error(&error))?;
+        values.extend(row.into_entries().into_iter().map(|(_, value)| value));
+        materialized.push(values);
+    }
+    for values in &materialized {
+        output.try_push_row(values)?;
+    }
+    check_timeout(controls)?;
+    Ok(output.finish()?)
+}
+
+fn allocation_error(error: &std::collections::TryReserveError) -> QueryError {
+    crate::app::CassieError::ResourceLimit(format!(
+        "unable to materialize RETURNING result: {error}"
+    ))
+    .into()
+}

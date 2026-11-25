@@ -1,0 +1,69 @@
+use super::Catalog;
+
+pub use cassie_core::catalog::projection_reports::ProjectionRepairReportMeta;
+
+impl Catalog {
+    pub fn register_projection_repair_report(&self, report: ProjectionRepairReportMeta) {
+        self.projection_repair_reports
+            .write()
+            .insert(report.report_id.clone(), report);
+        self.bump_version();
+    }
+
+    /// Returns the ids of repair reports recorded for one projection version.
+    #[must_use]
+    pub fn projection_repair_report_ids_for_version(
+        &self,
+        projection: &str,
+        version_id: &str,
+    ) -> Vec<String> {
+        self.projection_repair_reports
+            .read()
+            .values()
+            .filter(|report| {
+                report.projection_name.eq_ignore_ascii_case(projection)
+                    && report.version_id.as_deref() == Some(version_id)
+            })
+            .map(|report| report.report_id.clone())
+            .collect()
+    }
+
+    /// Returns the ids of every repair report recorded for one projection.
+    #[must_use]
+    pub fn projection_repair_report_ids(&self, projection: &str) -> Vec<String> {
+        let mut ids = self
+            .projection_repair_reports
+            .read()
+            .values()
+            .filter(|report| report.projection_name.eq_ignore_ascii_case(projection))
+            .map(|report| report.report_id.clone())
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
+    /// Removes repair reports by id from the catalog.
+    pub fn unregister_projection_repair_reports(&self, report_ids: &[String]) {
+        let mut reports = self.projection_repair_reports.write();
+        let removed = report_ids
+            .iter()
+            .filter(|id| reports.remove(id.as_str()).is_some())
+            .count();
+        drop(reports);
+        if removed > 0 {
+            self.bump_version();
+        }
+    }
+
+    #[must_use]
+    pub fn list_projection_repair_reports(&self) -> Vec<ProjectionRepairReportMeta> {
+        let mut out = self
+            .projection_repair_reports
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(|report| report.report_id.clone());
+        out
+    }
+}

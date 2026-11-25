@@ -1,0 +1,37 @@
+pub use cassie_core::catalog::declarations::IndexKind;
+pub use cassie_core::catalog::storage_metadata::{
+    ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
+    ColumnBatchRow, ColumnBatchSegmentMeta,
+};
+
+#[cfg(test)]
+#[path = "indexes_identity_tests.rs"]
+mod identity_tests;
+
+pub use cassie_sql::catalog_declarations::{
+    IndexMeta, ReservationIdentity, UniqueViolationDetails,
+};
+
+/// Engine error and catalog identity operations kept outside the SQL crate.
+pub(crate) trait EngineIndexMetaExt {
+    #[cfg(test)]
+    fn reservation_identity(&self) -> Result<ReservationIdentity<'_>, crate::app::CassieError>;
+    fn unique_violation(&self, collection: &str) -> crate::app::CassieError;
+}
+
+impl EngineIndexMetaExt for IndexMeta {
+    #[cfg(test)]
+    fn reservation_identity(&self) -> Result<ReservationIdentity<'_>, crate::app::CassieError> {
+        self.reservation_identity_details()
+            .map_err(crate::app::CassieError::Parse)
+    }
+
+    fn unique_violation(&self, collection: &str) -> crate::app::CassieError {
+        let details = self.unique_violation_details(collection);
+        crate::app::CassieError::UniqueViolation {
+            table: details.table,
+            column: details.column,
+            constraint: details.constraint,
+        }
+    }
+}

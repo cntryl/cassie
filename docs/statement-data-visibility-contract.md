@@ -140,6 +140,27 @@ the existing explicit unsupported/error boundary. This selects no new
 fulltext, vector, graph, hybrid or column codec support. Current artifact
 metadata cannot silently select newer rows during fallback.
 
+## Native row write ordering
+
+A changed row batch advances the existing durable data epoch once in the same
+native transaction as its rows, collection generations, and maintenance debt.
+The epoch is scoped to the physical database family. Cassie orders
+epoch-changing native write transactions with a separate lock owned by the
+family publication state. It acquires collection write gates first and
+prepares input before acquiring the epoch lock where possible. Writers for
+unrelated tables in the same family can prepare input independently. Their
+native write snapshots open in epoch order, which prevents a conflict on the
+shared epoch. Different families have independent locks.
+
+Native submissions still pass through the existing publication guard, which
+latches recovery on an unknown outcome before a waiter can submit. Operations
+that hold both locks acquire the epoch lock first, including guarded
+REPEATABLE READ validation. Metadata-only writes still take the existing
+publication guard and can conflict with a staged row batch when they change
+the same metadata. Confirmed index repair and post-commit maintenance run
+after the epoch-changing write window. The stored epoch, image format,
+and published Midge dependency retain their existing contracts.
+
 ## Resource and ownership contract
 
 Readonly owners are shared privately through reference-counted ownership;

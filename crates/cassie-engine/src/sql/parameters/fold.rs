@@ -1,0 +1,443 @@
+//! One-child-at-a-time transformation in SELECT analysis order.
+
+use crate::catalog::{Catalog, FunctionInputScope};
+use crate::runtime::QueryExecutionControls;
+use crate::sql::{ast, functions as sql_functions, FieldTypeMap, QueryStatement};
+use std::collections::HashMap;
+
+use super::admission::{check_controls, reserve_vector, ReservedVector};
+use super::diagnostics::BooleanConstruct;
+use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
+use super::ParameterAdmissionError;
+use super::UNKNOWN_PARAMETER_TYPE_OID;
+
+#[path = "fold_array_outputs.rs"]
+mod array_outputs;
+#[path = "fold_bytea_functions.rs"]
+mod bytea_functions;
+#[path = "fold_columns.rs"]
+mod columns;
+#[path = "fold_enum_quantified.rs"]
+mod enum_quantified;
+#[path = "fold_expressions.rs"]
+mod expressions;
+#[path = "fold_functions.rs"]
+mod functions;
+#[path = "fold_graph_functions.rs"]
+mod graph_functions;
+#[path = "fold_literal_inputs.rs"]
+mod literal_inputs;
+#[path = "fold_nodes.rs"]
+mod nodes;
+#[path = "fold_subqueries.rs"]
+mod subqueries;
+#[path = "fold_table_sources.rs"]
+mod table_sources;
+#[path = "fold_temporal_functions.rs"]
+mod temporal_functions;
+
+#[derive(Clone, Copy)]
+enum Expected {
+    None,
+    Boolean(BooleanConstruct),
+    Type(i32, bool),
+}
+
+#[derive(Clone, Copy)]
+enum Node<'a> {
+    Query(&'a QueryStatement),
+    Select(&'a ast::SelectStatement),
+    Source(&'a ast::QuerySource),
+    Item(&'a ast::SelectItem),
+    Expr(&'a ast::Expr),
+    Function(&'a ast::FunctionCall),
+    /// The expressions of a `GRAPH_TABLE`, which see its pattern variables.
+    Graph(&'a ast::GraphTable),
+    FunctionModifiers(&'a ast::FunctionCall),
+    Expressions(&'a [ast::Expr]),
+    Items(&'a [ast::SelectItem]),
+    Orders(&'a [ast::OrderExpr]),
+    Ctes(&'a [ast::CommonTableExpression]),
+    Cte(&'a ast::CteQuery),
+    Window(&'a ast::WindowFunctionCall),
+    WindowArguments(&'a ast::WindowFunctionCall),
+}
+
+struct Frame<'a> {
+    node: Node<'a>,
+    next: usize,
+    start: usize,
+    context: usize,
+    expected: Expected,
+    target: bool,
+    qualified: bool,
+    occurrence_start: usize,
+}
+
+struct Context<'a> {
+    fields: FieldTypeMap,
+    source: &'a ast::QuerySource,
+    target_start: usize,
+}
+
+struct Target {
+    summary: Summary,
+    context: usize,
+}
+
+pub(super) struct Fold<'a, 'c> {
+    occurrences: Occurrences<'a>,
+    frames: ReservedVector<Frame<'a>>,
+    summaries: ReservedVector<Summary>,
+    targets: ReservedVector<Target>,
+    contexts: ReservedVector<Context<'a>>,
+    catalog: &'c Catalog,
+    controls: &'c QueryExecutionControls,
+    scope: Option<&'c FunctionInputScope<'c>>,
+}
+
+impl<'a, 'c> Fold<'a, 'c> {
+    pub(super) fn new(
+        count: usize,
+        input: PrivateParameterTypeInput<'a>,
+        catalog: &'c Catalog,
+        controls: &'c QueryExecutionControls,
+        scope: Option<&'c FunctionInputScope<'c>>,
+        stop_on_error: bool,
+    ) -> Result<Self, ParameterAdmissionError> {
+        Ok(Self {
+            occurrences: Occurrences::new(count, input, controls, stop_on_error)?,
+            frames: reserve_vector(controls, 0)?,
+            summaries: reserve_vector(controls, 0)?,
+            targets: reserve_vector(controls, 0)?,
+            contexts: reserve_vector(controls, 0)?,
+            catalog,
+            controls,
+            scope,
+        })
+    }
+
+    pub(super) fn run(
+        mut self,
+        query: &'a QueryStatement,
+    ) -> Result<Occurrences<'a>, ParameterAdmissionError> {
+        self.push(Node::Query(query), 0, Expected::None, false, true)?;
+        while !self.frames.values.is_empty() {
+            check_controls(self.controls)?;
+            let index = self.frames.values.len() - 1;
+            if let Some(child) = self.child(index)? {
+                self.push(
+                    child.node,
+                    child.context,
+                    child.expected,
+                    child.target,
+                    child.qualified,
+                )?;
+            } else {
+                let frame = self.frames.values.pop().expect("nonempty fold stack");
+                if self.occurrences.stops_on_error() && rejected_cast(frame.node, self.controls)? {
+                    // This statement cannot be published. Return only prefix types
+                    // so ordered binding rejects the input before parent resolution.
+                    self.occurrences.binding_required = true;
+                    return Ok(self.occurrences);
+                }
+                self.finish(&frame)?;
+            }
+        }
+        self.occurrences.finish(self.controls)?;
+        Ok(self.occurrences)
+    }
+
+    fn push(
+        &mut self,
+        node: Node<'a>,
+        mut context: usize,
+        expected: Expected,
+        target: bool,
+        qualified: bool,
+    ) -> Result<(), ParameterAdmissionError> {
+        if let Node::Source(ast::QuerySource::Values { rows }) = node {
+            let width = rows.first().map_or(0, Vec::len);
+            if width == 0 {
+                self.occurrences.values_width()?;
+                return Ok(());
+            }
+            for row in rows {
+                check_controls(self.controls)?;
+                if row.len() != width {
+                    self.occurrences.values_width()?;
+                    return Ok(());
+                }
+            }
+        }
+        if let Node::Graph(table) = node {
+            let mut fields = self.contexts.values[context].fields.clone();
+            fields.extend(crate::sql::binder::graph_table_property_types(
+                table,
+                self.catalog,
+            ));
+            let source = self.contexts.values[context].source;
+            context = self.contexts.values.len();
+            self.contexts.try_push(
+                Context {
+                    fields,
+                    source,
+                    target_start: self.targets.values.len(),
+                },
+                self.controls,
+            )?;
+        }
+        if let Node::Select(select) = node {
+            context = self.contexts.values.len();
+            // Source metadata discovery is the existing catalog-input boundary.
+            // New fold directories and retained summaries are admitted separately.
+            let fields = if let ast::QuerySource::Values { rows } = &select.source {
+                let user_functions = self.scope.map_or_else(HashMap::new, |scope| {
+                    crate::catalog::function_resolution::functions_for_scope(
+                        &self.catalog.list_functions(),
+                        scope.database,
+                        scope.search_path,
+                        scope.enforce_database_scope,
+                    )
+                });
+                crate::sql::source_types::values_field_type_map_with_functions(
+                    rows,
+                    &self.occurrences.slots.values,
+                    &user_functions,
+                )
+            } else {
+                crate::sql::source_field_type_map_with_parameters(
+                    &select.source,
+                    &select.ctes,
+                    self.catalog,
+                    &self.occurrences.slots.values,
+                )
+            };
+            self.contexts.try_push(
+                Context {
+                    fields,
+                    source: &select.source,
+                    target_start: self.targets.values.len(),
+                },
+                self.controls,
+            )?;
+        }
+        self.frames.try_push(
+            Frame {
+                node,
+                next: 0,
+                start: self.summaries.values.len(),
+                context,
+                expected,
+                target,
+                qualified,
+                occurrence_start: self.occurrences.len(),
+            },
+            self.controls,
+        )
+    }
+
+    fn finish(&mut self, frame: &Frame<'a>) -> Result<(), ParameterAdmissionError> {
+        if let Node::Expr(ast::Expr::StringLiteral(input)) = frame.node {
+            if matches!(frame.expected, Expected::Boolean(_) | Expected::Type(16, _)) {
+                self.occurrences
+                    .invalid_boolean_literal(input, self.controls)?;
+            }
+        }
+        let mut summary = match frame.node {
+            Node::Source(ast::QuerySource::Values { rows }) => {
+                self.values_columns(rows, frame)?;
+                None
+            }
+            Node::Expr(expr) => Some(self.expression(expr, frame)?),
+            Node::Function(function) => {
+                let summary = self.function(function, frame)?;
+                self.invalid_boolean_function_literals(function, summary, frame)?;
+                Some(summary)
+            }
+            Node::Item(item) => match item {
+                ast::SelectItem::Expr { .. } | ast::SelectItem::Function { .. } => {
+                    self.summaries.values.get(frame.start).copied()
+                }
+                ast::SelectItem::Wildcard
+                | ast::SelectItem::Column { .. }
+                | ast::SelectItem::WindowFunction { .. } => None,
+            },
+            Node::Select(select) => {
+                let start = self.contexts.values[frame.context].target_start;
+                for index in start..self.targets.values.len() {
+                    check_controls(self.controls)?;
+                    let target = &mut self.targets.values[index];
+                    debug_assert_eq!(target.context, frame.context);
+                    self.occurrences.finalize_target(&mut target.summary)?;
+                }
+                let output = self.subquery_select_summary(select, frame.context, start);
+                self.targets.values.truncate(start);
+                self.contexts.values.pop();
+                output
+            }
+            Node::Query(_) => self.subquery_query_summary(frame),
+            Node::Graph(_) => {
+                self.contexts.values.pop();
+                None
+            }
+            Node::Source(_)
+            | Node::Expressions(_)
+            | Node::Items(_)
+            | Node::Orders(_)
+            | Node::Ctes(_)
+            | Node::Cte(_)
+            | Node::FunctionModifiers(_)
+            | Node::Window(_) => None,
+            Node::WindowArguments(window) => {
+                self.validate_window_argument_type(frame, window)?;
+                None
+            }
+        };
+        self.summaries.values.truncate(frame.start);
+        if let Some(summary) = &mut summary {
+            match frame.expected {
+                Expected::None => {}
+                Expected::Boolean(construct) => {
+                    self.occurrences
+                        .boolean(summary, construct, frame.qualified)?;
+                }
+                Expected::Type(oid, demand) => self.occurrences.coerce(summary, oid, demand)?,
+            }
+            if frame.target {
+                self.targets.try_push(
+                    Target {
+                        summary: *summary,
+                        context: frame.context,
+                    },
+                    self.controls,
+                )?;
+            } else {
+                self.summaries.try_push(*summary, self.controls)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_window_argument_type(
+        &mut self,
+        frame: &Frame<'a>,
+        window: &ast::WindowFunctionCall,
+    ) -> Result<(), ParameterAdmissionError> {
+        if let Some(metadata) = sql_functions::aggregate_window_function(&window.name) {
+            let regression = sql_functions::regression::is_regression_function(metadata.id);
+            let statistical = sql_functions::statistical::is_statistical_function(metadata.id);
+            if regression || statistical {
+                for summary in self.summaries.values[frame.start..]
+                    .iter_mut()
+                    .take(window.args.len())
+                {
+                    check_controls(self.controls)?;
+                    if !regression && matches!(summary.oid, 0 | 705) {
+                        self.occurrences.ambiguous_function(metadata.name)?;
+                    } else if !matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700) {
+                        self.occurrences.undefined_function(
+                            metadata.name,
+                            window.args.len(),
+                            Some(summary.oid),
+                        )?;
+                    }
+                    if regression {
+                        self.occurrences.coerce(summary, 701, true)?;
+                    }
+                }
+                return Ok(());
+            }
+        }
+        let metadata = sql_functions::window_function(&window.name);
+        let integer_argument_index = if window.name.eq_ignore_ascii_case("ntile") {
+            Some(0)
+        } else {
+            metadata.and_then(|metadata| {
+                metadata
+                    .signature(window.args.len())?
+                    .iter()
+                    .position(|argument| *argument == sql_functions::WindowArgumentType::Int4)
+            })
+        };
+        let Some(argument_index) = integer_argument_index else {
+            return Ok(());
+        };
+        let Some(summary) = self
+            .summaries
+            .values
+            .get(frame.start.saturating_add(argument_index))
+            .copied()
+        else {
+            return Ok(());
+        };
+        let function_name = metadata.map_or("ntile", |metadata| metadata.name);
+        if !matches!(summary.oid, 0 | 21 | 23 | UNKNOWN_PARAMETER_TYPE_OID) {
+            self.occurrences.undefined_function(
+                function_name,
+                window.args.len(),
+                Some(summary.oid),
+            )?;
+        }
+        if matches!(
+            metadata.map(|metadata| metadata.id),
+            Some(sql_functions::FunctionId::Lag | sql_functions::FunctionId::Lead)
+        ) && window.args.len() == 3
+        {
+            let value = self.summaries.values.get(frame.start).copied();
+            let default = self
+                .summaries
+                .values
+                .get(frame.start.saturating_add(2))
+                .copied();
+            if let (Some(value), Some(default)) = (value, default) {
+                let concrete = |oid| !matches!(oid, 0 | UNKNOWN_PARAMETER_TYPE_OID);
+                if concrete(value.oid)
+                    && value.oid != 25
+                    && default.oid == UNKNOWN_PARAMETER_TYPE_OID
+                    && matches!(window.args.get(2), Some(ast::Expr::StringLiteral(_)))
+                {
+                    self.occurrences.pending_window_type_coercion()?;
+                }
+                if value.oid == UNKNOWN_PARAMETER_TYPE_OID
+                    && concrete(default.oid)
+                    && default.oid != 25
+                    && matches!(window.args.first(), Some(ast::Expr::StringLiteral(_)))
+                {
+                    self.occurrences.pending_window_type_coercion()?;
+                }
+                if concrete(value.oid) && concrete(default.oid) && value.oid != default.oid {
+                    self.occurrences.undefined_function(
+                        function_name,
+                        window.args.len(),
+                        Some(default.oid),
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn fields(&self, context: usize) -> &FieldTypeMap {
+        &self.contexts.values[context].fields
+    }
+}
+
+fn rejected_cast(
+    node: Node<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<bool, ParameterAdmissionError> {
+    let Node::Expr(expression) = node else {
+        return Ok(false);
+    };
+    crate::sql::literal_inputs::rejects_cast_with_controls(expression, Some(controls)).map_err(
+        |error| match error {
+            crate::app::CassieError::QueryCanceled => ParameterAdmissionError::Canceled,
+            crate::app::CassieError::DeadlineExceeded => ParameterAdmissionError::Deadline,
+            crate::app::CassieError::ResourceLimit(message) => {
+                ParameterAdmissionError::Memory(message)
+            }
+            other => ParameterAdmissionError::Memory(other.to_string()),
+        },
+    )
+}

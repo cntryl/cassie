@@ -1,0 +1,190 @@
+use super::{
+    collect_scan, CassieError, Midge, Query, RawStorageEntry, StorageFamily, TransactionMode,
+};
+
+impl Midge {
+    /// # Errors
+    ///
+    /// Returns an error when the raw write cannot be committed.
+    pub fn raw_put(
+        &self,
+        family: StorageFamily,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_raw_family_adapter_tx(family, TransactionMode::ReadWrite)?;
+        tx.put(key.to_vec(), value.to_vec(), None)
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the raw delete cannot be committed.
+    pub fn raw_delete(&self, family: StorageFamily, key: &[u8]) -> Result<(), CassieError> {
+        let mut tx = self.begin_raw_family_adapter_tx(family, TransactionMode::ReadWrite)?;
+        tx.delete(key.to_vec()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn raw_get(
+        &self,
+        family: StorageFamily,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, CassieError> {
+        let tx = self.begin_family_readonly_tx(family)?;
+        let value = tx.get(key).map_err(CassieError::from)?;
+        Ok(value.map(|value| value.to_vec()))
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the database family cannot be opened.
+    pub fn raw_get_database(
+        &self,
+        database: &str,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, CassieError> {
+        let tx = self.begin_database_readonly_tx(database)?;
+        let value = tx.get(key).map_err(CassieError::from)?;
+        Ok(value.map(|value| value.to_vec()))
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn raw_scan_prefix(
+        &self,
+        family: StorageFamily,
+        prefix: &[u8],
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.begin_family_readonly_tx(family)?;
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the database family cannot be opened.
+    pub fn raw_scan_prefix_database(
+        &self,
+        database: &str,
+        prefix: &[u8],
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.begin_database_readonly_tx(database)?;
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
+    }
+
+    ///
+    /// # Errors
+    /// Returns an error if the database transaction or native scan fails.
+    pub fn raw_scan_database_page(
+        &self,
+        database: &str,
+        prefix: &[u8],
+        after: Option<&[u8]>,
+        limit: usize,
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let mut query = Query::new()
+            .prefix(prefix.to_vec().into())
+            .limit(limit.saturating_add(1));
+        if let Some(after) = after {
+            query = query.start_key(after.to_vec().into());
+        }
+        let tx = self.begin_database_readonly_tx(database)?;
+        let entries = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
+        Ok(entries
+            .into_iter()
+            .filter(|(key, _)| after.is_none_or(|cursor| key.as_slice() > cursor))
+            .take(limit)
+            .collect())
+    }
+
+    ///
+    /// # Errors
+    /// Returns an error if the collection transaction or native scan fails.
+    pub fn raw_scan_prefix_for_collection(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.begin_data_readonly_tx_for(collection)?;
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
+    }
+
+    pub(crate) fn raw_scan_prefix_page_for_collection(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+        limit: usize,
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.begin_data_readonly_tx_for(collection)?;
+        let values = collect_scan(
+            tx.scan(
+                &Query::new()
+                    .prefix(prefix.to_vec().into())
+                    .limit(limit.max(1)),
+            )
+            .map_err(CassieError::from)?,
+        );
+        values
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn raw_scan_prefix_named(
+        &self,
+        family: &str,
+        prefix: &[u8],
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.begin_named_readonly_tx(family)?;
+        let values = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.to_vec().into()))
+                .map_err(CassieError::from)?,
+        );
+        values
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
+        let mut tx =
+            self.begin_raw_family_adapter_tx(StorageFamily::Temp, TransactionMode::ReadWrite)?;
+        let entries = collect_scan(tx.scan(&Query::new()).map_err(CassieError::from)?)?;
+        let mut keys = Vec::new();
+        for (raw_key, _) in entries {
+            keys.push(raw_key);
+        }
+
+        if keys.is_empty() {
+            return Ok(0);
+        }
+
+        let deleted = keys.len();
+        for key in keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(deleted)
+    }
+}

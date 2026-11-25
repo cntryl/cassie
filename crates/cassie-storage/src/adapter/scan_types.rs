@@ -1,0 +1,198 @@
+use std::collections::HashSet;
+use std::time::Duration;
+
+use crate::catalog::ColumnBatchMetadata;
+use cassie_core::types::Value;
+
+#[derive(Debug, Clone)]
+pub struct DocumentRef {
+    pub id: String,
+    pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowDecode {
+    Full,
+    Projected(Vec<String>),
+    ProjectedHistorical(Vec<String>),
+}
+
+impl RowDecode {
+    pub(crate) fn into_projection(self) -> (Option<HashSet<String>>, bool) {
+        match self {
+            RowDecode::Full => (None, false),
+            RowDecode::Projected(fields) => (Some(canonical_projection(fields)), false),
+            RowDecode::ProjectedHistorical(fields) => (Some(canonical_projection(fields)), true),
+        }
+    }
+}
+
+fn canonical_projection(fields: Vec<String>) -> HashSet<String> {
+    fields
+        .into_iter()
+        .map(|field| {
+            cassie_sql::column_identifier::ColumnIdentifierPath::parse(&field)
+                .map_or_else(|_| field.to_ascii_lowercase(), |column| column.lookup_key())
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RowFilter {
+    pub field: String,
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnBatchScanFilter {
+    pub predicates: Vec<ColumnBatchScanPredicate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnBatchAggregateSpec {
+    pub function: String,
+    pub field: Option<String>,
+    pub output_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnBatchAggregateOutcome {
+    pub values: Vec<(String, Value)>,
+    pub segments_read: usize,
+    pub selected_rows: usize,
+}
+
+pub enum ColumnBatchAggregateDecision {
+    Hit(ColumnBatchAggregateOutcome),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnBatchScanPredicate {
+    pub field: String,
+    pub op: ColumnBatchScanOp,
+    pub value: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnBatchScanOp {
+    Eq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    IsNull,
+    IsNotNull,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ColumnBatchScanFallbackReason {
+    NoCoveringIndex,
+    MissingMetadata,
+    InvalidMetadata,
+    MetadataFormatMismatch,
+    SummaryFormatMismatch,
+    SchemaVersionMismatch,
+    SegmentSizeMismatch,
+    FieldCoverageMismatch,
+    GenerationMismatch,
+    MaintenancePending,
+    SourceRowCountMismatch,
+    SegmentManifestMismatch,
+    SummaryMissing,
+    SummaryChecksumMismatch,
+    NumericSummaryRequiresRows,
+    TypedSummaryRequiresRows,
+    SegmentMissing,
+    SegmentChecksumMismatch,
+    InvalidPayload,
+    InvalidEncodingVersion,
+    SegmentCodecMismatch,
+    SegmentDecodeFailed,
+    RowFilterMismatch,
+}
+
+impl ColumnBatchScanFallbackReason {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::NoCoveringIndex => "no_covering_column_index",
+            Self::MissingMetadata => "missing_metadata",
+            Self::InvalidMetadata => "invalid_metadata",
+            Self::MetadataFormatMismatch => "metadata_format_mismatch",
+            Self::SummaryFormatMismatch => "summary_format_mismatch",
+            Self::SchemaVersionMismatch => "schema_version_mismatch",
+            Self::SegmentSizeMismatch => "segment_size_mismatch",
+            Self::FieldCoverageMismatch => "field_coverage_mismatch",
+            Self::GenerationMismatch => "generation_mismatch",
+            Self::MaintenancePending => "maintenance_pending",
+            Self::SourceRowCountMismatch => "source_row_count_mismatch",
+            Self::SegmentManifestMismatch => "segment_manifest_mismatch",
+            Self::SummaryMissing => "summary_missing",
+            Self::SummaryChecksumMismatch => "summary_checksum_mismatch",
+            Self::NumericSummaryRequiresRows => "numeric_summary_requires_rows",
+            Self::TypedSummaryRequiresRows => "typed_summary_requires_rows",
+            Self::SegmentMissing => "segment_missing",
+            Self::SegmentChecksumMismatch => "segment_checksum_mismatch",
+            Self::InvalidPayload => "invalid_payload",
+            Self::InvalidEncodingVersion => "invalid_encoding_version",
+            Self::SegmentCodecMismatch => "segment_codec_mismatch",
+            Self::SegmentDecodeFailed => "segment_decode_failed",
+            Self::RowFilterMismatch => "row_filter_mismatch",
+        }
+    }
+
+    #[must_use]
+    pub const fn is_decode_fallback(&self) -> bool {
+        matches!(
+            self,
+            Self::SegmentMissing
+                | Self::SegmentChecksumMismatch
+                | Self::InvalidPayload
+                | Self::InvalidEncodingVersion
+                | Self::SegmentCodecMismatch
+                | Self::SegmentDecodeFailed
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ColumnBatchSummaryDecision {
+    Ready(Box<ColumnBatchMetadata>),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
+#[derive(Debug)]
+pub enum ColumnBatchScanDecision {
+    Hit(ColumnBatchScanOutcome),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MidgeScanTimings {
+    pub scan: Duration,
+    pub row_decode: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct OrderedRowBound {
+    pub id: String,
+    pub inclusive: bool,
+}
+
+#[derive(Debug)]
+pub struct ColumnBatchScanOutcome {
+    pub batches: Vec<Vec<DocumentRef>>,
+    pub timings: MidgeScanTimings,
+    pub index_name: String,
+    pub segments_read: usize,
+    pub chunks_read: usize,
+    pub physical_bytes: usize,
+    pub logical_bytes: usize,
+    pub predicate_values: usize,
+    pub candidate_rows: usize,
+    pub selected_rows: usize,
+    pub materialized_values: usize,
+    pub skipped_segments: usize,
+    pub query_memory: Option<crate::adapter::QueryMemoryReservation>,
+}

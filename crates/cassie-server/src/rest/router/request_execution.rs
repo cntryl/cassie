@@ -1,0 +1,540 @@
+use std::convert::Infallible;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Method, Request, StatusCode};
+use hyper_util::rt::{TokioIo, TokioTimer};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::{Notify, Semaphore};
+use tokio::task;
+use tokio_rustls::TlsAcceptor;
+
+use crate::app::{Cassie, CassieError};
+use crate::rest::static_files::AdminUiStaticFiles;
+use crate::runtime::QueryCancellationHandle;
+
+use super::{
+    record_rest_error, route, too_many_connections_response, MAX_REST_HEADER_BYTES,
+    REST_HEADER_READ_TIMEOUT, REST_REQUEST_TIMEOUT,
+};
+
+const REST_TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+
+pub(super) async fn run_server(
+    addr: String,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+    admin_ui_dir: PathBuf,
+) -> Result<(), CassieError> {
+    let listen: SocketAddr = addr.parse().map_err(|error| {
+        CassieError::Execution(format!("invalid rest address '{addr}': {error}"))
+    })?;
+    let cassie = Arc::new(cassie);
+    let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
+    let tls_options = cassie.rest_tls_options();
+    let tls_config = crate::rest::tls::load_server_config(
+        tls_options.certificate_path,
+        tls_options.private_key_path,
+    )?;
+    let admission = Arc::new(Semaphore::new(
+        cassie.runtime().limits().rest_max_connections.max(1),
+    ));
+    let listener = tokio::net::TcpListener::bind(&listen)
+        .await
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let actual_addr = listener
+        .local_addr()
+        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    cassie.validate_rest_network_listener(actual_addr)?;
+
+    loop {
+        tokio::select! {
+            biased;
+            () = shutdown.notified() => {
+                tracing::info!(target: "rest", address = %listen, "shutdown requested");
+                break;
+            }
+            accept = listener.accept() => {
+                let (stream, peer) = accept.map_err(|error| CassieError::Execution(error.to_string()))?;
+                let Ok(permit) = admission.clone().try_acquire_owned() else {
+                    let write_timeout = Duration::from_millis(
+                        cassie.runtime().limits().rest_write_timeout_ms,
+                    );
+                    let rejection_tls_config = tls_config.clone();
+                    tokio::spawn(async move {
+                        serve_admission_rejection(stream, rejection_tls_config, write_timeout).await;
+                    });
+                    continue;
+                };
+                let cassie = Arc::clone(&cassie);
+                let admin_ui = Arc::clone(&admin_ui);
+                let tls_config = tls_config.clone();
+                tokio::spawn(async move {
+                    let _permit = permit;
+                    if let Some(config) = tls_config {
+                        match tokio::time::timeout(
+                            REST_TLS_HANDSHAKE_TIMEOUT,
+                            TlsAcceptor::from(config).accept(stream),
+                        )
+                        .await
+                        {
+                            Ok(Ok(stream)) => {
+                                serve_application(stream, cassie, admin_ui, true, peer.ip()).await;
+                            }
+                            Ok(Err(error)) => {
+                                tracing::warn!(%error, "rest TLS handshake rejected");
+                            }
+                            Err(_) => {
+                                tracing::warn!("rest TLS handshake timed out");
+                            }
+                        }
+                    } else {
+                        serve_application(stream, cassie, admin_ui, false, peer.ip()).await;
+                    }
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn serve_admission_rejection(
+    stream: tokio::net::TcpStream,
+    tls_config: Option<Arc<rustls::ServerConfig>>,
+    write_timeout: Duration,
+) {
+    if let Some(config) = tls_config {
+        match tokio::time::timeout(
+            REST_TLS_HANDSHAKE_TIMEOUT,
+            TlsAcceptor::from(config).accept(stream),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => serve_rejection(stream, write_timeout).await,
+            Ok(Err(error)) => tracing::warn!(%error, "rest TLS admission rejection failed"),
+            Err(_) => tracing::warn!("rest TLS admission rejection timed out"),
+        }
+    } else {
+        serve_rejection(stream, write_timeout).await;
+    }
+}
+
+async fn serve_rejection<S>(stream: S, write_timeout: Duration)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let service = service_fn(|_request: Request<hyper::body::Incoming>| async {
+        Ok::<_, Infallible>(too_many_connections_response())
+    });
+    let connection = http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
+        .max_buf_size(MAX_REST_HEADER_BYTES)
+        .serve_connection(
+            TokioIo::new(crate::transport::TimedWriteTransport::new(
+                stream,
+                write_timeout,
+            )),
+            service,
+        )
+        .await;
+    if let Err(error) = connection {
+        tracing::warn!(%error, "rest admission rejection connection error");
+    }
+}
+
+async fn serve_application<S>(
+    stream: S,
+    cassie: Arc<Cassie>,
+    admin_ui: Arc<AdminUiStaticFiles>,
+    secure_transport: bool,
+    peer_ip: std::net::IpAddr,
+) where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let write_timeout = Duration::from_millis(cassie.runtime().limits().rest_write_timeout_ms);
+    let service = service_fn(move |request: Request<hyper::body::Incoming>| {
+        let cassie = Arc::clone(&cassie);
+        let admin_ui = Arc::clone(&admin_ui);
+        async move { route(request, cassie, admin_ui, secure_transport, peer_ip).await }
+    });
+    let connection = http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
+        .max_buf_size(MAX_REST_HEADER_BYTES)
+        .serve_connection(
+            TokioIo::new(crate::transport::TimedWriteTransport::new(
+                stream,
+                write_timeout,
+            )),
+            service,
+        )
+        .await;
+    if let Err(error) = connection {
+        tracing::warn!(%error, "rest connection error");
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct RestRequestExecution {
+    cancellation: QueryCancellationHandle,
+    deadline: Instant,
+}
+
+impl RestRequestExecution {
+    #[must_use]
+    pub(super) fn new(timeout: Duration) -> Self {
+        Self::with_cancellation(timeout, QueryCancellationHandle::new())
+    }
+
+    #[must_use]
+    pub(super) fn with_cancellation(
+        timeout: Duration,
+        cancellation: QueryCancellationHandle,
+    ) -> Self {
+        let now = Instant::now();
+        Self {
+            cancellation,
+            deadline: now.checked_add(timeout).unwrap_or(now),
+        }
+    }
+
+    pub(super) async fn run_blocking<T>(
+        &self,
+        cassie: Arc<Cassie>,
+        operation_name: &'static str,
+        operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+            + Send
+            + 'static,
+    ) -> Result<T, RestBlockingError>
+    where
+        T: Send + 'static,
+    {
+        self.run_blocking_observed(cassie, operation_name, operation, || {})
+            .await
+    }
+
+    pub(super) async fn run_blocking_observed<T>(
+        &self,
+        cassie: Arc<Cassie>,
+        operation_name: &'static str,
+        operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+            + Send
+            + 'static,
+        queued: impl FnOnce() + Send,
+    ) -> Result<T, RestBlockingError>
+    where
+        T: Send + 'static,
+    {
+        let runtime = cassie.runtime().clone();
+        let started_at = Instant::now();
+        runtime.record_rest_boundary_started(operation_name);
+
+        let cancellation = self.cancellation.clone();
+        let worker_cancellation = cancellation.clone();
+        let absolute_deadline = self.deadline;
+        let mut worker = task::spawn_blocking(move || {
+            let _publication_controls =
+                crate::midge::adapter::PublicationControlScope::enter_for_rest(
+                    &worker_cancellation,
+                    absolute_deadline,
+                );
+            cassie.check_storage_recovery_required()?;
+            operation(cassie, &worker_cancellation)
+        });
+        queued();
+        let deadline = tokio::time::Instant::from_std(self.deadline);
+
+        tokio::select! {
+            result = &mut worker => finish_worker(
+                &runtime,
+                operation_name,
+                started_at,
+                result,
+                false,
+            ),
+            () = tokio::time::sleep_until(deadline) => {
+                cancellation.cancel();
+                finish_worker(
+                    &runtime,
+                    operation_name,
+                    started_at,
+                    worker.await,
+                    true,
+                )
+            }
+        }
+    }
+}
+
+pub(super) async fn run_rest_blocking_route<T>(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>) -> Result<T, CassieError> + Send + 'static,
+) -> Result<T, (StatusCode, String)>
+where
+    T: Send + 'static,
+{
+    run_rest_blocking_route_controlled(
+        cassie,
+        method,
+        path,
+        started_at,
+        operation_name,
+        move |cassie, _cancellation| operation(cassie),
+    )
+    .await
+}
+
+pub(super) async fn run_rest_blocking_route_controlled<T>(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+        + Send
+        + 'static,
+) -> Result<T, (StatusCode, String)>
+where
+    T: Send + 'static,
+{
+    RestRequestExecution::new(REST_REQUEST_TIMEOUT)
+        .run_blocking(Arc::clone(&cassie), operation_name, operation)
+        .await
+        .map_err(|error| match error {
+            RestBlockingError::Engine(error) => {
+                record_rest_error(&cassie, method.as_str(), path, started_at, &error)
+            }
+            RestBlockingError::TimedOut => {
+                cassie.runtime().record_rest_request(
+                    method.as_str(),
+                    path,
+                    StatusCode::REQUEST_TIMEOUT.as_u16(),
+                    started_at.elapsed(),
+                );
+                (
+                    StatusCode::REQUEST_TIMEOUT,
+                    "REST request timed out".to_string(),
+                )
+            }
+        })
+}
+
+pub(super) async fn run_rest_blocking_route_with_cancellation(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    operation_name: &'static str,
+    cancellation: (QueryCancellationHandle, bool),
+    operation: impl FnOnce(
+            Arc<Cassie>,
+            &QueryCancellationHandle,
+        ) -> Result<hyper::Response<super::RestBody>, CassieError>
+        + Send
+        + 'static,
+) -> Result<hyper::Response<super::RestBody>, (StatusCode, String)> {
+    let (cancellation, admitted_error_response) = cancellation;
+    match RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation)
+        .run_blocking(Arc::clone(&cassie), operation_name, operation)
+        .await
+    {
+        Ok(response) => Ok(response),
+        Err(RestBlockingError::Engine(error)) => {
+            if let (true, CassieError::OwnedNumericLiteral(diagnostic)) =
+                (admitted_error_response, &error)
+            {
+                return super::owned_error_response::numeric_error_response(diagnostic).map_err(
+                    |error| record_rest_error(&cassie, method.as_str(), path, started_at, &error),
+                );
+            }
+            Err(record_rest_error(
+                &cassie,
+                method.as_str(),
+                path,
+                started_at,
+                &error,
+            ))
+        }
+        Err(RestBlockingError::TimedOut) => {
+            cassie.runtime().record_rest_request(
+                method.as_str(),
+                path,
+                StatusCode::REQUEST_TIMEOUT.as_u16(),
+                started_at.elapsed(),
+            );
+            Err((
+                StatusCode::REQUEST_TIMEOUT,
+                "REST request timed out".to_string(),
+            ))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(super) enum RestBlockingError {
+    Engine(CassieError),
+    TimedOut,
+}
+
+fn finish_worker<T>(
+    runtime: &crate::runtime::RuntimeState,
+    operation_name: &'static str,
+    started_at: Instant,
+    result: Result<Result<T, CassieError>, task::JoinError>,
+    deadline_fired: bool,
+) -> Result<T, RestBlockingError> {
+    match result {
+        Ok(Ok(value)) => {
+            runtime.record_rest_boundary_completed(operation_name, started_at.elapsed());
+            Ok(value)
+        }
+        Ok(Err(CassieError::QueryCanceled | CassieError::DeadlineExceeded)) if deadline_fired => {
+            runtime.record_rest_boundary_error(operation_name, started_at.elapsed());
+            Err(RestBlockingError::TimedOut)
+        }
+        Ok(Err(error)) => {
+            runtime.record_rest_boundary_error(operation_name, started_at.elapsed());
+            Err(RestBlockingError::Engine(error))
+        }
+        Err(error) => {
+            runtime.record_rest_boundary_join_failed(operation_name, started_at.elapsed());
+            Err(RestBlockingError::Engine(CassieError::StorageRetryable(
+                format!("rest blocking boundary '{operation_name}' failed: {error}").into(),
+            )))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    fn cassie(label: &str) -> Arc<Cassie> {
+        Arc::new(
+            Cassie::new_with_data_dir(format!(
+                "/tmp/cassie-rest-request-execution-{label}-{}",
+                Uuid::new_v4()
+            ))
+            .expect("cassie"),
+        )
+    }
+
+    #[test]
+    fn should_return_408_only_after_worker_acknowledges_cancellation() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cassie = cassie("acknowledged-timeout");
+        let execution = RestRequestExecution::new(Duration::from_millis(1));
+
+        // Act
+        let error = runtime.block_on(execution.run_blocking(
+            cassie,
+            "rest_timeout_test",
+            |_cassie, cancellation| {
+                while !cancellation.is_canceled() {
+                    std::thread::yield_now();
+                }
+                Err::<(), _>(CassieError::QueryCanceled)
+            },
+        ));
+
+        // Assert
+        assert!(matches!(error, Err(RestBlockingError::TimedOut)));
+    }
+
+    #[test]
+    fn should_return_success_when_commit_wins_timeout_race() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cassie = cassie("commit-wins");
+        let execution = RestRequestExecution::new(Duration::from_millis(1));
+
+        // Act
+        let result = runtime.block_on(execution.run_blocking(
+            cassie,
+            "rest_commit_test",
+            |_cassie, _cancellation| {
+                std::thread::sleep(Duration::from_millis(5));
+                Ok("committed")
+            },
+        ));
+
+        // Assert
+        assert_eq!(result.expect("successful commit must win"), "committed");
+    }
+
+    #[test]
+    fn should_preserve_scoped_scan_cancellation_in_the_blocking_worker() {
+        // Arrange
+        let _guard = crate::midge::adapter::query_scan_control_test_guard();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cassie = cassie("scoped-scan-worker");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scoped_rest_rows (value INT)",
+                vec![],
+            )
+            .expect("create rows");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scoped_rest_rows VALUES (1),(2),(3)",
+                vec![],
+            )
+            .expect("seed rows");
+        let execution = RestRequestExecution::new(Duration::from_secs(30));
+        let before = cassie.midge.query_scan_entries_for_diagnostics();
+        crate::midge::adapter::set_query_scan_cancellation_after_entries(Some(1));
+
+        // Act
+        let result = runtime.block_on(execution.run_blocking(
+            Arc::clone(&cassie),
+            "scoped_scan_worker_test",
+            move |cassie, cancellation| {
+                cassie.execute_sql_with_cancellation(
+                    &session,
+                    "SELECT * FROM scoped_rest_rows",
+                    vec![],
+                    cancellation,
+                )
+            },
+        ));
+        crate::midge::adapter::set_query_scan_cancellation_after_entries(None);
+        let reads = cassie.midge.query_scan_entries_for_diagnostics() - before;
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(RestBlockingError::Engine(CassieError::QueryCanceled))
+        ));
+        assert_eq!(reads, 1);
+        assert_eq!(metrics["runtime"]["running_queries"].as_u64(), Some(0));
+        assert_eq!(
+            metrics["query"]["current_accounted_memory_bytes"].as_u64(),
+            Some(0)
+        );
+    }
+}

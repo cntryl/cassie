@@ -1,0 +1,470 @@
+use super::dml_referential_actions;
+use super::{
+    aggregate, batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, projection,
+    reserve_projection_output_before_building, resolve_exists_expr, scan, BatchRow, Cassie,
+    CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType, ExistsResolutionContext,
+    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
+};
+use crate::types::row_identity::ROW_IDENTITY_COLUMN;
+
+#[path = "dml_delete.rs"]
+mod dml_delete;
+#[path = "dml_insert.rs"]
+mod dml_insert;
+#[path = "dml_joined.rs"]
+mod dml_joined;
+#[path = "dml_joined_update.rs"]
+mod dml_joined_update;
+#[path = "dml_keyed_rows.rs"]
+mod dml_keyed_rows;
+#[path = "dml_merge.rs"]
+mod dml_merge;
+#[path = "dml_missing_row.rs"]
+mod dml_missing_row;
+#[path = "dml_returning.rs"]
+mod dml_returning;
+#[cfg(test)]
+#[path = "dml_returning_tests.rs"]
+mod dml_returning_tests;
+#[path = "dml_row_subquery.rs"]
+mod dml_row_subquery;
+#[path = "dml_subqueries.rs"]
+mod dml_subqueries;
+#[path = "dml_truncate.rs"]
+mod dml_truncate;
+#[path = "dml_update.rs"]
+mod dml_update;
+#[path = "identity_insert.rs"]
+mod identity_insert;
+
+pub(super) use dml_delete::execute_delete;
+pub(super) use dml_insert::{
+    execute_insert, execute_prepared_insert, prepare_waiting_insert, WaitingInsert,
+};
+pub(crate) use dml_insert::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
+pub(crate) use dml_joined::joined_returning_schema;
+pub(crate) use dml_joined_update::{delete_is_joined, update_is_joined};
+pub(super) use dml_merge::execute_merge;
+pub(super) use dml_truncate::execute_truncate;
+pub(super) use dml_update::admit_read_committed_update_rows;
+pub(super) use dml_update::execute_update;
+
+const NON_FINITE_WRITE_VALUE_ERROR: &str = "stored float values must be finite";
+
+fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
+    Ok(match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Typed(value) => value.to_json(),
+        Value::Bool(value) => serde_json::Value::Bool(*value),
+        Value::Int64(value) => serde_json::Value::Number((*value).into()),
+        Value::Float64(value) => serde_json::Number::from_f64(*value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| QueryError::General(NON_FINITE_WRITE_VALUE_ERROR.to_string()))?,
+        Value::String(value) => serde_json::Value::String(value.clone()),
+        Value::Array(value) => value.to_storage_json(),
+        Value::Vector(value) => serde_json::Value::Array(
+            value
+                .values
+                .iter()
+                .map(|value| {
+                    serde_json::Number::from_f64((*value).into())
+                        .map(serde_json::Value::Number)
+                        .ok_or_else(|| {
+                            QueryError::General(NON_FINITE_WRITE_VALUE_ERROR.to_string())
+                        })
+                })
+                .collect::<Result<_, _>>()?,
+        ),
+        Value::Json(value) => value.clone(),
+    })
+}
+
+pub(super) fn value_to_json_for_field(
+    field: &str,
+    value: &Value,
+    data_type: &DataType,
+) -> Result<serde_json::Value, QueryError> {
+    if let (DataType::Json | DataType::Jsonb, Value::String(text)) = (data_type, value) {
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+        let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            text.as_bytes(),
+            controls.as_ref(),
+        )
+        .map_err(|error| match error {
+            crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                crate::app::CassieError::Parse(format!(
+                    "field '{field}' expects JSON: {}",
+                    crate::runtime::accounted::json_arena::syntax_error(text.as_bytes())
+                ))
+            }
+            crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error,
+        })?;
+        if *data_type == DataType::Jsonb {
+            crate::types::jsonb::format(parsed.get())
+                .map_err(crate::app::CassieError::TypeInput)?;
+        }
+        return Ok(parsed.get().clone());
+    }
+
+    if let (DataType::Vector(dimensions), Value::String(text)) = (data_type, value) {
+        return vector_literal_to_json(field, text, *dimensions);
+    }
+
+    if (matches!(data_type, DataType::Composite(_))
+        || crate::executor::scan::composite_array_descriptor(data_type).is_some()
+        || crate::types::enum_type::is_enum_family(data_type))
+        && !matches!(value, Value::Null)
+    {
+        let assigned = match (data_type, value) {
+            (DataType::Composite(descriptor), _) => {
+                crate::executor::filter::assign_record(value, descriptor)?
+            }
+            // A value read back from a row (`EXCLUDED.col`, `SET a = b`) is the
+            // stored array document; it is retyped, not parsed as array text.
+            (DataType::Array(_), Value::Json(document))
+                if crate::executor::scan::composite_array_descriptor(data_type).is_some() =>
+            {
+                crate::executor::scan::try_json_to_typed_value(document, data_type)?
+            }
+            _ => crate::executor::filter::cast_value(value, data_type)?,
+        };
+        return value_to_json(&assigned);
+    }
+
+    if let Some(assigned) = numeric_assignment(value, data_type)? {
+        return value_to_json(&assigned);
+    }
+
+    if let Some(fitted) = fit_character_length(value, data_type) {
+        return value_to_json(&fitted);
+    }
+
+    value_to_json(value)
+}
+
+/// Assignment to a length-limited character column drops excess trailing
+/// spaces, as the SQL standard requires. Any other excess keeps its length
+/// and is rejected with `22001` by payload validation.
+fn fit_character_length(value: &Value, data_type: &DataType) -> Option<Value> {
+    let limit = match data_type {
+        DataType::Varchar {
+            length: Some(length),
+        } => *length as usize,
+        DataType::Char { length } => length.unwrap_or(1) as usize,
+        _ => return None,
+    };
+    let Value::String(text) = value else {
+        return None;
+    };
+    let (kept, _) = text.char_indices().nth(limit)?;
+    text[kept..]
+        .chars()
+        .all(|excess| excess == ' ')
+        .then(|| Value::String(text[..kept].to_string()))
+}
+
+/// The type an untyped string literal is converted to when it is assigned to
+/// a column of `data_type`. Other column types accept their text form as is.
+fn unknown_literal_target(data_type: &DataType) -> Option<&DataType> {
+    match data_type {
+        DataType::Domain(descriptor) => unknown_literal_target(&descriptor.base),
+        DataType::SmallInt
+        | DataType::Int
+        | DataType::BigInt
+        | DataType::Float
+        | DataType::Boolean
+        | DataType::Array(_) => Some(data_type),
+        _ => None,
+    }
+}
+
+/// An untyped string literal takes the type of the column it is assigned to,
+/// as `INSERT INTO t (int_column) VALUES ('7')` does in PostgreSQL.
+pub(super) fn unknown_literal_value(
+    value: Value,
+    data_type: &DataType,
+) -> Result<Value, QueryError> {
+    match unknown_literal_target(data_type) {
+        Some(target) if matches!(value, Value::String(_)) => {
+            crate::executor::filter::cast_value(&value, target)
+        }
+        _ => Ok(value),
+    }
+}
+
+/// The assignment cast of a native `numeric` or `real` value into a
+/// `double precision` or integer column.
+fn numeric_assignment(value: &Value, data_type: &DataType) -> Result<Option<Value>, QueryError> {
+    let Value::Typed(typed) = value else {
+        return Ok(None);
+    };
+    if !matches!(
+        typed,
+        crate::types::typed::TypedValue::Numeric(_) | crate::types::typed::TypedValue::Real(_)
+    ) {
+        return Ok(None);
+    }
+    let target = match data_type {
+        DataType::Float | DataType::SmallInt | DataType::Int | DataType::BigInt => data_type,
+        _ => return Ok(None),
+    };
+    crate::executor::filter::cast_value(value, target).map(Some)
+}
+
+/// Coerces a pgvector-style text literal such as `'[1,2,3]'` into a JSON array.
+///
+/// A literal that is not a vector of the declared width stays a string so schema
+/// validation reports the mismatch; a component outside the f32 range is a range error.
+pub(super) fn vector_literal_to_json(
+    field: &str,
+    text: &str,
+    expected_dimensions: Option<usize>,
+) -> Result<serde_json::Value, QueryError> {
+    use crate::vector::text::{visit_components_with_dimension, TextVectorError};
+
+    let range_error = || {
+        QueryError::General(format!(
+            "field '{field}' vector element is outside f32 range"
+        ))
+    };
+    let dimensions = match visit_components_with_dimension(text, expected_dimensions, |_| {}) {
+        Ok(dimensions) => dimensions,
+        Err(TextVectorError::Shape) => return Ok(serde_json::Value::String(text.to_string())),
+        Err(TextVectorError::Range) => return Err(range_error()),
+    };
+    // Validation has completed before allocating the exact known-width output.
+    // Each callback receives a finite f32; its f64 promotion is a JSON number.
+    let mut components = Vec::with_capacity(dimensions);
+    visit_components_with_dimension(text, Some(dimensions), |component| {
+        components.push(serde_json::Value::from(f64::from(component)));
+    })
+    .map_err(|_| range_error())?;
+    Ok(serde_json::Value::Array(components))
+}
+
+fn update_assignment_to_json(
+    field: &str,
+    value: &Value,
+    schema: &CollectionSchema,
+) -> Result<serde_json::Value, QueryError> {
+    if let Some(field_meta) = schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name == field)
+    {
+        if matches!(
+            field_meta.data_type,
+            DataType::SmallInt | DataType::Int | DataType::BigInt
+        ) {
+            if let Value::Float64(number) = value {
+                if let Some(integer) = integral_json_number(*number) {
+                    return Ok(serde_json::Value::Number(integer));
+                }
+            }
+        }
+    }
+
+    if let Some(field_meta) = schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name == field)
+    {
+        return value_to_json_for_field(field, value, &field_meta.data_type);
+    }
+
+    value_to_json(value)
+}
+
+fn apply_update_value(
+    payload: &mut serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    value: &Value,
+    schema: &CollectionSchema,
+) -> Result<(), QueryError> {
+    if matches!(value, Value::Null)
+        && schema
+            .fields
+            .iter()
+            .any(|column| column.name == field && column.data_type.is_json())
+    {
+        payload.remove(field);
+    } else {
+        payload.insert(
+            field.to_string(),
+            update_assignment_to_json(field, value, schema)?,
+        );
+    }
+    Ok(())
+}
+
+fn inserted_row_to_batch_row(
+    row_id: &str,
+    schema: &CollectionSchema,
+    payload: &serde_json::Value,
+) -> BatchRow {
+    let mut row = Vec::with_capacity(schema.fields.len() + 1);
+    row.push((
+        ROW_IDENTITY_COLUMN.to_string(),
+        Value::String(row_id.to_string()),
+    ));
+
+    for field in &schema.fields {
+        let value = payload.get(&field.name).map_or(Value::Null, |value| {
+            // JSON document-only scalars stay exact. A missing key remains
+            // SQL NULL, as INSERT/UPDATE omit SQL-null JSON fields.
+            if matches!(field.data_type, DataType::Json | DataType::Jsonb)
+                && crate::types::json::requires_document_carrier(value)
+            {
+                Value::Json(value.clone())
+            } else if matches!(
+                field.data_type,
+                DataType::Array(_) | DataType::Composite(_) | DataType::Enum(_)
+            ) {
+                crate::executor::scan::json_to_typed_value(value, &field.data_type)
+            } else if let DataType::Extended(kind) = &field.data_type {
+                kind.from_json(value)
+                    .map_or_else(|_| json_to_value(value), Value::Typed)
+            } else {
+                crate::types::extended::temporal_column_value(value, &field.data_type)
+                    .map_or_else(|| json_to_value(value), Value::Typed)
+            }
+        });
+        row.push((field.name.clone(), value));
+    }
+
+    BatchRow::new(row)
+}
+
+fn dml_returning_columns(
+    returning: &[SelectItem],
+    schema: Option<&CollectionSchema>,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Vec<ColumnMeta> {
+    let mut columns = aggregate::columns_from_projection(returning, schema, user_functions);
+    aggregate::normalize_dml_returning_identity_columns(
+        &mut columns,
+        returning,
+        schema.is_some_and(CollectionSchema::declares_id),
+    );
+    columns
+}
+
+fn json_to_value(value: &serde_json::Value) -> Value {
+    if value.is_null() {
+        return Value::Null;
+    }
+    if let Some(value) = value.as_str() {
+        return Value::String(value.to_string());
+    }
+    if let Some(value) = value.as_bool() {
+        return Value::Bool(value);
+    }
+    if let Some(value) = value.as_i64() {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        return Value::Int64(value);
+    }
+    if let Some(value) = value.as_f64() {
+        return Value::Float64(value);
+    }
+    Value::Json(value.clone())
+}
+
+fn integral_json_number(value: f64) -> Option<serde_json::Number> {
+    if !value.is_finite() || value.fract() != 0.0 {
+        return None;
+    }
+    format!("{value:.0}").parse::<i64>().ok().map(Into::into)
+}
+
+struct DmlResultContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    table: &'a str,
+    returning: &'a [SelectItem],
+    params: &'a [Value],
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    command_prefix: &'a str,
+    controls: &'a QueryExecutionControls,
+    statement_read_controls: &'a QueryExecutionControls,
+    /// The row shape a joined mutation's `RETURNING` resolves against.
+    returning_schema: Option<&'a CollectionSchema>,
+}
+
+fn build_dml_result(
+    context: &DmlResultContext<'_>,
+    affected_count: usize,
+    mut returning_rows: Vec<BatchRow>,
+) -> Result<QueryResult, QueryError> {
+    if context.returning.is_empty() {
+        return super::command_output::counted(
+            context.command_prefix,
+            affected_count,
+            context.controls,
+        );
+    }
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Entry,
+        context.controls,
+        affected_count,
+        &returning_rows,
+        returning_rows.capacity(),
+    );
+    if super::exists_projection::contains(context.returning) {
+        return dml_returning::build(context, affected_count, returning_rows);
+    }
+    let projection_schema = dml_returning::prepare_projection_schema(context)?;
+    let column_schema = projection_schema.schema.as_ref();
+    let has_arrays = column_schema.is_some_and(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, DataType::Array(_)))
+    });
+    let _returning_memory = if has_arrays {
+        let capacity = returning_rows.capacity();
+        dml_returning::prepare_inputs(
+            &mut returning_rows,
+            capacity,
+            column_schema,
+            context.controls,
+        )?;
+        Some(reserve_projection_output_before_building(
+            context.controls,
+            std::slice::from_ref(&returning_rows),
+            context.returning,
+        )?)
+    } else {
+        None
+    };
+    let projected = projection::project_rows(
+        returning_rows,
+        context.returning,
+        context.params,
+        None,
+        context.user_functions,
+        context.session,
+    )?;
+    #[cfg(test)]
+    dml_returning_tests::observe(
+        dml_returning_tests::Phase::Projected,
+        context.controls,
+        affected_count,
+        &projected,
+        projected.capacity(),
+    );
+    let columns = dml_returning_columns(context.returning, column_schema, context.user_functions);
+    dml_returning::finish(context, affected_count, &columns, projected)
+}
+
+fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
+    match row.get(ROW_IDENTITY_COLUMN) {
+        Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
+        _ => Err(QueryError::General(
+            "scanned row is missing internal row id".to_string(),
+        )),
+    }
+}

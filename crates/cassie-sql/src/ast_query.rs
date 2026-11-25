@@ -1,0 +1,721 @@
+use serde::{Deserialize, Serialize};
+
+use super::IdentifierPath;
+use super::{ParsedStatement, TruthValue};
+use cassie_core::types::DataType;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct CommonTableExpression<A = ()> {
+    pub name: String,
+    pub aliases: Vec<String>,
+    pub query: CteQuery<A>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub materialization: CteMaterialization,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search: Option<CteSearch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cycle: Option<CteCycle<A>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CteSearch {
+    pub order: CteSearchOrder,
+    pub by: Vec<String>,
+    pub sequence_column: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CteSearchOrder {
+    DepthFirst,
+    BreadthFirst,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct CteCycle<A = ()> {
+    pub by: Vec<String>,
+    pub mark_column: String,
+    pub mark_value: Expr<A>,
+    pub default_value: Expr<A>,
+    pub path_column: String,
+}
+
+/// Explicit CTE planning policy; recursive and volatile inputs retain sharing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CteMaterialization {
+    #[default]
+    Default,
+    Materialized,
+    NotMaterialized,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum CteQuery<A = ()> {
+    Simple(Box<ParsedStatement<A>>),
+    Recursive {
+        operator: SetOperator,
+        base: Box<ParsedStatement<A>>,
+        recursive: Box<ParsedStatement<A>>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum QuerySource<A = ()> {
+    Values {
+        rows: Vec<Vec<Expr<A>>>,
+    },
+    Collection(IdentifierPath),
+    Cte(String),
+    TableSample {
+        source: Box<QuerySource<A>>,
+        method: TableSampleMethod,
+        rate: Expr<A>,
+        repeatable: Option<Expr<A>>,
+    },
+    Aliased {
+        source: Box<QuerySource<A>>,
+        alias: String,
+        column_aliases: Vec<String>,
+    },
+    TableFunction {
+        name: String,
+        function: FunctionCall<A>,
+        lateral: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        with_ordinality: bool,
+        /// Column definition list or `JSON_TABLE` specification of a generated source.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        form: Option<Box<super::TableFunctionForm<A>>>,
+    },
+    Subquery {
+        alias: String,
+        select: Box<SelectStatement<A>>,
+        lateral: bool,
+    },
+    Join {
+        left: Box<QuerySource<A>>,
+        right: Box<QuerySource<A>>,
+        kind: JoinKind,
+        on: Expr<A>,
+    },
+    SingleRow,
+}
+
+impl<A: std::fmt::Debug> PartialEq for QuerySource<A> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Values { rows: left }, Self::Values { rows: right }) => {
+                left.len() == right.len()
+                    && left.iter().zip(right).all(|(left, right)| {
+                        left.len() == right.len()
+                            && left
+                                .iter()
+                                .zip(right)
+                                .all(|(left, right)| left.structurally_eq(right))
+                    })
+            }
+            (Self::Collection(left), Self::Collection(right)) => left == right,
+            (Self::Cte(left), Self::Cte(right)) => left == right,
+            (
+                Self::TableSample {
+                    source: left_source,
+                    method: left_method,
+                    rate: left_rate,
+                    repeatable: left_repeatable,
+                },
+                Self::TableSample {
+                    source: right_source,
+                    method: right_method,
+                    rate: right_rate,
+                    repeatable: right_repeatable,
+                },
+            ) => {
+                left_source == right_source
+                    && left_method == right_method
+                    && left_rate.structurally_eq(right_rate)
+                    && match (left_repeatable, right_repeatable) {
+                        (Some(left), Some(right)) => left.structurally_eq(right),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (
+                Self::Aliased {
+                    source: left,
+                    alias: left_alias,
+                    column_aliases: left_columns,
+                },
+                Self::Aliased {
+                    source: right,
+                    alias: right_alias,
+                    column_aliases: right_columns,
+                },
+            ) => left == right && left_alias == right_alias && left_columns == right_columns,
+            (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
+                left == right
+            }
+            (Self::SingleRow, Self::SingleRow) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<A: std::fmt::Debug> Eq for QuerySource<A> {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TableSampleMethod {
+    Bernoulli,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JoinKind {
+    Inner,
+    Left,
+    Right,
+    Full,
+    Cross,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SetOperator {
+    Union,
+    UnionAll,
+    Intersect,
+    Except,
+    IntersectAll,
+    ExceptAll,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct SelectSet<A = ()> {
+    pub operator: SetOperator,
+    pub right: Box<SelectStatement<A>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct SelectStatement<A = ()> {
+    pub source: QuerySource<A>,
+    pub ctes: Vec<CommonTableExpression<A>>,
+    pub recursive: bool,
+    pub distinct: bool,
+    pub distinct_on: Vec<Expr<A>>,
+    pub projection: Vec<SelectItem<A>>,
+    pub filter: Option<Expr<A>>,
+    pub group_by: Vec<Expr<A>>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub grouping_subtotal: bool,
+    pub having: Option<Expr<A>>,
+    pub order: Vec<OrderExpr<A>>,
+    pub limit: Option<Expr<A>>,
+    pub offset: Option<Expr<A>>,
+    pub set: Option<Box<SelectSet<A>>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum SelectItem<A = ()> {
+    Wildcard,
+    Column {
+        name: String,
+        alias: Option<String>,
+    },
+    Function {
+        function: FunctionCall<A>,
+        alias: Option<String>,
+    },
+    Expr {
+        expr: Expr<A>,
+        alias: Option<String>,
+    },
+    WindowFunction {
+        function: WindowFunctionCall<A>,
+        alias: Option<String>,
+    },
+}
+
+impl<A> SelectItem<A> {
+    /// PostgreSQL's implicit label for a select-list item.
+    #[must_use]
+    pub fn output_name(&self) -> String {
+        match self {
+            Self::Wildcard => "*".to_owned(),
+            Self::Column { name, alias } => alias.clone().unwrap_or_else(|| {
+                crate::column_identifier::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
+            }),
+            Self::Function { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+            Self::Expr { expr, alias } => {
+                alias.clone().unwrap_or_else(|| expr.implicit_output_name())
+            }
+            Self::WindowFunction { function, alias } => {
+                alias.clone().unwrap_or_else(|| function.name.clone())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct FunctionCall<A = ()> {
+    pub name: String,
+    pub args: Vec<Expr<A>>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub quantifier: AggregateQuantifier,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Expr<A>>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderExpr<A>>,
+}
+
+impl<A> Default for FunctionCall<A> {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            args: Vec::new(),
+            quantifier: AggregateQuantifier::default(),
+            filter: None,
+            order_by: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum ArraySubscript<A = ()> {
+    Index(Expr<A>),
+    Slice {
+        lower: Option<Expr<A>>,
+        upper: Option<Expr<A>>,
+    },
+}
+
+/// Internal parser/binder marker for SQL `ARRAY[...]` constructors.
+pub const ARRAY_CONSTRUCTOR_FUNCTION: &str = "__cassie_array_constructor";
+
+/// Internal parser/binder marker for SQL `ROW(...)` and implicit `(a, b)` constructors.
+pub const ROW_CONSTRUCTOR_FUNCTION: &str = "__cassie_row_constructor";
+
+/// Internal marker for `(expr).field`; the arguments are the composite
+/// expression and the field name as a string literal.
+pub const FIELD_ACCESS_FUNCTION: &str = "__cassie_field_access";
+/// The field name of `(expr).*`, which the binder expands in a SELECT list.
+pub const FIELD_ACCESS_ALL: &str = "*";
+
+/// Whether `name` is one of the internal record-syntax markers.
+#[must_use]
+pub fn is_record_syntax_function(name: &str) -> bool {
+    name.eq_ignore_ascii_case(ROW_CONSTRUCTOR_FUNCTION)
+        || name.eq_ignore_ascii_case(FIELD_ACCESS_FUNCTION)
+}
+
+/// Internal marker for an explicit `VARIADIC` array argument to a scalar function.
+pub const VARIADIC_ARRAY_ARGUMENT_FUNCTION: &str = "__cassie_variadic_array_argument";
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AggregateQuantifier {
+    #[default]
+    Default,
+    All,
+    Distinct,
+}
+
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    value == &T::default()
+}
+
+impl<A> FunctionCall<A> {
+    #[must_use]
+    pub fn has_modifiers(&self) -> bool {
+        self.quantifier != AggregateQuantifier::Default
+            || self.filter.is_some()
+            || !self.order_by.is_empty()
+    }
+
+    #[must_use]
+    pub fn is_distinct(&self) -> bool {
+        self.quantifier == AggregateQuantifier::Distinct
+    }
+
+    pub fn expressions(&self) -> impl Iterator<Item = &Expr<A>> {
+        self.args
+            .iter()
+            .chain(self.filter.as_deref())
+            .chain(self.order_by.iter().map(|order| &order.expr))
+    }
+
+    pub fn expressions_mut(&mut self) -> impl Iterator<Item = &mut Expr<A>> {
+        self.args
+            .iter_mut()
+            .chain(self.filter.as_deref_mut())
+            .chain(self.order_by.iter_mut().map(|order| &mut order.expr))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct WindowFunctionCall<A = ()> {
+    pub name: String,
+    pub args: Vec<Expr<A>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Expr<A>>>,
+    pub partition_by: Vec<Expr<A>>,
+    pub order_by: Vec<OrderExpr<A>>,
+    pub frame: Option<WindowFrame>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowFrame {
+    pub unit: WindowFrameUnit,
+    pub start: WindowFrameBound,
+    pub end: WindowFrameBound,
+    #[serde(default)]
+    pub exclusion: WindowFrameExclusion,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameExclusion {
+    #[default]
+    NoOthers,
+    CurrentRow,
+    Group,
+    Ties,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameUnit {
+    Rows,
+    Range,
+    Groups,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameBound {
+    UnboundedPreceding,
+    Preceding(u64),
+    CurrentRow,
+    Following(u64),
+    UnboundedFollowing,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub struct OrderExpr<A = ()> {
+    pub expr: Expr<A>,
+    pub direction: SortDirection,
+    pub nulls: Option<NullsOrder>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NullsOrder {
+    First,
+    Last,
+}
+
+/// Requested cast identity when a legacy carrier is shared by SQL families.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CastIdentity {
+    #[default]
+    Scalar,
+    /// NUMERIC/DECIMAL has no qualified exact carrier in the current runtime.
+    Numeric,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum Expr<A = ()> {
+    Column(String),
+    Param(usize),
+    StringLiteral(String),
+    NumberLiteral(f64),
+    IntegerLiteral(i64),
+    /// Exact normalized decimal integer outside the existing signed carrier.
+    /// Materializes only through an explicitly supported primitive cast.
+    NumericLiteral(String),
+    BoolLiteral(bool),
+    Null,
+    Case {
+        operand: Option<Box<Expr<A>>>,
+        branches: Vec<(Expr<A>, Expr<A>)>,
+        else_expr: Option<Box<Expr<A>>>,
+    },
+    Binary {
+        left: Box<Expr<A>>,
+        op: BinaryOp,
+        right: Box<Expr<A>>,
+    },
+    TruthTest {
+        expr: Box<Expr<A>>,
+        truth: TruthValue,
+        negated: bool,
+    },
+    IsNull {
+        expr: Box<Expr<A>>,
+        negated: bool,
+    },
+    InList {
+        expr: Box<Expr<A>>,
+        values: Vec<Expr<A>>,
+        negated: bool,
+    },
+    Like {
+        expr: Box<Expr<A>>,
+        pattern: Box<Expr<A>>,
+        escape: Box<Expr<A>>,
+        /// Match literal pattern characters using Unicode simple lowercase mappings.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        case_insensitive: bool,
+    },
+    Between {
+        expr: Box<Expr<A>>,
+        low: Box<Expr<A>>,
+        high: Box<Expr<A>>,
+        negated: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        symmetric: bool,
+    },
+    Not {
+        expr: Box<Expr<A>>,
+    },
+    Cast {
+        expr: Box<Expr<A>>,
+        data_type: DataType,
+        /// Bound source identity required by the selected conversion.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source_type: Option<DataType>,
+        #[serde(default)]
+        identity: CastIdentity,
+    },
+    /// Explicit built-in collation applied to an expression without changing its value carrier.
+    Collate {
+        expr: Box<Expr<A>>,
+        collation: String,
+    },
+    ArraySubscript {
+        array: Box<Expr<A>>,
+        subscripts: Vec<ArraySubscript<A>>,
+    },
+    /// Numeric prefix operator, resolved against its operand during binding.
+    UnaryNumeric {
+        expr: Box<Expr<A>>,
+        op: UnaryNumericOp,
+    },
+    /// Integer negation applied after its operand's casts.
+    IntegerNegate {
+        expr: Box<Expr<A>>,
+        width: cassie_core::types::IntegerWidth,
+    },
+    /// A predicate comparing corresponding row-constructor fields.
+    RowCompare(Box<super::RowComparison<A>>),
+    Exists(Box<ParsedStatement<A>>),
+    /// A scalar, array, row or quantified (`IN`/`ANY`/`ALL`) subquery.
+    Subquery(Box<super::SubqueryExpr<A>>),
+    Function(Box<FunctionCall<A>>),
+}
+
+impl<A> Expr<A> {
+    /// PostgreSQL's implicit name for an expression select-list item.
+    #[must_use]
+    pub fn implicit_output_name(&self) -> String {
+        match self {
+            Self::Column(name) => crate::column_identifier::ColumnIdentifierPath::parse(name)
+                .map_or_else(|_| name.clone(), |column| column.implicit_output_label()),
+            Self::Function(function) => function.name.clone(),
+            Self::Cast {
+                expr, data_type, ..
+            } => match expr.as_ref() {
+                Self::Column(_) | Self::Function(_) => expr.implicit_output_name(),
+                _ => Self::cast_output_name(data_type),
+            },
+            Self::Collate { expr, .. } | Self::ArraySubscript { array: expr, .. } => {
+                expr.implicit_output_name()
+            }
+            Self::Case { .. } => "case".to_owned(),
+            Self::Exists(_) => "exists".to_owned(),
+            _ => "?column?".to_owned(),
+        }
+    }
+
+    /// Returns whether this node runs a subquery (`EXISTS` or any sublink).
+    #[must_use]
+    pub const fn is_subquery_node(&self) -> bool {
+        matches!(self, Self::Exists(_) | Self::Subquery(_))
+    }
+
+    /// Returns whether this expression or a descendant runs a subquery.
+    #[must_use]
+    pub fn contains_subquery(&self) -> bool {
+        self.any_descendant_or_self(&mut Self::is_subquery_node)
+    }
+
+    /// The statement a subquery node runs.
+    #[must_use]
+    pub fn subquery_statement(&self) -> Option<&ParsedStatement<A>> {
+        match self {
+            Self::Exists(statement) => Some(statement),
+            Self::Subquery(subquery) => Some(&subquery.query),
+            _ => None,
+        }
+    }
+
+    /// The mutable statement a subquery node runs.
+    pub fn subquery_statement_mut(&mut self) -> Option<&mut ParsedStatement<A>> {
+        match self {
+            Self::Exists(statement) => Some(statement),
+            Self::Subquery(subquery) => Some(&mut subquery.query),
+            _ => None,
+        }
+    }
+
+    fn cast_output_name(data_type: &DataType) -> String {
+        match data_type {
+            DataType::SmallInt => "int2".to_owned(),
+            DataType::Int => "int4".to_owned(),
+            DataType::BigInt => "int8".to_owned(),
+            DataType::Float => "float8".to_owned(),
+            DataType::Boolean => "bool".to_owned(),
+            DataType::Char { .. } => "bpchar".to_owned(),
+            DataType::Varchar { .. } => "varchar".to_owned(),
+            DataType::Vector(_) => "vector".to_owned(),
+            DataType::Array(element) => Self::cast_output_name(element),
+            DataType::Domain(domain) => catalog_type_name(&domain.name),
+            DataType::Enum(kind) => catalog_type_name(&kind.name),
+            DataType::Composite(kind) => catalog_type_name(&kind.name),
+            DataType::ObjectId(kind) => kind.name().to_owned(),
+            DataType::Extended(kind) => kind.typname().to_owned(),
+            _ => data_type.type_name(),
+        }
+    }
+}
+
+fn catalog_type_name(name: &str) -> String {
+    name.rsplit('.').next().unwrap_or(name).to_owned()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BinaryOp {
+    Eq,
+    NotEq,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+    And,
+    Or,
+    /// Strict selected text concatenation.
+    Concat,
+    /// Strict BYTEA concatenation selected before its shared string carrier is evaluated.
+    ByteaConcat,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Bitwise {
+        operation: cassie_core::types::IntegerOperation,
+    },
+    Modulo,
+    Power,
+    /// PostgreSQL JSONB top-level key or string-array-member existence (`?`).
+    JsonbKeyExists,
+    /// PostgreSQL JSONB any-key text-array existence (`?|`).
+    JsonbKeyExistsAny,
+    /// PostgreSQL JSONB all-key text-array existence (`?&`).
+    JsonbKeyExistsAll,
+    /// SQL/JSON path existence operator.
+    JsonPathExists,
+    /// SQL/JSON path predicate-match operator.
+    JsonPathMatch,
+    /// PostgreSQL JSONB nested-path deletion (`#-`).
+    JsonbDeletePath,
+    /// JSON/JSONB field, array-element, or nested-path extraction.
+    JsonExtract {
+        path: bool,
+        as_text: bool,
+        #[serde(default)]
+        jsonb: bool,
+    },
+    /// Native JSONB comparison, distinct from the established JSON carrier.
+    JsonbCompare {
+        comparison: super::RowComparisonOp,
+    },
+    /// A selected builtin integer operator, retaining its operand/result domain.
+    Integer {
+        operation: cassie_core::types::IntegerOperation,
+        width: cassie_core::types::IntegerWidth,
+    },
+    Like,
+    PgvectorCosine,
+    PgvectorL2,
+    PgvectorDot,
+    /// A family operator with no scalar meaning (`<<=`, `>>=`, `&&`).
+    Typed {
+        operator: cassie_core::types::extended::TypedOperator,
+    },
+    /// `left op ANY|SOME|ALL (array)`: `comparison` applied to every element.
+    Quantified {
+        comparison: Box<BinaryOp>,
+        all: bool,
+    },
+}
+
+impl BinaryOp {
+    /// The family operator this operator names, if it has one.
+    #[must_use]
+    pub const fn typed_operator(&self) -> Option<cassie_core::types::extended::TypedOperator> {
+        use cassie_core::types::extended::TypedOperator;
+        use cassie_core::types::IntegerOperation;
+        let operation = match self {
+            Self::Typed { operator } => return Some(*operator),
+            Self::Add => return Some(TypedOperator::Add),
+            Self::Sub => return Some(TypedOperator::Sub),
+            Self::Concat | Self::ByteaConcat => return Some(TypedOperator::Concat),
+            Self::Bitwise { operation } | Self::Integer { operation, .. } => *operation,
+            _ => return None,
+        };
+        match operation {
+            IntegerOperation::Add => Some(TypedOperator::Add),
+            IntegerOperation::Sub => Some(TypedOperator::Sub),
+            IntegerOperation::And => Some(TypedOperator::And),
+            IntegerOperation::Or => Some(TypedOperator::Or),
+            IntegerOperation::Xor => Some(TypedOperator::Xor),
+            IntegerOperation::Shl => Some(TypedOperator::ShiftLeft),
+            IntegerOperation::Shr => Some(TypedOperator::ShiftRight),
+            IntegerOperation::Mul | IntegerOperation::Div | IntegerOperation::Rem => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bm25Params {
+    pub k1: f64,
+    pub b: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnaryNumericOp {
+    Complement,
+    Absolute,
+    SquareRoot,
+    CubeRoot,
+    Plus,
+    Minus,
+}

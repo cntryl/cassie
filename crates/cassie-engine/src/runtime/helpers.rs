@@ -1,0 +1,384 @@
+use super::{
+    io, observation_is_outlier, recompute_feedback_confidence, stable_fingerprint, CassieError,
+    Duration, Hash, Hasher, ParameterShape, PlanCacheKey, RuntimeFeedbackKey,
+    RuntimeFeedbackObservation, RuntimeFeedbackRecord, RuntimeFeedbackState, Value, VecDeque,
+    Write,
+};
+
+/// Hashes parameter values without materializing JSON serialization buffers.
+///
+/// # Panics
+///
+/// Panics if a JSON value cannot serialize into the infallible hashing sink.
+#[must_use]
+pub fn hash_params(params: &[Value]) -> u64 {
+    fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
+        match value {
+            Value::Null => 0u8.hash(hasher),
+            Value::Bool(v) => {
+                1u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Int64(v) => {
+                2u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Float64(v) => {
+                3u8.hash(hasher);
+                v.to_bits().hash(hasher);
+            }
+            Value::String(v) => {
+                4u8.hash(hasher);
+                v.hash(hasher);
+            }
+            Value::Vector(v) => {
+                5u8.hash(hasher);
+                v.values.len().hash(hasher);
+                for value in &v.values {
+                    value.to_bits().hash(hasher);
+                }
+            }
+            Value::Array(array) => {
+                8u8.hash(hasher);
+                array.dimensions().len().hash(hasher);
+                for dimension in array.dimensions() {
+                    dimension.length.hash(hasher);
+                    dimension.lower_bound.hash(hasher);
+                }
+                for value in array.elements() {
+                    hash_value(hasher, value);
+                }
+            }
+            Value::Json(v) => {
+                6u8.hash(hasher);
+                serde_json::to_writer(JsonHashWriter(hasher), v)
+                    .expect("JSON values serialize into the parameter hasher");
+                // str::hash appends this delimiter after its UTF-8 bytes.
+                hasher.write_u8(0xff);
+            }
+            Value::Typed(v) => {
+                7u8.hash(hasher);
+                v.key().hash(hasher);
+            }
+        }
+    }
+    let mut hasher = std::hash::DefaultHasher::new();
+    for param in params {
+        hash_value(&mut hasher, param);
+    }
+    hasher.finish()
+}
+
+struct JsonHashWriter<'a>(&'a mut std::hash::DefaultHasher);
+
+impl Write for JsonHashWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.write(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "helpers/json_hash_tests.rs"]
+mod json_hash_tests;
+
+pub fn parameter_shape(params: &[Value]) -> Vec<ParameterShape> {
+    params.iter().map(parameter_shape_for_value).collect()
+}
+
+#[must_use]
+pub fn sql_fingerprint(statement: &crate::sql::ast::ParsedStatement) -> u64 {
+    stable_fingerprint(&statement.statement)
+}
+
+#[must_use]
+pub fn error_class(error: &CassieError) -> &'static str {
+    match error {
+        CassieError::CollectionNotFound(_) => "collection_not_found",
+        CassieError::NotNullViolation { .. } => "not_null_violation",
+        CassieError::UniqueViolation { .. } => "unique_violation",
+        CassieError::Diagnostic(error) if error.sql_state == "23505" => "unique_violation",
+        CassieError::CheckViolation { .. } => "check_violation",
+        CassieError::ForeignKeyViolation { .. } => "foreign_key_violation",
+        CassieError::ArrayInput(_) => "array_input",
+        CassieError::NullArrayElement => "null_array_element",
+        CassieError::CardinalityViolation(_) => "cardinality_violation",
+        CassieError::Parse(_) => "parse",
+        CassieError::InvalidQuery(_) => "invalid_query",
+        CassieError::UndefinedColumn(_) => "undefined_column",
+        CassieError::DeferredCorrelatedResolution { .. } => "deferred_correlated_resolution",
+        CassieError::AmbiguousColumn(_) => "ambiguous_column",
+        CassieError::Planner(_) => "planner",
+        CassieError::Execution(_)
+        | CassieError::FloatInput(_)
+        | CassieError::BooleanInput(_)
+        | CassieError::IntegerBytea(_)
+        | CassieError::SizeInput(_)
+        | CassieError::AmbiguousFunction(_)
+        | CassieError::ByteaIndex { .. }
+        | CassieError::ByteaInput(_)
+        | CassieError::ObjectIdentifier(_)
+        | CassieError::TypeInput(_)
+        | CassieError::OwnedNumericLiteral(_)
+        | CassieError::Sequence(_)
+        | CassieError::Diagnostic(_)
+        | CassieError::SessionObject(_) => "execution",
+        CassieError::Transaction { .. } => "transaction",
+        CassieError::DeadlineExceeded => "deadline_exceeded",
+        CassieError::QueryCanceled => "query_canceled",
+        CassieError::ResourceLimit(_) => "resource_limit",
+        CassieError::Configuration(_) => "configuration",
+        CassieError::InvalidVector(_) => "invalid_vector",
+        CassieError::InvalidEmbedding(_) => "invalid_embedding",
+        CassieError::InvalidParameterValue(_) => "invalid_parameter_value",
+        CassieError::EmbeddingUnavailable(_) => "embedding_unavailable",
+        CassieError::Unauthorized => "unauthorized",
+        CassieError::AuthenticationRateLimited => "authentication_rate_limited",
+        CassieError::InsufficientPrivilege => "insufficient_privilege",
+        CassieError::CatalogObjectNotFound { .. } => "catalog_object_not_found",
+        CassieError::CatalogObjectAlreadyExists { .. } => "catalog_object_already_exists",
+        CassieError::AmbiguousRelation(_) => "ambiguous_relation",
+        CassieError::NotFound(_) => "not_found",
+        CassieError::Unsupported(_) => "unsupported",
+        CassieError::Storage(_) => "storage",
+        CassieError::StorageBootstrap(_) => "storage_bootstrap",
+        CassieError::StorageMissingFamily(_) => "storage_missing_family",
+        CassieError::StorageRetryable(_) => "storage_retryable",
+    }
+}
+
+pub(super) fn parameter_shape_for_value(value: &Value) -> ParameterShape {
+    match value {
+        Value::Null => ParameterShape::Null,
+        Value::Bool(_) => ParameterShape::Bool,
+        Value::Int64(_) => ParameterShape::Int64,
+        Value::Float64(_) => ParameterShape::Float64,
+        Value::String(_) | Value::Typed(_) => ParameterShape::String,
+        Value::Vector(vector) => ParameterShape::Vector(vector.values.len()),
+        Value::Json(_) => ParameterShape::Json,
+        Value::Array(_) => ParameterShape::Array,
+    }
+}
+
+pub(super) fn status_class(status: u16) -> String {
+    let class = status / 100;
+    format!("{class}xx")
+}
+
+pub(super) fn duration_ms(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
+pub(super) fn adjust_signed(value: &mut u64, delta: isize) {
+    if delta.is_negative() {
+        *value = value.saturating_sub(u64::try_from(delta.unsigned_abs()).unwrap_or(u64::MAX));
+    } else {
+        *value = value.saturating_add(u64::try_from(delta).unwrap_or(u64::MAX));
+    }
+}
+
+pub(super) fn current_time_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| {
+            u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+        })
+}
+
+pub(super) fn touch(order: &mut VecDeque<PlanCacheKey>, key: &PlanCacheKey) {
+    if let Some(position) = order.iter().position(|entry| entry == key) {
+        order.remove(position);
+    }
+    order.push_back(key.clone());
+}
+
+pub(super) fn touch_feedback(order: &mut VecDeque<RuntimeFeedbackKey>, key: &RuntimeFeedbackKey) {
+    if let Some(position) = order.iter().position(|entry| entry == key) {
+        order.remove(position);
+    }
+    order.push_back(key.clone());
+}
+
+pub(super) fn apply_feedback_observation(
+    record: &mut RuntimeFeedbackRecord,
+    observation: &RuntimeFeedbackObservation,
+    now_ms: u64,
+) {
+    record.executions = record.executions.saturating_add(1);
+    record.rows_in_total = record.rows_in_total.saturating_add(observation.rows_in);
+    record.rows_out_total = record.rows_out_total.saturating_add(observation.rows_out);
+    record.elapsed_ms_total = record
+        .elapsed_ms_total
+        .saturating_add(observation.elapsed_ms);
+    record.storage_reads_total = record
+        .storage_reads_total
+        .saturating_add(observation.storage_reads);
+    record.storage_writes_total = record
+        .storage_writes_total
+        .saturating_add(observation.storage_writes);
+    record.temp_writes_total = record
+        .temp_writes_total
+        .saturating_add(observation.temp_writes);
+    record.candidate_count_total = record
+        .candidate_count_total
+        .saturating_add(observation.candidate_count);
+    record.result_count_total = record
+        .result_count_total
+        .saturating_add(observation.result_count);
+    if let Some(error_class) = observation.error_class.as_ref() {
+        record.errors_total = record.errors_total.saturating_add(1);
+        record.last_error_class = Some(error_class.clone());
+    }
+    if observation_is_outlier(record, observation) {
+        record.outlier_samples = record.outlier_samples.saturating_add(1);
+    } else {
+        record.stable_samples = record.stable_samples.saturating_add(1);
+        record.stable_rows_in_total = record
+            .stable_rows_in_total
+            .saturating_add(observation.rows_in);
+        record.stable_rows_out_total = record
+            .stable_rows_out_total
+            .saturating_add(observation.rows_out);
+        record.stable_elapsed_ms_total = record
+            .stable_elapsed_ms_total
+            .saturating_add(observation.elapsed_ms);
+        record.stable_storage_reads_total = record
+            .stable_storage_reads_total
+            .saturating_add(observation.storage_reads);
+        record.stable_storage_writes_total = record
+            .stable_storage_writes_total
+            .saturating_add(observation.storage_writes);
+        record.stable_temp_writes_total = record
+            .stable_temp_writes_total
+            .saturating_add(observation.temp_writes);
+        record.stable_candidate_count_total = record
+            .stable_candidate_count_total
+            .saturating_add(observation.candidate_count);
+        record.stable_result_count_total = record
+            .stable_result_count_total
+            .saturating_add(observation.result_count);
+        if observation.spilled {
+            record.spill_samples = record.spill_samples.saturating_add(1);
+        }
+        if observation.memory_pressure {
+            record.memory_pressure_samples = record.memory_pressure_samples.saturating_add(1);
+        }
+    }
+    if record.first_seen_ms == 0 {
+        record.first_seen_ms = now_ms;
+    }
+    record.last_seen_ms = now_ms;
+    recompute_feedback_confidence(record);
+}
+
+pub(super) fn prune_feedback_by_age(
+    feedback: &mut RuntimeFeedbackState,
+    now_ms: u64,
+    ttl_seconds: u64,
+) -> u64 {
+    if ttl_seconds == 0 {
+        return 0;
+    }
+
+    let ttl_ms = ttl_seconds.saturating_mul(1_000);
+    let expired = feedback
+        .entries
+        .iter()
+        .filter(|(_, record)| now_ms.saturating_sub(record.last_seen_ms) > ttl_ms)
+        .map(|(key, _)| key.clone())
+        .collect::<Vec<_>>();
+
+    for key in &expired {
+        feedback.entries.remove(key);
+        if let Some(position) = feedback.order.iter().position(|entry| entry == key) {
+            feedback.order.remove(position);
+        }
+        if !feedback.pending_deletes.contains(key) {
+            feedback.pending_deletes.push(key.clone());
+        }
+    }
+
+    u64::try_from(expired.len()).unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planner::logical::LogicalPlan;
+    use crate::planner::physical::{Operator, PhysicalPlan};
+    use crate::runtime::{ExecutionMode, RuntimeState};
+    use crate::sql::ast::QuerySource;
+    use std::sync::Arc;
+
+    fn sample_plan() -> PhysicalPlan {
+        PhysicalPlan {
+            collection: "bench_documents".to_string(),
+            operators: vec![Operator::Scan, Operator::Filter, Operator::Project],
+            estimates: crate::planner::physical::PlanEstimates::default(),
+            operator_feedback: crate::planner::physical::OperatorFeedbackPlanDiagnostics::default(),
+            adaptive_plan: crate::planner::physical::AdaptivePlanDiagnostics::default(),
+            read: crate::planner::physical::PhysicalReadPlan {
+                access_path: crate::planner::physical::ReadAccessPath::CollectionScan,
+                access_path_reason: "sample-plan".to_string(),
+                ..crate::planner::physical::PhysicalReadPlan::default()
+            },
+            top_k: crate::planner::physical::PhysicalTopKPlan::default(),
+            join: crate::planner::physical::PhysicalJoinPlan::default(),
+            aggregate: crate::planner::physical::PhysicalAggregatePlan::default(),
+            projection: crate::planner::physical::PhysicalProjectionPlan {
+                shape: crate::planner::physical::ProjectionShape::Collection,
+            },
+            collection_schema: None,
+            logical: LogicalPlan {
+                command: None,
+                source: QuerySource::Collection(
+                    crate::sql::IdentifierPath::parse("bench_documents")
+                        .expect("benchmark relation path"),
+                ),
+                collection: "bench_documents".to_string(),
+                ctes: Vec::new(),
+                distinct: false,
+                distinct_on: Vec::new(),
+                projection: Vec::new(),
+                filter: None,
+                group_by: Vec::new(),
+                grouping_subtotal: false,
+                having: None,
+                order: Vec::new(),
+                limit: Some(crate::sql::ast::Expr::IntegerLiteral(20)),
+                offset: None,
+                set: None,
+            },
+        }
+    }
+
+    #[test]
+    fn should_reuse_cached_plan_arc_on_lookup() {
+        // Arrange
+        let runtime = RuntimeState::new(crate::config::CassieRuntimeLimits::default());
+        let key = PlanCacheKey {
+            sql_fingerprint: 42,
+            schema_epoch: 1,
+            data_epoch: 2,
+            index_feedback_epoch: 3,
+            cost_model_version: 1,
+            adaptive_config_hash: 0,
+            parameter_shape: vec![ParameterShape::Int64],
+            mode: ExecutionMode::SimpleQuery,
+            database: Some("postgres".to_string()),
+            search_path: vec!["public".to_string()],
+        };
+        runtime.plan_cache_store(key.clone(), Arc::new(sample_plan()), false);
+
+        // Act
+        let first = runtime.plan_cache_lookup(&key).expect("cached plan");
+        let second = runtime.plan_cache_lookup(&key).expect("cached plan");
+
+        // Assert
+        assert!(Arc::ptr_eq(&first.plan, &second.plan));
+    }
+}

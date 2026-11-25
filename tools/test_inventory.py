@@ -22,6 +22,7 @@ import tree_sitter_rust
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TESTS = ROOT / "crates" / "cassie-e2e" / "tests"
 OUTPUT = ROOT / "docs/testing"
 RUST = Parser(Language(tree_sitter_rust.language()))
 SPECIAL_TARGETS = {
@@ -31,7 +32,17 @@ SPECIAL_TARGETS = {
 
 
 def relative(path: Path) -> str:
-    return path.resolve().relative_to(ROOT).as_posix()
+    resolved = path.resolve()
+    if resolved.is_relative_to(TESTS):
+        return "tests/" + resolved.relative_to(TESTS).as_posix()
+    return resolved.relative_to(ROOT).as_posix()
+
+
+def test_path(relative_path: str) -> Path:
+    """Resolve inventory paths, which retain the logical tests/ prefix."""
+    if relative_path.startswith("tests/"):
+        return TESTS / relative_path.removeprefix("tests/")
+    return ROOT / relative_path
 
 
 def text_of(node, data: bytes) -> str:
@@ -419,7 +430,7 @@ def cargo_test_roots(metadata):
         if target["test"] and (
             "test" in target["kind"] or (
                 "lib" in target["kind"]
-                and Path(target["src_path"]).is_relative_to(ROOT / "tests")
+                and Path(target["src_path"]).is_relative_to(TESTS)
             )
         )
     }
@@ -428,7 +439,7 @@ def cargo_test_roots(metadata):
 def gather():
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
     targets = cargo_test_roots(metadata)
-    files = sorted(p for p in (ROOT / "tests").rglob("*") if is_test_inventory_file(p))
+    files = sorted(p for p in TESTS.rglob("*") if is_test_inventory_file(p))
     parsed = {p.resolve(): rust_declarations(p) for p in files if p.suffix == ".rs"}
     registrations = defaultdict(list)
     unresolved = []
@@ -630,7 +641,7 @@ def render(data):
         lines += ["| Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |", "| --- | --- | --- | --- | --- | ---: | --- |"]
         for t in tests:
             label = "::".join(t["inline_modules"] + [t["name"]])
-            link = f"../../../{t['current_file']}#L{t['line']}"
+            link = f"../../../crates/cassie-e2e/{t['current_file']}#L{t['line']}"
             lines.append(f"| `{label}` | [{t['current_file']}:{t['line']}]({link}) | `{t['placement']['file']}` | {t['registration']} | {'yes' if t['ignored'] else 'no'} | {len(t['instances'])} | {t['placement']['review']} |")
         outputs[OUTPUT / "inventory" / f"{suite}.md"] = "\n".join(lines) + "\n"
     lines = ["# Test file inventory", "", "Every file under `tests/`, including support, fixtures, Python harness tests and oracle data.", "", "| Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |", "| --- | --- | ---: | ---: | --- | --- | --- |"]
@@ -654,8 +665,8 @@ def render_planned_tests(planned):
     ]
     for test in planned:
         actual = test.get("actual_test", test["name"])
-        if (ROOT / test["file"]).is_file():
-            assertion = f"[`{actual}`](../../{test['file']})"
+        if test_path(test["file"]).is_file():
+            assertion = f"[`{actual}`](../../crates/cassie-e2e/{test['file']})"
         else:
             issue_link = f"https://github.com/cntryl/cassie/issues/{test['issue']}"
             assertion = (

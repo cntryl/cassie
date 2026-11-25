@@ -1,0 +1,921 @@
+mod bound_read;
+#[doc(hidden)]
+pub use bound_read::{BoundReadScope, BoundReadView};
+mod catalog_overlay;
+mod copy_owner;
+mod projection_write;
+mod publication_fence;
+pub(crate) use copy_owner::CopyBindingContext;
+#[doc(hidden)]
+pub use copy_owner::CopyCommandOwner;
+use projection_write::ProjectionWriteMode;
+pub(crate) use projection_write::{is_projection_write_mode, ProjectionCommitPolicy};
+pub(crate) use publication_fence::PublicationFenceScope;
+mod command_catalog;
+pub(crate) use command_catalog::CommandCatalogScope;
+mod failure_authority;
+mod sequence_effect;
+#[cfg(test)]
+mod sequence_effect_tests;
+#[cfg(test)]
+mod set_after_local_tests;
+#[cfg(test)]
+mod shared_setting_tests;
+#[cfg(test)]
+mod truncate_owner_tests;
+mod wire_failure;
+#[cfg(test)]
+mod wire_failure_tests;
+#[doc(hidden)]
+pub use failure_authority::{FailureAuthority, FailureAuthorityIdentity};
+mod savepoints;
+mod staged_discard;
+mod transaction_snapshot;
+use transaction_snapshot::TransactionReadSnapshot;
+
+mod statement_batch;
+mod statement_read;
+mod statement_text;
+pub(crate) use statement_read::{
+    PrivateOutputs, SessionReadScope, StatementDataRead, StatementReadScope,
+};
+
+mod owned_setting;
+#[path = "session/random_state.rs"]
+mod random_state;
+pub(crate) use random_state::SessionRandom;
+mod setting_control;
+mod setting_writes;
+mod sql_objects;
+pub(crate) use sql_objects::{
+    CursorOptions, SessionCursor, SessionObjects, SessionPrepared, MAX_CURSORS_PER_SESSION,
+    MAX_PREPARED_PER_SESSION,
+};
+mod temporal_context;
+pub(crate) use temporal_context::setting_zone;
+mod transaction_control;
+#[path = "session/transaction_origin.rs"]
+mod transaction_origin;
+
+use super::session_settings::SessionSettings;
+use super::{
+    normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
+};
+use crate::catalog::{Catalog, DEFAULT_SCHEMA};
+use crate::midge::adapter::StorageOverlay;
+use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CassieSession {
+    #[serde(skip)]
+    statement_text: Option<Arc<statement_text::StatementText>>,
+    /// Execution-local lineage; independent commands install their own owner.
+    #[serde(skip)]
+    operation_failure_authority: Option<FailureAuthority>,
+    pub user: String,
+    pub database: Option<String>,
+    #[serde(skip)]
+    access: SessionAccess,
+    #[serde(skip)]
+    pub(super) schema_context: Arc<super::session_schema::OwnedSessionSchemaContext>,
+    #[serde(skip)]
+    search_path: Arc<Mutex<Vec<String>>>,
+    #[serde(skip)]
+    settings: Arc<Mutex<SessionSettings>>,
+    #[serde(skip)]
+    backend_pid: Arc<AtomicI32>,
+    #[serde(skip)]
+    transaction: Arc<Mutex<SessionTransactionState>>,
+    /// Serializes staged-storage-plus-catalog publication against readers.
+    #[serde(skip)]
+    publication_fence: publication_fence::PublicationFence,
+    #[serde(skip)]
+    transaction_unique_waits: Arc<Mutex<Option<Arc<super::TransactionUniqueWaits>>>>,
+    #[serde(skip)]
+    defer_unique_wait_duplicate: Arc<AtomicBool>,
+    #[serde(skip)]
+    owns_transaction_lifecycle: bool,
+    #[serde(skip)]
+    procedure_calls: Arc<Mutex<Vec<String>>>,
+    #[serde(skip)]
+    pub(super) sequence_values: Arc<Mutex<super::session_sequences::SessionSequenceValues>>,
+    #[serde(skip)]
+    random: Arc<Mutex<SessionRandom>>,
+    /// SQL and protocol prepared statements and open cursors.
+    #[serde(skip)]
+    session_objects: Arc<Mutex<SessionObjects>>,
+    /// The transaction generation and its `transaction_timestamp()`.
+    #[serde(skip)]
+    transaction_clock: Arc<Mutex<Option<(u64, i64)>>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SessionAccess {
+    TrustedEmbedded,
+    AuthenticatedAdmin,
+    AuthenticatedReadOnly,
+}
+
+#[derive(Debug, Clone)]
+struct SessionTransactionState {
+    status: SessionTransactionStatus,
+    implicit: bool,
+    isolation: Option<TransactionIsolation>,
+    modes: crate::sql::ast::TransactionModes,
+    has_query: bool,
+    generation: u64,
+    rollback_epoch: u64,
+    repeatable_read: Option<Arc<TransactionReadSnapshot>>,
+    unique_owner_id: Uuid,
+    writes: SharedTransactionWrites,
+    conflict_intents: Vec<TransactionConflictIntent>,
+    savepoints: Vec<SessionSavepoint>,
+    catalog_overlay: Option<Catalog>,
+    catalog_base_version: Option<u64>,
+    catalog_views: catalog_overlay::TransactionCatalogViews,
+    storage_overlay: Arc<Mutex<StorageOverlay>>,
+    private_outputs: Option<Arc<PrivateOutputs>>,
+    session_state: Option<SessionStateSnapshot>,
+    /// Settings changed by `SET LOCAL`, restored when the transaction ends.
+    local_settings: Vec<String>,
+    /// The last session-level `SET`/`RESET` result per setting in this
+    /// transaction, which `SET LOCAL` restoration must not undo.
+    session_writes: setting_writes::SessionWrites,
+    /// Declared projection write mode and sticky effect history, shared with
+    /// every statement fork of this transaction.
+    projection_write: Arc<projection_write::ProjectionWriteAuthority>,
+    /// Set while COMMIT owns the transaction: its writes and declared mode are
+    /// frozen, and a statement fork can no longer publish into it (#1279).
+    sealed_for_commit: bool,
+    /// The thread running that COMMIT. Only it may fail the sealed transaction.
+    commit_thread: Option<std::thread::ThreadId>,
+    /// A failure another thread reported while COMMIT owned the transaction.
+    /// It applies only if COMMIT leaves the transaction open (#1290).
+    deferred_failure: DeferredFailure,
+}
+
+/// A failure another thread reported while COMMIT owned the transaction.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum DeferredFailure {
+    #[default]
+    None,
+    Pending,
+}
+
+impl SessionTransactionState {
+    /// Whether this thread may mark the transaction failed. While a COMMIT owns
+    /// the transaction, an error from another thread's statement (for example a
+    /// refused `ROLLBACK`) must not change the outcome the COMMIT will report.
+    fn may_be_failed_by_current_thread(&self) -> bool {
+        !self.sealed_for_commit || self.commit_thread == Some(std::thread::current().id())
+    }
+
+    /// Fails an open transaction, or remembers the failure for the end of the
+    /// COMMIT when another thread owns the transaction.
+    fn fail_or_defer(&mut self) {
+        if self.status != SessionTransactionStatus::InTransaction {
+            return;
+        }
+        if self.may_be_failed_by_current_thread() {
+            self.status = SessionTransactionStatus::Failed;
+        } else {
+            self.deferred_failure = DeferredFailure::Pending;
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SessionStateSnapshot {
+    search_path: Vec<String>,
+    settings: SessionSettings,
+}
+
+#[derive(Debug, Clone)]
+struct SessionSavepoint {
+    name: String,
+    /// Cursors declared after this mark close on rollback to the savepoint.
+    object_mark: u64,
+    modes: crate::sql::ast::TransactionModes,
+    projection_write_mode: ProjectionWriteMode,
+    writes: SharedTransactionWrites,
+    conflict_intents: Vec<TransactionConflictIntent>,
+    catalog_overlay: Option<Catalog>,
+    catalog_base_version: Option<u64>,
+    catalog_views: catalog_overlay::TransactionCatalogViews,
+    storage_overlay: StorageOverlay,
+    private_outputs: Option<Arc<PrivateOutputs>>,
+    session_state: SessionStateSnapshot,
+    unique_keys: BTreeSet<super::UniqueTransactionKey>,
+    row_keys: BTreeSet<super::RowTransactionKey>,
+    session_writes: setting_writes::SessionWrites,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
+pub enum SessionTransactionStatus {
+    Idle,
+    InTransaction,
+    Failed,
+}
+
+const MAX_SAVEPOINTS_PER_TRANSACTION: usize = 128;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum TransactionRowChange {
+    Upsert(serde_json::Value),
+    Delete,
+}
+
+type CollectionChanges = BTreeMap<String, TransactionRowChange>;
+type SharedCollectionChanges = Arc<CollectionChanges>;
+type TransactionWrites = BTreeMap<String, SharedCollectionChanges>;
+type SharedTransactionWrites = Arc<TransactionWrites>;
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct StagedWriteSnapshot {
+    changes: SharedCollectionChanges,
+}
+
+#[derive(Debug)]
+pub(crate) struct StatementMutationBatch {
+    session: CassieSession,
+    base_transaction_active: bool,
+    base_generation: u64,
+    base_rollback_epoch: u64,
+    base_unique_owner_id: uuid::Uuid,
+    base_writes: SharedTransactionWrites,
+    base_conflict_intent_count: usize,
+    base_catalog_overlay: Option<Catalog>,
+    base_catalog_base_version: Option<u64>,
+    base_storage_overlay: StorageOverlay,
+    base_private_outputs: Option<Arc<PrivateOutputs>>,
+}
+
+#[derive(Debug)]
+struct StatementRowMutation {
+    collection: String,
+    id: String,
+    before: Option<TransactionRowChange>,
+    after: Option<TransactionRowChange>,
+}
+
+#[derive(Debug)]
+struct StatementMutationDelta {
+    rows: Vec<StatementRowMutation>,
+    conflict_intents: Vec<TransactionConflictIntent>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TransactionConflictIntent {
+    pub(crate) provisional_id: String,
+    pub(crate) statement: crate::sql::ast::InsertStatement,
+    pub(crate) payload: serde_json::Value,
+    pub(crate) params: Vec<crate::types::Value>,
+    pub(crate) user_functions: std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+    pub(crate) schema: crate::catalog::CollectionSchema,
+}
+
+impl StagedWriteSnapshot {
+    #[must_use]
+    fn matching(writes: &TransactionWrites, collection: &str) -> Self {
+        writes
+            .iter()
+            .find(|(name, _)| crate::catalog::name_matches(name, collection))
+            .map_or_else(Self::default, |(_, changes)| Self {
+                changes: Arc::clone(changes),
+            })
+    }
+
+    #[must_use]
+    pub(crate) fn ordered_changes(&self) -> &CollectionChanges {
+        &self.changes
+    }
+
+    #[must_use]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.changes.is_empty()
+    }
+
+    #[must_use]
+    pub(crate) fn shared_changes(&self) -> Arc<CollectionChanges> {
+        Arc::clone(&self.changes)
+    }
+
+    pub(crate) fn estimated_retained_bytes(&self) -> Result<usize, CassieError> {
+        statement_read::collection_snapshot_bytes(&self.changes)
+    }
+}
+
+fn staged_snapshot_accounting_overflow() -> CassieError {
+    CassieError::ResourceLimit("staged snapshot retained memory accounting overflow".to_owned())
+}
+
+impl CassieSession {
+    #[must_use]
+    pub fn new(user: String, database: Option<String>) -> Self {
+        Self::with_access(user, database, SessionAccess::TrustedEmbedded)
+    }
+
+    pub(crate) fn authenticated(user: String, database: Option<String>, is_admin: bool) -> Self {
+        let access = if is_admin {
+            SessionAccess::AuthenticatedAdmin
+        } else {
+            SessionAccess::AuthenticatedReadOnly
+        };
+        Self::with_access(user, database, access)
+    }
+
+    /// Creates an authenticated session for cross-crate transport fixtures.
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn authenticated_for_test(user: String, database: Option<String>, is_admin: bool) -> Self {
+        Self::authenticated(user, database, is_admin)
+    }
+
+    fn with_access(user: String, database: Option<String>, access: SessionAccess) -> Self {
+        Self {
+            statement_text: None,
+            operation_failure_authority: None,
+            user: normalize_role_name(user),
+            database,
+            access,
+            schema_context: Arc::new(super::session_schema::OwnedSessionSchemaContext::empty()),
+            search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
+            settings: Arc::new(Mutex::new(SessionSettings::default())),
+            backend_pid: Arc::new(AtomicI32::new(0)),
+            sequence_values: Arc::default(),
+            publication_fence: Arc::default(),
+            transaction: Arc::new(Mutex::new(SessionTransactionState {
+                status: SessionTransactionStatus::Idle,
+                implicit: false,
+                isolation: None,
+                modes: crate::sql::ast::TransactionModes::default(),
+                has_query: false,
+                generation: 0,
+                rollback_epoch: 0,
+                repeatable_read: None,
+                unique_owner_id: Uuid::new_v4(),
+                writes: SharedTransactionWrites::default(),
+                conflict_intents: Vec::new(),
+                savepoints: Vec::new(),
+                catalog_overlay: None,
+                catalog_base_version: None,
+                catalog_views: catalog_overlay::TransactionCatalogViews::default(),
+                storage_overlay: Arc::new(Mutex::new(StorageOverlay::default())),
+                private_outputs: None,
+                session_state: None,
+                local_settings: Vec::new(),
+                session_writes: setting_writes::SessionWrites::new(),
+                projection_write: Arc::default(),
+                sealed_for_commit: false,
+                commit_thread: None,
+                deferred_failure: DeferredFailure::None,
+            })),
+            transaction_unique_waits: Arc::default(),
+            defer_unique_wait_duplicate: Arc::new(AtomicBool::new(false)),
+            owns_transaction_lifecycle: true,
+            procedure_calls: Arc::new(Mutex::new(Vec::new())),
+            random: Arc::new(Mutex::new(SessionRandom::default())),
+            session_objects: Arc::default(),
+            transaction_clock: Arc::default(),
+        }
+    }
+
+    pub(crate) fn attach_transaction_unique_waits(
+        &self,
+        waits: Arc<super::TransactionUniqueWaits>,
+    ) {
+        *self.transaction_unique_waits.lock() = Some(waits);
+    }
+
+    pub(crate) fn transaction_unique_waits(&self) -> Option<Arc<super::TransactionUniqueWaits>> {
+        self.transaction_unique_waits.lock().clone()
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn transaction_unique_owner_id(&self) -> Uuid {
+        self.transaction.lock().unique_owner_id
+    }
+
+    pub(crate) fn set_defer_unique_wait_duplicate(&self, defer: bool) {
+        self.defer_unique_wait_duplicate
+            .store(defer, Ordering::Relaxed);
+    }
+
+    pub(crate) fn defers_unique_wait_duplicate(&self) -> bool {
+        self.defer_unique_wait_duplicate.load(Ordering::Relaxed)
+    }
+
+    /// Runs `operation` against this session's `random()` sequence.
+    pub(crate) fn with_random<T>(&self, operation: impl FnOnce(&mut SessionRandom) -> T) -> T {
+        operation(&mut self.random.lock())
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_authenticated_read_only(&self) -> bool {
+        self.access == SessionAccess::AuthenticatedReadOnly
+    }
+
+    pub(crate) fn is_network_authenticated(&self) -> bool {
+        self.access != SessionAccess::TrustedEmbedded
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn transaction_status_snapshot(&self) -> SessionTransactionStatus {
+        self.transaction.lock().status
+    }
+
+    #[must_use]
+    pub fn transaction_status(&self) -> &'static str {
+        match self.transaction_status_snapshot() {
+            SessionTransactionStatus::Idle => "idle",
+            SessionTransactionStatus::InTransaction => "in_transaction",
+            SessionTransactionStatus::Failed => "failed",
+        }
+    }
+
+    #[must_use]
+    pub fn current_database(&self) -> Option<&str> {
+        self.database.as_deref()
+    }
+
+    #[must_use]
+    pub fn current_schema(&self) -> String {
+        self.current_existing_schema()
+            .unwrap_or_else(|| DEFAULT_SCHEMA.to_string())
+    }
+
+    #[must_use]
+    pub fn search_path(&self) -> Vec<String> {
+        let mut path = self.search_path.lock().clone();
+        if path.is_empty() {
+            path.push(DEFAULT_SCHEMA.to_string());
+        }
+        path
+    }
+
+    pub fn set_search_path(&self, path: Vec<String>) {
+        let _ = self.set_search_path_for_operation(path);
+    }
+
+    pub(crate) fn set_search_path_for_operation(
+        &self,
+        path: Vec<String>,
+    ) -> Result<(), CassieError> {
+        self.with_owned_setting_state(|| {
+            self.set_search_path_locked(path);
+            Ok(())
+        })
+    }
+
+    fn set_search_path_locked(&self, path: Vec<String>) {
+        let normalized = if path.is_empty() {
+            vec![DEFAULT_SCHEMA.to_string()]
+        } else {
+            path
+        };
+        *self.search_path.lock() = normalized;
+    }
+
+    fn session_state_snapshot(&self) -> SessionStateSnapshot {
+        SessionStateSnapshot {
+            search_path: self.search_path(),
+            settings: self.settings.lock().clone(),
+        }
+    }
+
+    fn restore_session_state(&self, state: SessionStateSnapshot) {
+        *self.search_path.lock() = state.search_path;
+        *self.settings.lock() = state.settings;
+    }
+
+    /// Returns the normalized value of a supported session setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-parameter error when `name` is not in Cassie's
+    /// `PostgreSQL` compatibility registry.
+    pub fn setting(&self, name: &str) -> Result<String, CassieError> {
+        if name.trim().eq_ignore_ascii_case("search_path") {
+            return Ok(self.search_path().join(", "));
+        }
+        if let Some(value) = self.transaction_setting(name) {
+            return Ok(value.to_string());
+        }
+        self.settings.lock().get(name)
+    }
+
+    pub(crate) fn settings_fingerprint(&self) -> u64 {
+        crate::runtime::stable_fingerprint(&*self.settings.lock())
+    }
+
+    /// Validates and applies a supported session setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-parameter error for unknown settings or values that
+    /// are incompatible with Cassie's fixed `PostgreSQL` compatibility values.
+    pub fn set_setting(&self, name: &str, value: &str) -> Result<String, CassieError> {
+        if name.trim().eq_ignore_ascii_case("transaction_read_only") {
+            return self.set_transaction_read_only(value);
+        }
+        Self::reject_projection_write_mode_change(name)?;
+        self.apply_session_write(&[name], || self.settings.lock().set(name, value))
+    }
+
+    #[doc(hidden)]
+    pub fn set_backend_pid(&self, process_id: i32) {
+        self.backend_pid.store(process_id, Ordering::Relaxed);
+    }
+
+    #[must_use]
+    pub fn backend_pid(&self) -> i32 {
+        self.backend_pid.load(Ordering::Relaxed)
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_transaction_active(&self) -> bool {
+        self.transaction.lock().status == SessionTransactionStatus::InTransaction
+    }
+
+    pub(crate) fn rename_transaction_collections(
+        &self,
+        renames: &[(String, String)],
+    ) -> Result<(), CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return Ok(());
+        }
+
+        for (current, next) in renames {
+            let writes = Arc::make_mut(&mut transaction.writes);
+            if let Some(changes) = writes.remove(current) {
+                let mut merged = changes.as_ref().clone();
+                if let Some(existing) = writes.remove(next) {
+                    for (id, change) in existing.iter() {
+                        merged.entry(id.clone()).or_insert_with(|| change.clone());
+                    }
+                }
+                writes.insert(next.clone(), Arc::new(merged));
+            }
+
+            for intent in &mut transaction.conflict_intents {
+                if crate::catalog::name_matches(&intent.schema.collection, current) {
+                    intent.schema.collection.clone_from(next);
+                    intent.statement.table =
+                        crate::sql::ast::IdentifierPath::parse(next).map_err(CassieError::Parse)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn rename_transaction_column(&self, collection: &str, current: &str, next: &str) {
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
+        if transaction.status != SessionTransactionStatus::InTransaction {
+            return;
+        }
+
+        let current_key = crate::sql::ColumnIdentifierPath::stored_field_key(current);
+        let writes = Arc::make_mut(&mut transaction.writes);
+        for (name, changes) in writes.iter_mut() {
+            if !crate::catalog::name_matches(name, collection) {
+                continue;
+            }
+            for change in Arc::make_mut(changes).values_mut() {
+                if let TransactionRowChange::Upsert(payload) = change {
+                    rename_payload_field(payload, &current_key, next);
+                }
+            }
+        }
+
+        for intent in &mut transaction.conflict_intents {
+            if !crate::catalog::name_matches(&intent.schema.collection, collection) {
+                continue;
+            }
+
+            rename_payload_field(&mut intent.payload, &current_key, next);
+            for field in &mut intent.schema.fields {
+                if crate::sql::ColumnIdentifierPath::stored_field_key(&field.name) == current_key {
+                    next.clone_into(&mut field.name);
+                }
+            }
+            for column in &mut intent.statement.columns {
+                rename_column_reference(column, &current_key, next);
+            }
+            if let Some(conflict) = &mut intent.statement.on_conflict {
+                for field in &mut conflict.target_fields {
+                    rename_column_reference(field, &current_key, next);
+                }
+                for expression in &mut conflict.target_expressions {
+                    rename_expression_column(expression, &current_key, next);
+                }
+                if let Some(predicate) = &mut conflict.target_predicate {
+                    rename_expression_column(predicate, &current_key, next);
+                }
+                if let crate::sql::ast::InsertConflictAction::DoUpdate {
+                    assignments,
+                    filter,
+                } = &mut conflict.action
+                {
+                    for (field, expression) in assignments {
+                        rename_column_reference(field, &current_key, next);
+                        rename_expression_column(expression, &current_key, next);
+                    }
+                    if let Some(filter) = filter {
+                        rename_expression_column(filter, &current_key, next);
+                    }
+                }
+            }
+        }
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_transaction_failed(&self) -> bool {
+        self.transaction.lock().status == SessionTransactionStatus::Failed
+    }
+
+    #[doc(hidden)]
+    pub fn mark_transaction_failed(&self) {
+        if let Some(authority) = self.operation_failure_authority.as_ref() {
+            authority.mark_failed_if_current(self);
+            return;
+        }
+        let mut transaction = self.transaction.lock();
+        transaction.fail_or_defer();
+    }
+
+    pub(crate) fn preflight_transaction_collections(
+        &self,
+        collections: &[String],
+    ) -> Result<(), CassieError> {
+        if collections
+            .iter()
+            .any(|collection| self.collection_is_cross_database(collection))
+        {
+            self.mark_transaction_failed();
+            return Err(CassieError::Unsupported(
+                "cross-database transactions are not supported".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn enter_procedure_call(&self, name: &str) -> Result<(), CassieError> {
+        let mut procedure_calls = self.procedure_calls.lock();
+        let normalized = name.to_ascii_lowercase();
+        if procedure_calls.iter().any(|entry| entry == &normalized) {
+            return Err(CassieError::Execution(format!(
+                "procedure '{name}' is recursively invoked"
+            )));
+        }
+
+        procedure_calls.push(normalized);
+        Ok(())
+    }
+
+    pub(crate) fn leave_procedure_call(&self) {
+        let mut procedure_calls = self.procedure_calls.lock();
+        procedure_calls.pop();
+    }
+
+    pub(crate) fn stage_document_write(
+        &self,
+        collection: &str,
+        id: String,
+        payload: serde_json::Value,
+    ) -> Result<(), CassieError> {
+        self.ensure_transaction_writable()?;
+        self.preflight_transaction_collections(&[collection.to_string()])?;
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        let writes = Arc::make_mut(&mut transaction.writes);
+        Arc::make_mut(writes.entry(collection.to_string()).or_default())
+            .insert(id, TransactionRowChange::Upsert(payload));
+        Ok(())
+    }
+
+    pub(crate) fn stage_document_delete(
+        &self,
+        collection: &str,
+        id: String,
+    ) -> Result<(), CassieError> {
+        self.ensure_transaction_writable()?;
+        self.preflight_transaction_collections(&[collection.to_string()])?;
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        let writes = Arc::make_mut(&mut transaction.writes);
+        Arc::make_mut(writes.entry(collection.to_string()).or_default())
+            .insert(id, TransactionRowChange::Delete);
+        Ok(())
+    }
+
+    pub(crate) fn document_change(
+        &self,
+        collection: &str,
+        id: &str,
+    ) -> Option<TransactionRowChange> {
+        self.transaction
+            .lock()
+            .writes
+            .get(collection)
+            .and_then(|collection_writes| collection_writes.get(id).cloned())
+    }
+
+    pub(crate) fn collection_changes(
+        &self,
+        collection: &str,
+    ) -> BTreeMap<String, TransactionRowChange> {
+        self.transaction
+            .lock()
+            .writes
+            .get(collection)
+            .map_or_default(|changes| changes.as_ref().clone())
+    }
+
+    pub(crate) fn collection_changes_matching(
+        &self,
+        collection: &str,
+    ) -> BTreeMap<String, TransactionRowChange> {
+        self.staged_write_snapshot(collection)
+            .ordered_changes()
+            .clone()
+    }
+
+    #[must_use]
+    pub(crate) fn staged_write_snapshot(&self, collection: &str) -> StagedWriteSnapshot {
+        if let Some(snapshot) = statement_read::captured_snapshot(self, collection) {
+            return snapshot;
+        }
+        StagedWriteSnapshot::matching(&self.transaction.lock().writes, collection)
+    }
+
+    #[must_use]
+    pub(crate) fn has_collection_changes(&self, collection: &str) -> bool {
+        if let Some(changed) = self.captured_has_collection_changes(collection) {
+            return changed;
+        }
+        self.transaction
+            .lock()
+            .writes
+            .iter()
+            .any(|(name, changes)| {
+                !changes.is_empty() && crate::catalog::name_matches(name, collection)
+            })
+    }
+
+    pub(crate) fn transaction_write_collections(&self) -> Vec<String> {
+        self.transaction.lock().writes.keys().cloned().collect()
+    }
+
+    pub(crate) fn transaction_writes(
+        &self,
+    ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
+        self.transaction
+            .lock()
+            .writes
+            .iter()
+            .map(|(collection, changes)| (collection.clone(), changes.as_ref().clone()))
+            .collect()
+    }
+
+    pub(crate) fn apply_literal_default_to_staged_rows(
+        &self,
+        collection: &str,
+        field: &str,
+        default_value: &serde_json::Value,
+    ) -> Result<(), CassieError> {
+        if !self.is_transaction_active() || default_value.is_null() {
+            return Ok(());
+        }
+
+        for (staged_collection, changes) in self.transaction_writes() {
+            if !crate::catalog::name_matches(&staged_collection, collection) {
+                continue;
+            }
+            for (id, change) in changes {
+                let TransactionRowChange::Upsert(mut payload) = change else {
+                    continue;
+                };
+                let Some(object) = payload.as_object_mut() else {
+                    return Err(CassieError::Execution(format!(
+                        "staged row '{id}' in '{staged_collection}' is not a JSON object"
+                    )));
+                };
+                if object.contains_key(field) {
+                    continue;
+                }
+                object.insert(field.to_owned(), default_value.clone());
+                self.stage_document_write(&staged_collection, id, payload)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn stage_conflict_intent(&self, intent: TransactionConflictIntent) {
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.push(intent);
+        }
+    }
+
+    pub(crate) fn transaction_conflict_intents(&self) -> Vec<TransactionConflictIntent> {
+        self.transaction.lock().conflict_intents.clone()
+    }
+
+    pub(crate) fn clear_conflict_intents(&self) {
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_ok() {
+            transaction.conflict_intents.clear();
+        }
+    }
+
+    pub(crate) fn remove_document_change(&self, collection: &str, id: &str) {
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
+        let transaction_writes = Arc::make_mut(&mut transaction.writes);
+        let Some(writes) = transaction_writes.get_mut(collection) else {
+            return;
+        };
+        let writes = Arc::make_mut(writes);
+        writes.remove(id);
+        if writes.is_empty() {
+            transaction_writes.remove(collection);
+        }
+    }
+
+    fn collection_is_cross_database(&self, collection: &str) -> bool {
+        let Some(current_database) = self.current_database() else {
+            return false;
+        };
+        crate::catalog::relation_database_name(collection)
+            .is_some_and(|database| !database.eq_ignore_ascii_case(current_database))
+    }
+}
+
+impl Drop for CassieSession {
+    fn drop(&mut self) {
+        if !self.owns_transaction_lifecycle || Arc::strong_count(&self.transaction) != 1 {
+            return;
+        }
+        let owner = self.transaction.lock().unique_owner_id;
+        if let Some(waits) = self.transaction_unique_waits() {
+            waits.release_owner(owner);
+        }
+    }
+}
+
+fn rename_payload_field(payload: &mut serde_json::Value, current_key: &str, next: &str) {
+    let Some(fields) = payload.as_object_mut() else {
+        return;
+    };
+    let Some(current) = fields
+        .keys()
+        .find(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field) == current_key)
+        .cloned()
+    else {
+        return;
+    };
+    if let Some(value) = fields.remove(&current) {
+        fields.insert(next.to_owned(), value);
+    }
+}
+
+fn rename_column_reference(column: &mut String, current_key: &str, next: &str) {
+    if crate::sql::ColumnIdentifierPath::reference_field_key(column) == current_key {
+        next.clone_into(column);
+    }
+}
+
+fn rename_expression_column(expression: &mut crate::sql::ast::Expr, current_key: &str, next: &str) {
+    if let crate::sql::ast::Expr::Column(column) = expression {
+        rename_column_reference(column, current_key, next);
+        return;
+    }
+    let _ = expression.try_visit_children_mut(|child| {
+        rename_expression_column(child, current_key, next);
+        Ok::<(), std::convert::Infallible>(())
+    });
+}
+
+#[cfg(test)]
+#[path = "session/savepoint_fork_epoch_tests.rs"]
+mod savepoint_fork_epoch_tests;
+
+#[cfg(test)]
+#[path = "session/tests.rs"]
+mod tests;

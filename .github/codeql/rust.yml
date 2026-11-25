@@ -1,4 +1,11 @@
-# Scan only the shipped Rust crate. benches/, examples/, fuzz/, and tests/ are not shipped.
+# Scan production Rust sources in the workspace's shipped crates.
 name: rust-src-only
 paths:
-  - src
+  - crates/cassie-core/src
+  - crates/cassie-embeddings/src
+  - crates/cassie-engine/src
+  - crates/cassie-search/src
+  - crates/cassie-server/src
+  - crates/cassie-sql/src
+  - crates/cassie-storage/src
+  - crates/cassie-vector/src

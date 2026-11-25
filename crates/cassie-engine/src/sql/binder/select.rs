@@ -1,0 +1,984 @@
+use super::table_functions::bind as bind_table_function;
+pub(super) use super::table_functions::columns as table_function_columns;
+use super::{
+    bind_recursive_cte_query, bind_statement, mem, qualified_fields, resolve_relation_path,
+    validate_distinct_on_order_prefix, validate_expression_in_scope,
+    validate_expression_operand_families, validate_expression_references, validate_functions,
+    validate_order_by_references, validate_projection_references, validate_select_operand_families,
+    virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
+    FieldSchema, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem, SelectSet,
+    SelectStatement,
+};
+use crate::sql::ast::IdentifierPath;
+use crate::sql::ast::JoinKind;
+use crate::types::row_identity::{
+    is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
+};
+
+use std::borrow::Cow;
+
+#[path = "cte_columns.rs"]
+mod cte_columns;
+use cte_columns::cte_column_aliases;
+
+pub(super) fn bind_select(
+    select: SelectStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope<'_>,
+    context: &BindingContext,
+) -> Result<SelectStatement, CassieError> {
+    bind_select_with_lateral_fields(select, catalog, outer_scope, &HashSet::new(), context)
+}
+
+pub(super) fn bind_select_with_lateral_fields(
+    select: SelectStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope<'_>,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<SelectStatement, CassieError> {
+    let mut scope = outer_scope.clone();
+    let mut local_names = HashSet::new();
+    let mut select = select;
+    let ctes = mem::take(&mut select.ctes);
+    let set = mem::take(&mut select.set);
+
+    let mut bound_ctes = Vec::with_capacity(ctes.len());
+    for cte in ctes {
+        let cte_name = cte.name.as_str();
+        let cte_key = register_cte_name(cte_name, &mut local_names)?;
+
+        let declared_aliases = cte.aliases.clone();
+        let query = match cte.query {
+            CteQuery::Simple(next) => {
+                reject_recursive_self_reference(select.recursive, cte_name, next.as_ref())?;
+                CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope, context)?))
+            }
+            CteQuery::Recursive {
+                operator,
+                base,
+                recursive,
+            } => bind_recursive_cte_query(
+                CteQuery::Recursive {
+                    operator,
+                    base,
+                    recursive,
+                },
+                &declared_aliases,
+                catalog,
+                &scope,
+                cte_name,
+                &super::recursive::RecursiveCteClauses {
+                    search: cte.search.as_ref(),
+                    cycle: cte.cycle.as_ref(),
+                },
+                context,
+            )?,
+        };
+
+        let (_, stored_aliases) =
+            cte_column_aliases(&cte.name, &declared_aliases, &query, &bound_ctes, catalog)?;
+        let bound_cte = crate::sql::ast::CommonTableExpression {
+            name: cte.name,
+            aliases: stored_aliases,
+            query,
+            materialization: cte.materialization,
+            search: cte.search,
+            cycle: cte.cycle,
+        };
+        let binding = cte_columns::binding(&bound_cte, &scope, catalog, context)?;
+        scope.insert(cte_key, binding);
+        bound_ctes.push(bound_cte);
+    }
+
+    super::values::validate_aliases(&select.source)?;
+    cte_columns::preserve_implicit_qualifiers(&mut select.source, &scope);
+    super::aliases::allocate_scope(&mut select)?;
+    let source = bind_query_source_with_lateral_fields(
+        select.source.clone(),
+        catalog,
+        &scope,
+        LateralScope {
+            enclosing: lateral_fields,
+            preceding: &HashSet::new(),
+        },
+        context,
+    )?;
+    select.source = source;
+    select.ctes = bound_ctes;
+    super::aliases::lower_select(&mut select, catalog, &scope, lateral_fields, set.is_some())?;
+    let known_fields = super::references::fields_with_outer_scope(
+        source_fields(catalog, &select.source, &scope)?,
+        lateral_fields,
+    );
+    if lateral_fields.is_empty() {
+        super::own_qualifier::strip_select_own_qualifiers(&mut select, catalog, context);
+    }
+
+    let field_types =
+        crate::sql::source_field_type_map_with_ctes(&select.source, &select.ctes, catalog);
+    if let Some(filter) = select.filter.as_mut() {
+        canonicalize_typed_predicate_literals(filter, &field_types)?;
+    }
+    super::json_predicates::rewrite_select(&mut select, &field_types);
+    super::enum_literals::rewrite_select(&mut select, &field_types)?;
+    super::case_unify::unify_select_case_results(&mut select, &field_types);
+    super::boolean_contexts::qualify_declared_boolean_functions(&mut select, catalog, context)?;
+
+    let projection_aliases =
+        super::grouped_projection::prepare(&mut select, &known_fields, catalog, &scope)?;
+    validate_bound_select_references(
+        &select,
+        &known_fields,
+        &projection_aliases,
+        super::references::ReferenceScope::new(&scope, catalog, context),
+    )?;
+    super::boolean_contexts::validate_select(&mut select, catalog, context, outer_scope)?;
+    validate_select_operand_families(&select, catalog)?;
+    super::coalesce_results::validate_select(&select, catalog, context)?;
+
+    if let Some(set) = set {
+        bind_set_operand(&mut select, *set, catalog, &scope, lateral_fields, context)?;
+    }
+
+    validate_functions(&select, catalog, context)?;
+    super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
+
+    Ok(select)
+}
+
+fn bind_set_operand(
+    select: &mut SelectStatement,
+    set: SelectSet,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    // The right branch of a lateral derived table sees the same outer-row columns.
+    let right =
+        bind_select_with_lateral_fields(*set.right, catalog, scope, lateral_fields, context)?;
+    select.set = Some(Box::new(SelectSet {
+        operator: set.operator,
+        right: Box::new(right),
+    }));
+    super::set_width::validate_set_operand_widths(select, catalog)?;
+    super::set_width::validate_set_operand_types(select, catalog, context, scope)
+}
+
+fn register_cte_name(name: &str, local_names: &mut HashSet<String>) -> Result<String, CassieError> {
+    if name.is_empty() {
+        return Err(CassieError::Planner("CTE name cannot be empty".into()));
+    }
+    let normalized = name.to_owned();
+    if !local_names.insert(normalized.clone()) {
+        return Err(crate::app::DiagnosticError::new(
+            "42712",
+            format!("WITH query name \"{name}\" specified more than once"),
+        )
+        .into());
+    }
+    Ok(normalized)
+}
+
+fn reject_recursive_self_reference(
+    recursive: bool,
+    cte_name: &str,
+    query: &crate::sql::ast::ParsedStatement,
+) -> Result<(), CassieError> {
+    if recursive && super::recursive_cte_references_self(query, cte_name) {
+        return Err(crate::app::DiagnosticError::new(
+            "42P19",
+            format!(
+                "recursive query \"{cte_name}\" does not have the form non-recursive-term UNION [ALL] recursive-term"
+            ),
+        )
+        .into());
+    }
+    Ok(())
+}
+
+pub(super) fn canonicalize_typed_predicate_literals(
+    expr: &mut Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    super::unknown_literals::coerce(expr, field_types);
+    match expr {
+        Expr::RowCompare(comparison) => {
+            for field in comparison.left.iter_mut().chain(&mut comparison.right) {
+                canonicalize_typed_predicate_literals(field, field_types)?;
+            }
+            Ok(())
+        }
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                canonicalize_typed_predicate_literals(operand, field_types)?;
+            }
+            for (when, then) in branches {
+                canonicalize_typed_predicate_literals(when, field_types)?;
+                canonicalize_typed_predicate_literals(then, field_types)?;
+            }
+            if let Some(else_expr) = else_expr {
+                canonicalize_typed_predicate_literals(else_expr, field_types)?;
+            }
+            Ok(())
+        }
+        Expr::Binary { left, right, .. } => {
+            canonicalize_column_literal_pair(left, right, field_types)?;
+            canonicalize_typed_predicate_literals(left, field_types)?;
+            canonicalize_typed_predicate_literals(right, field_types)
+        }
+        Expr::InList { expr, values, .. } => {
+            for value in values.iter_mut() {
+                canonicalize_column_literal_pair(expr, value, field_types)?;
+                canonicalize_typed_predicate_literals(value, field_types)?;
+            }
+            canonicalize_typed_predicate_literals(expr, field_types)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        }
+        | Expr::Like {
+            expr,
+            pattern: low,
+            escape: high,
+            ..
+        } => {
+            canonicalize_column_literal_pair(expr, low, field_types)?;
+            canonicalize_column_literal_pair(expr, high, field_types)?;
+            canonicalize_typed_predicate_literals(expr, field_types)?;
+            canonicalize_typed_predicate_literals(low, field_types)?;
+            canonicalize_typed_predicate_literals(high, field_types)
+        }
+        Expr::ArraySubscript { array, subscripts } => {
+            canonicalize_typed_predicate_literals(array, field_types)?;
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        canonicalize_typed_predicate_literals(index, field_types)?;
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter_mut().chain(upper) {
+                            canonicalize_typed_predicate_literals(bound, field_types)?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        Expr::IsNull { expr, .. }
+        | Expr::TruthTest { expr, .. }
+        | Expr::Not { expr }
+        | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
+        | Expr::UnaryNumeric { expr, .. }
+        | Expr::IntegerNegate { expr, .. } => {
+            canonicalize_typed_predicate_literals(expr, field_types)
+        }
+        Expr::Function(function) => {
+            for argument in function.expressions_mut() {
+                canonicalize_typed_predicate_literals(argument, field_types)?;
+            }
+            Ok(())
+        }
+        Expr::Subquery(subquery) => {
+            for operand in subquery.operands_mut() {
+                canonicalize_typed_predicate_literals(operand, field_types)?;
+            }
+            Ok(())
+        }
+        Expr::Column(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::NumericLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_)
+        | Expr::Exists(_) => Ok(()),
+    }
+}
+
+fn canonicalize_column_literal_pair(
+    left: &mut Expr,
+    right: &mut Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    let (
+        (Expr::Column(column), Expr::StringLiteral(literal))
+        | (Expr::StringLiteral(literal), Expr::Column(column)),
+    ) = ((left, right),)
+    else {
+        return Ok(());
+    };
+    match crate::sql::field_type_for_column(field_types, column) {
+        Some(DataType::Uuid) => {
+            *literal = uuid::Uuid::parse_str(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid UUID literal '{literal}'")))?
+                .to_string();
+        }
+        Some(DataType::Bytea) => {
+            let digits = literal.strip_prefix("\\x").ok_or_else(|| {
+                CassieError::Planner(format!("invalid BYTEA literal '{literal}'"))
+            })?;
+            if digits.len() % 2 != 0 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(CassieError::Planner(format!(
+                    "invalid BYTEA literal '{literal}'"
+                )));
+            }
+            *literal = format!("\\x{}", digits.to_ascii_lowercase());
+        }
+        Some(DataType::Date) => {
+            *literal = crate::types::temporal::canonical_date(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid DATE literal '{literal}'")))?;
+        }
+        Some(DataType::Time) => {
+            *literal = crate::types::temporal::canonical_time(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid TIME literal '{literal}'")))?;
+        }
+        Some(DataType::Timestamp) => {
+            *literal = crate::types::temporal::canonical_timestamp(literal).map_err(|_| {
+                CassieError::Planner(format!("invalid TIMESTAMP literal '{literal}'"))
+            })?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn validate_bound_select_references(
+    select: &SelectStatement,
+    known_fields: &HashSet<String>,
+    projection_aliases: &HashSet<String>,
+    scope: super::references::ReferenceScope<'_, '_>,
+) -> Result<(), CassieError> {
+    validate_projection_references(&select.projection, known_fields, scope)?;
+    super::grouped_projection::validate(select, projection_aliases)?;
+    validate_expression_references(
+        select.filter.as_ref(),
+        known_fields,
+        projection_aliases,
+        false,
+        scope,
+    )?;
+    for group_expr in &select.group_by {
+        validate_expression_in_scope(group_expr, known_fields, projection_aliases, false, scope)?;
+    }
+    for distinct_expr in &select.distinct_on {
+        validate_expression_in_scope(
+            distinct_expr,
+            known_fields,
+            projection_aliases,
+            false,
+            scope,
+        )?;
+    }
+    validate_expression_references(
+        select.having.as_ref(),
+        known_fields,
+        projection_aliases,
+        false,
+        scope,
+    )?;
+    super::pagination_references::validate(select, known_fields, projection_aliases)?;
+    validate_order_by_references(&select.order, known_fields, projection_aliases, scope)?;
+    validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
+    Ok(())
+}
+
+pub(super) fn validate_recursive_cte_shape(
+    base: &crate::sql::ast::ParsedStatement,
+    recursive: &crate::sql::ast::ParsedStatement,
+    catalog: &Catalog,
+    outer_scope: &CteScope<'_>,
+    cte_name: &str,
+    aliases: &[String],
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let QueryStatement::Select(base_select) = &base.statement else {
+        return Err(CassieError::Planner(
+            "recursive CTE anchor must be a SELECT statement".into(),
+        ));
+    };
+    let QueryStatement::Select(recursive_select) = &recursive.statement else {
+        return Err(CassieError::Planner(
+            "recursive CTE term must be a SELECT statement".into(),
+        ));
+    };
+    if base_select.set.is_some() || recursive_select.set.is_some() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' has unsupported nested set operation"
+        )));
+    }
+
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    let outer_schemas = outer_scope
+        .iter()
+        .map(|(name, aliases)| {
+            (
+                name.clone(),
+                Schema {
+                    fields: aliases
+                        .visible
+                        .iter()
+                        .map(|alias| FieldSchema {
+                            name: alias.clone(),
+                            data_type: DataType::Null,
+                            nullable: true,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut base_schema = super::inference::infer_select_schema_with_scope(
+        base_select,
+        catalog,
+        &outer_schemas,
+        &user_functions,
+    )?;
+    if base_schema.fields.len() != aliases.len() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' column count mismatch: {} != {}",
+            base_schema.fields.len(),
+            aliases.len()
+        )));
+    }
+    for (field, alias) in base_schema.fields.iter_mut().zip(aliases) {
+        field.name.clone_from(alias);
+    }
+    let mut recursive_schemas = outer_schemas;
+    recursive_schemas.insert(cte_name.to_owned(), base_schema.clone());
+    let recursive_schema = super::inference::infer_select_schema_with_scope(
+        recursive_select,
+        catalog,
+        &recursive_schemas,
+        &user_functions,
+    )?;
+
+    if base_schema.fields.len() != recursive_schema.fields.len() {
+        return Err(CassieError::Planner(format!(
+            "recursive CTE '{cte_name}' column count mismatch: {} != {}",
+            base_schema.fields.len(),
+            recursive_schema.fields.len()
+        )));
+    }
+
+    for (index, (base_field, recursive_field)) in base_schema
+        .fields
+        .iter()
+        .zip(recursive_schema.fields.iter())
+        .enumerate()
+    {
+        if !recursive_types_compatible(&base_field.data_type, &recursive_field.data_type) {
+            return Err(CassieError::Planner(format!(
+                "recursive CTE '{cte_name}' column {} has incompatible types: {} != {}",
+                index + 1,
+                base_field.data_type.type_name(),
+                recursive_field.data_type.type_name()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn recursive_types_compatible(base: &DataType, recursive: &DataType) -> bool {
+    if matches!(base, DataType::Null) || matches!(recursive, DataType::Null) {
+        return true;
+    }
+    match (base, recursive) {
+        (
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float,
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float,
+        )
+        | (
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. },
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. },
+        ) => true,
+        (DataType::Array(base), DataType::Array(recursive)) => {
+            recursive_types_compatible(base, recursive)
+        }
+        _ => base == recursive,
+    }
+}
+
+pub(super) fn cte_output_fields(cte_query: &CteQuery) -> Result<Vec<String>, CassieError> {
+    let query = match cte_query {
+        CteQuery::Simple(statement) => statement,
+        CteQuery::Recursive { base, .. } => base,
+    };
+
+    let Some(select) = super::cte_bodies::select_view(query) else {
+        return Err(CassieError::Planner(
+            "CTE body must be a SELECT statement".into(),
+        ));
+    };
+    if select.projection.iter().any(matches_wildcard) {
+        return Ok(vec!["*".into()]);
+    }
+
+    Ok(projected_column_names(&select.projection))
+}
+
+pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
+    projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Wildcard => "*".to_string(),
+            SelectItem::Column {
+                name: _,
+                alias: Some(alias),
+                ..
+            } => alias.clone(),
+            SelectItem::Column { name, alias: None } => {
+                crate::sql::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
+            }
+            SelectItem::Function { function, alias } => alias
+                .as_deref()
+                .unwrap_or(&function.name)
+                .to_ascii_lowercase(),
+            SelectItem::Expr { .. } => item.output_name().to_ascii_lowercase(),
+            SelectItem::WindowFunction { function, alias } => alias
+                .as_deref()
+                .unwrap_or(&function.name)
+                .to_ascii_lowercase(),
+        })
+        .collect()
+}
+
+pub(super) fn matches_wildcard(item: &SelectItem) -> bool {
+    matches!(item, SelectItem::Wildcard)
+        || matches!(item, SelectItem::Column { name, .. } if crate::sql::ColumnIdentifierPath::is_qualified_wildcard(name))
+}
+
+/// Preceding FROM items share one namespace. Enclosing SELECTs are searched
+/// only for names that namespace does not supply.
+#[derive(Clone, Copy)]
+struct LateralScope<'a> {
+    enclosing: &'a HashSet<String>,
+    preceding: &'a HashSet<String>,
+}
+
+impl<'a> LateralScope<'a> {
+    fn visible(self) -> Cow<'a, HashSet<String>> {
+        if self.preceding.is_empty() {
+            Cow::Borrowed(self.enclosing)
+        } else if self.enclosing.is_empty() {
+            Cow::Borrowed(self.preceding)
+        } else {
+            Cow::Owned(super::references::fields_with_outer_scope(
+                self.preceding.clone(),
+                self.enclosing,
+            ))
+        }
+    }
+}
+
+fn bind_query_source_with_lateral_fields(
+    source: QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_scope: LateralScope<'_>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    match source {
+        QuerySource::Values { mut rows } => {
+            let user_functions = crate::catalog::function_resolution::functions_for_scope(
+                &catalog.list_functions(),
+                &context.database,
+                &context.search_path,
+                context.scopes_database_objects(),
+            );
+            super::values::coerce_with_controls(&mut rows, &user_functions, &[], scope.controls())?;
+            Ok(QuerySource::Values { rows })
+        }
+
+        QuerySource::Aliased {
+            source,
+            alias,
+            column_aliases,
+        } => {
+            let source = bind_query_source_with_lateral_fields(
+                *source,
+                catalog,
+                scope,
+                lateral_scope,
+                context,
+            )?;
+            super::aliases::columns(&source, &column_aliases, catalog, scope)?;
+            Ok(QuerySource::Aliased {
+                source: Box::new(source),
+                alias,
+                column_aliases,
+            })
+        }
+        QuerySource::TableSample {
+            source,
+            method,
+            rate,
+            repeatable,
+        } => {
+            let source = bind_query_source_with_lateral_fields(
+                *source,
+                catalog,
+                scope,
+                lateral_scope,
+                context,
+            )?;
+            Ok(QuerySource::TableSample {
+                source: Box::new(source),
+                method,
+                rate,
+                repeatable,
+            })
+        }
+        QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
+        QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
+        QuerySource::SingleRow => Ok(QuerySource::SingleRow),
+        source @ QuerySource::TableFunction { .. } => {
+            bind_table_function(source, catalog, &lateral_scope.visible(), context)
+        }
+        QuerySource::Subquery {
+            alias,
+            select,
+            lateral,
+        } => {
+            let visible_lateral_fields = if lateral {
+                lateral_scope.visible()
+            } else {
+                Cow::Owned(HashSet::new())
+            };
+            let select = bind_select_with_lateral_fields(
+                *select,
+                catalog,
+                scope,
+                &visible_lateral_fields,
+                context,
+            )?;
+            Ok(QuerySource::Subquery {
+                alias,
+                select: Box::new(select),
+                lateral,
+            })
+        }
+        join @ QuerySource::Join { .. } => {
+            bind_join_source_with_lateral_fields(join, catalog, scope, lateral_scope, context)
+        }
+    }
+}
+
+fn bind_join_source_with_lateral_fields(
+    source: QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_scope: LateralScope<'_>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    let QuerySource::Join {
+        left,
+        right,
+        kind,
+        on,
+    } = source
+    else {
+        unreachable!("join source helper receives only joins")
+    };
+    let left =
+        bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_scope, context)?;
+    let preceding = join_fields(
+        lateral_scope.preceding.clone(),
+        source_fields(catalog, &left, scope)?,
+    );
+    let mut right = *right;
+    super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
+    let unbound_right = matches!(kind, JoinKind::Right | JoinKind::Full).then(|| right.clone());
+    let right = bind_query_source_with_lateral_fields(
+        right,
+        catalog,
+        scope,
+        LateralScope {
+            preceding: &preceding,
+            ..lateral_scope
+        },
+        context,
+    )?;
+    if let Some(unbound_right) = unbound_right {
+        reject_left_reads_on_preserved_side(
+            &unbound_right,
+            catalog,
+            scope,
+            lateral_scope,
+            context,
+        )?;
+    }
+    let mut joined = QuerySource::Join {
+        left: Box::new(left),
+        right: Box::new(right),
+        kind,
+        on,
+    };
+    super::aliases::lower_join_on(&mut joined, catalog, scope)?;
+    validate_join_source(&mut joined, catalog, scope, context)?;
+    Ok(joined)
+}
+
+/// The right side of a RIGHT or FULL join is the preserved side, so PostgreSQL forbids it to read
+/// the left side even when it is LATERAL. It binds against the enclosing scope alone: a reference
+/// that only the left side supplies is reported as an invalid FROM-clause reference.
+fn reject_left_reads_on_preserved_side(
+    right: &QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_scope: LateralScope<'_>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let probe = bind_query_source_with_lateral_fields(
+        right.clone(),
+        catalog,
+        scope,
+        lateral_scope,
+        context,
+    );
+    match probe {
+        Err(CassieError::UndefinedColumn(_)) => Err(crate::app::DiagnosticError::new(
+            "42P01",
+            "invalid reference to FROM-clause entry for the left side of a RIGHT or FULL JOIN",
+        )
+        .with_detail("The combining JOIN type must be INNER or LEFT for a LATERAL reference.")
+        .into()),
+        _ => Ok(()),
+    }
+}
+
+fn validate_join_source(
+    joined: &mut QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let known_fields = source_fields(catalog, joined, scope)?;
+    if let QuerySource::Join { on, .. } = joined {
+        validate_expression_in_scope(
+            on,
+            &known_fields,
+            &HashSet::new(),
+            false,
+            super::references::ReferenceScope::new(scope, catalog, context),
+        )?;
+    }
+    let field_types = crate::sql::source_field_type_map(joined, catalog);
+    let types = super::coalesce_results::ResultTypes::for_source(joined, &[], catalog, context)?
+        .with_controls(scope.controls());
+    if let QuerySource::Join { on, .. } = joined {
+        super::boolean_contexts::validate_predicate(on, &types, "JOIN ON", catalog, context)?;
+        validate_expression_operand_families(on, &field_types)?;
+        super::json_predicates::rewrite(on, &field_types);
+    }
+    Ok(())
+}
+
+pub(super) fn source_fields(
+    catalog: &Catalog,
+    source: &QuerySource,
+    scope: &CteScope<'_>,
+) -> Result<HashSet<String>, CassieError> {
+    match source {
+        QuerySource::Values { rows } => Ok(super::values::names(rows).collect()),
+
+        QuerySource::Aliased { source, alias, .. } => {
+            let names = super::aliases::columns(source, &[], catalog, scope)?;
+            let qualifier = super::aliases::qualifier(alias);
+            // Alias columns already contain canonical SQL field keys. Do not
+            // quote those keys again as literal catalog field spellings.
+            let mut fields = names
+                .into_iter()
+                .flat_map(|(_, physical)| [physical.clone(), format!("{qualifier}.{physical}")])
+                .collect::<HashSet<_>>();
+            if matches!(source.as_ref(), QuerySource::Collection(_)) {
+                fields.extend(qualified_fields(
+                    &qualifier,
+                    [ROW_IDENTITY_COLUMN.to_string()],
+                ));
+            }
+            Ok(fields)
+        }
+        QuerySource::TableSample { source, .. } => source_fields(catalog, source, scope),
+        QuerySource::Collection(name) => {
+            if let Some(fields) = virtual_views::schema(name) {
+                Ok(qualified_fields(
+                    name,
+                    fields.into_iter().map(|(field, _)| field),
+                ))
+            } else if let Some(projection) = catalog.get_materialized_projection(name) {
+                let materialized = projection.materialized.ok_or_else(|| {
+                    CassieError::Planner(format!(
+                        "materialized projection '{name}' is missing output schema"
+                    ))
+                })?;
+                Ok(qualified_fields(
+                    name,
+                    materialized
+                        .output_schema
+                        .fields
+                        .into_iter()
+                        .map(|field| field.name),
+                ))
+            } else {
+                let schema = catalog
+                    .get_schema(name)
+                    .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
+                Ok(base_table_fields(name, &schema))
+            }
+        }
+        QuerySource::Cte(name) => scope
+            .get(name)
+            .map(|binding| cte_columns::source_fields(name, binding))
+            .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
+        QuerySource::SingleRow => Ok(HashSet::new()),
+        QuerySource::TableFunction { name, .. } => Ok(qualified_fields(
+            name,
+            table_function_columns(source)
+                .into_iter()
+                .map(|(name, _)| name),
+        )),
+        QuerySource::Subquery { alias, select, .. } => Ok(qualified_fields(
+            alias,
+            projected_column_names(&select.projection),
+        )),
+        QuerySource::Join { left, right, .. } => Ok(join_fields(
+            source_fields(catalog, left, scope)?,
+            source_fields(catalog, right, scope)?,
+        )),
+    }
+}
+
+fn join_fields(mut fields: HashSet<String>, right_fields: HashSet<String>) -> HashSet<String> {
+    if fields.is_empty() {
+        return right_fields;
+    }
+    // Both sides of a join resolve the internal identity the same way
+    // (see `planner::logical::reserved_id`), so `_id`, and a bare `id`
+    // that means the identity on either side, are never ambiguous.
+    let id_is_identity =
+        fields.contains(IDENTITY_ALIAS_MARKER) || right_fields.contains(IDENTITY_ALIAS_MARKER);
+    let ambiguous = fields
+        .intersection(&right_fields)
+        .filter(|field| {
+            !field.starts_with("__cassie_ambiguous__.")
+                && crate::sql::ColumnIdentifierPath::parse(field)
+                    .is_ok_and(|column| !column.is_qualified())
+        })
+        .filter(|field| {
+            !(is_row_identity_column(field) || (id_is_identity && is_legacy_id_column(field)))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    for field in ambiguous {
+        fields.insert(format!("__cassie_ambiguous__.{field}"));
+    }
+    fields.extend(right_fields);
+    fields
+}
+
+/// Marks a field set whose bare `id` is the internal-identity alias rather
+/// than a declared column. Never a valid user identifier.
+const IDENTITY_ALIAS_MARKER: &str = "__cassie_identity__.id";
+
+/// The names a base table exposes: its declared fields, the reserved `_id`
+/// row identity, and, only when the table declares no `id` of its own, the
+/// legacy bare `id` alias for that identity. Derived relations never get
+/// these implicitly; they expose only what they project.
+pub(super) fn base_table_fields(
+    qualifier: &str,
+    schema: &crate::catalog::CollectionSchema,
+) -> HashSet<String> {
+    let mut names = schema
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<Vec<_>>();
+    names.push(ROW_IDENTITY_COLUMN.to_string());
+    let alias_is_identity = !schema.declares_id();
+    if alias_is_identity {
+        names.push(LEGACY_ID_COLUMN.to_string());
+    }
+    let mut fields = qualified_fields(qualifier, names);
+    if alias_is_identity {
+        fields.insert(IDENTITY_ALIAS_MARKER.to_string());
+    }
+    fields
+}
+
+fn bind_collection_source(
+    name: &IdentifierPath,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    if let Some(local) = crate::sql::cte_identity::reference_name(name) {
+        if scope.contains_key(local) {
+            return Ok(QuerySource::Cte(local.to_owned()));
+        }
+    }
+    let resolved = resolve_relation_path(name, catalog, context)?;
+    Ok(QuerySource::Collection(
+        IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{canonicalize_column_literal_pair, DataType, Expr};
+
+    #[test]
+    fn should_canonicalize_temporal_string_predicate_literals() {
+        // Arrange
+        let field_types = crate::sql::FieldTypeMap::from([
+            ("d".to_string(), DataType::Date),
+            ("t".to_string(), DataType::Time),
+            ("ts".to_string(), DataType::Timestamp),
+        ]);
+        let mut date_column = Expr::Column("d".to_string());
+        let mut date_literal = Expr::StringLiteral("2024-1-1".to_string());
+        let mut time_column = Expr::Column("t".to_string());
+        let mut time_literal = Expr::StringLiteral("12:00:00.000".to_string());
+        let mut timestamp_column = Expr::Column("ts".to_string());
+        let mut timestamp_literal = Expr::StringLiteral("2024-01-01 12:00:00".to_string());
+
+        // Act
+        canonicalize_column_literal_pair(&mut date_column, &mut date_literal, &field_types)
+            .expect("canonicalize DATE literal");
+        canonicalize_column_literal_pair(&mut time_column, &mut time_literal, &field_types)
+            .expect("canonicalize TIME literal");
+        canonicalize_column_literal_pair(
+            &mut timestamp_column,
+            &mut timestamp_literal,
+            &field_types,
+        )
+        .expect("canonicalize TIMESTAMP literal");
+
+        // Assert
+        let Expr::StringLiteral(date_literal) = date_literal else {
+            panic!("DATE predicate literal should remain a string");
+        };
+        let Expr::StringLiteral(time_literal) = time_literal else {
+            panic!("TIME predicate literal should remain a string");
+        };
+        let Expr::StringLiteral(timestamp_literal) = timestamp_literal else {
+            panic!("TIMESTAMP predicate literal should remain a string");
+        };
+        assert_eq!(date_literal, "2024-01-01");
+        assert_eq!(time_literal, "12:00:00");
+        assert_eq!(timestamp_literal, "2024-01-01T12:00:00.000000Z");
+    }
+}

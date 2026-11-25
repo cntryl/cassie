@@ -1,0 +1,368 @@
+//! `SET (a, b) = (SELECT ...)`: evaluates a one-row subquery per target row.
+//!
+//! References the subquery cannot resolve against its own relations are
+//! outer references to the joined mutation row; they are replaced with that
+//! row's values before the subquery is bound and run.
+
+use std::collections::HashSet;
+
+use super::dml_joined::ExecutionScope;
+use super::{
+    check_timeout, execute_plan, BatchRow, CteContext, Expr, QueryError, QuerySource, Value,
+};
+use crate::sql::ast::{QueryStatement, RowSubqueryAssignment, SelectItem, SelectStatement};
+
+#[path = "dml_row_subquery_owner.rs"]
+mod owner;
+pub(super) use owner::OwnedAssignmentValues;
+
+pub(super) enum PreparedRowSubquery {
+    Correlated(RowSubqueryAssignment),
+    Uncorrelated {
+        columns: Vec<String>,
+        values: Vec<Value>,
+    },
+}
+
+pub(super) fn prepare_row_subqueries(
+    scope: &ExecutionScope<'_>,
+    assignments: &[RowSubqueryAssignment],
+    outer_qualifiers: &HashSet<String>,
+) -> Result<Vec<PreparedRowSubquery>, QueryError> {
+    assignments
+        .iter()
+        .map(|assignment| {
+            let QueryStatement::Select(select) = &assignment.query.statement else {
+                return Ok(PreparedRowSubquery::Correlated(assignment.clone()));
+            };
+            let inner = select_inner_qualifiers(select);
+            if select_references_outer(select, &inner, outer_qualifiers) {
+                return Ok(PreparedRowSubquery::Correlated(assignment.clone()));
+            }
+            let mut values = evaluate_row_subquery(scope, assignment, &BatchRow::new(Vec::new()))?;
+            Ok(PreparedRowSubquery::Uncorrelated {
+                columns: assignment.columns.clone(),
+                values: values.take_values(),
+            })
+        })
+        .collect()
+}
+
+fn select_inner_qualifiers(select: &SelectStatement) -> HashSet<String> {
+    let mut inner = HashSet::new();
+    source_qualifiers(&select.source, &mut inner);
+    for cte in &select.ctes {
+        inner.insert(crate::sql::cte_identity::folded_qualifier(&cte.name));
+    }
+    inner
+}
+
+fn select_references_outer(
+    select: &SelectStatement,
+    inner: &HashSet<String>,
+    outer: &HashSet<String>,
+) -> bool {
+    let bare_outer = matches!(select.source, QuerySource::SingleRow);
+    let references = |expr: &Expr| {
+        expr.any_descendant_or_self(&mut |node| {
+            let Expr::Column(name) = node else {
+                return false;
+            };
+            let Ok(column) = crate::sql::ColumnIdentifierPath::parse(name) else {
+                return false;
+            };
+            if column.is_qualified() {
+                let qualifier = column
+                    .lookup_key()
+                    .strip_suffix(&format!(".{}", column.field_lookup_key()))
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                !inner.contains(&qualifier) && outer.contains(&qualifier)
+            } else {
+                bare_outer
+            }
+        })
+    };
+    select.projection.iter().any(|item| match item {
+        SelectItem::Column { name, .. } => references(&Expr::Column(name.clone())),
+        SelectItem::Expr { expr, .. } => references(expr),
+        SelectItem::Function { function, .. } => function.expressions().any(references),
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(function.partition_by.iter())
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(references),
+        SelectItem::Wildcard => false,
+    }) || select
+        .filter
+        .iter()
+        .chain(select.having.iter())
+        .chain(select.group_by.iter())
+        .chain(select.distinct_on.iter())
+        .chain(select.order.iter().map(|order| &order.expr))
+        .any(references)
+}
+
+pub(super) fn evaluate_prepared_row_subquery(
+    scope: &ExecutionScope<'_>,
+    prepared: &PreparedRowSubquery,
+    outer: &BatchRow,
+) -> Result<Vec<Value>, QueryError> {
+    match prepared {
+        PreparedRowSubquery::Correlated(assignment) => {
+            evaluate_row_subquery(scope, assignment, outer).map(|mut values| values.take_values())
+        }
+        PreparedRowSubquery::Uncorrelated { values, .. } => Ok(values.clone()),
+    }
+}
+
+/// The values one row subquery assigns to its columns.
+pub(super) fn evaluate_row_subquery(
+    scope: &ExecutionScope<'_>,
+    assignment: &RowSubqueryAssignment,
+    outer: &BatchRow,
+) -> Result<OwnedAssignmentValues, QueryError> {
+    check_timeout(scope.controls)?;
+    let mut statement = (*assignment.query).clone();
+    let mut params = scope.params.to_vec();
+    if let QueryStatement::Select(select) = &mut statement.statement {
+        substitute_select(select, outer, &mut params);
+    }
+    let plan = crate::executor::execution::dispatch::build_logical_plan_in_session(
+        scope.cassie,
+        scope.session,
+        &statement,
+    )?;
+    let controls = crate::executor::execution::entrypoints::statement_read_controls(
+        scope.cassie,
+        scope.session,
+        scope.controls,
+    )?;
+    let (_read_scope, _overlay_scope) =
+        crate::executor::execution::entrypoints::enter_statement_read(&controls);
+    let mut cte_context = CteContext::new();
+    let rows = execute_plan(
+        scope.cassie,
+        scope.session,
+        &plan,
+        &mut cte_context,
+        scope.user_functions,
+        &params,
+        &controls,
+    )?;
+    owner::retain_rows(rows, assignment.columns.len(), &controls)
+}
+
+fn substitute_select(select: &mut SelectStatement, outer: &BatchRow, params: &mut Vec<Value>) {
+    let mut inner = HashSet::new();
+    source_qualifiers(&select.source, &mut inner);
+    for cte in &select.ctes {
+        inner.insert(crate::sql::cte_identity::folded_qualifier(&cte.name));
+    }
+    let bare_outer = matches!(select.source, QuerySource::SingleRow);
+    let context = Substitution {
+        outer,
+        inner: &inner,
+        bare_outer,
+    };
+    for item in &mut select.projection {
+        match item {
+            SelectItem::Column { name, alias } => {
+                let expr = context.substitute(&Expr::Column(name.clone()), params);
+                if !matches!(expr, Expr::Column(_)) {
+                    let alias = alias.take().or_else(|| Some(output_label(name)));
+                    *item = SelectItem::Expr { expr, alias };
+                }
+            }
+            SelectItem::Expr { expr, .. } => *expr = context.substitute(expr, params),
+            SelectItem::Function { function, .. } => {
+                for argument in function.expressions_mut() {
+                    *argument = context.substitute(argument, params);
+                }
+            }
+            SelectItem::WindowFunction { function, .. } => {
+                for expression in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                    .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
+                {
+                    *expression = context.substitute(expression, params);
+                }
+            }
+            SelectItem::Wildcard => {}
+        }
+    }
+    for expr in select
+        .filter
+        .iter_mut()
+        .chain(select.having.iter_mut())
+        .chain(select.group_by.iter_mut())
+        .chain(select.distinct_on.iter_mut())
+        .chain(select.order.iter_mut().map(|order| &mut order.expr))
+    {
+        *expr = context.substitute(expr, params);
+    }
+    substitute_source(&mut select.source, &context, params);
+}
+
+fn output_label(name: &str) -> String {
+    crate::sql::ColumnIdentifierPath::parse(name).map_or_else(
+        |_| name.to_string(),
+        |column| column.implicit_output_label(),
+    )
+}
+
+fn source_qualifiers(source: &QuerySource, out: &mut HashSet<String>) {
+    match source {
+        QuerySource::Collection(name) => {
+            out.insert(crate::catalog::local_name(name).to_ascii_lowercase());
+            out.insert(name.to_string().to_ascii_lowercase());
+        }
+        QuerySource::Cte(name) => {
+            out.insert(crate::sql::cte_identity::folded_qualifier(name));
+        }
+        QuerySource::TableFunction { name, .. } => {
+            out.insert(name.to_ascii_lowercase());
+        }
+        QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
+            out.insert(alias.to_ascii_lowercase());
+        }
+        QuerySource::TableSample { source, .. } => source_qualifiers(source, out),
+        QuerySource::Join { left, right, .. } => {
+            source_qualifiers(left, out);
+            source_qualifiers(right, out);
+        }
+        QuerySource::Values { .. } | QuerySource::SingleRow => {}
+    }
+}
+
+fn substitute_source(
+    source: &mut QuerySource,
+    context: &Substitution<'_>,
+    params: &mut Vec<Value>,
+) {
+    match source {
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            *on = context.substitute(on, params);
+            substitute_source(left, context, params);
+            substitute_source(right, context, params);
+        }
+        QuerySource::Aliased { source, .. } => substitute_source(source, context, params),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            substitute_source(source, context, params);
+            *rate = context.substitute(rate, params);
+            if let Some(seed) = repeatable {
+                *seed = context.substitute(seed, params);
+            }
+        }
+        QuerySource::Values { rows } => {
+            for value in rows.iter_mut().flatten() {
+                *value = context.substitute(value, params);
+            }
+        }
+        QuerySource::Subquery { select, .. } => substitute_select(select, context.outer, params),
+        QuerySource::Collection(_)
+        | QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::SingleRow => {}
+    }
+}
+
+struct Substitution<'a> {
+    outer: &'a BatchRow,
+    inner: &'a HashSet<String>,
+    bare_outer: bool,
+}
+
+impl Substitution<'_> {
+    fn substitute(&self, expr: &Expr, params: &mut Vec<Value>) -> Expr {
+        match expr {
+            Expr::Column(name) => self
+                .outer_value(name)
+                .map_or_else(|| expr.clone(), |value| literal(value, params)),
+            Expr::Exists(_) => expr.clone(),
+            _ => expr.map_children(|child| self.substitute(child, params)),
+        }
+    }
+
+    fn outer_value(&self, name: &str) -> Option<Value> {
+        let column = crate::sql::ColumnIdentifierPath::parse(name).ok()?;
+        if column.is_qualified() {
+            let field = column.field_lookup_key();
+            let lookup = column.lookup_key();
+            let qualifier = lookup.strip_suffix(&format!(".{field}"))?;
+            if self.inner.contains(&qualifier.to_ascii_lowercase()) {
+                return None;
+            }
+        } else if !self.bare_outer {
+            return None;
+        }
+        self.outer.get(name).cloned()
+    }
+}
+
+fn literal(value: Value, params: &mut Vec<Value>) -> Expr {
+    match value {
+        Value::Null => Expr::Null,
+        Value::Int64(value) => Expr::IntegerLiteral(value),
+        Value::Bool(value) => Expr::BoolLiteral(value),
+        Value::String(value) => Expr::StringLiteral(value),
+        value => {
+            params.push(value);
+            Expr::Param(params.len() - 1)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_preserve_cte_components_in_row_subquery_qualifiers() {
+        // Arrange
+        let source = QuerySource::Cte("part.one".into());
+        let mut names = HashSet::new();
+
+        // Act
+        source_qualifiers(&source, &mut names);
+
+        // Assert
+        assert!(names.contains("\"part.one\""));
+        assert!(!names.contains("part.one"));
+    }
+
+    #[test]
+    fn should_substitute_outer_reference_in_window_filter() {
+        // Arrange
+        let parsed =
+            crate::sql::parse_statement("SELECT SUM(1) FILTER (WHERE target.id = 1) OVER ()")
+                .expect("window aggregate query");
+        let QueryStatement::Select(mut select) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let outer = BatchRow::new(vec![("target.id".into(), Value::Int64(1))]);
+        let mut params = Vec::new();
+
+        // Act
+        substitute_select(&mut select, &outer, &mut params);
+
+        // Assert
+        let SelectItem::WindowFunction { function, .. } = &select.projection[0] else {
+            panic!("window projection");
+        };
+        let filter = function.filter.as_deref().expect("window filter");
+        assert!(!filter.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Column(_))));
+    }
+}

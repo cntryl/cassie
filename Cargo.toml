@@ -1,264 +1,30 @@
-[package]
-name = "cassie"
-version = "0.1.0"
-edition = "2021"
-publish = false
-autotests = false
-license-file = "LICENSE"
+[workspace]
+members = [
+    "crates/cassie-core",
+    "crates/cassie-search",
+    "crates/cassie-vector",
+    "crates/cassie-embeddings",
+    "crates/cassie-sql",
+    "crates/cassie-storage",
+    "crates/cassie-engine",
+    "crates/cassie-server",
+    "crates/cassie-e2e",
+]
+default-members = [
+    "crates/cassie-core",
+    "crates/cassie-search",
+    "crates/cassie-vector",
+    "crates/cassie-embeddings",
+    "crates/cassie-sql",
+    "crates/cassie-storage",
+    "crates/cassie-engine",
+    "crates/cassie-server",
+    "crates/cassie-e2e",
+]
+resolver = "2"
 
-[lints]
-workspace = true
-
-[features]
-replay-benchmark-observation = []
-
-[dependencies]
-num-traits = "0.2.19"
-num-bigint = "0.5.1"
-num-integer = "0.1.47"
-bytes = "1.12"
-chrono = "0.4"
-http-body-util = "0.1"
-hyper-util = { version = "0.1", features = ["tokio"] }
-tokio = { version = "1.54", features = ["full"] }
-tokio-rustls = "0.26"
-rustls = "0.23"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
-parking_lot = { version = "0.13", features = ["arc_lock"] }
-thiserror = "2.0"
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.5.3"
-lz4_flex = "0.14"
-cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
-hyper = { version = "1.12", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-argon2 = "0.6"
-getrandom = "0.4"
-sha2 = "0.11"
-md-5 = "0.11"
-time = { version = "0.3", features = ["formatting", "parsing"] }
-jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
-jiff-tzdb = "1.0.0"
-url = "2.5"
-regex-automata = "0.4.18"
-regex-syntax = "0.8.11"
-fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
-sql-json-path = "0.2.0"
-rust-stemmers = "1.2.0"
-
-[dev-dependencies]
-cntryl-stress = "0.5.1"
-rcgen = "0.14"
-tokio-postgres = "0.7"
-
-[[bench]]
-name = "tier1_hotpath_row_codec"
-harness = false
-path = "benches/tier1_hotpath_row_codec.rs"
-
-[[bench]]
-name = "tier1_hotpath_keys"
-harness = false
-path = "benches/tier1_hotpath_keys.rs"
-
-[[bench]]
-name = "tier1_hotpath_filter_projection"
-harness = false
-path = "benches/tier1_hotpath_filter_projection.rs"
-
-[[bench]]
-name = "tier1_hotpath_search_vector"
-harness = false
-path = "benches/tier1_hotpath_search_vector.rs"
-
-[[bench]]
-name = "tier1_hotpath_pgwire"
-harness = false
-path = "benches/tier1_hotpath_pgwire.rs"
-
-[[bench]]
-name = "tier1_hotpath_predicates"
-harness = false
-path = "benches/tier1_hotpath_predicates.rs"
-
-[[bench]]
-name = "tier1_hotpath_topk"
-harness = false
-path = "benches/tier1_hotpath_topk.rs"
-
-[[bench]]
-name = "tier1_hotpath_vector_distance"
-harness = false
-path = "benches/tier1_hotpath_vector_distance.rs"
-
-[[bench]]
-name = "tier1_hotpath_bm25"
-harness = false
-path = "benches/tier1_hotpath_bm25.rs"
-
-[[bench]]
-name = "tier1_hotpath_graph_paths"
-harness = false
-path = "benches/tier1_hotpath_graph_paths.rs"
-
-[[bench]]
-name = "tier2_subsystem_sql_planning"
-harness = false
-path = "benches/tier2_subsystem_sql_planning.rs"
-
-[[bench]]
-name = "tier2_subsystem_parser"
-harness = false
-path = "benches/tier2_subsystem_parser.rs"
-
-[[bench]]
-name = "tier2_subsystem_binder"
-harness = false
-path = "benches/tier2_subsystem_binder.rs"
-
-[[bench]]
-name = "tier2_subsystem_plan_cache"
-harness = false
-path = "benches/tier2_subsystem_plan_cache.rs"
-
-[[bench]]
-name = "tier2_subsystem_search"
-harness = false
-path = "benches/tier2_subsystem_search.rs"
-
-[[bench]]
-name = "tier2_subsystem_vector"
-harness = false
-path = "benches/tier2_subsystem_vector.rs"
-
-[[bench]]
-name = "tier2_subsystem_hybrid"
-harness = false
-path = "benches/tier2_subsystem_hybrid.rs"
-
-[[bench]]
-name = "tier2_subsystem_protocol_handlers"
-harness = false
-path = "benches/tier2_subsystem_protocol_handlers.rs"
-
-[[bench]]
-name = "tier2_subsystem_executor"
-harness = false
-path = "benches/tier2_subsystem_executor.rs"
-
-[[bench]]
-name = "tier2_subsystem_generated_sources"
-harness = false
-path = "benches/tier2_subsystem_generated_sources.rs"
-
-[[bench]]
-name = "tier2_subsystem_column_scan"
-harness = false
-path = "benches/tier2_subsystem_column_scan.rs"
-
-[[bench]]
-name = "tier2_subsystem_ingest"
-harness = false
-path = "benches/tier2_subsystem_ingest.rs"
-
-[[bench]]
-name = "tier2_subsystem_graph"
-harness = false
-path = "benches/tier2_subsystem_graph.rs"
-
-[[bench]]
-name = "tier3_replay_durability"
-harness = false
-path = "benches/tier3_replay_durability.rs"
-required-features = ["replay-benchmark-observation"]
-
-[[bench]]
-name = "tier3_system_query"
-harness = false
-path = "benches/tier3_system_query.rs"
-
-[[bench]]
-name = "tier3_system_graph"
-harness = false
-path = "benches/tier3_system_graph.rs"
-
-[[bench]]
-name = "tier3_system_storage_modes"
-harness = false
-path = "benches/tier3_system_storage_modes.rs"
-
-[[bench]]
-name = "tier3_system_typed_primitive"
-harness = false
-path = "benches/tier3_system_typed_primitive.rs"
-
-[[bench]]
-name = "tier3_system_startup"
-harness = false
-path = "benches/tier3_system_startup.rs"
-
-[[bench]]
-name = "tier3_system_mixed_load"
-harness = false
-path = "benches/tier3_system_mixed_load.rs"
-
-[[bench]]
-name = "tier4_integration_pgwire"
-harness = false
-path = "benches/tier4_integration_pgwire.rs"
-
-[[bench]]
-name = "tier4_integration_http"
-harness = false
-path = "benches/tier4_integration_http.rs"
-
-[[bench]]
-name = "tier4_integration_protocol_compare"
-harness = false
-path = "benches/tier4_integration_protocol_compare.rs"
-
-[[bench]]
-name = "tier5_ordered_dashboard"
-harness = false
-path = "benches/tier5_ordered_dashboard.rs"
-
-[[bench]]
-name = "tier5_scaling_query"
-harness = false
-path = "benches/tier5_scaling_query.rs"
-
-[[bench]]
-name = "tier5_scaling_retrieval"
-harness = false
-path = "benches/tier5_scaling_retrieval.rs"
-
-[[bench]]
-name = "tier5_scaling_lifecycle"
-harness = false
-path = "benches/tier5_scaling_lifecycle.rs"
-
-[[bench]]
-name = "tier5_scaling_transport"
-harness = false
-path = "benches/tier5_scaling_transport.rs"
-
-[[bench]]
-name = "tier5_time_series_mixed"
-harness = false
-path = "benches/tier5_time_series_mixed.rs"
-
-[[bench]]
-name = "tier6_soak_mixed"
-harness = false
-path = "benches/tier6_soak_mixed.rs"
-
-[[bench]]
-name = "tier6_soak_transport"
-harness = false
-path = "benches/tier6_soak_transport.rs"
+[workspace.lints.clippy]
+pedantic = "warn"
 
 [profile.dev]
 opt-level = 0
@@ -270,28 +36,5 @@ opt-level = 1
 debug = "line-tables-only"
 
 # Optimize the database under test; keep fixture/assertion compilation inexpensive.
-[profile.test.package.cassie-integration-tests]
+[profile.test.package.cassie-e2e]
 opt-level = 0
-
-[workspace]
-members = ["tests"]
-default-members = [".", "tests"]
-resolver = "2"
-
-[workspace.lints.clippy]
-pedantic = "warn"
-
-[[bench]]
-name = "tier5_scaling_graph"
-path = "benches/tier5_scaling_graph.rs"
-harness = false
-
-[[bench]]
-name = "relevance_cranfield"
-path = "benches/relevance_cranfield.rs"
-harness = false
-
-[[bench]]
-name = "tier5_embedding_workloads"
-path = "benches/tier5_embedding_workloads.rs"
-harness = false

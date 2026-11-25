@@ -1,0 +1,797 @@
+use crate::app::CassieSession;
+use crate::catalog::FunctionMeta;
+use crate::executor::batch::RowAccess;
+use crate::executor::batch::{Batch, BatchRow};
+use crate::executor::filter;
+use crate::executor::filter::SearchContext;
+use crate::executor::QueryError;
+use crate::sql::ast::{Expr, SelectItem};
+use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
+use crate::types::Value;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+mod character_casts;
+#[cfg(test)]
+#[path = "projection/json_deletion_owner_tests.rs"]
+mod json_deletion_owner_tests;
+#[path = "projection/json_object_keys.rs"]
+mod json_object_keys;
+#[cfg(test)]
+#[path = "projection/json_object_keys_chunk_tests.rs"]
+mod json_object_keys_chunk_tests;
+#[cfg(test)]
+#[path = "projection/json_object_keys_owner_tests.rs"]
+mod json_object_keys_owner_tests;
+#[cfg(test)]
+#[path = "projection/scalar_resource_owner_tests.rs"]
+mod scalar_resource_owner_tests;
+mod scalar_resources;
+
+static OWNED_VALUE_MOVES: AtomicU64 = AtomicU64::new(0);
+
+thread_local! {
+    static PROJECTION_BUILD_FAILURE_POINT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[doc(hidden)]
+pub fn set_projection_build_failure_point(enabled: bool) {
+    PROJECTION_BUILD_FAILURE_POINT.with(|failure_point| failure_point.set(enabled));
+}
+
+fn check_projection_build_failure_point() -> Result<(), QueryError> {
+    let injected =
+        PROJECTION_BUILD_FAILURE_POINT.with(|failure_point| failure_point.replace(false));
+    if injected {
+        return Err(QueryError::General(
+            "injected projection build failure".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn project_rows<R>(
+    rows: Vec<R>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<BatchRow>, QueryError>
+where
+    R: RowAccess,
+{
+    project_rows_resolving_exists(
+        rows,
+        projection,
+        params,
+        search_context,
+        user_functions,
+        session,
+        None,
+    )
+}
+
+pub(crate) fn project_rows_resolving_exists<R>(
+    rows: Vec<R>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    resolver: Option<&filter::ExistsResolver<'_>>,
+) -> Result<Vec<BatchRow>, QueryError>
+where
+    R: RowAccess,
+{
+    let ops = compile_projection_ops(projection);
+    let retain_evaluation_memory =
+        character_casts::required(&ops) || scalar_resources::requires_owner(&ops);
+    let retain_object_keys = json_object_keys::requires_owner(projection);
+    let evaluation = filter::evaluation::ProjectionValueContext {
+        params,
+        search: search_context,
+        functions: user_functions,
+        session,
+        resolver,
+    };
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let retain_deletion_memory = retain_object_keys
+            || character_casts::deletion_required(&ops, &row, params, user_functions);
+        let cast_memory = character_casts::Memory::new(
+            retain_evaluation_memory,
+            retain_deletion_memory,
+            session,
+        )?;
+        let data_types = super::projection_types::projected(&row, &ops, user_functions);
+        let mut projected = Vec::with_capacity(ops.len());
+        for op in &ops {
+            match op {
+                ProjectionOp::Wildcard => {
+                    // A row carries the internal identity only under `_id`
+                    // (see `scan::push_row_identity`). A row that also has an
+                    // `id` entry got it from a schema that declares its own
+                    // `id` field, so `_id` is internal working state there and
+                    // is excluded from `SELECT *`. Without such an entry `_id`
+                    // is itself what `SELECT *` reports as `id`, so it stays.
+                    let hide_internal_identity = row
+                        .entries()
+                        .iter()
+                        .any(|(name, _)| is_legacy_id_column(name));
+                    projected.extend(row.entries().iter().filter_map(|(name, value)| {
+                        if name.starts_with('\0')
+                            || is_window_value_key(name)
+                            || (hide_internal_identity && is_row_identity_column(name))
+                        {
+                            None
+                        } else {
+                            Some((name.clone(), value.clone()))
+                        }
+                    }));
+                }
+                ProjectionOp::Column { source, key } => {
+                    let value = row.get(source).cloned().unwrap_or(Value::Null);
+                    projected.push((key.clone(), value));
+                }
+                ProjectionOp::AggregateFunction { key, lookups } => {
+                    let value = lookups
+                        .iter()
+                        .find_map(|lookup| row.get(lookup))
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    projected.push((key.clone(), value));
+                }
+                ProjectionOp::ScalarFunction {
+                    key,
+                    expr,
+                    precomputed_key,
+                } => {
+                    let value = scalar_projection_value(
+                        &row,
+                        expr,
+                        precomputed_key.as_deref(),
+                        &cast_memory,
+                        &evaluation,
+                    )?;
+                    projected.push((key.clone(), value));
+                }
+                ProjectionOp::WindowFunction { key, source } => {
+                    projected.push((key.clone(), row.get(source).cloned().unwrap_or(Value::Null)));
+                }
+            }
+        }
+        out.push(
+            cast_memory.retain(
+                BatchRow::from_projected_values(projected)
+                    .with_optional_data_types(data_types)
+                    .with_query_memory(row.query_memory())
+                    .with_operator_memory(row.operator_memory()),
+            )?,
+        );
+    }
+
+    Ok(out)
+}
+
+fn scalar_projection_value<R: RowAccess>(
+    row: &R,
+    expr: &Expr,
+    precomputed_key: Option<&str>,
+    cast_memory: &character_casts::Memory<'_>,
+    evaluation: &filter::evaluation::ProjectionValueContext<'_>,
+) -> Result<Value, QueryError> {
+    precomputed_key
+        .and_then(|key| {
+            row.entries()
+                .iter()
+                .find_map(|(name, value)| (name == key).then_some(value))
+        })
+        .cloned()
+        .map_or_else(
+            || {
+                if let Some(result) = cast_memory.evaluate(row, expr, evaluation) {
+                    return result;
+                }
+                if let Some(resolver) = evaluation.resolver {
+                    filter::evaluate_resolving_exists(
+                        row,
+                        expr,
+                        filter::ExistsValueContext {
+                            params: evaluation.params,
+                            search: evaluation.search,
+                            functions: evaluation.functions,
+                            session: evaluation.session,
+                            resolver,
+                        },
+                    )
+                } else {
+                    filter::evaluate_expr_value(
+                        row,
+                        expr,
+                        evaluation.params,
+                        evaluation.search,
+                        evaluation.functions,
+                        evaluation.session,
+                        None,
+                    )
+                }
+            },
+            Ok,
+        )
+}
+
+fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
+    let mut window_index = 0;
+    projection
+        .iter()
+        .map(|item| match item {
+            SelectItem::Wildcard => ProjectionOp::Wildcard,
+            SelectItem::Column { name, alias } => {
+                let key = alias.clone().unwrap_or_else(|| {
+                    crate::sql::ColumnIdentifierPath::parse(name)
+                        .map_or_else(|_| name.clone(), |column| column.implicit_output_label())
+                });
+                ProjectionOp::Column {
+                    source: name.clone(),
+                    key,
+                }
+            }
+            SelectItem::Function { function, alias } => {
+                let key = alias
+                    .as_deref()
+                    .unwrap_or(function.name.as_str())
+                    .to_string();
+                if crate::sql::functions::is_aggregate_function(&function.name) {
+                    let mut lookups = alias.iter().cloned().collect::<Vec<_>>();
+                    lookups.push(crate::executor::execution::aggregate_signature(function));
+                    lookups.push(function.name.clone());
+                    ProjectionOp::AggregateFunction { key, lookups }
+                } else {
+                    ProjectionOp::ScalarFunction {
+                        key,
+                        expr: Expr::Function(Box::new(function.clone())),
+                        precomputed_key: Some(projection_expr_key(&Expr::Function(Box::new(
+                            function.clone(),
+                        )))),
+                    }
+                }
+            }
+            SelectItem::Expr { expr, alias } => ProjectionOp::ScalarFunction {
+                key: alias.clone().unwrap_or_else(|| expr.implicit_output_name()),
+                expr: expr.clone(),
+                precomputed_key: Some(projection_expr_key(expr)),
+            },
+            SelectItem::WindowFunction { function, alias } => {
+                let source = window_value_key(window_index);
+                window_index += 1;
+                ProjectionOp::WindowFunction {
+                    key: alias
+                        .as_deref()
+                        .unwrap_or(function.name.as_str())
+                        .to_string(),
+                    source,
+                }
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn project_batches(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<Vec<Batch>, QueryError> {
+    check_projection_build_failure_point()?;
+    let ops = compile_projection_ops(projection);
+    if ops.iter().all(ProjectionOp::can_move_owned)
+        && owned_sources_are_distinct(&ops)
+        && batches.iter().all(|batch| {
+            batch
+                .iter()
+                .all(|row| row.aliases().is_empty() && !row.has_outer_scope())
+        })
+    {
+        return Ok(batches
+            .into_iter()
+            .map(|batch| project_owned_batch(batch, &ops))
+            .collect());
+    }
+
+    batches
+        .into_iter()
+        .map(|batch| {
+            project_rows(
+                batch,
+                projection,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) use json_object_keys::cancel_expand_once as cancel_object_key_expansion_once;
+pub(crate) use json_object_keys::{OwnedExpanded, OwnedExpandedIter};
+
+pub(crate) fn expand_json_object_keys(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<OwnedExpanded, QueryError> {
+    json_object_keys::expand(batches, projection, controls)
+}
+
+pub(crate) fn project_batches_resolving_exists(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    resolver: &filter::ExistsResolver<'_>,
+) -> Result<Vec<Batch>, QueryError> {
+    check_projection_build_failure_point()?;
+    batches
+        .into_iter()
+        .map(|batch| {
+            project_rows_resolving_exists(
+                batch,
+                projection,
+                params,
+                search_context,
+                user_functions,
+                session,
+                Some(resolver),
+            )
+        })
+        .collect()
+}
+
+/// Moving values out of a row is only sound when no entry is read twice. A
+/// column referenced more than once or next to a wildcard needs the cloning
+/// path so every
+/// output keeps its value.
+fn owned_sources_are_distinct(ops: &[ProjectionOp]) -> bool {
+    if ops.len() > 1 && ops.iter().any(|op| matches!(op, ProjectionOp::Wildcard)) {
+        return false;
+    }
+    let mut sources = std::collections::HashSet::new();
+    ops.iter().all(|op| match op {
+        ProjectionOp::Column { source, .. } | ProjectionOp::WindowFunction { source, .. } => {
+            sources.insert(crate::sql::ColumnIdentifierPath::reference_field_key(
+                source,
+            ))
+        }
+        _ => true,
+    })
+}
+
+fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Batch {
+    let mut out = Vec::with_capacity(batch.len());
+    for row in batch {
+        out.push(project_owned_row(row, ops));
+    }
+    out
+}
+
+fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
+    let operator_memory = row.operator_memory();
+    let query_memory = row.query_memory();
+    let data_types =
+        super::projection_types::projected(&row, ops, &std::collections::HashMap::new());
+    let mut entries = row
+        .into_entries()
+        .into_iter()
+        .map(|(name, value)| (name, Some(value)))
+        .collect::<Vec<_>>();
+    let mut projected = Vec::with_capacity(ops.len());
+
+    for op in ops {
+        match op {
+            ProjectionOp::Wildcard => {
+                // Same rule as `project_rows`' wildcard branch above; the two
+                // paths are chosen by plan shape alone and must produce
+                // identically wide rows for the same query.
+                let hide_internal_identity =
+                    entries.iter().any(|(name, _)| is_legacy_id_column(name));
+                for (name, value) in &mut entries {
+                    if name.starts_with('\0')
+                        || is_window_value_key(name)
+                        || (hide_internal_identity && is_row_identity_column(name))
+                    {
+                        continue;
+                    }
+                    let value = value.take().unwrap_or(Value::Null);
+                    OWNED_VALUE_MOVES.fetch_add(1, Ordering::Relaxed);
+                    projected.push((name.clone(), value));
+                }
+            }
+            ProjectionOp::Column { source, key } => {
+                let column = crate::sql::ColumnIdentifierPath::parse(source).ok();
+                let value = entries
+                    .iter()
+                    .position(|(name, _)| name == source)
+                    .or_else(|| {
+                        column.as_ref().and_then(|column| {
+                            column.row_lookup_candidates().iter().find_map(|candidate| {
+                                entries.iter().position(|(name, _)| name == candidate)
+                            })
+                        })
+                    })
+                    .and_then(|index| entries[index].1.take())
+                    .unwrap_or(Value::Null);
+                if !matches!(value, Value::Null) {
+                    OWNED_VALUE_MOVES.fetch_add(1, Ordering::Relaxed);
+                }
+                projected.push((key.clone(), value));
+            }
+            ProjectionOp::WindowFunction { key, source } => {
+                let value = entries
+                    .iter_mut()
+                    .find(|(name, _)| name == source)
+                    .and_then(|(_, value)| value.take())
+                    .unwrap_or(Value::Null);
+                if !matches!(value, Value::Null) {
+                    OWNED_VALUE_MOVES.fetch_add(1, Ordering::Relaxed);
+                }
+                projected.push((key.clone(), value));
+            }
+            ProjectionOp::AggregateFunction { .. } | ProjectionOp::ScalarFunction { .. } => {
+                unreachable!()
+            }
+        }
+    }
+
+    BatchRow::from_projected_values(projected)
+        .with_optional_data_types(data_types)
+        .with_query_memory(query_memory)
+        .with_operator_memory(operator_memory)
+}
+
+pub(super) enum ProjectionOp {
+    Wildcard,
+    Column {
+        source: String,
+        key: String,
+    },
+    AggregateFunction {
+        key: String,
+        /// Row entries to read, most specific first: the alias when one was
+        /// written, then the aggregate signature (`count(v)`), which is
+        /// unique per aggregate, then the bare function name for producers
+        /// that only emit that.
+        lookups: Vec<String>,
+    },
+    ScalarFunction {
+        key: String,
+        expr: Expr,
+        precomputed_key: Option<String>,
+    },
+    WindowFunction {
+        key: String,
+        source: String,
+    },
+}
+
+pub(crate) fn window_value_key(index: usize) -> String {
+    format!("\0cassie_window_value_{index}")
+}
+
+pub(crate) fn is_window_value_key(name: &str) -> bool {
+    name.starts_with("\0cassie_window_value_")
+}
+
+fn projection_expr_key(expr: &Expr) -> String {
+    match expr {
+        Expr::Case { .. } | Expr::ArraySubscript { .. } => {
+            serde_json::to_string(expr).unwrap_or_default()
+        }
+        Expr::Column(name) => name.clone(),
+        Expr::Param(index) => format!("${}", index + 1),
+        Expr::Null => "null".to_string(),
+        Expr::BoolLiteral(value) => value.to_string(),
+        Expr::NumberLiteral(value) => value.to_string(),
+        Expr::IntegerLiteral(value) => value.to_string(),
+        Expr::NumericLiteral(value) => format!("numeric:{value}"),
+        Expr::StringLiteral(value) => format!("'{value}'"),
+        Expr::Function(function)
+            if function.is_distinct()
+                || function.filter.is_some()
+                || !function.order_by.is_empty() =>
+        {
+            crate::executor::execution::aggregate_signature(function)
+        }
+        Expr::Function(function) => format!(
+            "{}({})",
+            function.name.to_ascii_lowercase(),
+            function
+                .args
+                .iter()
+                .map(projection_expr_key)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        Expr::Binary { left, op, right } => {
+            format!(
+                "{}{:?}{}",
+                projection_expr_key(left),
+                op,
+                projection_expr_key(right)
+            )
+        }
+        Expr::TruthTest {
+            expr,
+            truth,
+            negated,
+        } => format!("{} {}", projection_expr_key(expr), truth.label(*negated)),
+        Expr::IsNull { expr, negated } => {
+            format!(
+                "{} is{} null",
+                projection_expr_key(expr),
+                if *negated { " not" } else { "" }
+            )
+        }
+        Expr::InList {
+            expr,
+            values,
+            negated,
+        } => projection_in_list_key(expr, values, *negated),
+        Expr::Like {
+            expr,
+            pattern,
+            escape,
+            case_insensitive,
+        } => like_expr_key(expr, pattern, escape, *case_insensitive),
+        Expr::Between {
+            expr,
+            low,
+            high,
+            negated,
+            symmetric,
+        } => format!(
+            "{}{} between{} {} and {}",
+            projection_expr_key(expr),
+            if *negated { " not" } else { "" },
+            if *symmetric { " symmetric" } else { "" },
+            projection_expr_key(low),
+            projection_expr_key(high)
+        ),
+        Expr::Not { expr } => format!("not {}", projection_expr_key(expr)),
+        Expr::RowCompare(_) | Expr::Subquery(_) => crate::executor::execution::expr_key(expr),
+        Expr::UnaryNumeric { expr, op } => format!("unary:{op:?}({})", projection_expr_key(expr)),
+        Expr::IntegerNegate { expr, width } => {
+            format!("negate:{width:?}({})", projection_expr_key(expr))
+        }
+        Expr::Cast {
+            expr,
+            data_type,
+            source_type,
+            identity,
+        } => format!(
+            "{}::{data_type:?}[{source_type:?},{identity:?}]",
+            projection_expr_key(expr)
+        ),
+        Expr::Collate { expr, collation } => collated_projection_expr_key(expr, collation),
+        Expr::Exists(_) => "exists".to_string(),
+    }
+}
+
+fn projection_in_list_key(expr: &Expr, values: &[Expr], negated: bool) -> String {
+    format!(
+        "{}{} in ({})",
+        projection_expr_key(expr),
+        if negated { " not" } else { "" },
+        values
+            .iter()
+            .map(projection_expr_key)
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn collated_projection_expr_key(expr: &Expr, collation: &str) -> String {
+    format!("{} collate {collation}", projection_expr_key(expr))
+}
+
+impl ProjectionOp {
+    fn can_move_owned(&self) -> bool {
+        matches!(
+            self,
+            ProjectionOp::Wildcard
+                | ProjectionOp::Column { .. }
+                | ProjectionOp::WindowFunction { .. }
+        )
+    }
+}
+
+fn like_expr_key(expr: &Expr, pattern: &Expr, escape: &Expr, case_insensitive: bool) -> String {
+    format!(
+        "({} {} {} ESCAPE {})",
+        projection_expr_key(expr),
+        if case_insensitive { "ILIKE" } else { "LIKE" },
+        projection_expr_key(pattern),
+        projection_expr_key(escape)
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn owned_value_moves_for_tests() -> u64 {
+    OWNED_VALUE_MOVES.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    use crate::sql::ast::BinaryOp;
+
+    #[test]
+    fn should_project_column_aliases() {
+        // Arrange
+        let rows = vec![vec![
+            ("id".to_string(), Value::String("doc-1".to_string())),
+            ("title".to_string(), Value::String("alpha".to_string())),
+        ]];
+        let projection = vec![SelectItem::Column {
+            name: "title".to_string(),
+            alias: Some("headline".to_string()),
+        }];
+
+        // Act
+        let projected = project_rows::<Vec<(String, Value)>>(
+            rows,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project rows");
+
+        // Assert
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].entries()[0].0, "headline");
+        assert_eq!(
+            projected[0].get("headline"),
+            Some(&Value::String("alpha".to_string()))
+        );
+    }
+
+    #[test]
+    fn should_evaluate_expression_when_alias_matches_source_column() {
+        // Arrange
+        let rows = vec![vec![("n".to_string(), Value::Int64(1))]];
+        let projection = vec![SelectItem::Expr {
+            expr: Expr::Binary {
+                left: Box::new(Expr::Column("n".to_string())),
+                op: BinaryOp::Add,
+                right: Box::new(Expr::IntegerLiteral(1)),
+            },
+            alias: Some("n".to_string()),
+        }];
+
+        // Act
+        let projected = project_rows::<Vec<(String, Value)>>(
+            rows,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project expression");
+
+        // Assert
+        assert_eq!(projected[0].get("n"), Some(&Value::Int64(2)));
+    }
+
+    #[test]
+    fn should_move_owned_values_for_simple_projection() {
+        // Arrange
+        let before = owned_value_moves_for_tests();
+        let batches = vec![vec![BatchRow::new(vec![
+            ("id".to_string(), Value::String("doc-1".to_string())),
+            ("title".to_string(), Value::String("alpha".to_string())),
+        ])]];
+        let projection = vec![SelectItem::Column {
+            name: "title".to_string(),
+            alias: Some("headline".to_string()),
+        }];
+
+        // Act
+        let projected = project_batches(
+            batches,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project batches");
+        let after = owned_value_moves_for_tests();
+
+        // Assert
+        assert_eq!(
+            projected[0][0].get("headline"),
+            Some(&Value::String("alpha".to_string()))
+        );
+        assert!(after > before);
+    }
+
+    #[test]
+    fn should_keep_moved_complex_values_owned() {
+        // Arrange
+        let payload = serde_json::json!({"nested": ["alpha", "beta"]});
+        let vector = crate::types::Vector::new(vec![1.0, 2.0]);
+        let batches = vec![vec![BatchRow::new(vec![
+            ("payload".to_string(), Value::Json(payload.clone())),
+            ("embedding".to_string(), Value::Vector(vector.clone())),
+        ])]];
+        let projection = vec![
+            SelectItem::Column {
+                name: "payload".to_string(),
+                alias: None,
+            },
+            SelectItem::Column {
+                name: "embedding".to_string(),
+                alias: None,
+            },
+        ];
+
+        // Act
+        let mut projected = project_batches(
+            batches,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project batches");
+        let row = projected.remove(0).remove(0);
+
+        // Assert
+        assert_eq!(row.get("payload"), Some(&Value::Json(payload)));
+        assert_eq!(row.get("embedding"), Some(&Value::Vector(vector)));
+    }
+
+    #[test]
+    fn should_fallback_from_owned_projection_for_alias_backed_rows() {
+        // Arrange
+        let batches = vec![vec![BatchRow::with_aliases(
+            vec![
+                ("id".to_string(), Value::String("doc-1".to_string())),
+                ("name".to_string(), Value::String("alpha".to_string())),
+            ],
+            vec![("users.name".to_string(), 1)],
+        )]];
+        let projection = vec![SelectItem::Column {
+            name: "users.name".to_string(),
+            alias: None,
+        }];
+
+        // Act
+        let projected = project_batches(
+            batches,
+            projection.as_slice(),
+            &[],
+            None,
+            &HashMap::new(),
+            None,
+        )
+        .expect("project batches");
+
+        // Assert
+        assert_eq!(
+            projected[0][0].get("users.name"),
+            Some(&Value::String("alpha".to_string()))
+        );
+    }
+}

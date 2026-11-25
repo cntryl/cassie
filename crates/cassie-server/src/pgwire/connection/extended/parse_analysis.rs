@@ -1,0 +1,64 @@
+//! Ordered semantic admission before prepared-statement publication.
+use super::{unknown_high_bit_projection_oid, with_function_input_scope, ExtendedQueryError};
+use crate::app::{Cassie, CassieSession};
+use crate::runtime::QueryExecutionControls;
+use crate::sql::{AdmittedParameterTypes, ParsedStatement};
+
+pub(super) fn admit(
+    cassie: &Cassie,
+    session: &CassieSession,
+    parsed: &mut ParsedStatement,
+    parameter_type_oids: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<AdmittedParameterTypes, ExtendedQueryError> {
+    cassie.check_storage_statement_admission(&parsed.statement)?;
+    if parameter_type_oids
+        .iter()
+        .any(|oid| (34_000..44_000).contains(oid))
+    {
+        return Err(ExtendedQueryError::unsupported(
+            "private Cassie array parameter OIDs are unsupported by pgwire",
+        ));
+    }
+    let admitted = cassie.with_transaction_analysis_view(session, controls, |scoped_cassie| {
+        crate::sql::parse_analysis::normalize_type_functions(
+            parsed,
+            parameter_type_oids,
+            controls,
+        )?;
+        let admitted = with_function_input_scope(scoped_cassie, session, |scope| {
+            crate::sql::checked_wire_parse_parameter_types_in_scope(
+                parsed,
+                parameter_type_oids,
+                &scoped_cassie.catalog,
+                controls,
+                Some(scope),
+            )
+        })
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
+        // Bind source/name/input semantics without planning, before final slot
+        // validation and before making the prepared statement visible.
+        // An omitted Parse OID may have a legacy fallback in the admitted list.
+        // Set category checks must distinguish that from an explicit type declaration.
+        crate::sql::parse_analysis::validate_with_declared_types(
+            parsed,
+            admitted.types(),
+            parameter_type_oids,
+            &scoped_cassie.catalog,
+            &scoped_cassie.binding_context_for_session(Some(session)),
+            controls,
+        )?;
+        Ok::<_, ExtendedQueryError>(admitted)
+    })?;
+    admitted
+        .final_check()
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
+    if let Some(oid) = unknown_high_bit_projection_oid(parsed, admitted.types()) {
+        return Err(ExtendedQueryError::unknown_type_oid(oid));
+    }
+    crate::sql::pagination::validate_statement(parsed, Some(admitted.types()))
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    crate::sql::validate_wire_parse_parameter_slots(admitted.types(), controls)
+        .map_err(|error| ExtendedQueryError::parameter_admission(error, controls))?;
+    Ok(admitted)
+}

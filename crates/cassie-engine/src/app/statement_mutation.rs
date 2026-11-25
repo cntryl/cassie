@@ -1,0 +1,380 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use crate::midge::adapter::documents::RollupSourceChangeReport;
+use crate::midge::adapter::{DocumentWriteBatchReport, DocumentWriteOp};
+use crate::runtime::QueryExecutionControls;
+
+use super::{Cassie, CassieError, CassieSession, StatementMutationBatch, TransactionRowChange};
+
+#[cfg(test)]
+#[path = "statement_mutation_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "statement_mutation_copy_tests.rs"]
+mod copy_tests;
+
+#[cfg(all(test, feature = "replay-benchmark-observation"))]
+#[path = "statement_mutation_retry_policy_tests.rs"]
+mod retry_policy_tests;
+
+#[path = "statement_mutation_maintenance.rs"]
+mod maintenance;
+
+/// A database name and the extra Data writes committed with a batch.
+type AdditionalDataWrites = (String, Vec<(Vec<u8>, Option<Vec<u8>>)>);
+
+struct CommittedCollection {
+    collection: String,
+    relation_id: u64,
+    row_delta: i64,
+    changed_ids: Vec<String>,
+    rollup_changes: RollupSourceChangeReport,
+}
+
+pub(super) struct CommittedWriteBatch {
+    changed_collections: Vec<CommittedCollection>,
+    copy_finish: bool,
+}
+
+impl Cassie {
+    /// A statement's metadata side effects join its working catalog stage;
+    /// descriptor reads keep the caller's separately retained immutable view.
+    pub(crate) fn with_statement_metadata_writer(
+        &self,
+        working: &CassieSession,
+    ) -> Result<Self, CassieError> {
+        let mut scoped = self.clone();
+        scoped.metadata_write_catalog = working
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        working.attach_schema_context(&scoped)?;
+        Ok(scoped)
+    }
+
+    pub(crate) fn new_statement_batch(
+        &self,
+        session: Option<&CassieSession>,
+    ) -> Result<StatementMutationBatch, CassieError> {
+        if let Some(session) = session {
+            session.attach_transaction_unique_waits(Arc::clone(&self.transaction_unique_waits));
+            session.fork_statement_batch()
+        } else {
+            CassieSession::new("root".to_string(), Some(self.default_database.clone()))
+                .fork_statement_batch()
+        }
+    }
+
+    pub(crate) fn publish_statement_batch(
+        &self,
+        original: Option<&CassieSession>,
+        batch: StatementMutationBatch,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        check_publication_controls(Some(controls))?;
+        if batch.has_enclosing_transaction() {
+            let original = original.ok_or_else(|| {
+                CassieError::Execution(
+                    "statement mutation lost its explicit transaction".to_string(),
+                )
+            })?;
+            let publication = original.publish_statement_batch(&batch);
+            drop(batch);
+            return publication;
+        }
+        if original.is_some_and(|session| {
+            session.is_transaction_active() || session.is_transaction_failed()
+        }) {
+            return Err(CassieError::Execution(
+                "session transaction changed while statement was executing".to_string(),
+            ));
+        }
+
+        let staging = batch.into_session();
+        let committed = self.apply_staged_write_batches(&staging, Some(controls), None)?;
+        self.finish_staged_write_batches(committed, Some(controls));
+        Ok(())
+    }
+
+    pub(crate) fn publish_statement_batch_with_data_writes(
+        &self,
+        batch: StatementMutationBatch,
+        controls: &QueryExecutionControls,
+        database: String,
+        data_writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    ) -> Result<(), CassieError> {
+        check_publication_controls(Some(controls))?;
+        if batch.has_enclosing_transaction() {
+            return Err(CassieError::Execution(
+                "scheduled retention progress cannot join a SQL transaction".to_owned(),
+            ));
+        }
+        let staging = batch.into_session();
+        let committed = self.apply_staged_write_batches_with_data_writes(
+            &staging,
+            Some(controls),
+            None,
+            Some(&(database, data_writes)),
+        )?;
+        self.finish_staged_write_batches(committed, Some(controls));
+        Ok(())
+    }
+
+    pub(super) fn apply_staged_write_batches(
+        &self,
+        staging: &CassieSession,
+        controls: Option<&QueryExecutionControls>,
+        transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
+    ) -> Result<CommittedWriteBatch, CassieError> {
+        self.apply_staged_write_batches_with_data_writes(staging, controls, transactional_ddl, None)
+    }
+
+    fn apply_staged_write_batches_with_data_writes(
+        &self,
+        staging: &CassieSession,
+        controls: Option<&QueryExecutionControls>,
+        transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
+        additional_data: Option<&AdditionalDataWrites>,
+    ) -> Result<CommittedWriteBatch, CassieError> {
+        let mut writes = transaction_write_batches(staging);
+        if let Some((database, overlay)) = transactional_ddl {
+            // A staged DROP already removes this relation's name and rows from
+            // the transactional overlay; skip earlier row batches for it.
+            writes.retain(|collection, _| !overlay.drops_collection(collection, database));
+        }
+        if writes.is_empty() && additional_data.is_none() {
+            check_publication_controls(controls)?;
+            if let Some((database, overlay)) = transactional_ddl {
+                self.midge.commit_storage_overlay(database, overlay)?;
+            }
+            return Ok(CommittedWriteBatch {
+                changed_collections: Vec::new(),
+                copy_finish: false,
+            });
+        }
+
+        let collections = writes.keys().cloned().collect::<Vec<_>>();
+        let mut options = if collections.is_empty() {
+            crate::midge::adapter::DocumentWriteBatchOptions::sync(self.midge.write_options_sync())
+        } else {
+            self.document_write_options_for_collections(&collections)
+        };
+        if let Some((database, data_writes)) = additional_data {
+            options.data_database = Some(database.clone());
+            options.additional_data_writes.clone_from(data_writes);
+        }
+        options.refresh_after_commit = false;
+        self.apply_projection_commit_policy(staging, transactional_ddl.is_some(), &mut options);
+        check_publication_controls(controls)?;
+        let initial = if let Some((_, overlay)) = transactional_ddl {
+            self.midge
+                .apply_document_write_batches_with_transactional_ddl(&writes, &options, overlay)
+                .map_err(CassieError::from)
+        } else {
+            self.midge
+                .apply_document_write_batches_with_options(&writes, &options)
+                .map_err(CassieError::from)
+        };
+        #[cfg(all(test, feature = "replay-benchmark-observation"))]
+        retry_policy_tests::after_initial(self, options.commit, &initial);
+        let reports = match initial {
+            Ok(reports) => reports,
+            Err(error @ CassieError::UniqueViolation { .. })
+                if !staging.transaction_conflict_intents().is_empty() =>
+            {
+                if staging.is_repeatable_read_write() {
+                    return Err(crate::executor::repeatable_conflict_failure(
+                        self, staging, error, controls,
+                    ));
+                }
+                #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                retry_policy_tests::resolver_entered();
+                crate::executor::resolve_transaction_conflict_intents(self, staging, controls)
+                    .map_err(CassieError::from)?;
+                #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                retry_policy_tests::resolved(self, staging);
+                writes = transaction_write_batches(staging);
+                if writes.is_empty() && additional_data.is_none() {
+                    BTreeMap::new()
+                } else {
+                    let retry_collections = writes.keys().cloned().collect::<Vec<_>>();
+                    let mut retry_options = if retry_collections.is_empty() {
+                        crate::midge::adapter::DocumentWriteBatchOptions::sync(
+                            self.midge.write_options_sync(),
+                        )
+                    } else {
+                        self.document_write_options_for_collections(&retry_collections)
+                    };
+                    if let Some((database, data_writes)) = additional_data {
+                        retry_options.data_database = Some(database.clone());
+                        retry_options.additional_data_writes.clone_from(data_writes);
+                    }
+                    retry_options.refresh_after_commit = false;
+                    // Re-select after conflict resolution: it may have run
+                    // sequence or default effects, which only raise strictness.
+                    self.apply_projection_commit_policy(
+                        staging,
+                        transactional_ddl.is_some(),
+                        &mut retry_options,
+                    );
+                    check_publication_controls(controls)?;
+                    #[cfg(all(test, feature = "replay-benchmark-observation"))]
+                    retry_policy_tests::before_retry(retry_options.commit);
+                    if let Some((_, overlay)) = transactional_ddl {
+                        self.midge
+                            .apply_document_write_batches_with_transactional_ddl(
+                                &writes,
+                                &retry_options,
+                                overlay,
+                            )?
+                    } else {
+                        self.midge
+                            .apply_document_write_batches_with_options(&writes, &retry_options)?
+                    }
+                }
+            }
+            Err(error) => return Err(error),
+        };
+
+        Ok(self.account_acknowledged_write_reports(reports))
+    }
+
+    /// Selects the native policy for this transaction's own Data submission.
+    /// Undeclared, implicit and promoted transactions keep the existing policy.
+    fn apply_projection_commit_policy(
+        &self,
+        staging: &CassieSession,
+        transactional_ddl: bool,
+        options: &mut crate::midge::adapter::DocumentWriteBatchOptions,
+    ) {
+        match staging.projection_commit_policy(transactional_ddl) {
+            crate::app::ProjectionCommitPolicy::Existing => {}
+            crate::app::ProjectionCommitPolicy::Replayable => {
+                options.commit = self.midge.write_options_replayable();
+            }
+            crate::app::ProjectionCommitPolicy::Strict => {
+                options.commit = self.midge.write_options_strict_replay();
+            }
+        }
+    }
+
+    pub(super) fn finish_acknowledged_copy_report(
+        &self,
+        collection: &str,
+        report: DocumentWriteBatchReport,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<(), CassieError> {
+        let mut committed = self
+            .account_acknowledged_write_reports(BTreeMap::from([(collection.to_owned(), report)]));
+        self.invalidate_acknowledged_copy_hints(&committed);
+        // COPY uses a buffered source write. Preserve its mandatory durability
+        // barrier independently of cancellable, rebuildable metadata finishing.
+        self.midge.flush_data_family_for_collection(collection)?;
+        committed.copy_finish = true;
+        self.finish_staged_write_batches(committed, controls);
+        Ok(())
+    }
+
+    fn account_acknowledged_write_reports(
+        &self,
+        reports: BTreeMap<String, DocumentWriteBatchReport>,
+    ) -> CommittedWriteBatch {
+        let mut changed_collections = Vec::new();
+        let mut latest_epoch = None;
+        for (collection, report) in reports {
+            self.runtime
+                .record_projection_write_batch(collection.clone(), &report.stats);
+            if report_has_changes(&report.stats) {
+                changed_collections.push(CommittedCollection {
+                    collection,
+                    relation_id: report.relation_id,
+                    row_delta: report.row_delta,
+                    changed_ids: report.changed_ids,
+                    rollup_changes: report.rollup_changes,
+                });
+            }
+            latest_epoch = latest_epoch.max(report.data_epoch);
+        }
+        if let Some(epoch) = latest_epoch {
+            self.runtime.set_data_epoch(epoch);
+        }
+
+        CommittedWriteBatch {
+            changed_collections,
+            copy_finish: false,
+        }
+    }
+
+    pub(super) fn finish_staged_write_batches(
+        &self,
+        mut committed: CommittedWriteBatch,
+        controls: Option<&QueryExecutionControls>,
+    ) {
+        committed
+            .changed_collections
+            .sort_by(|left, right| left.collection.cmp(&right.collection));
+        committed
+            .changed_collections
+            .dedup_by(|left, right| left.collection == right.collection);
+        let fallback_controls = controls
+            .is_none()
+            .then(|| self.runtime.query_controls(std::time::Instant::now()));
+        let controls = controls
+            .or(fallback_controls.as_ref())
+            .expect("provided or fallback query controls");
+        for collection in committed.changed_collections {
+            let result =
+                self.finish_committed_collection(&collection, controls, committed.copy_finish);
+            if committed.copy_finish && result.is_err() {
+                self.runtime.record_cardinality_unavailable();
+            }
+        }
+    }
+}
+
+fn transaction_write_batches(session: &CassieSession) -> BTreeMap<String, Vec<DocumentWriteOp>> {
+    session
+        .transaction_writes()
+        .into_iter()
+        .filter_map(|(collection, collection_writes)| {
+            let mut write_ops = collection_writes
+                .into_iter()
+                .map(|(id, change)| match change {
+                    TransactionRowChange::Upsert(payload) => DocumentWriteOp::Put { id, payload },
+                    TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
+                })
+                .collect::<Vec<_>>();
+            write_ops.sort_by_key(|operation| match operation {
+                DocumentWriteOp::Delete { .. } => 0,
+                DocumentWriteOp::Put { .. } => 1,
+            });
+            (!write_ops.is_empty()).then_some((collection, write_ops))
+        })
+        .collect()
+}
+
+fn check_publication_controls(
+    controls: Option<&QueryExecutionControls>,
+) -> Result<(), CassieError> {
+    let Some(controls) = controls else {
+        return Ok(());
+    };
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
+    }
+    if controls.is_timed_out() {
+        return Err(CassieError::DeadlineExceeded);
+    }
+    Ok(())
+}
+
+fn report_has_changes(stats: &crate::runtime::ProjectionWriteStats) -> bool {
+    stats.row_puts > 0
+        || stats.row_deletes > 0
+        || stats.index_puts > 0
+        || stats.index_deletes > 0
+        || stats.metadata_puts > 0
+        || stats.metadata_deletes > 0
+        || stats.batch_flushes > 0
+}

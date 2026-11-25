@@ -1,0 +1,283 @@
+use std::future::{ready, Ready};
+use std::ops::Range;
+use std::sync::Arc;
+
+use cassie::app::{Cassie, CassieError};
+use cassie::config::CassieRuntimeConfig;
+use serde_json::json;
+
+use super::context::{
+    benchmark_data_dir_for_mode, configure_benchmark_environment, prepare_collection, BenchContext,
+    BenchIndexOptions, BenchmarkStorageMode, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
+};
+use super::document_batches::bench_document_write_batch_ranges;
+
+const JOIN_USERS: &str = "bench_join_users";
+const JOIN_ORDERS: &str = "bench_join_orders";
+const TIME_SERIES: &str = "bench_time_series_events";
+
+pub fn tier3_query_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    tier3_query_context_with_indexes(label, dataset_rows, Tier3QueryIndexes::full())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Tier3QueryIndexes {
+    pub scalar: bool,
+    pub fulltext: bool,
+}
+
+impl Tier3QueryIndexes {
+    const fn full() -> Self {
+        Self {
+            scalar: true,
+            fulltext: true,
+        }
+    }
+}
+
+pub fn tier3_query_context_with_indexes(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(tier3_query_context_now(label, dataset_rows, indexes))
+}
+
+pub fn tier3_time_series_context(
+    label: &str,
+    dataset_rows: usize,
+    bucket_width: &str,
+) -> Ready<Result<BenchContext, CassieError>> {
+    let result = empty_tier3_query_context_now(label, dataset_rows).and_then(|context| {
+        prepare_time_series(&context, dataset_rows, bucket_width).map(|()| context)
+    });
+    ready(result)
+}
+
+fn tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Result<BenchContext, CassieError> {
+    let context = empty_tier3_query_context_now(label, dataset_rows)?;
+    prepare_collection(
+        &context,
+        dataset_rows,
+        BenchIndexOptions::selected(indexes.scalar, indexes.fulltext),
+    )?;
+    Ok(context)
+}
+
+pub fn empty_tier3_query_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(empty_tier3_query_context_now(label, dataset_rows))
+}
+
+fn empty_tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    empty_tier3_query_context_with_memory_now(
+        label,
+        dataset_rows,
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    )
+}
+
+fn empty_tier3_query_context_with_memory_now(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+) -> Result<BenchContext, CassieError> {
+    configure_benchmark_environment();
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
+    let data_dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
+    let mut config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+    config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 1_024;
+    config.limits.operator_switch_join_row_threshold = dataset_rows.saturating_mul(2).max(1);
+
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(
+        data_dir.clone(),
+        config,
+    )?);
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
+    let context = BenchContext {
+        cassie,
+        session,
+        collection: "bench_documents".to_string(),
+        data_dir,
+        _embedding_server: None,
+    };
+    Ok(context)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Tier3QueryDomains {
+    pub join: bool,
+    pub time_series: bool,
+}
+
+pub fn prepare_tier3_query_domains(
+    context: &BenchContext,
+    dataset_rows: usize,
+    domains: Tier3QueryDomains,
+) -> Result<(), CassieError> {
+    if domains.join {
+        prepare_join_collections(context, dataset_rows)?;
+    }
+    if domains.time_series {
+        prepare_time_series(context, dataset_rows, "1 hour")?;
+    }
+    Ok(())
+}
+
+fn prepare_join_collections(
+    context: &BenchContext,
+    dataset_rows: usize,
+) -> Result<(), CassieError> {
+    if context.cassie.catalog.exists(JOIN_USERS) {
+        return Ok(());
+    }
+
+    execute_ddl(
+        context,
+        "CREATE TABLE bench_join_users (user_key INT, name TEXT)",
+    )?;
+    execute_ddl(
+        context,
+        "CREATE TABLE bench_join_orders (order_user_key INT, total INT)",
+    )?;
+    execute_ddl(
+        context,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
+    )?;
+    for_each_tier3_domain_batch(dataset_rows, "join users", |range| {
+        let users = range
+            .map(|index| {
+                let key = index_as_i64(index);
+                (
+                    Some(format!("user-{index}")),
+                    json!({
+                        "user_key": key,
+                        "name": format!("user-{index}"),
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_documents(JOIN_USERS, users)
+            .map(|_| ())
+            .map_err(CassieError::from)
+    })?;
+    for_each_tier3_domain_batch(dataset_rows, "join orders", |range| {
+        let orders = range
+            .map(|index| {
+                (
+                    Some(format!("order-{index}")),
+                    json!({
+                        "order_user_key": index_as_i64(index),
+                        "total": index_as_i64(index % 100),
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_documents(JOIN_ORDERS, orders)
+            .map(|_| ())
+            .map_err(CassieError::from)
+    })?;
+    Ok(())
+}
+
+fn prepare_time_series(
+    context: &BenchContext,
+    dataset_rows: usize,
+    bucket_width: &str,
+) -> Result<(), CassieError> {
+    if context.cassie.catalog.exists(TIME_SERIES) {
+        return Ok(());
+    }
+
+    execute_ddl(
+        context,
+        "CREATE TABLE bench_time_series_events (tenant TEXT, event_at TIMESTAMP, amount INT, status TEXT)",
+    )?;
+    execute_ddl(
+        context,
+        &format!(
+            "CREATE INDEX bench_time_series_time_idx ON bench_time_series_events USING time_series (event_at) WITH (bucket_width = '{bucket_width}', partition_by = tenant)"
+        ),
+    )?;
+
+    let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
+    for_each_tier3_domain_batch(dataset_rows, "time-series events", |range| {
+        let documents = range
+            .map(|index| {
+                let day = 9 + ((index / 24) % 7);
+                let hour = index % 24;
+                (
+                    Some(format!("ts-doc-{index}")),
+                    json!({
+                        "tenant": tenants[index % tenants.len()],
+                        "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
+                        "amount": index_as_i64(index % 100),
+                        "status": if index % 2 == 0 { "open" } else { "closed" },
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_time_series_documents(TIME_SERIES, documents)
+            .map(|_| ())
+            .map_err(CassieError::from)
+    })?;
+    Ok(())
+}
+
+pub fn for_each_tier3_domain_batch<F>(
+    dataset_rows: usize,
+    domain: &str,
+    mut write: F,
+) -> Result<(), CassieError>
+where
+    F: FnMut(Range<usize>) -> Result<(), CassieError>,
+{
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let start = range.start;
+        let end = range.end;
+        write(range).map_err(|error| {
+            CassieError::Storage(format!(
+                "prepare Tier 3 {domain} rows {start}..{end}: {error}"
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+fn execute_ddl(context: &BenchContext, sql: &str) -> Result<(), CassieError> {
+    context
+        .cassie
+        .execute_sql(&context.session, sql, Vec::new())
+        .map(|_| ())
+}
+
+fn index_as_i64(index: usize) -> i64 {
+    i64::try_from(index).expect("Tier 3 fixture row index should fit i64")
+}

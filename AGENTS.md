@@ -16,41 +16,36 @@ cargo fmt --all -- --check
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/sql/` | Parser, AST, binder |
-| `src/planner/` | Logical plan, optimizer, physical plan |
-| `src/executor/` | Scan, filter, projection, sort, aggregate, batch exec |
-| `src/midge/` | Storage adapter wrapping `cntryl-midge` |
-| `src/catalog/` | Schema, roles, indexes, constraints, views, functions |
-| `src/pgwire/` | PostgreSQL wire protocol server (port 5432) |
-| `src/rest/` | HTTP REST API (port 8080) |
-| `src/embeddings/` | Providers: openai, ollama, tei, voyage, cohere, local |
-| `src/vector/` | Distance metrics (cosine, dot, L2) + HNSW, IVFFlat |
-| `src/search/` | BM25 full-text search, inverted index |
-| `src/types/` | Value types, schema, row encoding |
-| `src/hybrid/` | Hybrid text+vector scoring |
-| `tests/` | Subsystem integration suites plus a shared fixture library in `tests/support/` |
-| `benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
+| `crates/cassie-core/` | Shared value types, catalog declarations, cancellation, deadlines, and memory reservations |
+| `crates/cassie-sql/` | Lexer, parser, AST, and syntax diagnostics |
+| `crates/cassie-search/` | Full-text query compilation and matching, tokenization, BM25, and inverted indexes |
+| `crates/cassie-vector/` | Vector distance metrics, HNSW, IVFFlat, and vector index types |
+| `crates/cassie-embeddings/` | Embedding providers and their request controls |
+| `crates/cassie-storage/` | Concrete Midge adapter, key and row codecs, native transactions, and snapshots |
+| `crates/cassie-engine/` | Sessions, catalog, SQL binding, planning, execution, hybrid selection, and runtime |
+| `crates/cassie-server/` | Package and binary `cassie`, PostgreSQL wire transport, REST, and server examples |
+| `crates/cassie-e2e/` | Integration tests, shared fixtures, and the tiered benchmark harness |
 
 ## File Organization
 
 Small, well-organized files are a core architecture requirement. Future feature work must keep modules focused so changes stay surgical.
 
 - Put new code in the smallest domain-specific module that fits the behavior.
-- Keep source, benchmark, and test-support files under 1,000 lines. Flat integration suite files under `tests/*.rs` may grow to 12,000 lines when their tests remain separated into focused named modules.
+- Keep source, benchmark, and test-support files under 1,000 lines. Flat integration suite files under `crates/cassie-e2e/tests/*.rs` may grow to 12,000 lines when their tests remain separated into focused named modules.
 - Do not add substantial feature work to files over their limit unless the same change extracts focused code or fixtures from that file.
 - Keep tests grouped by subsystem. Do not add new broad coverage to catch-all integration files when a subsystem-specific test file exists.
-- Put reusable fixtures, builders, mock servers, environment guards, failpoint locks, and shared assertions in focused `tests/support/*.rs` modules.
+- Put reusable fixtures, builders, mock servers, environment guards, failpoint locks, and shared assertions in focused `crates/cassie-e2e/tests/support/*.rs` modules.
 - Prefer refactors that reduce oversized files before adding more behavior to them.
 - Use this audit when planning large work:
 
 ```sh
-find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr | head -40
+find crates -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr | head -40
 ```
 
 ## Testing
 
 - Correctness tests use the smallest fixture that proves the invariant. Throughput,
-  scaling, saturation, and endurance workloads belong in `benches/`, using the
+  scaling, saturation, and endurance workloads belong in `crates/cassie-e2e/benches/`, using the
   existing stress tiers. Do not add performance timing assertions to correctness tests.
 - Resource tests lower configured limits and exercise just-below/just-above cases.
   Cancellation and concurrency tests synchronize at the relevant execution boundary;
@@ -62,7 +57,7 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 - Use Midge memory mode for every Cassie test fixture unless the test exercises disk-backed
   persistence, restart/recovery, or on-disk layout. Keep those cases explicitly local with
   isolated data directories.
-- All integration tests live in `tests/`. Module tests live near the code they cover.
+- All integration tests live in `crates/cassie-e2e/tests/`. Module tests live near the code they cover.
 - **Async tests**: use `tokio::runtime::Builder::new_current_thread().enable_all().build()` — never `#[tokio::test]`.
 - Benchmark fixtures select `CASSIE_STORAGE_MODE=memory` for ephemeral runs and
   `local` explicitly when restart or persisted-state behavior is under test.
@@ -71,8 +66,8 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 
 ```sh
 # specific split integration tests
-cargo test --locked --test sql_queries integration_sql_joins:: -- --nocapture
-cargo test --locked --test executor executor_parallel:: -- --nocapture
+cargo test --locked -p cassie-e2e --test sql_queries integration_sql_joins:: -- --nocapture
+cargo test --locked -p cassie-e2e --test executor executor_parallel:: -- --nocapture
 
 # single unit test
 cargo test --locked should_reuse_cached_plan_arc
@@ -85,7 +80,7 @@ cntryl-tools validate-tests -f <path>
 
 ## Configuration
 
-All config via `CASSIE_*` env vars (see `src/config.rs`):
+All config via `CASSIE_*` env vars (see `crates/cassie-engine/src/config.rs`):
 
 | Variable | Default | Notes |
 |----------|---------|-------|
@@ -115,13 +110,13 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 Tiered benchmark suite using criterion. Run specific tiers:
 
 ```sh
-cargo bench --locked --bench tier1_hotpath_row_codec
-cargo bench --locked --bench tier2_subsystem_sql_planning
-cargo bench --locked --bench tier3_system_query
-cargo bench --locked --bench tier4_integration_pgwire
+cargo bench --locked -p cassie-e2e --bench tier1_hotpath_row_codec
+cargo bench --locked -p cassie-e2e --bench tier2_subsystem_sql_planning
+cargo bench --locked -p cassie-e2e --bench tier3_system_query
+cargo bench --locked -p cassie-e2e --bench tier4_integration_pgwire
 ```
 
-Tier config overridable via `BENCH_TIER*` env vars (see `benches/support/criterion_config.rs`).
+Tier config overridable via `BENCH_TIER*` env vars (see `crates/cassie-e2e/benches/support/criterion_config.rs`).
 
 ## Containers
 
@@ -129,13 +124,13 @@ Multi-arch image published to `ghcr.io/cntryl/cassie`. The publishing workflow
 is configured in `.github/workflows/containers.yml`. GitHub Actions should remain
 enabled; normal push and pull-request workflows are authorized. The publishing
 workflow builds:
-`linux/amd64` and `linux/arm64`, tagged with the Cargo.toml SemVer (`main` builds use the stable
+`linux/amd64` and `linux/arm64`, tagged with the `cassie` package SemVer (`main` builds use the stable
 version; branch builds add a `-<branch>.<run>` prerelease suffix).
 
 ## Versioning
 
-The version is `[package].version` in `Cargo.toml` (currently `0.2.0`). `.github/workflows/version.yml`
-reads it and derives the branch prerelease suffix.
+The version is `[package].version` in `crates/cassie-server/Cargo.toml`. The workflow at
+`.github/workflows/version.yml` reads it through Cargo metadata and derives the branch prerelease suffix.
 
 ## Constraints
 

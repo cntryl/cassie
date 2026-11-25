@@ -1,0 +1,39 @@
+[package]
+name = "cassie"
+version = "0.1.0"
+edition = "2021"
+publish = false
+autotests = false
+license-file = "../../LICENSE"
+
+[lints]
+workspace = true
+
+[features]
+replay-benchmark-observation = ["cassie-engine/replay-benchmark-observation"]
+
+[dependencies]
+cassie-engine = { path = "../cassie-engine" }
+bytes = "1.12"
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1.54", features = ["full"] }
+tokio-rustls = "0.26"
+rustls = "0.23"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
+thiserror = "2.0"
+uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
+hyper = { version = "1.12", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+sha2 = "0.11"
+sql-json-path = "0.2.0"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+
+[dev-dependencies]
+cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
+num-bigint = "0.5.1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
+cntryl-stress = "0.5.1"
+rcgen = "0.14"

@@ -1,0 +1,735 @@
+pub use statements::parse_terminal_transaction_control;
+use std::fmt;
+
+#[path = "parser/aggregate_call.rs"]
+mod aggregate_call;
+pub use expr::parse_expression;
+#[path = "parser/pattern_function_call.rs"]
+mod pattern_function_call;
+
+use crate::ast::{
+    AlterIndexOperation, AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateIndexStatement,
+    CreateMaterializedProjectionStatement, CreateProcedureStatement,
+    CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
+    CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
+    DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
+    DropIndexStatement, DropMaterializedProjectionStatement, DropProcedureStatement,
+    DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
+    DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
+    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
+    NullsOrder, ObjectPrivilegeStatement, ObjectPrivilegeTarget, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SortDirection,
+    VerifyProjectionStatement, Volatility, WindowFunctionCall,
+};
+use crate::declarations::{ConstraintCheck, ConstraintOperator, FieldConstraint};
+use cassie_core::catalog::declarations::IndexKind;
+use cassie_core::types::DataType;
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SqlErrorKind {
+    Syntax,
+    Unsupported,
+    NumericRange,
+    DuplicateColumn,
+    ResourceLimit,
+    UndefinedFunction,
+    UndefinedObject,
+    /// A type modifier outside its documented range (SQLSTATE 22023).
+    InvalidParameterValue,
+    /// An option that the column's data type cannot take (SQLSTATE 42804).
+    DatatypeMismatch,
+    /// A statement rejected with a specific PostgreSQL SQLSTATE, such as an
+    /// invalid window frame (42P20).
+    Diagnostic(&'static str),
+}
+
+#[derive(Debug, Clone)]
+pub struct SqlError {
+    kind: SqlErrorKind,
+    message: String,
+    position: Option<usize>,
+}
+
+impl SqlError {
+    #[must_use]
+    pub fn new(message: String) -> Self {
+        let kind = infer_sql_error_kind(&message);
+        Self {
+            kind,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn syntax(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Syntax,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn unsupported(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Unsupported,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn undefined_function(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::UndefinedFunction,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn undefined_object(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::UndefinedObject,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn invalid_parameter_value(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::InvalidParameterValue,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn datatype_mismatch(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::DatatypeMismatch,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn diagnostic(sql_state: &'static str, message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::Diagnostic(sql_state),
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn numeric_range(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::NumericRange,
+            message,
+            position: None,
+        }
+    }
+
+    pub(super) fn duplicate_column(name: &str) -> Self {
+        Self {
+            kind: SqlErrorKind::DuplicateColumn,
+            message: format!("column \"{name}\" specified more than once"),
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub fn resource_limit(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::ResourceLimit,
+            message,
+            position: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> SqlErrorKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    #[must_use]
+    pub const fn position(&self) -> Option<usize> {
+        self.position
+    }
+
+    #[must_use]
+    pub(crate) fn with_position(mut self, position: usize) -> Self {
+        self.position = Some(position);
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn offset_position(mut self, offset: usize) -> Self {
+        self.position = self.position.map(|position| position + offset);
+        self
+    }
+
+    fn map_source_position(
+        mut self,
+        decoded: &lexical::DecodedSql<'_>,
+        base: usize,
+        leading_chars: usize,
+    ) -> Self {
+        self.position = self
+            .position
+            .map(|position| decoded.source_position(base + position) + leading_chars);
+        self
+    }
+}
+
+impl fmt::Display for SqlError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SqlError {}
+
+fn infer_sql_error_kind(message: &str) -> SqlErrorKind {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("unsupported") || lower.contains("not supported") {
+        SqlErrorKind::Unsupported
+    } else {
+        SqlErrorKind::Syntax
+    }
+}
+
+#[path = "parser/clauses.rs"]
+mod clauses;
+#[path = "parser/comments.rs"]
+mod comments;
+#[path = "parser/copy.rs"]
+mod copy;
+#[path = "parser/dml.rs"]
+mod dml;
+#[path = "parser/dml_conflict.rs"]
+mod dml_conflict;
+#[path = "parser/dml_targets.rs"]
+mod dml_targets;
+#[path = "parser/domain_scope.rs"]
+mod domain_scope;
+#[path = "parser/domains.rs"]
+mod domains;
+#[path = "parser/enum_labels.rs"]
+mod enum_labels;
+#[path = "parser/enum_scope.rs"]
+mod enum_scope;
+#[path = "parser/expr.rs"]
+mod expr;
+#[path = "parser/extensions.rs"]
+mod extensions;
+#[path = "parser/graph_table.rs"]
+mod graph_table;
+#[path = "parser/graph_table_path.rs"]
+mod graph_table_path;
+#[path = "parser/graph_weighted_call.rs"]
+mod graph_weighted_call;
+#[path = "parser/identifiers.rs"]
+mod identifiers;
+mod lexical;
+#[path = "parser/merge.rs"]
+mod merge;
+#[path = "parser/property_graph.rs"]
+mod property_graph;
+#[path = "parser/truncate.rs"]
+mod truncate;
+#[path = "parser/type_scope.rs"]
+mod type_scope;
+#[path = "parser/types.rs"]
+mod types;
+mod types_alter;
+pub use domain_scope::{with_domain_scope, DomainResolver};
+pub use enum_scope::{with_enum_scope, EnumResolver};
+pub use type_scope::parse_data_type_in_scope;
+pub use type_scope::{with_type_scope, TypeResolver};
+#[path = "parser/with_statement.rs"]
+mod with_statement;
+#[doc(hidden)]
+pub use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
+#[path = "parser/materialized_projection.rs"]
+mod materialized_projection;
+#[path = "parser/materialized_view.rs"]
+mod materialized_view;
+#[path = "parser/membership_precedence.rs"]
+mod membership_precedence;
+#[path = "parser/operators.rs"]
+mod operators;
+#[path = "parser/order_ordinals.rs"]
+mod order_ordinals;
+#[path = "parser/parameter_text.rs"]
+mod parameter_text;
+#[doc(hidden)]
+pub use parameter_text::{max_positional_parameter, substitute_positional_parameters};
+#[cfg(test)]
+#[path = "parser/comment_tests.rs"]
+mod comment_tests;
+#[path = "parser/preflight.rs"]
+mod preflight;
+#[path = "parser/query.rs"]
+mod query;
+#[path = "parser/retention.rs"]
+mod retention;
+#[path = "parser/rollups.rs"]
+mod rollups;
+#[path = "parser/schema.rs"]
+mod schema;
+#[path = "parser/statements.rs"]
+mod statements;
+
+use clauses::{find_top_level_keyword, strip_parentheses};
+use copy::parse_copy_statement;
+use dml::{
+    find_matching_paren, parse_delete_statement, parse_insert_statement, parse_update_statement,
+};
+use materialized_projection::{
+    parse_alter_materialized_projection_statement, parse_compare_projection_statement,
+    parse_create_materialized_projection_statement, parse_diff_projection_statement,
+    parse_drop_materialized_projection_statement,
+    parse_drop_materialized_projection_version_statement, parse_plan_repair_projection_statement,
+    parse_refresh_materialized_projection_statement, parse_repair_projection_statement,
+    parse_verify_projection_statement,
+};
+use materialized_view::{
+    parse_create_materialized_view_statement, parse_drop_materialized_view_statement,
+    parse_refresh_materialized_view_statement, parse_rename_materialized_view_statement,
+};
+pub use preflight::preflight_sql;
+use query::{parse_projection_items, parse_select_statement, parse_with_statement};
+use retention::{
+    parse_alter_retention_policy_statement, parse_create_retention_policy_statement,
+    parse_drop_retention_policy_statement, parse_enforce_retention_policy_statement,
+};
+use rollups::{
+    parse_create_rollup_statement, parse_drop_rollup_statement, parse_refresh_rollup_statement,
+};
+use schema::{
+    parse_alter_index_statement, parse_alter_role_statement, parse_alter_schema_statement,
+    parse_alter_sequence_statement, parse_alter_table_statement, parse_create_database_statement,
+    parse_create_index_statement, parse_create_role_statement, parse_create_schema_statement,
+    parse_create_sequence_statement, parse_create_table_statement,
+    parse_database_connect_privilege_statement, parse_drop_database_statement,
+    parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
+    parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
+    parse_object_privilege_statement, parse_reindex_statement,
+};
+use statements::{
+    is_transaction_control_statement, is_unsupported_transaction_control_statement,
+    parse_call_statement, parse_create_function_statement, parse_create_procedure_statement,
+    parse_create_view_statement, parse_drop_function_statement, parse_drop_procedure_statement,
+    parse_drop_view_statement, parse_explain_statement, parse_optional_role_password,
+    parse_reset_statement, parse_set_statement, parse_show_statement, parse_transaction_statement,
+    split_keyword, unsupported_privilege_statement,
+};
+
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
+pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    preflight_sql(sql)?;
+    let raw_sql = sql.trim().trim_end_matches(';').trim();
+    let decoded = lexical::decode_unicode_identifiers(raw_sql)?;
+    let start = lexical::separator_end(&decoded, 0);
+    let leading_chars = sql[..sql.len() - sql.trim_start().len()].chars().count();
+    let parsed = parse_statement_body(&decoded[start..])
+        .map_err(|error| error.map_source_position(&decoded, start, leading_chars))?;
+    Ok(ParsedStatement {
+        raw_sql: raw_sql.to_string(),
+        statement: parsed.statement,
+    })
+}
+
+#[doc(hidden)]
+#[must_use]
+pub fn is_concurrent_materialized_view_refresh(sql: &str) -> bool {
+    materialized_view::is_concurrent_refresh(sql)
+}
+
+fn parse_statement_body(sql: &str) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let lower = trimmed.to_ascii_lowercase();
+
+    if let Some(parsed) = parse_query_or_dml_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_access_control_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_routine_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_schema_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = parse_session_statement(trimmed, &lower)? {
+        return Ok(parsed);
+    }
+
+    Err(SqlError::unsupported(
+        "unsupported SQL statement".to_string(),
+    ))
+}
+
+fn parse_query_or_dml_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "explain") {
+        Ok(Some(parse_explain_statement(trimmed)?))
+    } else if starts_statement(lower, "with") {
+        Ok(Some(parse_with_statement(trimmed)?))
+    } else if starts_statement(lower, "copy") {
+        Ok(Some(parse_copy_statement(trimmed)?))
+    } else if starts_statement(lower, "insert") {
+        Ok(Some(parse_insert_statement(trimmed)?))
+    } else if starts_statement(lower, "update") {
+        Ok(Some(parse_update_statement(trimmed)?))
+    } else if starts_statement(lower, "delete") {
+        Ok(Some(parse_delete_statement(trimmed)?))
+    } else if starts_statement(lower, "truncate") {
+        Ok(Some(truncate::parse_truncate_statement(trimmed)?))
+    } else if starts_statement(lower, "merge") {
+        Ok(Some(merge::parse_merge_statement(trimmed, Vec::new())?))
+    } else if starts_statement(lower, "table") {
+        // `TABLE name` is `SELECT * FROM name`.
+        let select = format!("SELECT * FROM {}", &trimmed["table".len()..]);
+        let mut parsed = parse_select_statement(&select, Vec::new(), false)?;
+        trimmed.clone_into(&mut parsed.raw_sql);
+        Ok(Some(parsed))
+    } else if lexical::pattern_end(lower, 0, "select").is_some()
+        || lexical::pattern_end(lower, 0, "values").is_some()
+        || trimmed.starts_with('(')
+    {
+        Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
+    } else if lower == "set transaction isolation level"
+        || lower.starts_with("set transaction isolation level ")
+    {
+        Ok(Some(parse_set_statement(trimmed)?))
+    } else if is_transaction_control_statement(lower) {
+        Ok(Some(parse_transaction_statement(trimmed)?))
+    } else if is_unsupported_transaction_control_statement(lower) {
+        Err(SqlError::unsupported(
+            "unsupported transaction control statement".to_string(),
+        ))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_access_control_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create role") {
+        Ok(Some(parse_create_role_statement(trimmed, false)?))
+    } else if starts_statement(lower, "create user") {
+        Ok(Some(parse_create_role_statement(trimmed, true)?))
+    } else if starts_statement(lower, "alter role") {
+        Ok(Some(parse_alter_role_statement(trimmed, false)?))
+    } else if starts_statement(lower, "alter user") {
+        Ok(Some(parse_alter_role_statement(trimmed, true)?))
+    } else if starts_statement(lower, "drop role") || starts_statement(lower, "drop user") {
+        Ok(Some(parse_drop_role_statement(trimmed)?))
+    } else if starts_statement(lower, "grant connect on database") {
+        Ok(Some(parse_database_connect_privilege_statement(
+            trimmed, true,
+        )?))
+    } else if starts_statement(lower, "revoke connect on database") {
+        Ok(Some(parse_database_connect_privilege_statement(
+            trimmed, false,
+        )?))
+    } else if starts_statement(lower, "grant") {
+        Ok(Some(parse_object_privilege_statement(trimmed, true)?))
+    } else if starts_statement(lower, "revoke") {
+        Ok(Some(parse_object_privilege_statement(trimmed, false)?))
+    } else if let Some(message) = unsupported_privilege_statement(lower) {
+        Err(SqlError::unsupported(message.to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_routine_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_create_routine(lower, "function") {
+        Ok(Some(parse_create_function_statement(trimmed)?))
+    } else if starts_create_routine(lower, "procedure") {
+        Ok(Some(parse_create_procedure_statement(trimmed)?))
+    } else if starts_statement(lower, "drop function") {
+        Ok(Some(parse_drop_function_statement(trimmed)?))
+    } else if starts_statement(lower, "drop procedure") {
+        Ok(Some(parse_drop_procedure_statement(trimmed)?))
+    } else if lower.starts_with("call ") {
+        Ok(Some(parse_call_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "comment") {
+        return Ok(Some(comments::parse_comment_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create extension")
+        || starts_statement(lower, "alter extension")
+        || starts_statement(lower, "drop extension")
+    {
+        return Ok(Some(extensions::parse_extension_statement(trimmed)?));
+    }
+    if let Some(parsed) = property_graph::parse_property_graph_statement(trimmed, lower)? {
+        return Ok(Some(parsed));
+    }
+    if starts_statement(lower, "create type") {
+        return Ok(Some(types::parse_create_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "drop type") {
+        return Ok(Some(types::parse_drop_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "alter type") {
+        return Ok(Some(types_alter::parse_alter_type_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create domain") {
+        return Ok(Some(domains::parse_create_domain_statement(trimmed)?));
+    }
+    if starts_statement(lower, "alter domain") {
+        return Ok(Some(domains::parse_alter_domain_statement(trimmed)?));
+    }
+    if starts_statement(lower, "drop domain") {
+        return Ok(Some(domains::parse_drop_domain_statement(trimmed)?));
+    }
+    if starts_statement(lower, "create collation") {
+        return Err(SqlError::unsupported(
+            "CREATE COLLATION is not supported in this version".into(),
+        ));
+    }
+    if starts_statement(lower, "alter collation") {
+        return Err(SqlError::unsupported(
+            "ALTER COLLATION is not supported in this version".into(),
+        ));
+    }
+    if let Some(parsed) = parse_view_or_index_statement(trimmed, lower)? {
+        return Ok(Some(parsed));
+    }
+    parse_table_or_schema_statement(trimmed, lower)
+}
+
+fn parse_view_or_index_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create materialized view") {
+        Ok(Some(parse_create_materialized_view_statement(trimmed)?))
+    } else if starts_statement(lower, "create view") {
+        Ok(Some(parse_create_view_statement(trimmed)?))
+    } else if starts_statement(lower, "create materialized projection") {
+        Ok(Some(parse_create_materialized_projection_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "drop materialized view") {
+        Ok(Some(parse_drop_materialized_view_statement(trimmed)?))
+    } else if starts_statement(lower, "drop view") {
+        Ok(Some(parse_drop_view_statement(trimmed)?))
+    } else if lexical::pattern_end(lower, 0, "alter materialized view").is_some() {
+        Ok(Some(parse_rename_materialized_view_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh materialized view") {
+        Ok(Some(parse_refresh_materialized_view_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh materialized projection") {
+        Ok(Some(parse_refresh_materialized_projection_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "drop materialized projection version") {
+        Ok(Some(parse_drop_materialized_projection_version_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "drop materialized projection") {
+        Ok(Some(parse_drop_materialized_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "alter materialized projection") {
+        Ok(Some(parse_alter_materialized_projection_statement(
+            trimmed,
+        )?))
+    } else if starts_statement(lower, "verify projection") {
+        Ok(Some(parse_verify_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "diff projection") {
+        Ok(Some(parse_diff_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "compare projection") {
+        Ok(Some(parse_compare_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "plan repair projection") {
+        Ok(Some(parse_plan_repair_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "repair projection") {
+        Ok(Some(parse_repair_projection_statement(trimmed)?))
+    } else if starts_statement(lower, "alter view") {
+        Err(SqlError::unsupported(
+            "ALTER VIEW is not supported in this version".to_string(),
+        ))
+    } else if starts_statement(lower, "create rollup") {
+        Ok(Some(parse_create_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh rollup") {
+        Ok(Some(parse_refresh_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "drop rollup") {
+        Ok(Some(parse_drop_rollup_statement(trimmed)?))
+    } else if starts_statement(lower, "create retention policy") {
+        Ok(Some(parse_create_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "alter retention policy") {
+        Ok(Some(parse_alter_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "drop retention policy") {
+        Ok(Some(parse_drop_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "enforce retention policy") {
+        Ok(Some(parse_enforce_retention_policy_statement(trimmed)?))
+    } else if starts_statement(lower, "create unique index")
+        || starts_statement(lower, "create index")
+    {
+        Ok(Some(parse_create_index_statement(trimmed)?))
+    } else if starts_statement(lower, "drop index") {
+        Ok(Some(parse_drop_index_statement(trimmed)?))
+    } else if starts_statement(lower, "alter index") {
+        Ok(Some(parse_alter_index_statement(trimmed)?))
+    } else if starts_statement(lower, "reindex") {
+        Ok(Some(parse_reindex_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_table_or_schema_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create table") {
+        Ok(Some(parse_create_table_statement(trimmed)?))
+    } else if starts_statement(lower, "create sequence")
+        || starts_statement(lower, "create temporary sequence")
+        || starts_statement(lower, "create temp sequence")
+        || starts_statement(lower, "create unlogged sequence")
+    {
+        Ok(Some(parse_create_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "alter sequence") {
+        Ok(Some(parse_alter_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "create database") {
+        Ok(Some(parse_create_database_statement(trimmed)?))
+    } else if starts_statement(lower, "drop table") {
+        Ok(Some(parse_drop_table_statement(trimmed)?))
+    } else if starts_statement(lower, "drop sequence") {
+        Ok(Some(parse_drop_sequence_statement(trimmed)?))
+    } else if starts_statement(lower, "drop database") {
+        Ok(Some(parse_drop_database_statement(trimmed)?))
+    } else if starts_statement(lower, "alter table") {
+        Ok(Some(parse_alter_table_statement(trimmed)?))
+    } else if starts_statement(lower, "create schema") {
+        Ok(Some(parse_create_schema_statement(trimmed)?))
+    } else if starts_statement(lower, "drop schema") {
+        Ok(Some(parse_drop_schema_statement(trimmed)?))
+    } else if starts_statement(lower, "alter schema") {
+        Ok(Some(parse_alter_schema_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_session_statement(
+    trimmed: &str,
+    lower: &str,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "show") {
+        Ok(Some(parse_show_statement(trimmed)?))
+    } else if starts_statement(lower, "set") {
+        Ok(Some(parse_set_statement(trimmed)?))
+    } else if starts_statement(lower, "reset") {
+        Ok(Some(parse_reset_statement(trimmed)?))
+    } else if statements::SESSION_OBJECT_KEYWORDS
+        .iter()
+        .any(|keyword| starts_statement(lower, keyword))
+    {
+        Ok(Some(statements::parse_session_object_statement(trimmed)?))
+    } else {
+        Ok(None)
+    }
+}
+
+/// `CREATE [OR REPLACE] FUNCTION|PROCEDURE`, whatever the whitespace between words.
+fn starts_create_routine(lower: &str, noun: &str) -> bool {
+    if starts_statement(lower, &format!("create {noun}")) {
+        return true;
+    }
+    let mut words = lower.split_whitespace();
+    words.next() == Some("create")
+        && words.next() == Some("or")
+        && words.next() == Some("replace")
+        && words.next() == Some(noun)
+}
+
+fn starts_statement(lower: &str, keyword: &str) -> bool {
+    lower == keyword
+        || lower
+            .strip_prefix(keyword)
+            .is_some_and(|remainder| lexical::separator_end(remainder, 0) > 0)
+}
+
+#[cfg(test)]
+#[path = "parser/cte_materialization_tests.rs"]
+mod cte_materialization_tests;
+
+#[path = "parser/cte_materialization.rs"]
+mod cte_materialization;
+
+#[cfg(test)]
+#[path = "parser/statistical_window_tests.rs"]
+mod statistical_window_tests;
+
+#[cfg(test)]
+mod projection_diagnostic_tests {
+    use super::parse_statement;
+    use crate::sql::ast::SelectItem;
+
+    #[test]
+    fn should_preserve_quoted_projection_alias_with_whitespace() {
+        // Arrange
+        let sql = r#"SELECT 1 AS "Amount Value""#;
+
+        // Act
+        let parsed = parse_statement(sql).expect("quoted projection alias");
+
+        // Assert
+        let crate::sql::QueryStatement::Select(select) = parsed.statement else {
+            panic!("expected SELECT");
+        };
+        assert!(matches!(
+            select.projection.as_slice(),
+            [SelectItem::Expr {
+                alias: Some(alias),
+                ..
+            }] if alias == "Amount Value"
+        ));
+    }
+
+    #[test]
+    fn should_report_later_projection_item_at_original_position() {
+        // Arrange
+        let sql = "SELECT 1, 2 AS x y";
+
+        // Act
+        let error = parse_statement(sql).expect_err("extra alias token");
+
+        // Assert
+        assert_eq!(error.position(), Some(18));
+        assert_eq!(error.message(), "syntax error at or near \"y\"");
+    }
+}

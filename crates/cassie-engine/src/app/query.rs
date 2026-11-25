@@ -1,0 +1,970 @@
+use super::query_explain::QueryExplainOutput;
+use super::query_metrics::{
+    append_explain_analyze, structured_analyze, ExplainAnalyzeDeltas, ExplainAnalyzeReport,
+    RuntimeFeedbackDeltas,
+};
+use super::{
+    current_time_millis, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
+    CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
+    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
+};
+// Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
+// Alias namespaces, expression bounds, concrete integer signatures and numeric
+// unary binding, FETCH pagination, set quantifiers, typed VALUES and explicit
+// Catalog read-model schemas and scalar helper signatures share this rebuildable compiled-plan cache epoch.
+// Exact admitted parameter OIDs and distinct JSONB semantics also namespace rebuildable plans.
+// Graph identifier binding and typed key-part argument admission require fresh bound plans.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 37;
+
+pub(super) struct QueryCacheContext {
+    pub(super) is_select: bool,
+    pub(super) cache_key: Option<PlanCacheKey>,
+    pub(super) exec_cache_key: Option<crate::runtime::ExecutionResultCacheKey>,
+    _key_memory: Option<crate::runtime::QueryMemoryReservation>,
+}
+
+pub(super) struct QueryFeedbackCapture {
+    keys: Option<Vec<crate::runtime::RuntimeFeedbackKey>>,
+    before: Option<crate::runtime::RuntimeMetricsSnapshot>,
+    started_at: Instant,
+}
+
+impl Cassie {
+    fn is_query_cacheable(statement: &QueryStatement) -> bool {
+        let QueryStatement::Select(select) = statement else {
+            return false;
+        };
+        if select
+            .ctes
+            .iter()
+            .any(crate::sql::binder::cte_bodies::cte_is_modifying)
+        {
+            return false;
+        }
+        let encoded = serde_json::to_string(select).unwrap_or_default();
+        !["current_user", "session_user", "current_role"]
+            .iter()
+            .any(|function| encoded.contains(function))
+            && !crate::sql::functions::temporal_clock_dependent(&encoded)
+    }
+
+    pub(super) fn plan_cache_key_from_fingerprint(
+        &self,
+        sql_fingerprint: u64,
+        parameter_type_oids: &[i32],
+        mode: ExecutionMode,
+        database: Option<String>,
+        search_path: &[String],
+    ) -> PlanCacheKey {
+        PlanCacheKey {
+            sql_fingerprint: super::query_parameters::parameter_cache_fingerprint(
+                sql_fingerprint,
+                parameter_type_oids,
+            ),
+            schema_epoch: self.runtime.schema_epoch(),
+            data_epoch: self.runtime.data_epoch(),
+            index_feedback_epoch: self.runtime.index_feedback_epoch(),
+            cost_model_version: PLAN_CACHE_COST_MODEL_VERSION,
+            adaptive_config_hash: self.adaptive_config_hash(),
+            parameter_shape: super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
+            mode,
+            database,
+            search_path: search_path.to_owned(),
+        }
+    }
+
+    fn adaptive_config_hash(&self) -> u64 {
+        let limits = self.runtime.limits();
+        crate::runtime::stable_fingerprint(&(
+            limits.adaptive_execution_enabled,
+            limits.adaptive_min_cost_savings_bps,
+            limits.adaptive_min_confidence_bps,
+            limits.operator_feedback_enabled,
+            limits.operator_switching_enabled.is_enabled(),
+            limits.operator_switch_join_row_threshold,
+        ))
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn plan_cache_hit_for_diagnostics(
+        &self,
+        parsed: &crate::sql::ast::ParsedStatement,
+        params: &[crate::types::Value],
+        mode: ExecutionMode,
+        database: Option<String>,
+        search_path: &[String],
+    ) -> bool {
+        // This diagnostic reconstructs embedded input admission. Its existing
+        // signature has neither client-declared wire OIDs nor a session user.
+        let admitted = if params.is_empty() {
+            None
+        } else {
+            if search_path.iter().any(|schema| schema == "$user") {
+                return false;
+            }
+            let effective = super::query_parameters::effective_parameter_type_oids(params, &[]);
+            let controls = self.runtime.query_controls(Instant::now());
+            let scope = crate::catalog::FunctionInputScope {
+                database: database.as_deref().unwrap_or(&self.default_database),
+                search_path,
+                user: "",
+                enforce_database_scope: self.database_catalog_enforced(),
+            };
+            let Ok(admitted) = crate::sql::checked_parameter_types_in_scope(
+                parsed,
+                crate::sql::PrivateParameterTypeInput::Embedded {
+                    effective: &effective,
+                    values: params,
+                },
+                &self.catalog,
+                &controls,
+                Some(&scope),
+            ) else {
+                return false;
+            };
+            Some(admitted)
+        };
+        let key = self.plan_cache_key_from_fingerprint(
+            crate::runtime::sql_fingerprint(parsed),
+            admitted
+                .as_ref()
+                .map_or(&[], crate::sql::AdmittedParameterTypes::types),
+            mode,
+            database,
+            search_path,
+        );
+        self.runtime.plan_cache_lookup(&key).is_some()
+    }
+
+    fn plan_cache_provenance(
+        hit: crate::runtime::L1PlanHit,
+    ) -> (
+        Arc<crate::planner::physical::PhysicalPlan>,
+        PlanCacheProvenance,
+    ) {
+        (
+            hit.plan,
+            PlanCacheProvenance::L1 {
+                durable: hit.durable,
+                candidate_expires_at_ms: hit.candidate_expires_at_ms,
+            },
+        )
+    }
+
+    pub(super) fn resolve_physical_plan(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        key: PlanCacheKey,
+        session: Option<&CassieSession>,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<
+        (
+            Arc<crate::planner::physical::PhysicalPlan>,
+            PlanCacheProvenance,
+        ),
+        CassieError,
+    > {
+        self.resolve_physical_plan_with_parameter_oids(parsed, key, session, controls, &[])
+    }
+
+    pub(super) fn resolve_physical_plan_with_parameter_oids(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        key: PlanCacheKey,
+        session: Option<&CassieSession>,
+        controls: Option<&QueryExecutionControls>,
+        parameter_type_oids: &[i32],
+    ) -> Result<
+        (
+            Arc<crate::planner::physical::PhysicalPlan>,
+            PlanCacheProvenance,
+        ),
+        CassieError,
+    > {
+        if let Some(hit) = self.runtime.plan_cache_lookup(&key) {
+            return Ok(Self::plan_cache_provenance(hit));
+        }
+
+        if let Some(plan) = query_cache::lookup_plan(&self.midge, &self.runtime, &key)? {
+            self.runtime.plan_cache_store(key, plan.clone(), true);
+            return Ok((plan, PlanCacheProvenance::L2));
+        }
+
+        self.runtime.record_query_cache_compile_miss();
+        let plan = self.compile_physical_plan_with_parameter_oids(
+            parsed,
+            session,
+            controls,
+            parameter_type_oids,
+        )?;
+        self.runtime.plan_cache_store(key, plan.clone(), false);
+        Ok((plan, PlanCacheProvenance::Compiled))
+    }
+
+    pub(super) fn observe_query_plan_usage(
+        &self,
+        key: &PlanCacheKey,
+        plan: &Arc<crate::planner::physical::PhysicalPlan>,
+        provenance: &PlanCacheProvenance,
+    ) -> Result<(), CassieError> {
+        match provenance {
+            PlanCacheProvenance::L2 | PlanCacheProvenance::L1 { durable: true, .. } => Ok(()),
+            PlanCacheProvenance::L1 {
+                durable: false,
+                candidate_expires_at_ms,
+            } => {
+                let candidate_pending = candidate_expires_at_ms
+                    .is_some_and(|expires_at_ms| current_time_millis() <= expires_at_ms);
+                match query_cache::observe_non_durable_plan_usage(
+                    &self.midge,
+                    &self.runtime,
+                    key,
+                    plan,
+                    candidate_pending,
+                )? {
+                    query_cache::NonDurablePlanOutcome::Durable => {
+                        self.runtime.mark_plan_cache_entry_durable(key);
+                    }
+                    query_cache::NonDurablePlanOutcome::CandidatePending { ttl_seconds } => {
+                        self.runtime
+                            .mark_plan_cache_entry_candidate_pending(key, ttl_seconds);
+                    }
+                    query_cache::NonDurablePlanOutcome::Transient => {}
+                }
+                Ok(())
+            }
+            PlanCacheProvenance::Compiled => {
+                match query_cache::observe_non_durable_plan_usage(
+                    &self.midge,
+                    &self.runtime,
+                    key,
+                    plan,
+                    false,
+                )? {
+                    query_cache::NonDurablePlanOutcome::Durable => {
+                        self.runtime.mark_plan_cache_entry_durable(key);
+                    }
+                    query_cache::NonDurablePlanOutcome::CandidatePending { ttl_seconds } => {
+                        self.runtime
+                            .mark_plan_cache_entry_candidate_pending(key, ttl_seconds);
+                    }
+                    query_cache::NonDurablePlanOutcome::Transient => {}
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn execute_sql(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_with_cancellation(session, sql, params, &QueryCancellationHandle::new())
+    }
+
+    /// Executes SQL with a caller-controlled cooperative cancellation handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, execution, or cancellation fails.
+    pub fn execute_sql_with_cancellation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        cancellation: &QueryCancellationHandle,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_with_mode_and_cancellation(
+            session,
+            sql,
+            params,
+            ExecutionMode::SimpleQuery,
+            cancellation.clone(),
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn describe_sql(&self, sql: &str) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.check_storage_recovery_required()?;
+        if let Some(error) = unsupported_sql_error(sql) {
+            return Err(error);
+        }
+
+        self.runtime.record_sql_parse();
+        let parsed = self.parse_statement_for_session(None, sql)?;
+        let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
+        self.describe_parsed_statement(parsed, sql_fingerprint)
+    }
+
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    #[doc(hidden)]
+    pub fn execute_sql_with_controls(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_core(session, sql, params, mode, controls)
+    }
+
+    #[cfg(test)]
+    pub(super) fn explain_sql_core(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryExplainOutput, CassieError> {
+        self.explain_sql_core_for_operation(session, sql, params, (controls, None))
+    }
+
+    pub(super) fn explain_sql_core_for_operation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let (controls, authority) = scope;
+        if session.user.is_empty() {
+            return Err(CassieError::Unauthorized);
+        }
+        self.check_storage_recovery_required()?;
+        self.ensure_session_database_access(session)?;
+
+        if let Some(error) = unsupported_sql_error(sql) {
+            if session.is_authenticated_read_only() {
+                return Err(CassieError::InsufficientPrivilege);
+            }
+            return Err(error);
+        }
+
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
+        }
+        if controls.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
+
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
+        self.runtime.record_sql_parse();
+        let parsed = self.parse_statement_for_session(Some(session), sql)?;
+        let explain = if matches!(parsed.statement, QueryStatement::Explain(_)) {
+            parsed
+        } else {
+            self.runtime.record_sql_parse();
+            self.parse_statement_for_session(Some(session), &format!("EXPLAIN {}", sql.trim()))?
+        };
+
+        self.ensure_statement_can_execute(session, &explain, controls)?;
+        let QueryStatement::Explain(statement) = explain.statement else {
+            return Err(CassieError::Execution(
+                "expected explain statement after explain wrapping".to_string(),
+            ));
+        };
+
+        self.explain_statement_output(
+            session,
+            *statement.statement,
+            params,
+            statement.analyze,
+            (controls, authority),
+        )
+    }
+
+    #[cfg(any(test, feature = "transport-test-hooks"))]
+    pub(super) fn execute_sql_core(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_core_for_operation(session, sql, params, mode, (controls, None))
+    }
+
+    pub(super) fn execute_sql_core_for_operation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        mode: ExecutionMode,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        let (controls, authority) = scope;
+        let operation_session = session.with_operation_failure_authority(authority);
+        let session = &operation_session;
+        if session.user.is_empty() {
+            return Err(CassieError::Unauthorized);
+        }
+        if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
+            return result;
+        }
+        self.ensure_session_database_access(session)?;
+
+        if let Some(error) = unsupported_sql_error(sql) {
+            if session.is_authenticated_read_only() {
+                return Err(CassieError::InsufficientPrivilege);
+            }
+            return Err(error);
+        }
+
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
+        }
+        if controls.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
+
+        let execution_session = session.with_statement_text(sql, controls)?;
+        let session = &execution_session;
+        self.runtime.record_sql_parse();
+        let parsed = self.parse_statement_for_session(Some(session), sql)?;
+        let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
+        self.execute_parsed_statement_with_view_rename_transaction(
+            session,
+            parsed,
+            sql_fingerprint,
+            params,
+            mode,
+            (controls, authority),
+        )
+    }
+
+    pub(super) fn ensure_statement_can_execute(
+        &self,
+        session: &CassieSession,
+        parsed: &crate::sql::ast::ParsedStatement,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
+        }
+        if controls.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
+        Self::ensure_transaction_recovery(session, parsed)?;
+        session.authorize_statement(&parsed.statement)?;
+        self.authorize_role_object_access(session, &parsed.statement)?;
+        super::transaction_semantics::ensure_supported_transaction_semantics(
+            &self.catalog,
+            session,
+            &parsed.statement,
+        )?;
+        Ok(())
+    }
+
+    pub(super) fn query_cache_context_with_controls(
+        &self,
+        session: &CassieSession,
+        parsed: &crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        params: &[crate::types::Value],
+        parameter_context: (ExecutionMode, &[i32]),
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryCacheContext, CassieError> {
+        controls.check_interruption()?;
+        let (mode, parameter_type_oids) = parameter_context;
+        let is_select = Self::is_query_cacheable(&parsed.statement);
+        // Existing compiled-plan inputs remain separate from the admitted SQL result key.
+        let cache_key = is_select.then(|| {
+            self.plan_cache_key_from_fingerprint(
+                sql_fingerprint,
+                parameter_type_oids,
+                mode,
+                session.database.clone(),
+                &session.search_path(),
+            )
+        });
+        let (exec_cache_key, key_memory) = if is_select {
+            match self.admitted_execution_result_cache_key(
+                session,
+                super::query_parameters::parameter_cache_fingerprint(
+                    sql_fingerprint,
+                    parameter_type_oids,
+                ),
+                params,
+                mode,
+                controls,
+            ) {
+                Ok((key, memory)) => (Some(key), Some(memory)),
+                Err(CassieError::ResourceLimit(_)) => {
+                    self.runtime
+                        .record_execution_result_cache_bypass("memory_budget");
+                    (None, None)
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            (None, None)
+        };
+        let context = QueryCacheContext {
+            is_select,
+            cache_key,
+            exec_cache_key,
+            _key_memory: key_memory,
+        };
+        controls.check_interruption()?;
+        Ok(context)
+    }
+
+    pub(super) fn try_execution_result_cache(
+        &self,
+        cache_context: &QueryCacheContext,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<QueryResult>, CassieError> {
+        let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() else {
+            return Ok(None);
+        };
+        self.runtime
+            .execution_result_cache_lookup_with_controls(exec_cache_key, controls)
+    }
+
+    pub(super) fn execution_result_cache_bypass_reason(
+        &self,
+        session: &CassieSession,
+        physical: &crate::planner::physical::PhysicalPlan,
+    ) -> Option<&'static str> {
+        if !self
+            .runtime
+            .limits()
+            .execution_result_cache_enabled
+            .is_enabled()
+        {
+            return Some("disabled");
+        }
+        if session.read_transaction_is_active() {
+            return Some("active_transaction");
+        }
+        if super::query_virtual_catalog::logical_plan_uses_virtual_catalog(&physical.logical) {
+            return Some("virtual_catalog");
+        }
+        if crate::executor::plan_uses_volatile_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
+            return Some("volatile_builtin");
+        }
+        if crate::executor::plan_uses_clock_dependent_builtin_including_views(
+            &physical.logical,
+            &self.catalog,
+        ) {
+            return Some("clock_dependent_builtin");
+        }
+        if ["set_config", "pg_catalog.set_config"].iter().any(|name| {
+            crate::executor::plan_uses_function_including_views(
+                &physical.logical,
+                name,
+                &self.catalog,
+            )
+        }) {
+            return Some("session_mutating_function");
+        }
+        if ["current_query", "pg_catalog.current_query"]
+            .iter()
+            .any(|name| {
+                crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    name,
+                    &self.catalog,
+                )
+            })
+        {
+            return Some("statement_text_function");
+        }
+        if crate::executor::plan_uses_function_including_views(
+            &physical.logical,
+            "pg_backend_pid",
+            &self.catalog,
+        ) {
+            return Some("connection_dependent_function");
+        }
+        if crate::sql::functions::SEQUENCE_FUNCTION_NAMES
+            .iter()
+            .any(|name| {
+                crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    name,
+                    &self.catalog,
+                )
+            })
+        {
+            return Some("sequence_function");
+        }
+        let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
+            metadata.volatility != crate::catalog::Volatility::Immutable
+                && crate::executor::plan_uses_function_including_views(
+                    &physical.logical,
+                    &metadata.name,
+                    &self.catalog,
+                )
+        });
+        if has_non_immutable {
+            return Some("non_immutable_function");
+        }
+        None
+    }
+
+    pub(super) fn resolve_statement_plan(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        cache_context: &QueryCacheContext,
+        session: &CassieSession,
+        controls: &QueryExecutionControls,
+        parameter_type_oids: &[i32],
+    ) -> Result<
+        (
+            Arc<crate::planner::physical::PhysicalPlan>,
+            PlanCacheProvenance,
+        ),
+        CassieError,
+    > {
+        if let Some(key) = cache_context.cache_key.clone() {
+            if parameter_type_oids.is_empty() {
+                return self.resolve_physical_plan(parsed, key, Some(session), Some(controls));
+            }
+            return self.resolve_physical_plan_with_parameter_oids(
+                parsed,
+                key,
+                Some(session),
+                Some(controls),
+                parameter_type_oids,
+            );
+        }
+        Ok((
+            self.compile_physical_plan_with_parameter_oids(
+                parsed,
+                Some(session),
+                Some(controls),
+                parameter_type_oids,
+            )?,
+            PlanCacheProvenance::Compiled,
+        ))
+    }
+
+    pub(super) fn record_select_plan_decision(
+        &self,
+        is_select: bool,
+        physical: &crate::planner::physical::PhysicalPlan,
+    ) {
+        if is_select {
+            self.runtime
+                .record_adaptive_plan_decision(&physical.adaptive_plan);
+        }
+    }
+
+    pub(super) fn capture_query_feedback(
+        &self,
+        is_select: bool,
+        database: Option<&str>,
+        search_path: &[String],
+        physical: &crate::planner::physical::PhysicalPlan,
+    ) -> QueryFeedbackCapture {
+        let keys = is_select.then(|| {
+            let keys = self.feedback_keys_for_plan(database, search_path, physical);
+            self.observe_feedback_lookup(&keys);
+            keys
+        });
+        let before = keys.as_ref().map(|_| self.runtime.snapshot());
+        QueryFeedbackCapture {
+            keys,
+            before,
+            started_at: Instant::now(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn execute_physical_statement(
+        &self,
+        session: &CassieSession,
+        physical: &Arc<crate::planner::physical::PhysicalPlan>,
+        params: Vec<crate::types::Value>,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_physical_statement_with_parameter_oids(
+            session,
+            physical,
+            params,
+            &[],
+            controls,
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn execute_physical_statement_with_parameter_oids(
+        &self,
+        session: &CassieSession,
+        physical: &Arc<crate::planner::physical::PhysicalPlan>,
+        params: Vec<crate::types::Value>,
+        parameter_type_oids: &[i32],
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_physical_statement_with_parameter_oids_for_operation(
+            session,
+            physical,
+            params,
+            parameter_type_oids,
+            (controls, None),
+        )
+    }
+
+    pub(super) fn record_query_feedback(
+        &self,
+        capture: QueryFeedbackCapture,
+        execution: &Result<QueryResult, CassieError>,
+    ) {
+        let Some(keys) = capture.keys else {
+            return;
+        };
+        let after = self.runtime.snapshot();
+        let before = capture.before.expect("feedback snapshot");
+        let elapsed_ms = capture
+            .started_at
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .unwrap_or(u64::MAX);
+        let observation = RuntimeFeedbackDeltas::from_snapshots(&before, &after)
+            .to_observation(execution, elapsed_ms);
+        self.record_feedback_for_keys(keys, &observation);
+    }
+
+    pub(super) fn validate_result_limit(
+        result: &QueryResult,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        if result.row_count() <= controls.max_result_rows {
+            return Ok(());
+        }
+        Err(CassieError::ResourceLimit(format!(
+            "query result row limit exceeded: {} > {}",
+            result.row_count(),
+            controls.max_result_rows
+        )))
+    }
+
+    pub(super) fn store_execution_result(
+        &self,
+        cache_context: &QueryCacheContext,
+        result: &QueryResult,
+    ) {
+        if let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() {
+            self.runtime
+                .execution_result_cache_store(exec_cache_key, result.clone());
+        }
+    }
+
+    pub(super) fn explain_statement(
+        &self,
+        session: &CassieSession,
+        statement: crate::sql::ast::ParsedStatement,
+        parameters: (Vec<crate::types::Value>, &[i32]),
+        analyze: bool,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryResult, CassieError> {
+        Ok(self
+            .explain_statement_output_with_parameter_oids(
+                session, statement, parameters, analyze, scope,
+            )?
+            .into_parts()
+            .0)
+    }
+
+    fn explain_statement_output(
+        &self,
+        session: &CassieSession,
+        statement: crate::sql::ast::ParsedStatement,
+        params: Vec<crate::types::Value>,
+        analyze: bool,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let parameter_type_oids = super::query_parameters::parameter_type_oids(&params);
+        self.explain_statement_output_with_parameter_oids(
+            session,
+            statement,
+            (params, &parameter_type_oids),
+            analyze,
+            scope,
+        )
+    }
+
+    fn explain_statement_output_with_parameter_oids(
+        &self,
+        session: &CassieSession,
+        statement: crate::sql::ast::ParsedStatement,
+        parameters: (Vec<crate::types::Value>, &[i32]),
+        analyze: bool,
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let (controls, authority) = scope;
+        let (params, parameter_type_oids) = parameters;
+        let admitted = super::query_parameters::admit_parameter_types(
+            self,
+            Some(session),
+            &statement,
+            crate::sql::PrivateParameterTypeInput::Embedded {
+                effective: parameter_type_oids,
+                values: &params,
+            },
+            controls,
+        )?;
+        let parameter_type_oids = admitted
+            .as_ref()
+            .map_or(parameter_type_oids, |types| types.types());
+        let observed = analyze.then(|| controls.observe_ordered_join());
+        let controls = observed.as_ref().unwrap_or(controls);
+        let before = analyze.then(|| self.runtime.snapshot());
+        let physical = self.compile_physical_plan_with_parameter_oids(
+            statement,
+            Some(session),
+            Some(controls),
+            parameter_type_oids,
+        )?;
+        super::query_parameters::validate_plan_parameters(
+            &physical.logical,
+            &self.catalog,
+            &self.binding_context_for_session(Some(session)),
+            parameter_type_oids,
+        )?;
+        crate::executor::check_plan_constants(&physical.logical, controls)?;
+        let graph = super::query_explain::graph_lines(self, Some(session), &physical);
+        let mut plan = super::query_explain::plan_line(
+            self,
+            &physical,
+            &graph,
+            (Some(session), &params),
+            controls,
+        )?;
+        let mut structured =
+            super::query_explain::structured_plan(self, &physical, &graph, controls)?;
+
+        if analyze {
+            let report = self.run_explain_analyze(
+                session,
+                &physical,
+                params,
+                parameter_type_oids,
+                (controls, authority),
+                &before.expect("analyze snapshot"),
+            )?;
+            append_explain_analyze(&mut plan, &physical, &report, controls)?;
+            if !graph.is_empty() {
+                plan.try_append(controls, |allocation| {
+                    allocation.format(format_args!(" graph_reads={}", report.deltas.graph.text()))
+                })?;
+            }
+            structured = structured.try_with_analyze_with(controls, |allocation| {
+                structured_analyze(&physical, &report, allocation)
+            })?;
+        }
+
+        let mut result = QueryResult::try_builder(controls)?;
+        result.try_push_column(&ColumnMeta::text("QUERY PLAN"))?;
+        result.try_push_row(std::slice::from_ref(plan.value()))?;
+        result.try_set_command("EXPLAIN")?;
+        Ok(QueryExplainOutput::new(result.finish()?, structured))
+    }
+
+    fn run_explain_analyze(
+        &self,
+        session: &CassieSession,
+        physical: &Arc<crate::planner::physical::PhysicalPlan>,
+        params: Vec<crate::types::Value>,
+        parameter_type_oids: &[i32],
+        scope: (&QueryExecutionControls, Option<&super::FailureAuthority>),
+        before: &crate::runtime::RuntimeMetricsSnapshot,
+    ) -> Result<ExplainAnalyzeReport, CassieError> {
+        let (controls, authority) = scope;
+        self.runtime
+            .record_adaptive_plan_decision(&physical.adaptive_plan);
+        let feedback_keys = self.feedback_keys_for_plan(
+            session.database.as_deref(),
+            &session.search_path(),
+            physical,
+        );
+        self.observe_feedback_lookup(&feedback_keys);
+        let started_at = Instant::now();
+        let vector_before = self.midge.column_vector_reads_for_diagnostics();
+        let result = self.execute_physical_statement_with_parameter_oids_for_operation(
+            session,
+            physical,
+            params,
+            parameter_type_oids,
+            (controls, authority),
+        )?;
+        let vector = self
+            .midge
+            .column_vector_reads_for_diagnostics()
+            .since(vector_before);
+        let elapsed_ms = started_at.elapsed().as_millis();
+        let after = self.runtime.snapshot();
+        let deltas = ExplainAnalyzeDeltas::from_snapshots(before, &after);
+        self.record_explain_feedback(feedback_keys, &result, &deltas, elapsed_ms);
+        Ok(ExplainAnalyzeReport {
+            ordered_join: controls.ordered_join_counts(),
+            result,
+            elapsed_ms,
+            deltas,
+            vector,
+        })
+    }
+
+    fn record_explain_feedback(
+        &self,
+        feedback_keys: Vec<crate::runtime::RuntimeFeedbackKey>,
+        result: &QueryResult,
+        deltas: &ExplainAnalyzeDeltas,
+        elapsed_ms: u128,
+    ) {
+        let elapsed_ms = elapsed_ms.try_into().unwrap_or(u64::MAX);
+        self.record_feedback_for_keys(
+            feedback_keys,
+            &deltas.to_success_observation(result, elapsed_ms),
+        );
+    }
+}
+
+#[cfg(test)]
+#[path = "query_cache_semantics_tests.rs"]
+mod cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_cte_cache_semantics_tests.rs"]
+mod cte_cache_semantics_tests;
+
+#[cfg(test)]
+#[path = "query_join_cost_cache_tests.rs"]
+mod join_cost_cache_tests;
+
+#[cfg(test)]
+#[path = "query_parameter_cache_tests.rs"]
+mod parameter_cache_tests;
+
+#[cfg(test)]
+#[path = "query_text_tests.rs"]
+mod text_tests;
+
+#[cfg(test)]
+#[path = "query_test_fixture.rs"]
+mod query_test_fixture;
+
+#[cfg(test)]
+#[path = "query_datum_tests.rs"]
+mod datum_tests;
+
+#[cfg(test)]
+#[path = "query_volatile_cache_tests.rs"]
+mod volatile_cache_tests;

@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1914 |
+| Files under `tests/` | 1913 |
 | Rust files | 1870 |
-| Rust test declarations | 11560 |
+| Rust test declarations | 11730 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11585 |
+| Static Rust registration instances | 11755 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -30,9 +30,9 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 192 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 581 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 647 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 89 | 0 |
-| [compatibility](inventory/compatibility.md) | 521 | 0 |
+| [compatibility](inventory/compatibility.md) | 528 | 0 |
 | [composite_types](inventory/composite_types.md) | 234 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
@@ -52,19 +52,19 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_catalogs](inventory/pgwire_catalogs.md) | 605 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 989 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 995 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1241 | 8 |
-| [pgwire_types](inventory/pgwire_types.md) | 1240 | 0 |
+| [pgwire_types](inventory/pgwire_types.md) | 1250 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 143 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 56 | 3 |
 | [relational_qualification](inventory/relational_qualification.md) | 77 | 0 |
-| [rest](inventory/rest.md) | 101 | 0 |
+| [rest](inventory/rest.md) | 104 | 0 |
 | [search](inventory/search.md) | 183 | 0 |
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 61 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 736 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 2117 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 796 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 2132 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 12 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 295 | 0 |
@@ -72,7 +72,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
-| [vector_embeddings](inventory/vector_embeddings.md) | 292 | 0 |
+| [vector_embeddings](inventory/vector_embeddings.md) | 295 | 0 |
 
 ## Cargo targets
 
@@ -138,9 +138,10 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
 | `tests/catalog_security/catalogs/types/catalog_discovery/semantics.rs` | 824 | 28 |
+| `tests/catalog_security/catalogs/types/object_identity/user_routines.rs` | 816 | 52 |
 | `tests/compatibility/lifecycle/indexes/pgvector_profile.rs` | 825 | 10 |
 | `tests/compatibility/lifecycle/tables/table_forms/semantics.rs` | 818 | 16 |
-| `tests/parser_types/grammar/expressions/semantics.rs` | 816 | 37 |
+| `tests/parser_types/grammar/expressions/semantics.rs` | 813 | 37 |
 | `tests/parser_types/grammar/indexes/semantics.rs` | 905 | 30 |
 | `tests/pgwire_extended/functions/math/math.rs` | 908 | 16 |
 | `tests/pgwire_extended/functions/math/overload_errors.rs` | 857 | 17 |
@@ -154,6 +155,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | `tests/planner_controls/planning/execution_result_cache.rs` | 813 | 19 |
 | `tests/sql_mutations/insert/insert_values.rs` | 839 | 20 |
 | `tests/sql_queries/aggregates/windows/aggregate_query/semantics.rs` | 875 | 24 |
+| `tests/sql_queries/functions/math/math_functions.rs` | 824 | 55 |
 | `tests/sql_queries/functions/temporal/temporal_functions.rs` | 816 | 58 |
 | `tests/sql_queries/joins/semantics.rs` | 827 | 13 |
 

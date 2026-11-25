@@ -1,0 +1,908 @@
+use super::{
+    check_document_write_failure_point, collect_scan, normalize_vector, CassieError,
+    DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, VectorIndexRecord,
+    VectorIndexState,
+};
+#[path = "vector_indexes/bounded_write.rs"]
+mod bounded_write;
+mod stall_retry;
+use bounded_write::SummaryPolicy;
+pub(super) use stall_retry::retry_bulk_write_stall;
+#[path = "vector_indexes/build.rs"]
+mod build;
+#[path = "vector_indexes/codec.rs"]
+pub(super) mod codec;
+#[path = "vector_indexes/controlled_normalized.rs"]
+mod controlled_normalized;
+#[path = "vector_indexes/generation_fence.rs"]
+mod generation_fence;
+use generation_fence::normalized_generation_is_current;
+#[path = "vector_indexes/incremental.rs"]
+mod incremental;
+pub(super) use incremental::{VectorBatchWork, VectorFieldWrites};
+#[path = "vector_indexes/ivfflat.rs"]
+mod ivfflat;
+#[path = "vector_indexes/math.rs"]
+mod math;
+#[path = "vector_indexes/metrics.rs"]
+mod metrics;
+pub(super) use metrics::VectorIndexMaintenanceMetrics;
+#[path = "vector_retrieval.rs"]
+mod vector_retrieval;
+
+pub use vector_retrieval::PersistedIvfFlatTrainingSnapshot;
+
+use self::codec::{
+    decode_hnsw_node, decode_normalized_vector, decode_vector_index_state, encode_hnsw_node,
+    encode_normalized_vector, encode_vector_index_state, PersistedHnswManifest,
+    PersistedIvfManifest, PersistedVectorIndexState,
+};
+
+const VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
+
+#[cfg(test)]
+fn vector_index_build_batch_lengths(item_count: usize) -> Vec<usize> {
+    (0..item_count)
+        .step_by(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)
+        .map(|start| {
+            item_count
+                .saturating_sub(start)
+                .min(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)
+        })
+        .collect()
+}
+
+fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, CassieError> {
+    row_schema
+        .fields
+        .iter()
+        .find(|candidate| {
+            cassie_sql::column_identifier::ColumnIdentifierPath::matches_stored_field(
+                field,
+                &candidate.name,
+            )
+        })
+        .map(|candidate| candidate.field_id)
+        .ok_or_else(|| CassieError::Parse(format!("missing vector field storage id: {field}")))
+}
+
+impl Midge {
+    #[doc(hidden)]
+    pub fn hnsw_node_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(super::key_encoding::hnsw_graph_node_prefix(
+            relation_id,
+            field_id,
+        ))
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_vector_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(Self::normalized_vector_prefix(relation_id, field_id))
+    }
+
+    #[doc(hidden)]
+    pub fn vector_state_key_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(Self::vector_index_state_key(relation_id, field_id))
+    }
+
+    #[doc(hidden)]
+    pub fn ivfflat_membership_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(super::key_encoding::ivfflat_membership_prefix(
+            relation_id,
+            field_id,
+        ))
+    }
+
+    /// Counts persisted keys and key-plus-value bytes of every artifact one
+    /// vector index owns: normalized vectors, graph nodes, list memberships,
+    /// the state manifest and the source summary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the field has no storage identity or a scan fails.
+    #[doc(hidden)]
+    pub fn vector_index_artifact_footprint_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<serde_json::Value, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let measure = |prefix: Vec<u8>| -> Result<(u64, u64), CassieError> {
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(prefix.into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            let bytes = entries
+                .iter()
+                .map(|(key, value)| key.len() + value.len())
+                .sum::<usize>();
+            Ok((
+                u64::try_from(entries.len()).unwrap_or(u64::MAX),
+                u64::try_from(bytes).unwrap_or(u64::MAX),
+            ))
+        };
+        let (normalized_keys, normalized_bytes) =
+            measure(Self::normalized_vector_prefix(relation_id, field_id))?;
+        let (node_keys, node_bytes) = measure(super::key_encoding::hnsw_graph_node_prefix(
+            relation_id,
+            field_id,
+        ))?;
+        let (membership_keys, membership_bytes) = measure(
+            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id),
+        )?;
+        // The manifest and summary keys share a prefix with the node keys, so
+        // they are point reads rather than prefix scans.
+        let single = |key: Vec<u8>| -> Result<(u64, u64), CassieError> {
+            let Some(value) = tx.get(&key).map_err(CassieError::from)? else {
+                return Ok((0, 0));
+            };
+            Ok((
+                1,
+                u64::try_from(key.len() + value.len()).unwrap_or(u64::MAX),
+            ))
+        };
+        let (state_keys, state_bytes) =
+            single(Self::vector_index_state_key(relation_id, field_id))?;
+        let (summary_keys, summary_bytes) = single(
+            super::key_encoding::ivfflat_source_summary_key(relation_id, field_id),
+        )?;
+        Ok(serde_json::json!({
+            "normalized_keys": normalized_keys,
+            "normalized_bytes": normalized_bytes,
+            "graph_node_keys": node_keys,
+            "graph_node_bytes": node_bytes,
+            "membership_keys": membership_keys,
+            "membership_bytes": membership_bytes,
+            "state_keys": state_keys,
+            "state_bytes": state_bytes,
+            "summary_keys": summary_keys,
+            "total_keys": normalized_keys + node_keys + membership_keys + state_keys + summary_keys,
+            "total_bytes": normalized_bytes + node_bytes + membership_bytes + state_bytes + summary_bytes,
+        }))
+    }
+
+    pub(super) fn vector_storage_ids(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(u64, u32), CassieError> {
+        let row_schema = self.row_schema(collection)?;
+        let field_id = vector_field_id(&row_schema, field)?;
+        Ok((row_schema.relation_id, field_id))
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when storage state cannot be read.
+    pub fn get_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<VectorIndexState>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::vector_index_state_key(relation_id, field_id))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        let persisted = decode_vector_index_state(&raw)?;
+        let hnsw_graph = persisted
+            .hnsw_graph
+            .map(|manifest| load_hnsw_manifest(&tx, relation_id, field_id, manifest))
+            .transpose()?;
+        let state = VectorIndexState {
+            built_generation: persisted.built_generation,
+            hnsw_graph,
+            ivfflat_training: persisted
+                .ivfflat_training
+                .map(|manifest| {
+                    ivfflat::load_ivfflat_manifest(&tx, relation_id, field_id, manifest)
+                })
+                .transpose()?,
+        };
+        if state.built_generation != self.collection_generation(&collection)? {
+            return Ok(None);
+        }
+        Ok(Some(state))
+    }
+
+    /// Searches a generation-bound HNSW manifest by point-reading only requested nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when derived vector-index state cannot be persisted.
+    pub fn put_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+        mut state: VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        state.built_generation = self.collection_generation(&collection)?;
+        self.write_vector_index_state(&collection, field, state, SummaryPolicy::Keep)
+    }
+
+    fn write_vector_index_state(
+        &self,
+        collection: &str,
+        field: &str,
+        state: VectorIndexState,
+        summary_policy: SummaryPolicy,
+    ) -> Result<(), CassieError> {
+        self.publish_vector_sidecars(collection, field, None, Some(state), summary_policy)
+    }
+
+    pub(super) fn write_vector_index_state_to_tx(
+        tx: &mut crate::adapter::AdapterTransaction,
+        relation_id: u64,
+        field_id: u32,
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
+        let old_node_keys = collect_scan(
+            tx.scan(&Query::new().prefix(node_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in old_node_keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+        let membership_prefix =
+            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
+        let old_membership_keys = collect_scan(
+            tx.scan(&Query::new().prefix(membership_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in old_membership_keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+        if let Some(training) = &state.ivfflat_training {
+            for (id, list) in &training.assignments {
+                let key =
+                    super::key_encoding::ivfflat_membership_key(relation_id, field_id, *list, id);
+                tx.put(key, Vec::new(), None).map_err(CassieError::from)?;
+            }
+        }
+        if let Some(graph) = &state.hnsw_graph {
+            for node in &graph.nodes {
+                tx.put(
+                    super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
+                    encode_hnsw_node(node)?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+            }
+        }
+        Self::write_vector_index_manifest_to_tx(tx, relation_id, field_id, state)?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
+        Ok(())
+    }
+
+    fn write_initial_vector_index_sidecars(
+        &self,
+        index: &VectorIndexRecord,
+        records: &[NormalizedVectorRecord],
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            Some(state.clone()),
+            SummaryPolicy::Refresh,
+        )
+    }
+
+    pub(super) fn delete_vector_sidecars_in_batches(
+        &self,
+        collection: &str,
+        prefixes: &[Vec<u8>],
+    ) -> Result<(), CassieError> {
+        for prefix in prefixes {
+            loop {
+                let keys = self
+                    .raw_scan_prefix_page_for_collection(
+                        collection,
+                        prefix,
+                        VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE,
+                    )?
+                    .into_iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<_>>();
+                if keys.is_empty() {
+                    break;
+                }
+                for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+                    let mut tx = self.begin_data_rw_tx_for(collection)?;
+                    for key in keys {
+                        tx.delete(key.clone()).map_err(CassieError::from)?;
+                    }
+                    tx.commit(self.write_options_sync())
+                        .map_err(CassieError::from)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn write_vector_index_manifest_to_tx(
+        tx: &mut crate::adapter::AdapterTransaction,
+        relation_id: u64,
+        field_id: u32,
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let (key, value) = Self::vector_index_manifest_entry(relation_id, field_id, state)?;
+        tx.put(key, value, None).map_err(CassieError::from)
+    }
+
+    fn vector_index_manifest_entry(
+        relation_id: u64,
+        field_id: u32,
+        state: &VectorIndexState,
+    ) -> Result<(Vec<u8>, Vec<u8>), CassieError> {
+        let hnsw_graph = state
+            .hnsw_graph
+            .as_ref()
+            .map(|graph| PersistedHnswManifest {
+                version: graph.version,
+                source_fingerprint: graph.source_fingerprint,
+                row_count: graph.row_count,
+                dimensions: graph.dimensions,
+                metric: graph.metric,
+                entry_point: graph.entry_point.clone(),
+                max_layer: graph.max_layer,
+            });
+        let ivfflat_training =
+            state
+                .ivfflat_training
+                .as_ref()
+                .map(|training| PersistedIvfManifest {
+                    version: training.version,
+                    source_fingerprint: training.source_fingerprint,
+                    trained: training.trained,
+                    row_count: training.row_count,
+                    lists: training.lists,
+                    probes: training.probes,
+                    training_seed: training.training_seed,
+                    centroid_ids: training.centroid_ids.clone(),
+                    centroids: training.centroids.clone(),
+                    list_sizes: training.list_sizes.clone(),
+                    list_bounds: training.list_bounds.clone(),
+                    membership_count: training.assignments.len(),
+                });
+        let value = encode_vector_index_state(&PersistedVectorIndexState {
+            built_generation: state.built_generation,
+            hnsw_graph,
+            ivfflat_training,
+        })?;
+        Ok((Self::vector_index_state_key(relation_id, field_id), value))
+    }
+
+    pub(super) fn stamp_vector_index_states_generation_in_tx(
+        &self,
+        tx: &mut crate::adapter::AdapterTransaction,
+        collection: &str,
+        built_generation: u64,
+    ) -> Result<(), CassieError> {
+        let row_schema = self.row_schema(collection)?;
+        for index in self
+            .list_vector_index_definitions_canonical()?
+            .into_iter()
+            .filter(|index| index.collection == collection)
+        {
+            let field_id = vector_field_id(&row_schema, &index.field)?;
+            let key = Self::vector_index_state_key(row_schema.relation_id, field_id);
+            let Some(raw) = tx.get(&key).map_err(CassieError::from)? else {
+                continue;
+            };
+            let mut state = decode_vector_index_state(&raw)?;
+            state.built_generation = built_generation;
+            tx.put(key, encode_vector_index_state(&state)?, None)
+                .map_err(CassieError::from)?;
+            let summary_key =
+                super::key_encoding::hnsw_source_summary_key(row_schema.relation_id, field_id);
+            if let Some(raw) = tx.get(&summary_key).map_err(CassieError::from)? {
+                if let Ok(mut summary) =
+                    serde_json::from_slice::<vector_retrieval::HnswSourceSummary>(&raw)
+                {
+                    summary.built_generation = built_generation;
+                    tx.put(
+                        summary_key,
+                        serde_json::to_vec(&summary)
+                            .map_err(|error| CassieError::Parse(error.to_string()))?,
+                        None,
+                    )
+                    .map_err(CassieError::from)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn write_vector_index_metadata(
+        &self,
+        metadata: &crate::embeddings::VectorIndexRecord,
+    ) -> Result<(), CassieError> {
+        let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
+        let key = Self::vector_index_key(&metadata.collection, &metadata.field);
+
+        let value =
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(key, value, None).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn get_vector_index(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+
+        let raw = tx
+            .get(&Self::vector_index_key(&collection, field))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        let mut record: VectorIndexRecord = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid vector index metadata: {error}"))
+        })?;
+        self.hydrate_vector_index_state(&mut record)?;
+        if !requested_collection.eq_ignore_ascii_case(&collection) {
+            record.collection = self.display_collection_name(&requested_collection);
+        }
+        Ok(Some(record))
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn list_vector_indexes(
+        &self,
+    ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
+        self.list_vector_indexes_canonical().map(|mut records| {
+            for record in &mut records {
+                record.collection = self.display_collection_name(&record.collection);
+            }
+            records
+        })
+    }
+
+    ///
+    /// # Errors
+    /// Returns an error when vector index metadata cannot be read or decoded.
+    pub fn list_vector_indexes_canonical(
+        &self,
+    ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let mut out = self.list_vector_index_definitions_canonical()?;
+        for record in &mut out {
+            self.hydrate_vector_index_state(record)?;
+        }
+        Ok(out)
+    }
+
+    pub(super) fn list_vector_index_definitions_canonical(
+        &self,
+    ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let entries = self.scan_database_families(&Self::vector_index_prefix())?;
+        let mut out = Vec::with_capacity(entries.len());
+
+        for (_key, raw_value) in entries {
+            let Ok(record) = serde_json::from_slice(&raw_value) else {
+                continue;
+            };
+            out.push(record);
+        }
+
+        Ok(out)
+    }
+
+    fn hydrate_vector_index_state(
+        &self,
+        record: &mut VectorIndexRecord,
+    ) -> Result<(), CassieError> {
+        let Some(state) = self.get_vector_index_state(&record.collection, &record.field)? else {
+            return Ok(());
+        };
+        record.metadata.hnsw_graph = state.hnsw_graph;
+        record.metadata.ivfflat_training = state.ivfflat_training;
+        Ok(())
+    }
+
+    pub(super) fn normalized_vector_record_from_value(
+        collection: &str,
+        field: &str,
+        id: &str,
+        dimensions: usize,
+        metric: crate::embeddings::DistanceMetric,
+        value: Option<&serde_json::Value>,
+    ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(None);
+        }
+
+        let values = value.as_array().ok_or_else(|| {
+            CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' expects array values"
+            ))
+        })?;
+        if values.len() != dimensions {
+            return Err(CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' expects {dimensions} dimensions"
+            )));
+        }
+
+        let mut vector = Vec::with_capacity(dimensions);
+        for value in values {
+            let Some(number) = value.as_f64() else {
+                return Err(CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects numeric values"
+                )));
+            };
+            if !number.is_finite() {
+                return Err(CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects finite numeric values"
+                )));
+            }
+            vector.push(number.to_string().parse::<f32>().map_err(|_| {
+                CassieError::InvalidVector(format!(
+                    "vector field '{field}' on collection '{collection}' expects f32-range values"
+                ))
+            })?);
+        }
+
+        let Some(normalized) = normalize_vector(&vector) else {
+            return Err(CassieError::InvalidVector(format!(
+                "vector field '{field}' on collection '{collection}' could not be normalized"
+            )));
+        };
+
+        Ok(Some(NormalizedVectorRecord {
+            collection: collection.to_string(),
+            field: field.to_string(),
+            id: id.to_string(),
+            built_generation: 0,
+            dimensions,
+            metric,
+            normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
+            payload_available: true,
+            magnitude: normalized.magnitude,
+            values: normalized.values,
+        }))
+    }
+
+    pub(super) fn write_normalized_vector_records(
+        tx: &mut crate::adapter::AdapterTransaction,
+        row_schema: &super::RowSchema,
+        records: &[NormalizedVectorRecord],
+    ) -> Result<(), CassieError> {
+        for record in records {
+            let field_id = vector_field_id(row_schema, &record.field)?;
+            tx.put(
+                Self::normalized_vector_key(row_schema.relation_id, field_id, &record.id),
+                encode_normalized_vector(record)?,
+                None,
+            )
+            .map_err(CassieError::from)?;
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn delete_normalized_vector_keys_with_prefix(
+        tx: &mut crate::adapter::AdapterTransaction,
+        prefix: Vec<u8>,
+    ) -> Result<(), CassieError> {
+        let scan = collect_scan(
+            tx.scan(&Query::new().prefix(prefix.into()))
+                .map_err(CassieError::from)?,
+        )?;
+        let mut keys = Vec::new();
+        for (key, _) in scan {
+            keys.push(key);
+        }
+
+        for key in keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn delete_normalized_vector_keys_for_document(
+        tx: &mut crate::adapter::AdapterTransaction,
+        row_schema: &super::RowSchema,
+        id: &str,
+        fields: &[String],
+    ) -> Result<usize, CassieError> {
+        let mut deleted_keys = 0usize;
+        for field in fields {
+            let field_id = vector_field_id(row_schema, field)?;
+            let key = Self::normalized_vector_key(row_schema.relation_id, field_id, id);
+            if tx.get(&key).map_err(CassieError::from)?.is_some() {
+                tx.delete(key).map_err(CassieError::from)?;
+                deleted_keys = deleted_keys.saturating_add(1);
+            }
+        }
+
+        Ok(deleted_keys)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rebuild_normalized_vectors_for_index(
+        &self,
+        index: &VectorIndexRecord,
+    ) -> Result<usize, CassieError> {
+        let records = self.normalized_vector_records_for_index(index)?;
+        self.write_normalized_vectors_for_index(index, &records)?;
+        Ok(records.len())
+    }
+
+    pub(super) fn normalized_vector_records_for_index(
+        &self,
+        index: &VectorIndexRecord,
+    ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
+        let documents = self.scan_documents(&index.collection)?;
+        let mut records = Vec::new();
+
+        for document in documents {
+            let Some(record) = Self::normalized_vector_record_from_value(
+                &index.collection,
+                &index.field,
+                &document.id,
+                index.metadata.dimensions,
+                index.metadata.metric,
+                document.payload.get(&index.field),
+            )?
+            else {
+                continue;
+            };
+            records.push(record);
+        }
+
+        records.sort_by(|left, right| left.id.cmp(&right.id));
+        Ok(records)
+    }
+
+    fn write_normalized_vectors_for_index(
+        &self,
+        index: &VectorIndexRecord,
+        records: &[NormalizedVectorRecord],
+    ) -> Result<(), CassieError> {
+        self.publish_vector_sidecars(
+            &index.collection,
+            &index.field,
+            Some(records),
+            None,
+            SummaryPolicy::Keep,
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn rebuild_hnsw_graph(
+        &self,
+        index: &VectorIndexRecord,
+    ) -> Result<crate::embeddings::HnswGraphState, CassieError> {
+        let records = self.list_normalized_vectors(&index.collection, &index.field)?;
+        Ok(Self::build_hnsw_graph_from_records(index, records))
+    }
+
+    fn build_hnsw_graph_from_records(
+        index: &VectorIndexRecord,
+        records: Vec<NormalizedVectorRecord>,
+    ) -> crate::embeddings::HnswGraphState {
+        let options = index.metadata.hnsw.clone().unwrap_or_default();
+        crate::vector::hnsw::build_graph(
+            records,
+            &options,
+            index.metadata.dimensions,
+            index.metadata.metric,
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn refresh_hnsw_indexes_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<usize, CassieError> {
+        let mut refreshed = 0usize;
+        for index in self.list_vector_indexes_canonical()? {
+            if index.collection != collection
+                || index.metadata.index_type != crate::embeddings::VectorIndexType::Hnsw
+            {
+                continue;
+            }
+            let state = VectorIndexState {
+                built_generation: 0,
+                hnsw_graph: Some(self.rebuild_hnsw_graph(&index)?),
+                ivfflat_training: None,
+            };
+            self.write_vector_index_state(
+                &index.collection,
+                &index.field,
+                state,
+                SummaryPolicy::Refresh,
+            )?;
+            refreshed += 1;
+        }
+        Ok(refreshed)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn list_normalized_vectors(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
+        let entries = self.raw_scan_prefix_for_collection(
+            &collection,
+            &Self::normalized_vector_prefix(relation_id, field_id),
+        )?;
+        let mut out: Vec<NormalizedVectorRecord> = Vec::with_capacity(entries.len());
+
+        let prefix = Self::normalized_vector_prefix(relation_id, field_id);
+        for (key, raw_value) in entries {
+            let Some(id) = super::key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
+                continue;
+            };
+            let Ok(record) =
+                decode_normalized_vector(&raw_value, &requested_collection, field, &id)
+            else {
+                continue;
+            };
+            let mut record = record;
+            record.collection.clone_from(&requested_collection);
+            out.push(record);
+        }
+
+        let generation = self.collection_generation(&collection)?;
+        let floor = Self::decode_normalized_generation_floor(
+            self.begin_data_readonly_tx_for(&collection)?
+                .get(&super::key_encoding::normalized_vector_floor_key(
+                    relation_id,
+                    field_id,
+                ))
+                .map_err(CassieError::from)?,
+        )?;
+        if out.iter().any(|record| {
+            !normalized_generation_is_current(floor, record.built_generation, generation)
+        }) {
+            return Ok(Vec::new());
+        }
+        out.sort_by(|left, right| left.id.cmp(&right.id));
+        Ok(out)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub fn get_normalized_vector(
+        &self,
+        collection: &str,
+        field: &str,
+        id: &str,
+    ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
+        let requested_collection = collection.to_string();
+        let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let raw = tx
+            .get(&Self::normalized_vector_key(relation_id, field_id, id))
+            .map_err(CassieError::from)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        let mut record = decode_normalized_vector(&raw, &collection, field, id)?;
+        let floor = Self::normalized_generation_floor(&tx, relation_id, field_id)?;
+        if !normalized_generation_is_current(
+            floor,
+            record.built_generation,
+            self.collection_generation(&collection)?,
+        ) {
+            return Ok(None);
+        }
+        record.collection = requested_collection;
+        Ok(Some(record))
+    }
+}
+
+fn load_hnsw_manifest(
+    tx: &crate::adapter::AdapterTransaction,
+    relation_id: u64,
+    field_id: u32,
+    manifest: PersistedHnswManifest,
+) -> Result<crate::embeddings::HnswGraphState, CassieError> {
+    let prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
+    let nodes = collect_scan(
+        tx.scan(&Query::new().prefix(prefix.clone().into()))
+            .map_err(CassieError::from)?,
+    )?
+    .into_iter()
+    .map(|(key, raw)| {
+        let id = super::key_encoding::utf8_suffix_after_prefix(&key, &prefix)
+            .ok_or_else(|| CassieError::Parse("invalid HNSW node key".to_string()))?;
+        decode_hnsw_node(raw.as_slice(), &id)
+    })
+    .collect::<Result<Vec<crate::embeddings::HnswGraphNode>, CassieError>>()?;
+    Ok(crate::embeddings::HnswGraphState {
+        version: manifest.version,
+        source_fingerprint: manifest.source_fingerprint,
+        row_count: manifest.row_count,
+        dimensions: manifest.dimensions,
+        metric: manifest.metric,
+        entry_point: manifest.entry_point,
+        max_layer: manifest.max_layer,
+        nodes,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vector_index_build_batch_lengths;
+
+    #[test]
+    fn should_bound_initial_vector_index_sidecar_write_transactions() {
+        // Arrange
+        let item_count = 10_001;
+
+        // Act
+        let batch_lengths = vector_index_build_batch_lengths(item_count);
+
+        // Assert
+        assert_eq!(batch_lengths, vec![5_000, 5_000, 1]);
+    }
+}

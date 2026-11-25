@@ -1,0 +1,907 @@
+use super::*;
+
+#[test]
+fn should_preserve_existing_row_blob_bytes_after_storage_placement() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "v".to_owned(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    });
+    let expected =
+        b"CRB1\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x01\x00\x00\x00\x00\x01\x00\x00\x00\x01\x05\x00\x00\x00\x00\x00\x00\x00\x01x";
+
+    // Act
+    let encoded = encode_row(&schema, &serde_json::json!({"v": "x"})).expect("row");
+
+    // Assert
+    assert_eq!(encoded, expected);
+}
+
+#[test]
+fn should_decode_sparse_rows_without_field_names() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+        ],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &serde_json::json!({"score": 42})).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(decoded, serde_json::json!({"score": 42}));
+    let raw = String::from_utf8_lossy(&encoded);
+    assert!(!raw.contains("score"));
+}
+
+#[test]
+fn should_decode_reserved_looking_json_keys_as_ordinary_objects_from_crb1_rows() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "document".to_string(),
+                data_type: DataType::Json,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "binary_document".to_string(),
+                data_type: DataType::Jsonb,
+                nullable: true,
+            },
+        ],
+    });
+    let mut nested = serde_json::Map::new();
+    nested.insert(
+        "$serde_json::private::RawValue".into(),
+        serde_json::Value::String("ordinary nested value".into()),
+    );
+    let mut document = serde_json::Map::new();
+    document.insert(
+        "$serde_json::private::Number".into(),
+        serde_json::Value::String("ordinary root value".into()),
+    );
+    document.insert("nested".into(), serde_json::Value::Object(nested));
+    let document = serde_json::Value::Object(document);
+    let mut payload = serde_json::Map::new();
+    payload.insert("document".into(), document.clone());
+    payload.insert("binary_document".into(), document.clone());
+    let payload = serde_json::Value::Object(payload);
+
+    // Act
+    let encoded = encode_row(&schema, &payload).expect("encode row");
+    let decoded = decode_row(&schema, &encoded).expect("decode row");
+    let projection = HashSet::from(["document".to_string()]);
+    let projected =
+        decode_projected_row(&schema, &encoded, &projection).expect("decode projected row");
+
+    // Assert
+    assert_eq!(decoded, payload);
+    assert_eq!(projected, serde_json::json!({"document": document}));
+}
+
+#[test]
+fn should_project_exact_case_from_persisted_row_metadata() {
+    // Arrange
+    let mut persisted_schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "Email".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    });
+    persisted_schema.fields[0].normalized_name = "email".to_string();
+    let serialized_schema = serde_json::to_vec(&persisted_schema).expect("serialize row schema");
+    let reopened_schema: RowSchema =
+        serde_json::from_slice(&serialized_schema).expect("reopen persisted row schema");
+    let row = encode_row(&reopened_schema, &serde_json::json!({"Email": "e@x"}))
+        .expect("encode persisted row");
+    let projection = HashSet::from([crate::sql::ColumnIdentifierPath::reference_field_key(
+        "\"Email\"",
+    )]);
+
+    // Act
+    let projected = decode_projected_row(&reopened_schema, &row, &projection)
+        .expect("project from reopened row");
+
+    // Assert
+    assert_eq!(reopened_schema.fields[0].normalized_name, "email");
+    assert_eq!(projected, serde_json::json!({"Email": "e@x"}));
+}
+
+#[test]
+fn should_roundtrip_binary_temporal_uuid_array_fields() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "id".to_string(),
+                data_type: DataType::Uuid,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "created_on".to_string(),
+                data_type: DataType::Date,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "created_at".to_string(),
+                data_type: DataType::Timestamp,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "updated_at".to_string(),
+                data_type: DataType::Time,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "ints".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Int)),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "created_on": "2026-06-18",
+        "created_at": "2026-06-18T12:34:56Z",
+        "updated_at": "12:34:56",
+        "ints": [1, 2, 3],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(
+        decoded,
+        serde_json::json!({
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "created_on": "2026-06-18",
+            "created_at": "2026-06-18T12:34:56.000000Z",
+            "updated_at": "12:34:56",
+            "ints": SqlArray::from_nested_json_typed(
+                &serde_json::json!([1, 2, 3]),
+                &DataType::Int,
+            )
+                .unwrap()
+                .to_storage_json(),
+        })
+    );
+    assert_eq!(&encoded[0..4], b"CRB1");
+}
+
+#[test]
+fn should_preserve_array_dimensions_when_rows_are_encoded() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "matrix".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Int)),
+            nullable: true,
+        }],
+    });
+    let matrix = SqlArray::new(
+        vec![
+            ArrayDimension {
+                length: 2,
+                lower_bound: -1,
+            },
+            ArrayDimension {
+                length: 2,
+                lower_bound: 4,
+            },
+        ],
+        vec![
+            Value::Int64(1),
+            Value::Null,
+            Value::Int64(3),
+            Value::Int64(4),
+        ],
+    )
+    .unwrap();
+    let payload = serde_json::json!({"matrix": matrix.to_storage_json()});
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+    let restored_matrix = SqlArray::from_storage_json(&decoded["matrix"]).unwrap();
+
+    // Assert
+    assert_eq!(restored_matrix, matrix);
+    assert_eq!(restored_matrix.dimensions()[0].lower_bound, -1);
+    assert_eq!(restored_matrix.dimensions()[1].lower_bound, 4);
+}
+
+#[test]
+fn should_distinguish_sql_null_from_json_null_in_array() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "documents".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Jsonb)),
+            nullable: true,
+        }],
+    });
+    let documents =
+        SqlArray::from_elements(vec![Value::Null, Value::Json(serde_json::Value::Null)]).unwrap();
+    let payload = serde_json::json!({"documents": documents.to_storage_json()});
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+    let restored_documents = SqlArray::from_storage_json(&decoded["documents"]).unwrap();
+
+    // Assert
+    assert_eq!(
+        restored_documents.elements(),
+        &[Value::Null, Value::Json(serde_json::Value::Null)]
+    );
+}
+
+#[test]
+fn should_roundtrip_crb1_text_arrays_with_nulls_in_every_position() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "first".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "middle".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "last".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "consecutive".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "first": [null, "alpha", "bravo"],
+        "middle": ["alpha", null, "bravo"],
+        "last": ["alpha", "bravo", null],
+        "consecutive": ["alpha", null, null, "bravo"],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    for name in ["first", "middle", "last", "consecutive"] {
+        assert_eq!(
+            SqlArray::from_storage_json(&decoded[name])
+                .unwrap()
+                .to_nested_json(),
+            payload[name]
+        );
+    }
+}
+
+#[test]
+fn should_roundtrip_crb1_fixed_width_arrays_with_null_elements() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "ints".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Int)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "bools".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Boolean)),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "ints": [1, null, 2],
+        "bools": [true, null, false],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    for name in ["ints", "bools"] {
+        assert_eq!(
+            SqlArray::from_storage_json(&decoded[name])
+                .unwrap()
+                .to_nested_json(),
+            payload[name]
+        );
+    }
+}
+
+#[test]
+fn should_roundtrip_crb1_multidimensional_arrays_with_null_elements() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "nested".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Text)),
+            nullable: true,
+        }],
+    });
+    let payload = serde_json::json!({
+        "nested": [["alpha", null], ["bravo", "charlie"]],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(
+        SqlArray::from_storage_json(&decoded["nested"])
+            .unwrap()
+            .to_nested_json(),
+        payload["nested"]
+    );
+}
+
+#[test]
+fn should_reject_crb1_array_null_with_nonzero_payload_length() {
+    // Arrange
+    let encoded_array = [2, TYPE_NULL, 1, 0xff, TYPE_STRING, 1, b'a'];
+    let mut cursor = Cursor::new(&encoded_array);
+
+    // Act
+    let result = decode_value(TYPE_ARRAY, &mut cursor, None);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_not_visit_unrequested_field_payloads() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    });
+    let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let mut encoded = encode_row(
+        &schema,
+        &serde_json::json!({"title": "alpha", "body": "payload"}),
+    )
+    .unwrap();
+    *encoded.last_mut().expect("body payload byte") = 0xff;
+
+    // Act
+    let projected = decode_projected_row(&schema, &encoded, &projection).unwrap();
+    let full = decode_row(&schema, &encoded);
+
+    // Assert
+    assert_eq!(projected, serde_json::json!({"title": "alpha"}));
+    assert!(full.is_err());
+}
+
+#[test]
+fn should_reject_invalid_uuid_values_during_row_blob_encoding() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "id".to_string(),
+            data_type: DataType::Uuid,
+            nullable: true,
+        }],
+    });
+    let payload = serde_json::json!({"id": "not-a-uuid"});
+
+    // Act
+    let result = encode_row(&schema, &payload);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_retain_retired_field_ids() {
+    // Arrange
+    let mut schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    });
+
+    // Act
+    assert!(schema.retire_field("title"));
+    schema
+        .add_field(FieldSchema {
+            name: "status".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        })
+        .unwrap();
+
+    // Assert
+    assert_eq!(schema.fields[0].field_id, 1);
+    assert!(schema.fields[0].retired);
+    assert_eq!(schema.fields[1].field_id, 2);
+    assert!(!schema.fields[1].retired);
+}
+
+#[test]
+fn should_decode_projected_row_with_exact_delimited_field_name() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "Title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "Score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+        ],
+    });
+    let projection = [crate::sql::ColumnIdentifierPath::reference_field_key(
+        "\"Title\"",
+    )]
+    .into_iter()
+    .collect::<HashSet<_>>();
+    let encoded = encode_row(
+        &schema,
+        &serde_json::json!({
+            "Title": "alpha",
+            "Score": 42
+        }),
+    )
+    .unwrap();
+
+    // Act
+    let decoded = decode_projected_row(&schema, &encoded, &projection).unwrap();
+
+    // Assert
+    assert_eq!(decoded, serde_json::json!({"Title": "alpha"}));
+
+    let undelimited = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let decoded = decode_projected_row(&schema, &encoded, &undelimited).unwrap();
+    assert_eq!(decoded, serde_json::json!({}));
+}
+
+#[test]
+fn should_decode_projected_row_when_filter_matches() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    });
+    let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let encoded = encode_row(
+        &schema,
+        &serde_json::json!({
+            "title": "alpha",
+            "body": "large payload"
+        }),
+    )
+    .unwrap();
+
+    // Act
+    let decoded = decode_projected_row_matching(
+        &schema,
+        &encoded,
+        &projection,
+        "title",
+        &serde_json::json!("alpha"),
+    )
+    .unwrap();
+
+    // Assert
+    assert_eq!(decoded, Some(serde_json::json!({"title": "alpha"})));
+}
+
+#[test]
+fn should_skip_projected_row_when_filter_does_not_match() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    });
+    let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let encoded = encode_row(
+        &schema,
+        &serde_json::json!({
+            "title": "beta",
+            "body": "large payload"
+        }),
+    )
+    .unwrap();
+
+    // Act
+    let decoded = decode_projected_row_matching(
+        &schema,
+        &encoded,
+        &projection,
+        "title",
+        &serde_json::json!("alpha"),
+    )
+    .unwrap();
+
+    // Assert
+    assert_eq!(decoded, None);
+}
+
+#[test]
+fn should_roundtrip_extended_scalar_types() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "tiny".to_string(),
+                data_type: DataType::SmallInt,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "score".to_string(),
+                data_type: DataType::Int,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "balance".to_string(),
+                data_type: DataType::BigInt,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "code".to_string(),
+                data_type: DataType::Char { length: Some(4) },
+                nullable: true,
+            },
+            FieldSchema {
+                name: "label".to_string(),
+                data_type: DataType::Varchar { length: Some(8) },
+                nullable: true,
+            },
+            FieldSchema {
+                name: "payload".to_string(),
+                data_type: DataType::Bytea,
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "tiny": 7,
+        "score": 42,
+        "balance": 9_223_372_036_854_775_807_i64,
+        "code": "ab12",
+        "label": "alpha",
+        "payload": "\\x01020aff"
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let mut cursor = Cursor::new(&encoded);
+    cursor.expect_bytes(MAGIC).unwrap();
+    let version = cursor.read_u8().unwrap();
+    assert_eq!(version, FORMAT_VERSION);
+    let _schema_version = cursor.read_u32().unwrap();
+    let _flags = cursor.read_u8().unwrap();
+    let field_count = cursor.read_varint().unwrap();
+    for index in 0..field_count {
+        let field_id = cursor.read_varint().unwrap();
+        let tag = cursor.read_u8().unwrap();
+        let value = decode_value(tag, &mut cursor, None);
+        assert!(
+            value.is_ok(),
+            "field {index} id={field_id} tag={tag}: {value:?}"
+        );
+    }
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(
+        decoded,
+        serde_json::json!({
+            "tiny": 7,
+            "score": 42,
+            "balance": 9_223_372_036_854_775_807_i64,
+            "code": "ab12",
+            "label": "alpha",
+            "payload": "\\x01020aff"
+        })
+    );
+}
+
+#[test]
+fn should_preserve_unlimited_varchar_storage() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "scalar".into(),
+                data_type: DataType::Varchar { length: None },
+                nullable: true,
+            },
+            FieldSchema {
+                name: "array".into(),
+                data_type: DataType::Array(Box::new(DataType::Varchar { length: None })),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({"scalar":"long μ string", "array":["long μ string",null,"é"]});
+
+    // Act
+    let encoded = encode_row(&schema, &payload).expect("unlimited VARCHAR storage");
+    let decoded = decode_row(&schema, &encoded).expect("unlimited VARCHAR read");
+
+    // Assert
+    assert_eq!(
+        decoded,
+        serde_json::json!({
+            "scalar": "long μ string",
+            "array": SqlArray::from_nested_json_typed(
+                &serde_json::json!(["long μ string", null, "é"]),
+                &DataType::Varchar { length: None },
+            )
+            .unwrap()
+            .to_storage_json(),
+        })
+    );
+}
+
+#[test]
+fn should_retain_explicit_character_storage_bounds() {
+    // Arrange
+    let cases = [
+        (DataType::Char { length: None }, "μ  ", "μx", "μ"),
+        (DataType::Char { length: Some(2) }, "μx  ", "μxy", "μx"),
+        (DataType::Varchar { length: Some(2) }, "μx", "μxy", "μx"),
+        (DataType::Varchar { length: Some(0) }, "", "x", ""),
+    ];
+
+    // Act
+    let results = cases.map(|(data_type, valid, invalid, expected)| {
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![FieldSchema {
+                name: "v".into(),
+                data_type,
+                nullable: true,
+            }],
+        });
+        let valid = encode_row(&schema, &serde_json::json!({"v":valid}));
+        let invalid = encode_row(&schema, &serde_json::json!({"v":invalid}));
+        (schema, valid, invalid, expected)
+    });
+
+    // Assert
+    for (schema, valid, invalid, expected) in results {
+        assert_eq!(
+            decode_row(&schema, &valid.expect("valid declared bound")).expect("bounded read"),
+            serde_json::json!({"v":expected})
+        );
+        assert!(invalid.is_err());
+    }
+}
+
+#[test]
+fn should_reject_invalid_bytea_payloads_for_row_blob_encoding() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "payload".to_string(),
+            data_type: DataType::Bytea,
+            nullable: true,
+        }],
+    });
+    let payload = serde_json::json!({"payload": "not-a-bytea"});
+
+    // Act
+    let result = encode_row(&schema, &payload);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_reject_row_encoding_with_trailing_bytes() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 42})).unwrap();
+    encoded.push(0xff);
+
+    // Act
+    let result = decode_row(&schema, &encoded);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_reject_row_encoding_with_truncated_values() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 42})).unwrap();
+    encoded.pop();
+
+    // Act
+    let result = decode_row(&schema, &encoded);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+/// Directory entry layout inside an encoded blob: MAGIC, format version,
+/// schema version, max field id, bitmap length, presence, nulls, field
+/// count, then `field_count` entries of (`field_id`, `type_tag`, `offset`,
+/// `len`).
+fn directory_entry_offset(bitmap_len: usize, entry: usize) -> usize {
+    MAGIC.len() + 1 + 4 + 4 + 4 + bitmap_len + bitmap_len + 4 + entry * (4 + 1 + 4 + 4)
+}
+
+fn two_text_field_schema() -> RowSchema {
+    RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "left".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "right".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    })
+}
+
+#[test]
+fn should_reject_overlapping_row_blob_directory_entries() {
+    // Arrange
+    let schema = two_text_field_schema();
+    let mut encoded = encode_row(
+        &schema,
+        &serde_json::json!({"left": "aaaa", "right": "bbbb"}),
+    )
+    .unwrap();
+    // Point the first field at the second field's bytes. Both entries stay
+    // in bounds and the maximum end offset still equals the payload length.
+    // The old decoder accepts this row and returns "bbbb" for both fields.
+    let bitmap_len = 1;
+    let first = directory_entry_offset(bitmap_len, 0);
+    let offset_at = first + 4 + 1;
+    encoded[offset_at..offset_at + 4].copy_from_slice(&4_u32.to_be_bytes());
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("overlapping directory entries must be rejected");
+    assert!(
+        error.to_string().contains("partition the payload"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
+fn should_reject_a_row_blob_type_tag_that_contradicts_the_schema() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Float,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 1.5})).unwrap();
+    // TYPE_F64 (0x04) and TYPE_STRING (0x05) are one bit apart, and eight
+    // big-endian float bytes are also a valid eight-byte string payload, so
+    // this decodes as a plausible value unless the tag is checked.
+    let tag_at = directory_entry_offset(1, 0) + 4;
+    assert_eq!(encoded[tag_at], TYPE_F64);
+    encoded[tag_at] = TYPE_STRING;
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("a tag contradicting the schema must be rejected");
+    assert!(
+        error.to_string().contains("type tag"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
+fn should_reject_a_row_blob_field_payload_that_decodes_short() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "flag".to_string(),
+            data_type: DataType::Boolean,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"flag": true})).unwrap();
+    // A boolean consumes exactly one byte. Widening its declared length
+    // leaves trailing bytes the decoder would otherwise ignore.
+    let len_at = directory_entry_offset(1, 0) + 4 + 1 + 4;
+    encoded[len_at..len_at + 4].copy_from_slice(&2_u32.to_be_bytes());
+    encoded.push(0xFF);
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("a partially consumed field payload must be rejected");
+    assert!(
+        error.to_string().contains("unconsumed bytes"),
+        "unexpected error: {error}"
+    );
+}

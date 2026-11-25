@@ -1,0 +1,233 @@
+//! Session-owned catalog changes and admitted immutable read compositions.
+
+use super::{Arc, CassieError, CassieSession, Catalog, Mutex, StorageOverlay};
+use crate::app::PrivateOutputs;
+use crate::catalog::ControlledCatalogSnapshot;
+use crate::runtime::QueryExecutionControls;
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct TransactionCatalogViews {
+    base: Option<Arc<ControlledCatalogSnapshot>>,
+    sql: Option<(u64, Arc<ControlledCatalogSnapshot>)>,
+    descriptors: Option<((u64, u64), Arc<ControlledCatalogSnapshot>)>,
+}
+
+impl CassieSession {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn transaction_catalog_overlay(&self) -> Option<Catalog> {
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction).ok()?;
+        transaction.catalog_overlay.clone()
+    }
+
+    #[doc(hidden)]
+    pub fn transaction_catalog_version(&self) -> Option<u64> {
+        self.transaction
+            .lock()
+            .catalog_overlay
+            .as_ref()
+            .map(Catalog::version)
+    }
+
+    /// Invalidates the cached descriptor view after a published advance. Without
+    /// an admitted base the overlay is the statement's read view, so it mirrors
+    /// the advanced cursor in place.
+    pub(crate) fn mirror_published_sequence_cursor(&self, metadata: &crate::catalog::SequenceMeta) {
+        let mut transaction = self.transaction.lock();
+        if self.ensure_operation_current_locked(&transaction).is_err() {
+            return;
+        }
+        transaction.catalog_views.descriptors = None;
+        if transaction.catalog_views.base.is_none() {
+            if let Some(overlay) = transaction.catalog_overlay.as_ref() {
+                overlay.update_sequence_cursor(metadata);
+            }
+        }
+    }
+
+    /// The caller holds the current catalog publication guard. Compare all
+    /// published metadata before binding, including no-op DDL dependencies.
+    pub(crate) fn check_repeatable_catalog_write(
+        &self,
+        current: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        let Some(owner) = transaction.repeatable_read.as_ref() else {
+            return Ok(());
+        };
+        if transaction.modes.read_only == Some(false)
+            && !current.matches_transaction_metadata(owner.catalog(), controls)?
+        {
+            return Err(CassieError::Transaction {
+                kind: crate::app::TransactionErrorKind::SerializationFailure,
+                message: "catalog metadata changed during REPEATABLE READ DDL".to_owned(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn begin_transaction_catalog_overlay(
+        &self,
+        catalog: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<Catalog, CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        if transaction.catalog_overlay.is_none() {
+            // Preserve an immutable admitted base for the semantic own delta;
+            // the existing mutable DDL overlay must never mutate this owner.
+            let base = transaction
+                .repeatable_read
+                .as_ref()
+                .map(|_| catalog.snapshot_with_controls(controls))
+                .transpose()?;
+            transaction.catalog_base_version = Some(catalog.version());
+            transaction.catalog_overlay = Some(catalog.detached_transaction_snapshot());
+            transaction.catalog_views.base = base;
+        }
+        Ok(transaction
+            .catalog_overlay
+            .as_ref()
+            .expect("initialized above")
+            .clone())
+    }
+
+    /// SQL metadata uses the initial transaction view plus only own DDL changes.
+    pub(crate) fn command_catalog_snapshot(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        let Some(initial) = transaction
+            .repeatable_read
+            .as_ref()
+            .map(|owner| owner.catalog_owner())
+        else {
+            return Ok(None);
+        };
+        let (Some(base), Some(overlay)) = (
+            &transaction.catalog_views.base,
+            &transaction.catalog_overlay,
+        ) else {
+            return Ok(Some(initial));
+        };
+        let version = overlay.version();
+        let published = self.publication_catalog();
+        let staged = transaction
+            .storage_overlay
+            .lock()
+            .staged_sequence_object_ids(&controls.storage_request())?;
+        // Published sequence cursors are not transactional: the view always
+        // reports the current cursor, apart from sequences this transaction
+        // stages itself.
+        let refresh = |view: &Arc<ControlledCatalogSnapshot>| {
+            if let Some(published) = &published {
+                view.catalog()
+                    .refresh_published_sequence_cursors(published, &staged);
+            }
+        };
+        if let Some((cached_version, cached)) = &transaction.catalog_views.sql {
+            if *cached_version == version {
+                refresh(cached);
+                return Ok(Some(Arc::clone(cached)));
+            }
+        }
+        let merged = initial
+            .catalog()
+            .snapshot_with_delta(base.catalog(), overlay, controls)?;
+        refresh(&merged);
+        transaction.catalog_views.sql = Some((version, Arc::clone(&merged)));
+        Ok(Some(merged))
+    }
+
+    /// Ordinary descriptor/authorization lookup stays current and includes own
+    /// DDL. Keep this owner alive for every Catalog alias used by the command.
+    pub(crate) fn command_descriptor_snapshot(
+        &self,
+        current: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
+        let mut transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        Self::command_descriptor_snapshot_locked(&mut transaction, current, controls)
+    }
+
+    pub(super) fn command_descriptor_snapshot_locked(
+        transaction: &mut super::SessionTransactionState,
+        current: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
+        let (Some(base), Some(overlay)) = (
+            &transaction.catalog_views.base,
+            &transaction.catalog_overlay,
+        ) else {
+            return Ok(None);
+        };
+        let version = (current.version(), overlay.version());
+        if let Some((cached_version, cached)) = &transaction.catalog_views.descriptors {
+            if *cached_version == version {
+                return Ok(Some(Arc::clone(cached)));
+            }
+        }
+        let merged = current.snapshot_with_delta(base.catalog(), overlay, controls)?;
+        transaction.catalog_views.descriptors = Some((version, Arc::clone(&merged)));
+        Ok(Some(merged))
+    }
+
+    pub(crate) fn transaction_catalog_base_version(&self) -> Option<u64> {
+        self.transaction.lock().catalog_base_version
+    }
+
+    pub(crate) fn prune_transaction_sequence_cursors(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        let overlay = transaction.storage_overlay.lock();
+        overlay
+            .prune_sequence_cursors_with(
+                transaction
+                    .savepoints
+                    .iter()
+                    .map(|savepoint| &savepoint.storage_overlay),
+                &controls.storage_request(),
+            )
+            .map_err(CassieError::from)
+    }
+
+    pub(crate) fn transaction_storage_overlay(
+        &self,
+    ) -> Result<Arc<Mutex<StorageOverlay>>, CassieError> {
+        let transaction = self.transaction.lock();
+        self.ensure_operation_current_locked(&transaction)?;
+        Ok(Arc::clone(&transaction.storage_overlay))
+    }
+
+    pub(crate) fn transaction_storage_overlay_snapshot(&self) -> StorageOverlay {
+        self.transaction.lock().storage_overlay.lock().clone()
+    }
+
+    pub(crate) fn transaction_private_outputs(&self) -> Option<Arc<PrivateOutputs>> {
+        self.transaction.lock().private_outputs.clone()
+    }
+
+    pub(crate) fn rename_private_materialized_output(&self, previous: &str, next: &str) {
+        let mut transaction = self.transaction.lock();
+        if let Some(outputs) = transaction
+            .private_outputs
+            .as_mut()
+            .filter(|map| map.contains_key(previous))
+        {
+            let outputs = Arc::make_mut(outputs);
+            if let Some(read) = outputs.remove(previous) {
+                outputs.insert(next.to_owned(), read);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

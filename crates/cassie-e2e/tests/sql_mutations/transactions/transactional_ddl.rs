@@ -549,14 +549,14 @@ fn should_follow_transactional_visibility_for_materialized_view_drop() {
     // Assert
     let view = vec![vec![Value::String(MATERIALIZED_VIEW_NAME.to_owned())]];
     let expected = vec![vec![Value::Int64(17)]];
-    assert!(writer_during_drop.is_empty());
+    assert_eq!(writer_during_drop, Vec::<Vec<Value>>::new());
     assert!(writer_query_during_drop.is_err());
     assert_eq!(observer_during_drop, view);
     assert_eq!(observer_before_rollback, expected);
     assert_eq!(writer_after_rollback, view);
     assert_eq!(restored_rows, expected);
     assert_eq!(observer_before_commit, expected);
-    assert!(observer_after_commit.is_empty());
+    assert_eq!(observer_after_commit, Vec::<Vec<Value>>::new());
     assert!(reader_after_commit.is_err());
 }
 

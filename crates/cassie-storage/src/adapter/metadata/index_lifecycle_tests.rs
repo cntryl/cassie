@@ -573,3 +573,156 @@ fn should_preserve_definition_version_during_index_update() {
         Some("80")
     );
 }
+
+#[test]
+fn should_leave_dropped_index_artifacts_absent_when_an_old_rebuild_resumes() {
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("memory adapter");
+    let collection = midge.canonical_collection_name("stale_rebuild");
+    midge
+        .create_collection(
+            &collection,
+            Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "body".to_owned(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "at".to_owned(),
+                        data_type: DataType::Timestamp,
+                        nullable: true,
+                    },
+                ],
+            },
+        )
+        .expect("create source table");
+
+    for (kind, field, options) in [
+        (IndexKind::FullText, "body", BTreeMap::new()),
+        (
+            IndexKind::TimeSeries,
+            "at",
+            BTreeMap::from([("bucket_width".to_owned(), "1 hour".to_owned())]),
+        ),
+    ] {
+        let declaration = IndexMeta {
+            collection: collection.clone(),
+            name: "active".to_owned(),
+            field: field.to_owned(),
+            fields: vec![field.to_owned()],
+            definition_semantics_version: 0,
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind,
+            unique: false,
+            options,
+        };
+        midge.put_index(&declaration).expect("create index");
+        let old = midge
+            .get_index(&collection, &declaration.name)
+            .expect("read catalog")
+            .expect("published index");
+        let old_prefix = rebuild_artifact_prefix(&old);
+        assert!(!midge
+            .raw_scan_prefix_for_collection(&collection, &old_prefix)
+            .expect("live artifacts")
+            .is_empty());
+        let (ready, captured) = mpsc::channel();
+        let (resume, wait) = mpsc::channel();
+        let (rebuilt, first_finished) = mpsc::channel();
+
+        // Act
+        let (after_drop, after_old_rebuild, replacement_prefix) = thread::scope(|scope| {
+            let (worker_midge, worker_old) = (&midge, &old);
+            let (worker_collection, worker_prefix) = (&collection, &old_prefix);
+            let worker = scope.spawn(move || {
+                ready.send(()).expect("old definition captured");
+                wait.recv_timeout(Duration::from_secs(5))
+                    .expect("drop completed");
+                rebuild_observed_index(worker_midge, worker_old);
+                let result =
+                    worker_midge.raw_scan_prefix_for_collection(worker_collection, worker_prefix);
+                rebuilt
+                    .send(result)
+                    .expect("record retired prefix before recreation");
+                wait.recv_timeout(Duration::from_secs(5))
+                    .expect("replacement published");
+                rebuild_observed_index(worker_midge, worker_old);
+            });
+            captured
+                .recv_timeout(Duration::from_secs(5))
+                .expect("rebuild input captured");
+            midge
+                .delete_index(&collection, &declaration.name)
+                .expect("drop index");
+            let after_drop = midge
+                .raw_scan_prefix_for_collection(&collection, &old_prefix)
+                .expect("inspect prefix after drop");
+            assert!(midge
+                .get_index(&collection, &declaration.name)
+                .expect("catalog read")
+                .is_none());
+            resume.send(()).expect("release rebuild");
+            let after_old_rebuild = first_finished
+                .recv_timeout(Duration::from_secs(5))
+                .expect("rebuild completed before recreation")
+                .expect("inspect dropped artifact prefix");
+            midge.put_index(&declaration).expect("recreate same name");
+            let replacement = midge
+                .get_index(&collection, &declaration.name)
+                .expect("read catalog")
+                .expect("replacement");
+            resume
+                .send(())
+                .expect("release stale post-recreation rebuild");
+            worker.join().expect("rebuild worker");
+            rebuild_observed_index(&midge, &replacement);
+            (
+                after_drop,
+                after_old_rebuild,
+                rebuild_artifact_prefix(&replacement),
+            )
+        });
+
+        // Assert
+        assert!(after_drop.is_empty());
+        assert!(after_old_rebuild.is_empty());
+        assert_ne!(old_prefix, replacement_prefix);
+        assert!(midge
+            .raw_scan_prefix_for_collection(&collection, &old_prefix)
+            .expect("inspect old prefix after recreation")
+            .is_empty());
+        assert!(!midge
+            .raw_scan_prefix_for_collection(&collection, &replacement_prefix)
+            .expect("inspect replacement prefix")
+            .is_empty());
+        midge
+            .delete_index(&collection, &declaration.name)
+            .expect("drop replacement");
+    }
+}
+
+fn rebuild_artifact_prefix(index: &IndexMeta) -> Vec<u8> {
+    let relation_id = index.relation_id().expect("relation id");
+    let index_id = index.storage_id().expect("index id");
+    if index.kind == IndexKind::FullText {
+        Midge::fulltext_index_artifact_prefix(relation_id, index_id)
+    } else {
+        crate::adapter::key_encoding::time_series_index_artifact_prefix(relation_id, index_id)
+    }
+}
+
+fn rebuild_observed_index(midge: &Midge, index: &IndexMeta) {
+    if index.kind == IndexKind::FullText {
+        midge
+            .rebuild_fulltext_index_for_index(index)
+            .expect("rebuild");
+    } else {
+        midge
+            .rebuild_time_series_index_for_index(index)
+            .expect("rebuild");
+    }
+}

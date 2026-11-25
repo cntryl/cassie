@@ -50,6 +50,7 @@ pub enum DataType {
 }
 
 impl DataType {
+    #[must_use]
     pub const fn is_json(&self) -> bool {
         matches!(self, Self::Json | Self::Jsonb)
     }

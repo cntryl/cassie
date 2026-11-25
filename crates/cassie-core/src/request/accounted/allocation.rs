@@ -54,6 +54,7 @@ pub fn grow_vec<T>(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn allocation_error(error: std::collections::TryReserveError) -> AccountingError {
     AccountingError::Allocation(error)
 }

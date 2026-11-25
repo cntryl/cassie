@@ -78,6 +78,7 @@ pub fn qualified_name(text: &str) -> Result<Vec<Identifier>, ObjectIdentifierErr
 
 /// Reads leading qualified-name components before a signature or typemod.
 #[doc(hidden)]
+#[must_use]
 pub fn leading_qualified_name(text: &str) -> Vec<Identifier> {
     let mut parts = Vec::new();
     let mut chars = text.trim().chars().peekable();

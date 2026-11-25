@@ -174,6 +174,7 @@ impl CompositeTypeMeta {
         Ok(next)
     }
 
+    #[must_use]
     pub fn with_name(&self, canonical: String) -> Self {
         let mut next = self.clone();
         next.name = canonical;

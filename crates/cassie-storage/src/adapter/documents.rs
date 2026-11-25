@@ -77,8 +77,16 @@ struct ExistingDocumentState {
 }
 
 impl Midge {
-    #[cfg(all(test, feature = "replay-benchmark-observation"))]
-    pub(crate) fn inject_committed_document_for_test(
+    /// Installs a committed row for replay and durability probes.
+    ///
+    /// # Errors
+    /// Returns validation, encoding, or native transaction failures.
+    #[cfg(all(
+        feature = "replay-benchmark-observation",
+        any(test, feature = "storage-test-hooks")
+    ))]
+    #[doc(hidden)]
+    pub fn inject_committed_document_for_test(
         &self,
         collection: &str,
         id: &str,

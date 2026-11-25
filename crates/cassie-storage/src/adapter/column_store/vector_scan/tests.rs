@@ -31,6 +31,17 @@ fn vector_test_hooks() -> StorageValueHooks {
             serde_json::from_slice(bytes).map_err(|error| StorageError::Parse(error.to_string()))
         },
         |value, data_type| {
+            if *data_type == DataType::Date {
+                let text = value.as_str().ok_or_else(|| {
+                    StorageError::Unsupported("test fixture date value must be text".to_owned())
+                })?;
+                let date = cassie_core::types::extended::temporal::parse_date(
+                    text,
+                    cassie_core::types::extended::temporal::default_session(),
+                )
+                .map_err(|error| StorageError::Unsupported(error.to_string()))?;
+                return Ok(Value::Typed(cassie_core::types::TypedValue::Date(date)));
+            }
             if let Some(value) =
                 cassie_core::types::extended::temporal_column_value(value, data_type)
             {

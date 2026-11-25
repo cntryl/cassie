@@ -285,6 +285,7 @@ pub enum TokenizeError<E> {
 }
 
 /// Conservative capacity bound for tokenizing one input string.
+#[must_use]
 pub fn tokenization_memory_bound(input: &str) -> Option<usize> {
     let per_byte = 2_usize
         .checked_mul(std::mem::size_of::<char>())?

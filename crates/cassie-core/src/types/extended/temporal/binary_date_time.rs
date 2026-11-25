@@ -11,6 +11,7 @@ pub enum DateTimeBinaryError {
 
 impl DateTimeBinaryError {
     #[doc(hidden)]
+    #[must_use]
     pub const fn sqlstate(self) -> &'static str {
         match self {
             Self::InvalidFrame => "08P01",
@@ -19,6 +20,7 @@ impl DateTimeBinaryError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub const fn wire_message(self) -> &'static str {
         match self {
             Self::InvalidFrame => "insufficient data left in message",
@@ -28,6 +30,7 @@ impl DateTimeBinaryError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn public_message(self, name: &str) -> String {
         match self {
             Self::InvalidFrame => format!("invalid binary {name} frame"),

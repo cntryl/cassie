@@ -139,6 +139,8 @@ pub(crate) fn to_char_with_hour(
     }
 }
 
+/// # Errors
+/// Returns the error produced by `check` when a control check fails.
 pub fn to_char_with_hour_checked<E>(
     moment: &Moment,
     template: &str,
@@ -178,6 +180,7 @@ pub fn to_char_with_hour_checked<E>(
     Ok(out)
 }
 
+#[must_use]
 pub fn workspace_bytes(template_bytes: usize, input_bytes: usize, renders: bool) -> Option<usize> {
     let template = template::workspace_bytes(template_bytes)?.checked_add(template_bytes)?;
     let input = input_bytes.checked_mul(std::mem::size_of::<char>().checked_add(1)?)?;
@@ -471,6 +474,9 @@ impl<E> From<TypeInputError> for ParseExecutionError<E> {
     }
 }
 
+/// # Errors
+/// Returns `ParseExecutionError::Input` for invalid temporal input and
+/// `ParseExecutionError::Check` when `check` returns an error.
 pub fn parse_with_precision_checked<E>(
     input: &str,
     template: &str,

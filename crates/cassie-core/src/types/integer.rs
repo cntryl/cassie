@@ -27,10 +27,12 @@ pub enum IntegerOperation {
 }
 
 impl IntegerOperation {
+    #[must_use]
     pub const fn is_shift(self) -> bool {
         matches!(self, Self::Shl | Self::Shr)
     }
 
+    #[must_use]
     pub const fn symbol(self) -> &'static str {
         match self {
             Self::Add => "+",
@@ -56,11 +58,13 @@ impl IntegerWidth {
         }
     }
 
+    #[must_use]
     pub fn contains(self, value: i64) -> bool {
         let (min, max) = self.bounds();
         (min..=max).contains(&value)
     }
 
+    #[must_use]
     pub const fn data_type(self) -> DataType {
         match self {
             Self::I16 => DataType::SmallInt,
@@ -69,6 +73,7 @@ impl IntegerWidth {
         }
     }
 
+    #[must_use]
     pub const fn from_data_type(data_type: &DataType) -> Option<Self> {
         match data_type {
             DataType::SmallInt => Some(Self::I16),
@@ -78,6 +83,7 @@ impl IntegerWidth {
         }
     }
 
+    #[must_use]
     pub const fn range_message(self) -> &'static str {
         match self {
             Self::I16 => "smallint out of range",
@@ -86,6 +92,7 @@ impl IntegerWidth {
         }
     }
 
+    #[must_use]
     pub const fn syntax_message(self) -> &'static str {
         match self {
             Self::I16 => "invalid input syntax for type smallint",

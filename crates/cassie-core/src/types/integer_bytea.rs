@@ -10,6 +10,7 @@ pub struct IntegerByteaError {
 }
 
 impl IntegerByteaError {
+    #[must_use]
     pub const fn new(width: IntegerWidth, byte_count: usize) -> Self {
         Self { width, byte_count }
     }

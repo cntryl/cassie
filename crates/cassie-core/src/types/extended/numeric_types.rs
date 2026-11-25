@@ -7,6 +7,7 @@ const NUMERIC: DataType = DataType::Extended(ExtendedType::Numeric(None));
 const REAL: DataType = DataType::Extended(ExtendedType::Real);
 
 /// Selected power overload for PostgreSQL parameter type OIDs.
+#[must_use]
 pub const fn power_oid(left: i32, right: i32) -> i32 {
     if matches!(left, 700 | 701) || matches!(right, 700 | 701) {
         701

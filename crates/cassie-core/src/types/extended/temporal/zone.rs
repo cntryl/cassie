@@ -279,6 +279,9 @@ impl Zone {
     }
 
     /// Resolves the most recent matching historical abbreviation, then future history.
+    ///
+    /// # Errors
+    /// Returns the error produced by `check` when a control check fails.
     pub fn abbreviation_offset_with_checks<E>(
         &self,
         abbreviation: &str,

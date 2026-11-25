@@ -436,6 +436,7 @@ pub fn format_text(array: &SqlArray, element_type: &DataType) -> Option<String> 
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn format_text_in(
     array: &SqlArray,
     element_type: &DataType,

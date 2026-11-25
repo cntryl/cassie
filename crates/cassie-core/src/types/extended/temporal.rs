@@ -281,6 +281,7 @@ impl std::error::Error for TimeTzBinaryError {}
 
 impl TimeTzBinaryError {
     #[doc(hidden)]
+    #[must_use]
     pub const fn sqlstate(self) -> &'static str {
         match self {
             Self::InvalidFrame => "08P01",
@@ -290,6 +291,7 @@ impl TimeTzBinaryError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub const fn public_message(self) -> &'static str {
         match self {
             Self::InvalidFrame => "invalid binary timetz frame",
@@ -299,6 +301,7 @@ impl TimeTzBinaryError {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub const fn wire_message(self) -> &'static str {
         match self {
             Self::InvalidFrame => "insufficient data left in message",

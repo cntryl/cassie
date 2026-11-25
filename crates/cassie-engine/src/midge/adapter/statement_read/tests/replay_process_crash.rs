@@ -91,8 +91,12 @@ impl OwnedChild {
         if let Some(status) = status {
             return (false, status);
         }
+        // Keep the pause pipe open while Child::wait reaps the signal exit.
+        let stdin = self.0.stdin.take();
         self.0.kill().expect("kill replay child");
-        (true, self.0.wait().expect("reap replay child"))
+        let status = self.0.wait().expect("reap replay child");
+        drop(stdin);
+        (true, status)
     }
 }
 
@@ -375,6 +379,18 @@ pub(super) fn kill_test_child(
         was_running,
         "replay child exited before the parent killed it: {status}"
     );
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+
+        const SIGKILL: i32 = 9;
+        assert_eq!(
+            status.signal(),
+            Some(SIGKILL),
+            "replay child must be terminated by SIGKILL"
+        );
+    }
+    #[cfg(not(unix))]
     assert!(
         !status.success(),
         "replay child unexpectedly exited successfully"

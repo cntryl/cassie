@@ -172,6 +172,7 @@ const fn object_id_array_oid(kind: ObjectIdKind) -> u32 {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     BUILTIN_TYPES.iter().find(|metadata| metadata.oid == oid)
 }
@@ -186,6 +187,7 @@ pub fn builtin_array_oid(element_oid: u32) -> Option<u32> {
 
 /// The type a declared parameter OID binds as. An extended family whose
 /// operators are incomplete keeps its parameters on the numeric adapter path.
+#[must_use]
 pub fn parameter_builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
     builtin_for_oid(oid).filter(|metadata| match metadata.kind {
         BuiltinKind::Unknown => false,
@@ -196,6 +198,7 @@ pub fn parameter_builtin_for_oid(oid: u32) -> Option<&'static BuiltinType> {
 
 impl BuiltinKind {
     #[doc(hidden)]
+    #[must_use]
     pub fn metadata(self) -> &'static BuiltinType {
         BUILTIN_TYPES
             .iter()
@@ -204,6 +207,7 @@ impl BuiltinKind {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub const fn data_type(self) -> DataType {
         match self {
             Self::Unknown => DataType::Null,
@@ -242,6 +246,7 @@ pub enum TypeMetadata<'a> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn type_metadata(data_type: &DataType) -> TypeMetadata<'_> {
     let kind = match data_type {
         DataType::Null => BuiltinKind::Unknown,

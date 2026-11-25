@@ -114,6 +114,11 @@ impl<'a> Interruption<'a> {
         self.cancellation
     }
 
+    /// Checks whether cancellation or the request deadline has been reached.
+    ///
+    /// # Errors
+    /// Returns [`InterruptionError::Canceled`] for cancellation or
+    /// [`InterruptionError::DeadlineExceeded`] when the deadline has passed.
     pub fn check(&self) -> Result<(), InterruptionError> {
         if self.cancellation.is_canceled() {
             return Err(InterruptionError::Canceled);
@@ -162,6 +167,9 @@ impl RequestMemory {
     }
 
     /// Creates a standalone lease, used when a bounded owner outlives its request controls.
+    ///
+    /// # Errors
+    /// Returns the configured budget and required byte count when the lease cannot be admitted.
     pub fn reserve(&self, bytes: usize) -> Result<RequestMemoryReservation, MemoryBudgetError> {
         reserve_tracker_memory(&self.0, bytes)?;
         Ok(RequestMemoryReservation {
@@ -245,6 +253,10 @@ impl RequestMemoryReservation {
         self.tracker.used.load(Ordering::Acquire)
     }
 
+    /// Reserves another lease against this reservation's shared tracker.
+    ///
+    /// # Errors
+    /// Returns the configured budget and required byte count when the lease cannot be admitted.
     pub fn try_sibling(&self, bytes: usize) -> Result<Self, MemoryBudgetError> {
         reserve_tracker_memory(&self.tracker, bytes)?;
         Ok(Self {
@@ -254,6 +266,9 @@ impl RequestMemoryReservation {
     }
 
     /// Transfers a same-tracker lease without changing global accounting.
+    ///
+    /// # Panics
+    /// Panics if `other` belongs to another tracker or the combined byte count overflows.
     pub fn absorb(&mut self, mut other: Self) {
         assert!(Arc::ptr_eq(&self.tracker, &other.tracker));
         self.bytes = self
@@ -263,6 +278,13 @@ impl RequestMemoryReservation {
         other.bytes = 0;
     }
 
+    /// Reserves additional bytes against the shared tracker.
+    ///
+    /// # Errors
+    /// Returns the configured budget and required byte count when growth cannot be admitted.
+    ///
+    /// # Panics
+    /// Panics if the reservation byte count overflows.
     pub fn try_grow(&mut self, additional_bytes: usize) -> Result<(), MemoryBudgetError> {
         reserve_tracker_memory(&self.tracker, additional_bytes)?;
         self.bytes = self
@@ -272,6 +294,10 @@ impl RequestMemoryReservation {
         Ok(())
     }
 
+    /// Releases bytes until this lease retains exactly `retained_bytes`.
+    ///
+    /// # Panics
+    /// Panics if `retained_bytes` exceeds the lease's current byte count.
     pub fn shrink_to(&mut self, retained_bytes: usize) {
         assert!(
             retained_bytes <= self.bytes,

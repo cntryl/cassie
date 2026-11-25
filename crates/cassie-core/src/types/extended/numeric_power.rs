@@ -401,6 +401,7 @@ fn integer_workspace_fits(mantissa: &BigInt, exponent: i32) -> bool {
         <= limit
 }
 
+#[must_use]
 pub fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
     const SMALL_WORKSPACE_BYTES: usize = 256;
     if base.is_zero()
@@ -480,6 +481,7 @@ pub fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
 }
 
 /// Bounds the temporary decimal-estimation allocations needed to size a power workspace.
+#[must_use]
 pub fn preflight_workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
     fn value_bytes(value: &Numeric) -> Option<usize> {
         match value {

@@ -673,7 +673,7 @@ fn assert_reinserted_conversion_row(env: &Env, identity: &str, deleted_revision:
     );
     assert_eq!(indexed, vec![vec!["7".to_owned(), "current".to_owned()]]);
     assert_eq!(all_rows, indexed);
-    assert!(former_rows.is_empty());
+    assert_eq!(former_rows, Vec::<Vec<String>>::new());
     for predicate in [current, former] {
         let explain = format!("{:?}", env.rows(&format!("EXPLAIN {predicate}")));
         assert!(explain.contains("converted_label"), "{explain}");

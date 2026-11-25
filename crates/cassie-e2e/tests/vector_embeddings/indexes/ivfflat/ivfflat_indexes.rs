@@ -823,7 +823,7 @@ fn should_use_exact_dot_scoring_when_ivfflat_radius_overflows() {
     // Assert
     assert_eq!(members, 4);
     assert_eq!(training.centroid_ids, ["centroid_a", "centroid_b"]);
-    assert!(training.list_bounds.is_empty());
+    assert_eq!(training.list_bounds, Vec::<Vec<f32>>::new());
     assert_eq!(exact.rows()[0][0], Value::from("query_c"));
     assert_eq!(with_index.rows(), exact.rows());
     for counter in ["ivfflat_executions", "ivfflat_exact_reranks_total"] {

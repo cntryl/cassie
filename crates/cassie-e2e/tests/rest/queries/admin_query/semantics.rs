@@ -398,11 +398,142 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
     });
 }
 
+struct RestSchemaPrivilegeFixture {
+    reader_password: String,
+    connect_only_password: String,
+    visible_index: String,
+    secret_index: String,
+}
+
+fn setup_rest_schema_privileges(
+    cassie: &crate::app::Cassie,
+    admin: &crate::app::CassieSession,
+) -> RestSchemaPrivilegeFixture {
+    let reader_password = Uuid::new_v4().to_string();
+    let connect_only_password = Uuid::new_v4().to_string();
+    for sql in [
+        format!("CREATE ROLE rest_acl_reader LOGIN PASSWORD '{reader_password}'"),
+        format!("CREATE ROLE rest_acl_connect_only LOGIN PASSWORD '{connect_only_password}'"),
+    ] {
+        cassie
+            .execute_sql(admin, &sql, Vec::new())
+            .expect("create schema role");
+    }
+    for sql in [
+        "CREATE TABLE rest_acl_visible (id INTEGER, title TEXT)",
+        "CREATE TABLE rest_acl_secret (id INTEGER, token TEXT)",
+        "CREATE INDEX rest_acl_visible_idx ON rest_acl_visible (title)",
+        "CREATE INDEX rest_acl_secret_idx ON rest_acl_secret (token)",
+        "CREATE VIEW rest_acl_visible_view AS SELECT title FROM rest_acl_visible",
+        "CREATE VIEW rest_acl_secret_view AS SELECT token FROM rest_acl_secret",
+        "GRANT CONNECT ON DATABASE postgres TO rest_acl_reader",
+        "GRANT USAGE ON SCHEMA public TO rest_acl_reader",
+        "GRANT SELECT ON TABLE public.rest_acl_visible TO rest_acl_reader",
+        "GRANT CONNECT ON DATABASE postgres TO rest_acl_connect_only",
+    ] {
+        cassie
+            .execute_sql(admin, sql, Vec::new())
+            .expect("setup schema visibility");
+    }
+    RestSchemaPrivilegeFixture {
+        reader_password,
+        connect_only_password,
+        visible_index: crate::support_sql::canonical_test_index(
+            cassie,
+            "rest_acl_visible",
+            "rest_acl_visible_idx",
+        ),
+        secret_index: crate::support_sql::canonical_test_index(
+            cassie,
+            "rest_acl_secret",
+            "rest_acl_secret_idx",
+        ),
+    }
+}
+
+async fn request_schema(client: &Client, base_url: &str, cookie: &str) -> serde_json::Value {
+    let response = client
+        .get(format!(
+            "{base_url}/api/v1/admin/query/schema?database=postgres"
+        ))
+        .header("cookie", cookie)
+        .send()
+        .await
+        .expect("schema request");
+    assert_eq!(response.status(), StatusCode::OK);
+    response.json().await.expect("schema json")
+}
+
+fn assert_selected_schema_visibility(
+    restricted: &serde_json::Value,
+    fixture: &RestSchemaPrivilegeFixture,
+) {
+    let visible_name = canonical_relation_name("postgres", "public", "rest_acl_visible");
+    let visible_table = section_items(restricted, "tables")
+        .iter()
+        .find(|item| item["label"] == visible_name)
+        .expect("selected table");
+    let visible_columns = visible_table["columns"]
+        .as_array()
+        .expect("visible columns");
+    assert_eq!(visible_columns.len(), 2);
+    assert!(visible_columns.iter().any(|column| column["name"] == "id"));
+    assert!(visible_columns
+        .iter()
+        .any(|column| column["name"] == "title"));
+    assert!(!contains_item(
+        section_items(restricted, "tables"),
+        &canonical_relation_name("postgres", "public", "rest_acl_secret")
+    ));
+    assert!(contains_item(
+        section_items(restricted, "indexes"),
+        &fixture.visible_index
+    ));
+    assert!(!contains_item(
+        section_items(restricted, "indexes"),
+        &fixture.secret_index
+    ));
+    assert!(contains_item(
+        section_items(restricted, "views"),
+        &canonical_relation_name("postgres", "public", "rest_acl_visible_view")
+    ));
+    assert!(!contains_item(
+        section_items(restricted, "views"),
+        &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
+    ));
+}
+
+fn assert_connect_only_schema_visibility(connect_only: &serde_json::Value) {
+    for section in ["tables", "views", "indexes"] {
+        assert!(
+            section_items(connect_only, section).is_empty(),
+            "CONNECT-only role must not see user {section}"
+        );
+    }
+    assert!(section_items(connect_only, "tables")
+        .iter()
+        .flat_map(|item| item["columns"].as_array().into_iter().flatten())
+        .all(|column| column["name"] != "token"));
+}
+
+fn assert_root_schema_visibility(root: &serde_json::Value, fixture: &RestSchemaPrivilegeFixture) {
+    assert!(contains_item(
+        section_items(root, "tables"),
+        &canonical_relation_name("postgres", "public", "rest_acl_secret")
+    ));
+    assert!(contains_item(
+        section_items(root, "indexes"),
+        &fixture.secret_index
+    ));
+    assert!(contains_item(
+        section_items(root, "views"),
+        &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
+    ));
+}
+
 #[test]
 fn should_limit_rest_schema_metadata_to_relations_with_select_privilege() {
     // Arrange
-    let data_dir = data_dir("selected-schema-visibility");
-    let reader_password = Uuid::new_v4().to_string();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -414,40 +545,23 @@ fn should_limit_rest_schema_metadata_to_relations_with_select_privilege() {
         let admin = cassie
             .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
             .expect("admin session");
-        cassie
-            .execute_sql(
-                &admin,
-                &format!("CREATE ROLE rest_acl_reader LOGIN PASSWORD '{reader_password}'"),
-                Vec::new(),
-            )
-            .expect("create restricted schema reader");
-        for sql in [
-            "CREATE TABLE rest_acl_visible (id INTEGER, title TEXT)",
-            "CREATE TABLE rest_acl_secret (id INTEGER, token TEXT)",
-            "CREATE INDEX rest_acl_visible_idx ON rest_acl_visible (title)",
-            "CREATE INDEX rest_acl_secret_idx ON rest_acl_secret (token)",
-            "CREATE VIEW rest_acl_visible_view AS SELECT title FROM rest_acl_visible",
-            "CREATE VIEW rest_acl_secret_view AS SELECT token FROM rest_acl_secret",
-            "GRANT CONNECT ON DATABASE postgres TO rest_acl_reader",
-            "GRANT USAGE ON SCHEMA public TO rest_acl_reader",
-            "GRANT SELECT ON TABLE public.rest_acl_visible TO rest_acl_reader",
-        ] {
-            cassie.execute_sql(&admin, sql, Vec::new()).expect("setup");
-        }
-        let visible_index = crate::support_sql::canonical_test_index(
-            &cassie,
-            "rest_acl_visible",
-            "rest_acl_visible_idx",
-        );
-        let secret_index = crate::support_sql::canonical_test_index(
-            &cassie,
-            "rest_acl_secret",
-            "rest_acl_secret_idx",
-        );
+        let fixture = setup_rest_schema_privileges(&cassie, &admin);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let reader_cookie =
-            login_cookie_as(&client, &base_url, "rest_acl_reader", &reader_password).await;
+        let reader_cookie = login_cookie_as(
+            &client,
+            &base_url,
+            "rest_acl_reader",
+            &fixture.reader_password,
+        )
+        .await;
+        let connect_only_cookie = login_cookie_as(
+            &client,
+            &base_url,
+            "rest_acl_connect_only",
+            &fixture.connect_only_password,
+        )
+        .await;
         let root_cookie = login_cookie_as(
             &client,
             &base_url,
@@ -457,80 +571,16 @@ fn should_limit_rest_schema_metadata_to_relations_with_select_privilege() {
         .await;
 
         // Act
-        let restricted_response = client
-            .get(format!(
-                "{base_url}/api/v1/admin/query/schema?database=postgres"
-            ))
-            .header("cookie", &reader_cookie)
-            .send()
-            .await
-            .expect("restricted schema request");
-        let restricted = restricted_response
-            .json::<serde_json::Value>()
-            .await
-            .expect("restricted schema json");
-        let root_response = client
-            .get(format!(
-                "{base_url}/api/v1/admin/query/schema?database=postgres"
-            ))
-            .header("cookie", &root_cookie)
-            .send()
-            .await
-            .expect("root schema request");
-        let root = root_response
-            .json::<serde_json::Value>()
-            .await
-            .expect("root schema json");
+        let restricted = request_schema(&client, &base_url, &reader_cookie).await;
+        let connect_only = request_schema(&client, &base_url, &connect_only_cookie).await;
+        let root = request_schema(&client, &base_url, &root_cookie).await;
 
         // Assert
-        let visible_table = section_items(&restricted, "tables")
-            .iter()
-            .find(|item| {
-                item["label"] == canonical_relation_name("postgres", "public", "rest_acl_visible")
-            })
-            .expect("visible table");
-        assert_eq!(
-            visible_table["columns"]
-                .as_array()
-                .expect("visible columns")
-                .len(),
-            2
-        );
-        assert!(!contains_item(
-            section_items(&restricted, "tables"),
-            &canonical_relation_name("postgres", "public", "rest_acl_secret")
-        ));
-        assert!(contains_item(
-            section_items(&restricted, "indexes"),
-            &visible_index
-        ));
-        assert!(!contains_item(
-            section_items(&restricted, "indexes"),
-            &secret_index
-        ));
-        assert!(contains_item(
-            section_items(&restricted, "views"),
-            &canonical_relation_name("postgres", "public", "rest_acl_visible_view")
-        ));
-        assert!(!contains_item(
-            section_items(&restricted, "views"),
-            &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
-        ));
-        assert!(contains_item(
-            section_items(&root, "tables"),
-            &canonical_relation_name("postgres", "public", "rest_acl_secret")
-        ));
-        assert!(contains_item(
-            section_items(&root, "indexes"),
-            &secret_index
-        ));
-        assert!(contains_item(
-            section_items(&root, "views"),
-            &canonical_relation_name("postgres", "public", "rest_acl_secret_view")
-        ));
+        assert_selected_schema_visibility(&restricted, &fixture);
+        assert_connect_only_schema_visibility(&connect_only);
+        assert_root_schema_visibility(&root, &fixture);
 
         stop_rest_server(shutdown, server).await;
-        let _ = std::fs::remove_dir_all(data_dir);
     });
 }
 

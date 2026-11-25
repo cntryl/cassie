@@ -2,6 +2,8 @@
 
 use crate::types::object_id::FIRST_NORMAL_OBJECT_ID;
 
+const LEGACY_INDEX_OID_START: u32 = 0x8000_0000;
+
 /// Object identities are allocated from one counter, offset into
 /// PostgreSQL's user OID range.
 #[must_use]
@@ -27,10 +29,21 @@ pub fn stable_index_oid(name: &str) -> u32 {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    // The upper half of the OID space never meets an allocator identity
-    // (`FIRST_NORMAL_OBJECT_ID` upward), and its width makes a name collision
-    // between two indexes negligible. `CREATE INDEX` assigns an allocator
-    // identity instead; this hash only names an index stored without one.
-    let oid_range = u64::from(u32::MAX - 0x8000_0000);
-    u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
+    let oid_range = u64::from(u32::MAX - LEGACY_INDEX_OID_START);
+    u32::try_from(hash % oid_range).unwrap_or(0) | LEGACY_INDEX_OID_START
+}
+
+/// Finds the first unused legacy index OID, starting at its name-derived candidate.
+///
+/// # Panics
+///
+/// Panics if the upper half of the OID space is exhausted.
+pub fn available_legacy_index_oid(candidate: u32, mut occupied: impl FnMut(u32) -> bool) -> u32 {
+    let first = candidate | LEGACY_INDEX_OID_START;
+    let mut oid = first;
+    while occupied(oid) {
+        oid = oid.wrapping_add(1) | LEGACY_INDEX_OID_START;
+        assert_ne!(oid, first, "legacy index OID space exhausted");
+    }
+    oid
 }

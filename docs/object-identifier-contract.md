@@ -134,9 +134,14 @@ deferred to the batch gate.
 - **Index identity.** `CREATE INDEX` assigns the index's `pg_class.oid` from
   the common identity allocator, so it cannot collide with another object and
   survives rename and restart. An index stored without an assigned identity
-  (a constraint-backing index, or one created before this change) keeps a
-  name-derived OID in the upper half of the OID space, which no allocator
-  identity reaches.
+  (a constraint-backing index, or one created before this change) starts
+  from its name-derived OID in the upper half of the OID space. Catalog
+  registration advances from that candidate past occupied index OIDs and
+  keeps the chosen OID for same-key metadata refreshes. On startup, Cassie
+  registers stored assignments first, then resolves missing assignments in
+  canonical collection and index name order. Reopening the same stored
+  catalog yields the same fallback assignments. This repair leaves durable
+  metadata and the common allocator unchanged. [#1518](https://github.com/cntryl/cassie/issues/1518)
 - **`pg_identify_object` sub-objects.** The sub-object number is
   `pg_attribute.attnum`: a dropped table column or composite attribute keeps
   its number and is identified by PostgreSQL's `........pg.dropped.N........`

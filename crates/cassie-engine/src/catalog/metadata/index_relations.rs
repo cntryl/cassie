@@ -113,12 +113,27 @@ impl Catalog {
             .is_some_and(|metadata| metadata.has_ever_had_indexes)
     }
 
-    pub fn register_index(&self, metadata: IndexMeta) {
+    pub fn register_index(&self, mut metadata: IndexMeta) {
         let mut indexes = self.indexes.write();
-        indexes.insert(
-            Self::index_key(&metadata.collection, &metadata.name),
-            metadata,
-        );
+        let key = Self::index_key(&metadata.collection, &metadata.name);
+        if metadata.catalog_oid().is_none() {
+            let oid = indexes
+                .get(&key)
+                .and_then(IndexMeta::catalog_oid)
+                .unwrap_or_else(|| {
+                    let candidate = crate::catalog::object_identity::catalog_index_oid(&metadata);
+                    cassie_core::catalog::object_identity::available_legacy_index_oid(
+                        candidate,
+                        |oid| {
+                            indexes
+                                .values()
+                                .any(|index| index.catalog_oid() == Some(oid))
+                        },
+                    )
+                });
+            metadata.set_catalog_oid_if_missing(oid);
+        }
+        indexes.insert(key, metadata);
         self.bump_version();
     }
 

@@ -196,11 +196,20 @@ impl Cassie {
             self.midge.rebuild_normalized_vectors_for_index(&index)?;
         }
 
-        let indexes = self.midge.list_indexes().map_err(|error| {
+        let mut indexes = self.midge.list_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list indexes: {error}"))
         })?;
         self.runtime.record_storage_access("schema", false, true);
+        // Reserve stored assignments before visiting legacy candidates in a
+        // reproducible order, regardless of their physical scan order.
+        indexes.sort_unstable_by(|left, right| {
+            left.catalog_oid()
+                .is_none()
+                .cmp(&right.catalog_oid().is_none())
+                .then_with(|| left.collection.cmp(&right.collection))
+                .then_with(|| left.name.cmp(&right.name))
+        });
         for mut index in indexes {
             index.clear_storage_ids();
             self.catalog.register_index(index);

@@ -136,8 +136,8 @@ fn should_hide_ungranted_relations_from_information_schema_for_restricted_role()
             cassie::types::Value::String("id".to_owned()),
         ]]
     );
-    assert_eq!(blocked_tables.rows(), []);
-    assert_eq!(blocked_columns.rows(), []);
+    assert_eq!(blocked_tables.rows(), &[] as &[Vec<cassie::types::Value>]);
+    assert_eq!(blocked_columns.rows(), &[] as &[Vec<cassie::types::Value>]);
     assert_eq!(admin_tables.rows().len(), 2);
 }
 

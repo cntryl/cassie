@@ -367074,7 +367074,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 735,
-      "sha256": "a090ec0c1685038fb0c073bb7a1034aa9ca7cc9881aa53adb0195c8a3b72e815",
+      "sha256": "8b61423ba0aadad355be7096549a73f28f7f784f2ce0fcab2e595fba601c0cdb",
       "test_declarations": 6,
       "registered_suites": [
         "catalog_security"

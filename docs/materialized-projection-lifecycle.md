@@ -28,6 +28,13 @@ Checkpointed replay is defined by [Projection Replay Contracts](projection-repla
 Diff, comparison, and repair start with a persisted verification report and follow the
 [Projection Repair Runbook](projection-repair-runbook.md).
 
+Refresh and checkpointed replay share a per-projection publication gate keyed by the
+canonical stored name. Each takes the gate before acquiring any referential, source, or
+output collection write gates and holds it through the durable and in-memory metadata
+updates. The initial projection build and full-rebuild repair follow the same order.
+Source writes and refreshes of other projections can proceed during the defining query.
+A cancellable replay can abandon its wait before publishing any progress.
+
 ## Base-table read equivalence
 
 Automatic analytical substitution requires a fresh, generation-verified, unrestricted

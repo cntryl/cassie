@@ -253,7 +253,7 @@ impl Midge {
         let data_tx = self.begin_raw_adapter_tx(handle.id(), TransactionMode::ReadOnly)?;
         let has_data = collect_scan(data_tx.scan(&Query::new()).map_err(CassieError::from)?)?
             .into_iter()
-            .any(|(key, _)| is_database_data_key(&key));
+            .any(|(key, _)| key_encoding::is_retained_database_data_key(&key));
         if has_data {
             return Err(CassieError::Unsupported(format!(
                 "database '{}' is not empty",
@@ -727,26 +727,6 @@ impl Midge {
         databases.sort_by_key(|database| database.name.to_ascii_lowercase());
         Ok(databases)
     }
-}
-
-fn is_database_data_key(key: &[u8]) -> bool {
-    matches!(
-        key_family(key),
-        Some(
-            "row"
-                | "legacy-doc"
-                | "scalar-index"
-                | "time-series-index"
-                | "normalized-vector"
-                | "vector-index-state"
-                | "unique-reservation"
-                | "column-batch"
-                | "column-store"
-                | "row-hash"
-                | "range-hash"
-                | "root-hash"
-        )
-    )
 }
 
 fn is_database_catalog_data_key(key: &[u8]) -> bool {

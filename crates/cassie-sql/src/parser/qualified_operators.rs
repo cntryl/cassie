@@ -1,6 +1,6 @@
 //! Resolve admitted qualified builtin spellings at generic operator precedence.
 use super::depth;
-use crate::ast::{BinaryOp, UnaryNumericOp};
+use crate::ast::{BinaryOp, Expr, UnaryNumericOp};
 use crate::SqlError;
 use cassie_core::types::IntegerOperation;
 
@@ -259,7 +259,20 @@ pub(super) fn prefix(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlErr
     Ok(Some((&raw[..span.end], op)))
 }
 
-pub(super) fn binary(span: Span<'_>) -> Result<BinaryOp, SqlError> {
+pub(super) fn binary_expression(span: Span<'_>, left: Expr, right: Expr) -> Result<Expr, SqlError> {
+    if span.symbol == "~" {
+        return Ok(super::super::like_predicates::regex_predicate(
+            left, right, false,
+        ));
+    }
+    Ok(Expr::Binary {
+        left: Box::new(left),
+        right: Box::new(right),
+        op: binary(span)?,
+    })
+}
+
+fn binary(span: Span<'_>) -> Result<BinaryOp, SqlError> {
     Ok(match span.symbol {
         "+" => BinaryOp::Add,
         "-" => BinaryOp::Sub,

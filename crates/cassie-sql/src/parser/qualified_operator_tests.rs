@@ -230,7 +230,8 @@ fn should_lower_a_qualified_regex_in_the_psql_relation_discovery_predicate() {
 
     // Act
     let parsed = super::super::parse_expression(sql).expect("psql relation discovery predicate");
-    let standalone = super::super::parse_expression(standalone).expect("standalone qualified regex");
+    let standalone =
+        super::super::parse_expression(standalone).expect("standalone qualified regex");
 
     // Assert
     let Expr::Binary {
@@ -241,17 +242,19 @@ fn should_lower_a_qualified_regex_in_the_psql_relation_discovery_predicate() {
     else {
         panic!("expected AND conjunction");
     };
-    assert_eq!(standalone, *left);
-    let Expr::Function(regex) = *left else {
-        panic!("expected regex predicate function");
-    };
-    assert_eq!(regex.name, "regexp_like");
-    assert!(matches!(
-        regex.args.as_slice(),
-        [_, Expr::Collate { expr, collation }]
-            if matches!(expr.as_ref(), Expr::StringLiteral(pattern) if pattern == "^(probe_docs)$")
-                && collation == "default"
-    ));
+    for predicate in [*left, standalone] {
+        let Expr::Function(regex) = predicate else {
+            panic!("expected regex predicate function");
+        };
+        assert_eq!(regex.name, "regexp_like");
+        assert!(matches!(
+            regex.args.as_slice(),
+            [Expr::Column(column), Expr::Collate { expr, collation }]
+                if column == "c.relname"
+                    && matches!(expr.as_ref(), Expr::StringLiteral(pattern) if pattern == "^(probe_docs)$")
+                    && collation == "default"
+        ));
+    }
     assert!(matches!(
         right.as_ref(),
         Expr::Function(function) if function.name == "pg_catalog.pg_table_is_visible"
@@ -267,9 +270,8 @@ fn should_preserve_selected_collation_namespaces_for_qualified_regex_operands() 
         "'a' OPERATOR(pg_catalog.~) 'a' COLLATE pg_catalog.unselected",
     ];
     // Act
-    let errors = statements.map(|sql| {
-        super::super::parse_expression(sql).expect_err("collation remains unsupported")
-    });
+    let errors = statements
+        .map(|sql| super::super::parse_expression(sql).expect_err("collation remains unsupported"));
     // Assert
     assert!(errors
         .iter()

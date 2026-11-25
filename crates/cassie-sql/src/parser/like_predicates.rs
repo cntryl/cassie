@@ -177,7 +177,7 @@ fn like_predicate(
     }
 }
 
-fn regex_predicate(expression: Expr, pattern: Expr, case_insensitive: bool) -> Expr {
+pub(super) fn regex_predicate(expression: Expr, pattern: Expr, case_insensitive: bool) -> Expr {
     let mut arguments = vec![expression, pattern];
     if case_insensitive {
         arguments.push(Expr::StringLiteral("i".to_owned()));

@@ -68,10 +68,19 @@ impl Cassie {
                     })
                     .map(|version| version.definition_fingerprint)
             });
+        let projection_id = if metadata.projection_id.is_empty()
+            && matches!(
+                crate::catalog::parse_name(projection),
+                Ok(crate::catalog::ParsedName::Unqualified(_))
+            ) {
+            crate::catalog::local_name(&metadata.collection)
+        } else {
+            metadata.projection_id().to_string()
+        };
         let mut manifest = ProjectionVerificationManifest {
             manifest_version: PROJECTION_MANIFEST_VERSION,
             instance_id: options.instance_id,
-            projection_id: metadata.projection_id().to_string(),
+            projection_id,
             projection_version_id: metadata.active_version.clone().or_else(|| {
                 root.as_ref()
                     .and_then(|root| root.version_id.as_ref().map(ToString::to_string))

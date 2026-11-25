@@ -614,6 +614,59 @@ fn should_restore_renamed_relation_view_state_after_local_restart() {
 }
 
 #[test]
+fn should_reject_a_column_rename_atomically_for_an_unsafe_wildcard_view() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rename-column-wildcard-with-subquery",
+        &[
+            "CREATE TABLE rename_source (id INT, n INT)",
+            "CREATE TABLE join_source (other_id INT)",
+            "INSERT INTO rename_source VALUES (1, 5)",
+            "INSERT INTO join_source VALUES (1)",
+            "CREATE VIEW rv AS SELECT * FROM rename_source AS r \
+             WHERE EXISTS (SELECT 1 FROM join_source j WHERE j.other_id = r.id)",
+            "CREATE VIEW rv_safe AS SELECT n FROM rename_source",
+        ],
+    );
+    let stored_query = |name| {
+        fixture
+            .cassie
+            .catalog
+            .get_view(name)
+            .expect("view metadata")
+            .query
+    };
+    let wildcard_query = stored_query("rv");
+    let safe_query = stored_query("rv_safe");
+
+    // Act
+    let error = fixture.error("ALTER TABLE rename_source RENAME COLUMN n TO renamed_n");
+
+    // Assert
+    assert_eq!(error.sql_state(), "2BP01");
+    assert_eq!(stored_query("rv"), wildcard_query);
+    assert_eq!(stored_query("rv_safe"), safe_query);
+    assert_eq!(
+        fixture.rows("SELECT n FROM rename_source"),
+        vec![vec![Value::Int64(5)]]
+    );
+    assert_eq!(
+        fixture.rows("SELECT n FROM rv"),
+        vec![vec![Value::Int64(5)]]
+    );
+    assert_eq!(
+        fixture.rows("SELECT n FROM rv_safe"),
+        vec![vec![Value::Int64(5)]]
+    );
+    assert_eq!(
+        fixture
+            .error("SELECT renamed_n FROM rename_source")
+            .sql_state(),
+        "42703"
+    );
+}
+
+#[test]
 fn should_not_partially_publish_table_or_view_for_target_collision() {
     // Arrange
     let fixture = base(

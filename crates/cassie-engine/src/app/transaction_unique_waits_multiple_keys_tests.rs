@@ -129,7 +129,7 @@ fn should_report_waited_unique_key_conflict_after_owner_commits() {
 #[test]
 fn should_allow_multi_key_insert_after_wait_owner_rolls_back_without_other_conflicts() {
     // Arrange
-    let (cassie, first, _) = two_key_fixture("issue_1466_no_other_conflict");
+    let (cassie, first, second) = two_key_fixture("issue_1466_no_other_conflict");
     for sql in ["BEGIN", "INSERT INTO t VALUES (1, 100)"] {
         cassie
             .execute_sql(&first, sql, Vec::new())
@@ -144,6 +144,7 @@ fn should_allow_multi_key_insert_after_wait_owner_rolls_back_without_other_confl
     let reached_wait = matches!(&wait_event, WaitEvent::ReachedWait);
 
     // Act
+    let independent_insert = cassie.execute_sql(&second, "INSERT INTO t VALUES (9, 3)", Vec::new());
     let owner_rollback = cassie.execute_sql(&first, "ROLLBACK", Vec::new());
     let result_event = if reached_wait {
         receive_event(&events)
@@ -155,9 +156,72 @@ fn should_allow_multi_key_insert_after_wait_owner_rolls_back_without_other_confl
     let committed_rows = two_key_rows(&cassie, &waiter);
 
     // Assert
+    assert!(independent_insert.is_ok());
     assert!(owner_rollback.is_ok());
     assert!(reached_wait);
     assert!(matches!(result_event, WaitEvent::Completed(Ok(_))));
     assert!(commit.is_ok());
-    assert_eq!(committed_rows, vec![vec![Value::Int64(1), Value::Int64(2)]]);
+    assert_eq!(
+        committed_rows,
+        vec![
+            vec![Value::Int64(1), Value::Int64(2)],
+            vec![Value::Int64(9), Value::Int64(3)],
+        ]
+    );
+}
+
+#[test]
+fn should_keep_the_prepared_identity_when_a_plain_insert_resumes() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+        .expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let owner = cassie.create_session("issue_1466_identity_owner", None);
+    let waiter = cassie.create_session("issue_1466_identity_waiter", None);
+    for sql in [
+        "CREATE TABLE identity_wait (id SERIAL PRIMARY KEY, payload TEXT UNIQUE)",
+        "BEGIN",
+        "INSERT INTO identity_wait (payload) VALUES ('held')",
+    ] {
+        cassie
+            .execute_sql(&owner, sql, Vec::new())
+            .expect("stage the first identity and the blocking unique key");
+    }
+    cassie
+        .execute_sql(&waiter, "BEGIN", Vec::new())
+        .expect("begin the waiter transaction");
+    let (events, worker) = start_observed_insert(
+        cassie.clone(),
+        waiter.clone(),
+        "INSERT INTO identity_wait (payload) VALUES ('held') RETURNING id",
+    );
+    let first_event = receive_event(&events);
+    let reached_wait = matches!(&first_event, WaitEvent::ReachedWait);
+
+    // Act
+    let owner_rollback = cassie.execute_sql(&owner, "ROLLBACK", Vec::new());
+    let result = if reached_wait {
+        receive_event(&events)
+    } else {
+        first_event
+    };
+    worker.join().expect("waiting INSERT worker");
+    let commit = cassie.execute_sql(&waiter, "COMMIT", Vec::new());
+    let following = cassie
+        .execute_sql(
+            &owner,
+            "INSERT INTO identity_wait (payload) VALUES ('next') RETURNING id",
+            Vec::new(),
+        )
+        .expect("insert with the following identity");
+
+    // Assert
+    assert!(owner_rollback.is_ok());
+    assert!(reached_wait);
+    assert!(matches!(
+        result,
+        WaitEvent::Completed(Ok(inserted)) if inserted.rows() == [vec![Value::Int64(2)]]
+    ));
+    assert!(commit.is_ok());
+    assert_eq!(following.rows(), &[vec![Value::Int64(3)]]);
 }

@@ -350,6 +350,8 @@ impl Midge {
         self.database_families
             .write()
             .remove(&metadata.name.to_ascii_lowercase());
+        #[cfg(test)]
+        publication_tests::pause_after_drop_registry_retirement();
         if let Err(error) = self.drop_physical_family_if_present(&metadata.physical_family) {
             self.publication.retain_incomplete_retirement(retirement);
             return Err(error);

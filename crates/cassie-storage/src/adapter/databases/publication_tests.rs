@@ -349,6 +349,69 @@ pub(super) fn pause_after_drop_resolution() {
     }
 }
 
+thread_local! {
+    static AFTER_DROP_REGISTRY_RETIREMENT: RefCell<Option<DropPause>> = const { RefCell::new(None) };
+}
+
+pub(super) fn pause_after_drop_registry_retirement() {
+    if let Some(pause) = AFTER_DROP_REGISTRY_RETIREMENT.with(RefCell::take) {
+        pause();
+    }
+}
+
+#[test]
+fn should_recover_retired_drop_without_discarding_the_recreated_database() {
+    // Arrange
+    use cassie_core::request::RequestCancellation;
+
+    let path =
+        std::env::temp_dir().join(format!("cassie-drop-name-reuse-{}", uuid::Uuid::new_v4()));
+    let midge = Midge::new_strict_with_data_dir(&path).expect("open local fixture");
+    let database = "recreated";
+    midge.create_database(database, None).unwrap();
+    let original = midge.database_family(database).unwrap().name().to_owned();
+    let cancellation = RequestCancellation::new();
+    let controls = TestRequest::with_cancellation(cancellation.clone());
+    AFTER_DROP_REGISTRY_RETIREMENT.with(|slot| {
+        slot.replace(Some(Box::new(move || cancellation.cancel())));
+    });
+
+    // Act
+    let interrupted = {
+        let _request = NativePublicationControlScope::enter(Some(&controls.context()));
+        midge.drop_database(database)
+    };
+    assert!(matches!(interrupted, Err(CassieError::QueryCanceled)));
+    assert!(midge.get_database(database).unwrap().is_none());
+    assert!(midge.engine.get_column_family(&original).is_some());
+
+    midge.create_database(database, None).unwrap();
+    let replacement = midge.database_family(database).unwrap().name().to_owned();
+    let (key, row) = retained_row();
+    let mut write = midge
+        .database_tx(database, super::TransactionMode::ReadWrite)
+        .unwrap();
+    write.put(key.clone(), row.clone(), None).unwrap();
+    write.commit(midge.write_options_sync()).unwrap();
+    drop(midge);
+
+    // Assert
+    assert_ne!(original, replacement);
+    for _ in 0..2 {
+        let reopened = Midge::new_strict_with_data_dir(&path).expect("recover database families");
+        assert_eq!(
+            reopened.database_family(database).unwrap().name(),
+            replacement
+        );
+        assert!(reopened.engine.get_column_family(&original).is_none());
+        assert_eq!(
+            reopened.raw_get_database(database, &key).unwrap(),
+            Some(row.clone())
+        );
+    }
+    std::fs::remove_dir_all(path).unwrap();
+}
+
 #[test]
 fn should_preserve_recreated_database_when_an_earlier_drop_resumes() {
     // Arrange

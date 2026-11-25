@@ -16,14 +16,16 @@ pub struct Profile {
     pub query_budget: usize,
     pub native_total: usize,
     pub native_memtable: usize,
+    pub local: bool,
     /// Rows in the wide pair `f_row_wide`/`f_col_wide`.
     pub wide_rows: usize,
 }
 
 impl Profile {
     /// `BENCH_TIER3_STORAGE_MODES_PROFILE` selects `100k_256m` (default),
-    /// `100k_2g` (the historical 2 GiB query budget) or `1m` (opt-in 1M rows).
-    pub fn from_env() -> Self {
+    /// `100k_2g` (historical budget), `1m` (opt-in memory scale) or
+    /// `1m_local` (same rows and query budget on native local storage).
+    pub fn from_env(fixture: Fixture) -> Self {
         let name = std::env::var("BENCH_TIER3_STORAGE_MODES_PROFILE")
             .unwrap_or_else(|_| "100k_256m".to_owned());
         let mut profile = match name.as_str() {
@@ -33,6 +35,7 @@ impl Profile {
                 query_budget: 256 * MIB,
                 native_total: 2 * GIB,
                 native_memtable: 512 * MIB,
+                local: false,
                 wide_rows: DEFAULT_WIDE_ROWS,
             },
             "100k_2g" => Self {
@@ -41,14 +44,20 @@ impl Profile {
                 query_budget: 2 * GIB,
                 native_total: 2 * GIB,
                 native_memtable: 512 * MIB,
+                local: false,
                 wide_rows: DEFAULT_WIDE_ROWS,
             },
-            "1m" => Self {
-                name: "storage_modes_1m_4g",
+            "1m" | "1m_local" => Self {
+                name: if name == "1m_local" {
+                    "storage_modes_1m_4g_local"
+                } else {
+                    "storage_modes_1m_4g"
+                },
                 fact_rows: 1_000_000,
                 query_budget: 4 * GIB,
                 native_total: 8 * GIB,
                 native_memtable: GIB,
+                local: name == "1m_local",
                 wide_rows: DEFAULT_WIDE_ROWS,
             },
             other => panic!("unknown BENCH_TIER3_STORAGE_MODES_PROFILE {other}"),
@@ -56,10 +65,67 @@ impl Profile {
         if let Some(rows) = env_usize("BENCH_TIER3_STORAGE_MODES_ROWS") {
             profile.fact_rows = rows;
         }
-        profile.wide_rows = env_usize("BENCH_TIER3_STORAGE_MODES_WIDE_ROWS")
-            .unwrap_or(profile.wide_rows)
-            .min(profile.fact_rows);
+        profile.wide_rows =
+            env_usize("BENCH_TIER3_STORAGE_MODES_WIDE_ROWS").unwrap_or(profile.wide_rows);
+        if matches!(fixture, Fixture::All) {
+            profile.wide_rows = profile.wide_rows.min(profile.fact_rows);
+        }
+        assert!(
+            profile.fact_rows > 0,
+            "narrow fixture must have at least one row"
+        );
+        assert!(
+            profile.wide_rows > 0,
+            "wide fixture must have at least one row"
+        );
         profile
+    }
+
+    pub fn native_limits(&self) -> Option<(usize, usize)> {
+        (!self.local).then_some((self.native_total, self.native_memtable))
+    }
+}
+
+/// Select which shared setup dependencies the paired harness will load.
+#[derive(Clone, Copy, Debug)]
+pub enum Fixture {
+    All,
+    Narrow,
+    Wide,
+}
+
+impl Fixture {
+    pub fn from_env() -> Self {
+        match std::env::var("BENCH_TIER3_STORAGE_MODES_FIXTURE").as_deref() {
+            Err(std::env::VarError::NotPresent) | Ok("all") => Self::All,
+            Ok("narrow") => Self::Narrow,
+            Ok("wide") => Self::Wide,
+            other => panic!("unsupported BENCH_TIER3_STORAGE_MODES_FIXTURE: {other:?}"),
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Narrow => "narrow",
+            Self::Wide => "wide",
+        }
+    }
+
+    pub const fn includes_narrow(self) -> bool {
+        matches!(self, Self::All | Self::Narrow)
+    }
+
+    pub const fn includes_wide(self) -> bool {
+        matches!(self, Self::All | Self::Wide)
+    }
+
+    pub fn includes_query(self, name: &str) -> bool {
+        if name.starts_with("wide_") {
+            self.includes_wide()
+        } else {
+            self.includes_narrow()
+        }
     }
 }
 
@@ -74,6 +140,7 @@ pub struct GateFlags {
 #[derive(Clone, Debug)]
 pub struct Sampling {
     pub measurement: bool,
+    pub fixture: Fixture,
     pub gate: GateFlags,
     pub warmup: usize,
     pub samples: usize,
@@ -89,7 +156,7 @@ pub struct Sampling {
 impl Sampling {
     /// Measurement mode (`BENCH_TIER3_STORAGE_MODES_MEASUREMENT=1`) enforces at
     /// least 5 warmup and 30 measured samples; normal runs default to 1 and 5.
-    pub fn from_env(profile: &Profile) -> Self {
+    pub fn from_env(profile: &Profile, fixture: Fixture) -> Self {
         let measurement = env_flag("BENCH_TIER3_STORAGE_MODES_MEASUREMENT", false);
         let (warmup_default, samples_default) = if measurement { (5, 30) } else { (1, 5) };
         let mut warmup = env_usize("BENCH_TIER3_STORAGE_MODES_WARMUP").unwrap_or(warmup_default);
@@ -100,6 +167,7 @@ impl Sampling {
         }
         Self {
             measurement,
+            fixture,
             warmup,
             samples: samples.max(1),
             control: env_flag("BENCH_TIER3_STORAGE_MODES_CONTROL", measurement),

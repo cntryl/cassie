@@ -49,18 +49,29 @@ fn copy_rows(db: &Db, table: &str, rows: usize, batch: usize) {
             format: CopyFormat::Csv,
             header: false,
         };
-        db.cassie
+        let actual = db
+            .cassie
             .copy_from_csv_stdin(
                 &db.session,
                 &statement,
                 data::fact_csv(start..end).as_bytes(),
             )
-            .unwrap_or_else(|error| panic!("amplification COPY into {table}: {error}"));
+            .unwrap_or_else(|error| panic!("probe COPY into {table} at [{start}, {end}): {error}"));
+        assert_eq!(
+            actual,
+            end - start,
+            "{table}: acknowledged COPY rows at [{start}, {end})"
+        );
     }
 }
 
 /// COPY then UPDATE amplification on fresh heap and column tables.
-pub fn write_amplification(db: &Db, rows: usize) -> Json {
+pub fn write_amplification(db: &Db, rows: usize, local: bool) -> Json {
+    let batch = if local {
+        LOCAL_COPY_BATCH_ROWS
+    } else {
+        COPY_BATCH_ROWS
+    };
     let updated = (rows / 10).clamp(1, 5_000);
     let mut report = serde_json::Map::new();
     for (arm, table, storage) in [
@@ -68,7 +79,7 @@ pub fn write_amplification(db: &Db, rows: usize) -> Json {
         ("column", "amp_col", data::Storage::Column),
     ] {
         db.exec(&data::create_fact_sql(table, storage));
-        let copy = measure_write(db, rows, || copy_rows(db, table, rows, COPY_BATCH_ROWS));
+        let copy = measure_write(db, rows, || copy_rows(db, table, rows, batch));
         let update = measure_write(db, updated, || {
             db.exec(&format!(
                 "UPDATE {table} SET qty = qty + 1 WHERE id < {updated}"

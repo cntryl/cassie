@@ -3,11 +3,12 @@
 //! Storage-mode result equality is checked before timing; no latency threshold
 //! is asserted by these correctness guards.
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
 use cassie::app::{Cassie, CassieSession};
-use cassie::config::CassieRuntimeConfig;
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::types::Value;
 
 #[path = "tier3_system_storage_modes/amplification.rs"]
@@ -18,6 +19,8 @@ mod data;
 mod evidence;
 #[path = "tier3_system_storage_modes/expected.rs"]
 mod expected;
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "tier3_system_storage_modes/paired.rs"]
 mod paired;
 #[path = "support/performance_benchmarks.rs"]
@@ -46,27 +49,34 @@ struct Db {
 
 impl Db {
     fn new(profile: setup::NativeProfile) -> Self {
-        Self::open(profile, FACT_ROWS * 2, QUERY_BUDGET, None)
+        Self::open(profile, FACT_ROWS * 2, QUERY_BUDGET, None, None)
     }
 
-    /// Opens a memory database; `native` overrides the profile's total and
-    /// memtable bytes for the paired harness.
+    /// Opens one benchmark database. Native capacity overrides apply to memory
+    /// mode; explicit local mode uses the released engine defaults.
     fn open(
         profile: setup::NativeProfile,
         max_result_rows: usize,
         query_budget: usize,
         native: Option<(usize, usize)>,
+        local: Option<&Path>,
     ) -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("benchmark config");
         config.limits.max_result_rows = max_result_rows;
         config.limits.query_memory_budget_bytes = query_budget;
         config.limits.query_timeout_ms = 0;
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         profile.configure(&mut config);
         if let Some((total, memtable)) = native {
             config.storage_memory_budget_bytes = Some(total);
             config.storage_memtable_size_bytes = Some(memtable);
         }
-        let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("memory Cassie"));
+        let cassie = Arc::new(match local {
+            Some(path) => {
+                Cassie::new_local_with_data_dir_and_config(path, config).expect("local Cassie")
+            }
+            None => Cassie::new_in_memory_with_config(config).expect("memory Cassie"),
+        });
         cassie.startup().expect("startup");
         let session = cassie.create_session("benchmark", None);
         let db = Self { cassie, session };

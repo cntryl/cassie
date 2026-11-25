@@ -700,16 +700,18 @@ and [operator scope amendment](https://github.com/cntryl/cassie/issues/1113#issu
 
 `BENCH_TIER3_STORAGE_MODES_MODE=paired` runs a second mode of the same bench
 binary. The default `qualification` mode and its ten cases are unchanged. Paired
-mode seeds one memory database and times both arms in the same process with the
-same query budget, result-cache setting (off) and worker count; each timed sample
+mode seeds one database and times both arms in the same process with the
+same query budget, result-cache setting (off) and worker count. The default
+loads every original table in memory in its original order. Each timed sample
 includes result materialization and the fingerprint check. Heap and column
 samples alternate (ABAB) and the report ratio is `heap_seconds / column_seconds`,
 so above 1 means the column arm is faster.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BENCH_TIER3_STORAGE_MODES_PROFILE` | `100k_256m` | `100k_256m` (256 MiB query budget, historical result checks), `100k_2g` (historical 2 GiB budget) or `1m` (opt-in 1,000,000 rows, 4 GiB query budget, 8 GiB/1 GiB native; declared, not yet qualified) |
-| `BENCH_TIER3_STORAGE_MODES_ROWS` / `_WIDE_ROWS` | profile / 100k | Override fact rows; rows in the wide pair `f_row_wide`/`f_col_wide` (eight narrow columns plus a 1 KiB unselected `payload TEXT`) |
+| `BENCH_TIER3_STORAGE_MODES_PROFILE` | `100k_256m` | `100k_256m` (256 MiB query budget, historical result checks), `100k_2g` (historical 2 GiB budget) `1m` (1,000,000 rows, 4 GiB query budget, 8 GiB/1 GiB memory mode), or `1m_local` (same rows and query budget in a fresh native local database) |
+| `BENCH_TIER3_STORAGE_MODES_FIXTURE` | `all` | `narrow` seeds the narrow fact and dimension pairs; `wide` seeds only the wide pair and runs only wide-fact queries. `all` preserves the original combined fixture. |
+| `BENCH_TIER3_STORAGE_MODES_ROWS` / `_WIDE_ROWS` | profile / 100k | Override fact rows and the wide pair's rows (eight narrow columns plus a 1 KiB unselected `payload TEXT`). Combined `all` mode still caps wide rows at narrow rows. |
 | `BENCH_TIER3_STORAGE_MODES_MEASUREMENT` | `0` | `1` enforces at least 5 warmup and 30 measured rounds and turns the heap-versus-heap control on; normal runs default to 1 and 5 |
 | `BENCH_TIER3_STORAGE_MODES_WARMUP` / `_SAMPLES` | 1 / 5 | Override rounds (raised to 5 / 30 in measurement mode) |
 | `BENCH_TIER3_STORAGE_MODES_CONTROL` | measurement | Time a second heap sample of each primary query to measure the noise band |
@@ -719,6 +721,21 @@ so above 1 means the column arm is faster.
 | `BENCH_TIER3_STORAGE_MODES_QUERIES` | all | Comma-separated name substrings to run (`amplification` and `footprint` select those probes) |
 | `BENCH_TIER3_STORAGE_MODES_FOOTPRINT` / `_FOOTPRINT_ROWS` / `_AMPLIFICATION_ROWS` | on / 100k / 20k | Local-mode disk footprint sub-run and write-amplification fixture size |
 | `BENCH_TIER3_STORAGE_MODES_OUT` | `target/storage_modes_paired.json` | JSON report: raw samples, p50/p95, bootstrap CI, evidence, gate result |
+
+The `1m_local` profile uses the released local constructor's native defaults.
+Its report records actual native total, memtable, flush and transaction-pool
+bytes. It uses 250-row COPY batches for fact loading and amplification. Treat
+local and memory profiles as separate measurements. The declared query budget
+and expected result fingerprints apply in both profiles. Set
+`BENCH_TIER3_STORAGE_MODES_FIXTURE=narrow` to isolate the primary fixture for the
+1m comparison and `BENCH_TIER3_STORAGE_MODES_FIXTURE=wide` at 100k to isolate the
+wide pair from prior narrow loading.
+
+An incomplete COPY stops setup, records the failed table and row range, and
+exits unsuccessfully. A selected query that cannot produce all samples is also
+a failed run. A wide-only run records `advantage_status=not_run`, and a pass on
+only one primary query records `partial`. A completed performance loss exits
+unsuccessfully when strict mode is enabled.
 
 Primary queries are the narrow projection and the filtered aggregate. The gate
 passes when the lower bound of the 95% bootstrap interval of the median paired

@@ -1,5 +1,5 @@
 use super::{execute, Arc, CaptureHook, Cassie, Value};
-use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use crate::app::{ProjectionManifestExportOptions, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 
 #[test]
@@ -134,6 +134,71 @@ fn should_read_replay_row_with_checkpoint_from_same_statement_snapshot() {
             Value::String("checkpoint-2".to_string())
         ]]
     );
+}
+
+#[test]
+fn should_export_the_committed_projection_selected_by_manifest_alias() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(&cassie, &session, "CREATE SCHEMA analytics");
+    execute(&cassie, &session, "CREATE SCHEMA reports");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE analytics.events (title TEXT)",
+    );
+    let projection = cassie.midge.canonical_collection_name("analytics.events");
+    cassie
+        .replay_projection_batch_strict(ProjectionReplayBatch {
+            projection: projection.clone(),
+            source_identity: "stream".into(),
+            batch_id: "batch-1".into(),
+            lag: 0,
+            events: vec![ProjectionReplayEvent {
+                event_id: "event-1".into(),
+                checkpoint: "one".into(),
+                position: Some(1),
+                document_id: "doc-1".into(),
+                payload: Some(serde_json::json!({"title": "committed"})),
+            }],
+        })
+        .unwrap();
+    let export = |name| {
+        cassie.export_projection_verification_manifest(
+            name,
+            ProjectionManifestExportOptions {
+                generated_ms: Some(1),
+                include_row_hashes: true,
+                ..ProjectionManifestExportOptions::for_instance("manifest-alias")
+            },
+        )
+    };
+
+    // Act
+    let bare = export("events");
+    let schema_qualified = export("analytics.events").unwrap();
+    let canonical = export(&projection).unwrap();
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE reports.events (title TEXT)",
+    );
+    let ambiguous = export("events");
+    execute(&cassie, &session, "CREATE TABLE public.events (title TEXT)");
+    let exact = export("events").unwrap();
+    let public = export("public.events").unwrap();
+
+    // Assert
+    assert_eq!(bare.unwrap(), canonical);
+    assert_eq!(schema_qualified, canonical);
+    assert_eq!(canonical.source_checkpoint.as_deref(), Some("one"));
+    assert_eq!(canonical.row_hashes.len(), 1);
+    assert_eq!(canonical.row_hashes[0].row_id, "doc-1");
+    assert!(ambiguous.unwrap_err().to_string().contains("ambiguous"));
+    assert_eq!(exact, public);
+    assert_ne!(exact.projection_id, canonical.projection_id);
 }
 
 #[test]

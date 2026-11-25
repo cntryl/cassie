@@ -29,6 +29,9 @@ impl EmbeddingProvider for Provider {
                 "unit" => Ok(Embedding {
                     values: vec![1.0, 0.0, 0.0],
                 }),
+                "second_axis" => Ok(Embedding {
+                    values: vec![0.0, 1.0, 0.0],
+                }),
                 _ => Err(EmbeddingError::InvalidConfiguration(
                     "unavailable qualification query".into(),
                 )),

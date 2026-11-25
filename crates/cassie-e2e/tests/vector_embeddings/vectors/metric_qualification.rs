@@ -6,8 +6,8 @@ use std::sync::atomic::Ordering;
 fn should_rank_exact_dot_from_raw_vectors_with_underflow_and_identity_ties() {
     // Arrange
     let cases = [
-        ([1e-20_f32, 1e30, 0.0], [2e-20_f32, 1e30, 0.0], ["b", "a"]),
-        ([1.0_f32, 1.0, 0.0], [1.0_f32, 0.0, 0.0], ["a", "b"]),
+        ([1e30_f32, 1e-20, 0.0], [1e30_f32, 2e-20, 0.0], ["b", "a"]),
+        ([1.0_f32, 1.0, 0.0], [0.0_f32, 1.0, 0.0], ["a", "b"]),
     ];
 
     for (a, b, expected) in cases {
@@ -41,17 +41,17 @@ fn should_rank_exact_dot_from_raw_vectors_with_underflow_and_identity_ties() {
 
         // Act
         let exact = cassie
-            .execute_vector_search("vectors", "embedding", "unit", None, 2, 0)
+            .execute_vector_search("vectors", "embedding", "second_axis", None, 2, 0)
             .expect("exact REST engine");
         let top = cassie
-            .execute_vector_search("vectors", "embedding", "unit", None, 1, 0)
+            .execute_vector_search("vectors", "embedding", "second_axis", None, 1, 0)
             .expect("exact top-1");
         let raw = cassie
             .execute_sql(
                 &session,
                 "SELECT _id FROM vectors ORDER BY dot_product(embedding, $1) DESC, _id ASC",
                 vec![Value::Vector(cassie::types::Vector::new(vec![
-                    1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
                 ]))],
             )
             .expect("authoritative SQL");

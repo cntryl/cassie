@@ -131,8 +131,10 @@ fn should_bypass_result_cache_for_virtual_catalogs_inside_sql_expressions() {
 
     // Act
     let direct = run("SELECT count(*) FROM pg_catalog.pg_class");
+    let after_direct = metrics();
     let scalar = run("SELECT (SELECT count(*) FROM pg_catalog.pg_class)");
     let scalar_again = run("SELECT (SELECT count(*) FROM pg_catalog.pg_class)");
+    let after_scalar = metrics();
     let exists = run("SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_catalog.pg_class)");
     let exists_again = run("SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_catalog.pg_class)");
     let after_catalog = metrics();
@@ -153,7 +155,11 @@ fn should_bypass_result_cache_for_virtual_catalogs_inside_sql_expressions() {
             .as_u64()
             .unwrap_or_default()
     };
-    assert_eq!(bypasses(&after_catalog) - bypasses(&before), 5);
+    assert_eq!(bypasses(&after_direct) - bypasses(&before), 1);
+    assert_eq!(bypasses(&after_scalar) - bypasses(&after_direct), 2);
+    assert_eq!(bypasses(&after_catalog) - bypasses(&after_scalar), 2);
+    assert_eq!(after_direct["hits"], before["hits"]);
+    assert_eq!(after_scalar["hits"], before["hits"]);
     assert_eq!(after_catalog["hits"], before["hits"]);
     assert_eq!(ordinary_again, ordinary);
     assert_eq!(

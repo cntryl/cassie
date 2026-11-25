@@ -90,6 +90,7 @@ catalog and sentinel validity checks. No persistent format or public API changes
 The warm regression also exercises stale/missing-statistics fallback and verifies
 released query reservations. Jev's 0.35 warm-generation judgment prompted this
 focused reproduction and correction.
+The current regression exercises cosine, which still uses normalized sidecars.
 
 The isolated worktree retains exact commands, red and green logs, source hashes,
 Jev requests/responses and the tested patch under ignored `target/`. Jev's initial

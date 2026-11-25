@@ -132,7 +132,7 @@ fn key_order_matches_value_order(data_type: &crate::types::DataType) -> bool {
             | DataType::Timestamp
             | DataType::Json
             | DataType::Jsonb
-    )
+    ) || matches!(data_type, DataType::Domain(domain) if key_order_matches_value_order(&domain.base))
 }
 
 /// Types whose index key byte order is the SQL sort order, so an ordered index

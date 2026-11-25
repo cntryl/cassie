@@ -1,6 +1,14 @@
 //! A scalar index never changes a query's rows or their order: for every indexable
 //! type, each filter and ordering shape returns exactly what the same query returns
 //! without the index.
+//!
+//! #1461 key-order findings: timestamptz, interval, and inet retain their typed
+//! text carriers, whose lexical order is not their SQL order. Enum index carriers
+//! are stable member IDs, while SQL order uses the descriptor's mutable
+//! `sort_order`; neither is an ordering proof. Those four types stay off the exact
+//! index-probe list. A domain over an integer retains the integer JSON carrier and
+//! inherits its exact index order; the domain descriptor remains attached to the
+//! catalog type and is not rewritten.
 
 use super::support_sql_fixture::{sql_fixture, SqlFixture};
 
@@ -302,3 +310,26 @@ equivalence_test!(
     ["10", "-9", "9", "10"],
     ["9", "10"]
 );
+
+#[test]
+fn should_use_scalar_index_for_equality_on_domain_over_int() {
+    // Arrange
+    let fixture = sql_fixture(
+        "domain-over-int-index-probe",
+        &[
+            "CREATE DOMAIN small_count AS INT",
+            "CREATE TABLE t (id INT PRIMARY KEY, v small_count)",
+            "INSERT INTO t VALUES (1, 10), (2, -9), (3, 9)",
+            "CREATE INDEX t_v ON t (v)",
+        ],
+    );
+
+    // Act
+    let plan = fixture
+        .execute("EXPLAIN SELECT id FROM t WHERE v = 10")
+        .expect("explain exact domain equality probe");
+    let plan = crate::support_sql::explain_plan_text(&plan);
+
+    // Assert
+    assert!(plan.contains("selected_index=t_v"), "{plan}");
+}

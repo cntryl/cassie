@@ -81,6 +81,10 @@ impl Profile {
         profile
     }
 
+    pub fn is_advantage_profile(&self) -> bool {
+        self.name == "storage_modes_100k_256m" && self.fact_rows == 100_000
+    }
+
     pub fn native_limits(&self) -> Option<(usize, usize)> {
         (!self.local).then_some((self.native_total, self.native_memtable))
     }

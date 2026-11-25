@@ -180,6 +180,64 @@ fn write_report(options: &Sampling, report: &Json) {
     println!("storage_modes_report={}", options.out.display());
 }
 
+fn primary_has_qualified_path(result: &Json) -> bool {
+    let column = &result["evidence"]["column"];
+    let tokens = &column["tokens"];
+    let reads = &column["counters"]["column_vector_reads"];
+    tokens["storage_mode"] == "column-store"
+        && tokens["fallback_reason"] == "none"
+        && tokens["column_vector"] == "eligible"
+        && reads["batches"].as_u64().is_some_and(|batches| batches > 0)
+        && reads["row_documents_built"] == 0
+}
+
+fn advantage_status(
+    results: &[Json],
+    profile: &Profile,
+    options: &Sampling,
+    failures: &[&str],
+    lost: &[String],
+) -> &'static str {
+    if !failures.is_empty() {
+        return "incomplete";
+    }
+    let primary = || results.iter().filter(|result| result["role"] == "primary");
+    match primary().count() {
+        0 => "not_run",
+        1 => "partial",
+        _ if !(profile.is_advantage_profile() && options.measurement && options.control) => {
+            "diagnostic"
+        }
+        _ if !primary().all(primary_has_qualified_path) => "unqualified_path",
+        _ if lost.is_empty() => "pass",
+        _ => "loss",
+    }
+}
+
+fn run_optional_probes(
+    db: &Db,
+    profile: &Profile,
+    options: &Sampling,
+    amplification: bool,
+    footprint: bool,
+    report: &mut Json,
+) {
+    if amplification {
+        report["run_status"] = json!("amplification_incomplete");
+        write_report(options, report);
+        report["write_amplification"] =
+            amplification::write_amplification(db, options.amplification_rows, profile.local);
+    }
+    if footprint {
+        report["run_status"] = json!("footprint_incomplete");
+        write_report(options, report);
+        report["disk_footprint"] = amplification::disk_footprint(
+            &options.out.with_extension("footprint"),
+            options.footprint_rows,
+        );
+    }
+}
+
 pub fn run() -> ExitCode {
     let fixture = Fixture::from_env();
     let profile = Profile::from_env(fixture);
@@ -236,47 +294,38 @@ pub fn run() -> ExitCode {
         .iter()
         .map(|query| run_query(&db, query, &options))
         .collect();
-    let write_amplification = amplification.then(|| {
-        amplification::write_amplification(&db, options.amplification_rows, profile.local)
-    });
-    let disk_footprint = footprint.then(|| {
-        amplification::disk_footprint(
-            &options.out.with_extension("footprint"),
-            options.footprint_rows,
-        )
-    });
     let failures: Vec<&str> = results
         .iter()
         .filter(|result| result["analysis"].is_null())
         .filter_map(|result| result["name"].as_str())
         .collect();
     let lost = lost_primary(&results);
-    let primary_count = selected
-        .iter()
-        .filter(|query| query.role == Role::Primary)
-        .count();
-    let advantage_status = match (failures.is_empty(), primary_count, lost.is_empty()) {
-        (false, _, _) => "incomplete",
-        (true, 0, _) => "not_run",
-        (true, _, false) => "loss",
-        (true, 2, true) => "pass",
-        (true, _, true) => "partial",
-    };
+    let status = advantage_status(&results, &profile, &options, &failures, &lost);
+    let query_failed = !failures.is_empty();
     report["setup_time_ns"] = json!(setup_ns.to_string());
-    report["run_status"] = json!(if failures.is_empty() {
-        "complete"
-    } else {
-        "incomplete"
-    });
-    report["advantage_status"] = json!(advantage_status);
+    report["advantage_status"] = json!("incomplete");
     report["query_failures"] = json!(failures);
     report["queries"] = json!(results);
-    report["write_amplification"] = json!(write_amplification);
-    report["disk_footprint"] = json!(disk_footprint);
+    report["write_amplification"] = Json::Null;
+    report["disk_footprint"] = Json::Null;
     report["primary_losses"] = json!(lost);
+    run_optional_probes(
+        &db,
+        &profile,
+        &options,
+        amplification,
+        footprint,
+        &mut report,
+    );
+    report["run_status"] = json!(if query_failed {
+        "incomplete"
+    } else {
+        "complete"
+    });
+    report["advantage_status"] = json!(status);
     write_report(&options, &report);
-    println!("storage_modes_gate={advantage_status} queries={lost:?}");
-    if failures.is_empty() && (lost.is_empty() || !options.gate.strict) {
+    println!("storage_modes_gate={status} queries={lost:?}");
+    if !query_failed && (!options.gate.strict || status == "pass") {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

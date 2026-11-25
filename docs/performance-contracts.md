@@ -716,7 +716,7 @@ so above 1 means the column arm is faster.
 | `BENCH_TIER3_STORAGE_MODES_WARMUP` / `_SAMPLES` | 1 / 5 | Override rounds (raised to 5 / 30 in measurement mode) |
 | `BENCH_TIER3_STORAGE_MODES_CONTROL` | measurement | Time a second heap sample of each primary query to measure the noise band |
 | `BENCH_TIER3_STORAGE_MODES_BOOTSTRAP` | `2000` | Bootstrap resamples for the 95% confidence interval of the median paired ratio |
-| `BENCH_TIER3_STORAGE_MODES_STRICT` | `0` | `1` exits non-zero when a primary query loses the gate; otherwise a loss is printed and recorded |
+| `BENCH_TIER3_STORAGE_MODES_STRICT` | `0` | `1` requires the complete qualified advantage pass for a zero exit; diagnostic runs still report measurements |
 | `BENCH_TIER3_STORAGE_MODES_REQUIRE_VECTOR` | `0` | `1` asserts `column_vector=eligible`, `column_vector_batches_delta > 0`, `row_documents_delta == 0` and `fallback_reason=none` on the column arm; `column_vector`/`column_vector_reason` come from EXPLAIN and the two deltas from the arm's counted run (`column_vector_reads`, `row_documents_built`); a missing token fails instead of being assumed |
 | `BENCH_TIER3_STORAGE_MODES_QUERIES` | all | Comma-separated name substrings to run (`amplification` and `footprint` select those probes) |
 | `BENCH_TIER3_STORAGE_MODES_FOOTPRINT` / `_FOOTPRINT_ROWS` / `_AMPLIFICATION_ROWS` | on / 100k / 20k | Local-mode disk footprint sub-run and write-amplification fixture size |
@@ -733,9 +733,13 @@ wide pair from prior narrow loading.
 
 An incomplete COPY stops setup, records the failed table and row range, and
 exits unsuccessfully. A selected query that cannot produce all samples is also
-a failed run. A wide-only run records `advantage_status=not_run`, and a pass on
-only one primary query records `partial`. A completed performance loss exits
-unsuccessfully when strict mode is enabled.
+a failed run. A wide-only run records `advantage_status=not_run`, and selecting
+only one primary query records `partial`. Only the 100k/256 MiB memory profile
+with measurement mode, a heap-versus-heap control, both independent oracles,
+and observed column-vector scans without fallback can report an advantage pass.
+Other profiles and smoke runs record diagnostic comparisons. The report writes
+completed query results before each optional amplification or footprint probe
+and records which probe is still incomplete until it returns.
 
 Primary queries are the narrow projection and the filtered aggregate. The gate
 passes when the lower bound of the 95% bootstrap interval of the median paired

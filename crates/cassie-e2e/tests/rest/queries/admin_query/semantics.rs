@@ -399,7 +399,7 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
 }
 
 #[test]
-fn should_limit_rest_schema_items_and_columns_to_relations_with_select_privilege() {
+fn should_limit_rest_schema_metadata_to_relations_with_select_privilege() {
     // Arrange
     let data_dir = data_dir("selected-schema-visibility");
     let reader_password = Uuid::new_v4().to_string();

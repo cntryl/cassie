@@ -347,7 +347,7 @@ mod tests {
                     .categories
                     .values()
                     .map(|bucket| bucket.total_bytes)
-                    .sum()
+                    .sum::<u64>()
             );
         }
     }

@@ -109,7 +109,11 @@ fn should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands() 
     // Assert
     for (sql, batch) in chained.into_iter().zip(&batches) {
         assert_eq!(wire::error_code(batch).as_deref(), Some("42601"), "{sql}");
-        assert!(wire::data_rows(batch).is_empty(), "{sql}");
+        assert_eq!(
+            wire::data_rows(batch),
+            Vec::<Vec<Option<String>>>::new(),
+            "{sql}"
+        );
     }
     let valid = &batches[chained.len()];
     assert_eq!(wire::error_code(valid), None);
@@ -154,7 +158,10 @@ fn should_report_unclosed_nested_comments_across_sql_entry_points() {
     balanced_parse.expect("balanced nested comment");
     for index in [0, 2] {
         assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("42601"));
-        assert!(wire::data_rows(&batches[index]).is_empty());
+        assert_eq!(
+            wire::data_rows(&batches[index]),
+            Vec::<Vec<Option<String>>>::new()
+        );
     }
     for index in [1, 3] {
         assert_eq!(wire::error_code(&batches[index]), None);

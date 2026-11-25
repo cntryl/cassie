@@ -751,20 +751,17 @@ async fn run_admin_query_operation(
             })
         })
         .transpose()?;
-    let result = run_rest_blocking_route_with_cancellation(
+    run_rest_blocking_route_with_cancellation(
         cassie,
         context.method,
         context.path,
         context.started_at,
         operation_name,
-        (cancellation, context.admitted_error_response),
+        (cancellation, context.admitted_error_response, registration),
         move |cassie, cancellation| operation(&cassie, &session, body.as_ref(), cancellation),
     )
-    .await;
-    if let Some(registration) = registration {
-        registration.finish();
-    }
-    result.map(Some)
+    .await
+    .map(Some)
 }
 
 fn query_database(query: Option<&str>) -> Result<String, (StatusCode, String)> {

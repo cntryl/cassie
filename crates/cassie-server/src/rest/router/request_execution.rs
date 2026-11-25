@@ -357,7 +357,11 @@ pub(super) async fn run_rest_blocking_route_with_cancellation(
     path: &str,
     started_at: Instant,
     operation_name: &'static str,
-    cancellation: (QueryCancellationHandle, bool),
+    cancellation: (
+        QueryCancellationHandle,
+        bool,
+        Option<crate::rest::query_operations::Registration>,
+    ),
     operation: impl FnOnce(
             Arc<Cassie>,
             &QueryCancellationHandle,
@@ -365,11 +369,26 @@ pub(super) async fn run_rest_blocking_route_with_cancellation(
         + Send
         + 'static,
 ) -> Result<hyper::Response<super::RestBody>, (StatusCode, String)> {
-    let (cancellation, admitted_error_response) = cancellation;
-    match RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation)
-        .run_blocking(Arc::clone(&cassie), operation_name, operation)
-        .await
-    {
+    let (cancellation, admitted_error_response, registration) = cancellation;
+    let execution = RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation);
+    let worker_cassie = Arc::clone(&cassie);
+    let worker = async move {
+        execution
+            .run_blocking(worker_cassie, operation_name, operation)
+            .await
+    };
+    let result = match registration {
+        Some(registration) => registration
+            .finish_after_worker(worker)
+            .await
+            .unwrap_or_else(|error| {
+                Err(RestBlockingError::Engine(CassieError::StorageRetryable(
+                    format!("rest query operation completion failed: {error}").into(),
+                )))
+            }),
+        None => worker.await,
+    };
+    match result {
         Ok(response) => Ok(response),
         Err(RestBlockingError::Engine(error)) => {
             if let (true, CassieError::OwnedNumericLiteral(diagnostic)) =

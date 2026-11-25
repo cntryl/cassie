@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Write as _;
+use std::future::Future;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -123,8 +124,35 @@ pub(crate) async fn cancel(id: Uuid, owner: &str, timeout: Duration) -> Result<(
         .map_err(|_| CancelError::TimedOut)
 }
 
+struct CancelOnDisconnect(Option<QueryCancellationHandle>);
+
+impl Drop for CancelOnDisconnect {
+    fn drop(&mut self) {
+        if let Some(cancellation) = &self.0 {
+            cancellation.cancel();
+        }
+    }
+}
+
 impl Registration {
-    pub(crate) fn finish(mut self) {
+    pub(crate) async fn finish_after_worker<T: Send + 'static>(
+        self,
+        worker: impl Future<Output = T> + Send + 'static,
+    ) -> Result<T, tokio::task::JoinError> {
+        let mut disconnect = CancelOnDisconnect(Some(self.operation.cancellation.clone()));
+        // This task owns registration while the blocking join is outstanding,
+        // even when the request stops waiting for the result.
+        let result = tokio::spawn(async move {
+            let result = worker.await;
+            self.finish();
+            result
+        })
+        .await;
+        disconnect.0 = None;
+        result
+    }
+
+    fn finish(mut self) {
         self.remove();
         self.finished = true;
     }

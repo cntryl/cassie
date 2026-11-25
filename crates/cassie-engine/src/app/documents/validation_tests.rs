@@ -118,7 +118,7 @@ fn should_report_vector_errors_for_non_array_or_non_numeric_document_input() {
 
     // Act
     let errors = inputs
-        .iter()
+        .each_ref()
         .map(|input| document_error("VECTOR(3)", input));
 
     // Assert

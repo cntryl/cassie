@@ -40,6 +40,13 @@ pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    if let Some(target) = crate::sql::functions::function(&function.name)
+        .and_then(|m| crate::sql::functions::catalog_oid_input(m.id))
+    {
+        if let [argument] = function.args.as_mut_slice() {
+            super::oid_arguments::coerce(&function.name, argument, target, types)?;
+        }
+    }
     super::json_functions::qualify(function, types)?;
     super::bytea_functions::qualify(function, types)?;
     math_signatures::validate(function, types)?;
@@ -598,6 +605,7 @@ fn validate_binary(
     ) {
         validate_collation_pair(left, right)?;
         null_safe_comparison::qualify(op, left, right, types)?;
+        super::unknown_literals::coerce_array_pair(left, right, types);
         catalog_oid_operands::bind_pair(left, right, types);
         enum_operands::qualify_pair(op, left, right, types)?;
         canonicalize_boolean_pair(left, right, types)?;

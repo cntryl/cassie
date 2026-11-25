@@ -66,6 +66,12 @@ pub(super) fn execute(
         let batches = source_options::execute(env, &function.args[0], outer_row, ctes)?;
         return finalize_source_batches(env, batches, Vec::new(), qualify, name);
     }
+    if crate::sql::table_sources::is_partition_ancestors(&function.name) {
+        // Evaluate the bound regclass argument even for an empty result, so
+        // ordinary object-name resolution and argument errors are observable.
+        let _arguments = evaluate_args(env, function, outer, ctes)?;
+        return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
+    }
     if crate::sql::functions::is_loaded_modules(&function.name) {
         env.controls.check_interruption()?;
         // Native plugin loading is absent from the current Cassie profile.

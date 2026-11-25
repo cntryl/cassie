@@ -57,9 +57,14 @@ pub(super) fn parse_select_statement(
         .map(parse_named_windows)
         .transpose()?
         .unwrap_or_default();
-    let projection = parse_projection_items(&select_part, &named_windows).map_err(|error| {
+    let mut projection = parse_projection_items(&select_part, &named_windows).map_err(|error| {
         error.offset_position(after_select_offset + select_offset + distinct_offset)
     })?;
+    let source = if rest.is_empty() && matches!(source, QuerySource::SingleRow) {
+        projection_partition_ancestors(&mut projection).unwrap_or(source)
+    } else {
+        source
+    };
     let filter = parsed_clauses
         .where_sql
         .as_deref()
@@ -98,6 +103,37 @@ pub(super) fn parse_select_statement(
             set: None,
         })),
     })
+}
+
+/// For a lone set-returning catalog call without FROM, each function row becomes
+/// an output row. Reuse the same relation shape and execution as the FROM form.
+fn projection_partition_ancestors(projection: &mut [super::SelectItem]) -> Option<QuerySource> {
+    let [item] = projection else {
+        return None;
+    };
+    let super::SelectItem::Function { function, alias } = item else {
+        return None;
+    };
+    if !crate::registry::table_sources::is_partition_ancestors(&function.name) {
+        return None;
+    }
+    let label = "pg_partition_ancestors";
+    let source = QuerySource::Aliased {
+        source: Box::new(QuerySource::TableFunction {
+            name: function.name.clone(),
+            function: function.clone(),
+            lateral: true,
+            with_ordinality: false,
+            form: None,
+        }),
+        alias: label.to_owned(),
+        column_aliases: vec![label.to_owned()],
+    };
+    *item = super::SelectItem::Column {
+        name: label.to_owned(),
+        alias: alias.take(),
+    };
+    Some(source)
 }
 
 pub(super) fn parse_set_select_statement(

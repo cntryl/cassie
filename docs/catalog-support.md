@@ -256,6 +256,30 @@ and join work in [#1486](https://github.com/cntryl/cassie/issues/1486) and
 [#1489](https://github.com/cntryl/cassie/issues/1489). The named-client subset
 above describes currently retained evidence.
 
+For a table description, catalog rows must report the visible relation's
+columns, defaults, indexes and declared constraints from the same catalog
+identities used by direct SQL. The selected psql 18.6 fixture has a primary
+key, a secondary index, an integer default, a CHECK and a foreign key. The
+client must display each of them. A relation without PostgreSQL-style triggers
+reports no triggers, including when Cassie enforces a foreign key directly.
+Catalogs for absent object families expose their defined columns and zero
+matching rows. Qualification uses an unmodified client and the SQL it emits
+against both Cassie and PostgreSQL 18.6.
+
+The psql description reads the policy, publication, extended-statistics and
+inheritance registries. Cassie has no objects in these registries.
+`pg_get_statisticsobjdef_columns(oid)` therefore returns SQL NULL.
+`pg_relation_is_publishable(regclass)` reports eligibility for an ordinary
+user table. System relations, views, indexes and other supported relation
+kinds are ineligible. An unknown numeric relation OID or SQL NULL returns
+SQL NULL. These lookups use the session's database and relation identities.
+
+For this workflow `pg_class.relreplident` exposes the one-character replica
+identity code as `text` (OID 25). PostgreSQL declares its internal `"char"`
+type (OID 18). Cassie exposes the absent `relpartbound` as nullable `text`
+(OID 25); PostgreSQL uses `pg_node_tree` (OID 194). The psql client receives
+the replica identity code and a SQL NULL partition bound for a plain table.
+
 ## Retained client evidence
 
 | Client | Source revision | Workflow run | Certified catalog workflow |

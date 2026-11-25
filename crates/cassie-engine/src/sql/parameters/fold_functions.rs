@@ -498,6 +498,30 @@ impl Fold<'_, '_> {
         metadata: Option<&functions::ScalarFunction>,
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if let Some((metadata, target)) =
+            metadata.and_then(|m| functions::catalog_oid_input(m.id).map(|kind| (m, kind)))
+        {
+            let argument = &mut self.summaries.values[frame.start];
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(
+                    argument,
+                    i32::try_from(target.type_oid()).expect("built-in OID"),
+                    false,
+                )?;
+            } else if argument.qualified
+                && crate::sql::binder::parameter_data_type_for_oid(argument.oid)
+                    .is_some_and(|kind| !crate::sql::binder::oid_arguments::accepts(&kind, target))
+            {
+                self.occurrences
+                    .undefined_function(metadata.name, 1, Some(argument.oid))?;
+            }
+            let result = if target == crate::types::ObjectIdKind::RegClass {
+                16
+            } else {
+                25
+            };
+            return Ok(Some(Summary::known(result)));
+        }
         if metadata.is_some_and(|value| {
             matches!(
                 value.id,

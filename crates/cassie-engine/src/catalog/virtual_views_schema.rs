@@ -126,9 +126,14 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
         "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema),
         "pg_catalog.pg_depend" => Some(virtual_views_dependencies::schema),
         "pg_catalog.pg_shdepend" => Some(virtual_views_shared_dependencies::schema),
-        "pg_catalog.pg_roles" => {
-            Some(|| vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")])
-        }
+        "pg_catalog.pg_roles" => Some(|| {
+            vec![
+                text("rolname"),
+                bool("rolcanlogin"),
+                bool("rolsuper"),
+                virtual_views_pg::oid("oid"),
+            ]
+        }),
         "pg_catalog.pg_settings" => Some(|| {
             vec![
                 text("name"),

@@ -75,7 +75,7 @@ fn should_return_admitted_numeric_error_from_admin_query_worker() {
                 "/api/v1/admin/query/execute",
                 Instant::now(),
                 "numeric_error_response_test",
-                (crate::runtime::QueryCancellationHandle::new(), true),
+                (crate::runtime::QueryCancellationHandle::new(), true, None),
                 move |_, _| {
                     Err(crate::app::CassieError::OwnedNumericLiteral(
                         crate::app::OwnedNumericLiteralError::syntax("bad", &worker_controls)
@@ -209,7 +209,7 @@ fn should_preserve_legacy_admin_query_error_tuple() {
             "/api/v1/admin/query/execute",
             Instant::now(),
             "legacy_numeric_error_test",
-            (crate::runtime::QueryCancellationHandle::new(), false),
+            (crate::runtime::QueryCancellationHandle::new(), false, None),
             move |_, _| {
                 Err(crate::app::CassieError::OwnedNumericLiteral(
                     crate::app::OwnedNumericLiteralError::syntax("bad", &worker_controls)

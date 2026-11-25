@@ -348,7 +348,7 @@ async fn execute_cursor_portal_page(
         crate::app::transport::portal::fetch_portal_page(
             &cassie,
             page,
-            parsed,
+            &parsed,
             &columns,
             requested_rows,
             &controls,

@@ -201,18 +201,21 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn cassie_for_test(&self) -> &Arc<Cassie> {
         &self.cassie
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn has_owner_for_test(&self) -> bool {
         self.owner.is_some()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn authority_for_test(&self) -> FailureAuthority {
         self.authority.clone()
     }
@@ -232,12 +235,14 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn admission_reservation_bytes_for_test(&self) -> usize {
         self.admission.bytes_for_test()
     }
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn admission_reservation_belongs_to_for_test(
         &self,
         controls: &QueryExecutionControls,
@@ -247,6 +252,7 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn owner_reservation_matches_for_test(&self) -> Option<bool> {
         self.owner
             .as_ref()
@@ -255,6 +261,7 @@ impl CopyFromOperation {
 
     #[cfg(any(test, feature = "transport-test-hooks"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn shared_authority_reservation_matches_for_test(&self) -> bool {
         self.authority
             .shared_owner_reservation_matches_for_test(&self.controls)
@@ -415,13 +422,13 @@ impl CopyFromOperation {
         &self,
         session: &CassieSession,
         rows: Vec<Vec<Option<String>>>,
-        options: CopyExecutionOptions<'_>,
+        options: &CopyExecutionOptions<'_>,
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<CopyIngestResult, CopyOperationError> {
         self.execute_decoded_rows_with_controls(
             session,
             rows,
-            &options,
+            options,
             cancellation,
             &self.controls,
         )

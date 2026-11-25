@@ -136,7 +136,7 @@ pub fn open_portal_page(
 pub fn fetch_portal_page(
     cassie: &Cassie,
     mut page: PortalReadPage,
-    parsed: ParsedStatement,
+    parsed: &ParsedStatement,
     columns: &[ColumnMeta],
     requested_rows: usize,
     controls: &QueryExecutionControls,

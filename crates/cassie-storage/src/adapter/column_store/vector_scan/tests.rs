@@ -271,9 +271,9 @@ fn typed_fixture() -> Fixture {
             field("d", DataType::Date),
         ],
         vec![
-            ("1".to_owned(), serde_json::json!({"s": 70000, "f": 1.5, "t": true, "x": "alpha", "d": "2024-01-02"})),
+            ("1".to_owned(), serde_json::json!({"s": 7000, "f": 1.5, "t": true, "x": "alpha", "d": "2024-01-02"})),
             ("2".to_owned(), serde_json::json!({"s": null, "f": null, "t": null, "x": null, "d": null})),
-            ("3".to_owned(), serde_json::json!({"s": -70000, "f": -0.25, "t": false, "x": "é", "d": "1999-12-31"})),
+            ("3".to_owned(), serde_json::json!({"s": -7000, "f": -0.25, "t": false, "x": "é", "d": "1999-12-31"})),
         ],
     );
     fixture
@@ -352,7 +352,7 @@ fn should_return_sql_null_for_a_stored_null_lane() {
 
     // Act
     let batches = fixture
-        .read("typed", &["b"], RowTraversal::CompleteSource, &controls)
+        .read("typed", &["t"], RowTraversal::CompleteSource, &controls)
         .expect("vector read");
 
     // Assert

@@ -161,6 +161,10 @@ mod storage_error_tests {
 
         // Assert
         assert_eq!(error.sql_state(), "42601");
-        assert_eq!(error.to_string(), "truncated column-batch record");
+        assert!(matches!(
+            error,
+            crate::app::CassieError::Parse(ref message)
+                if message == "truncated column-batch record"
+        ));
     }
 }

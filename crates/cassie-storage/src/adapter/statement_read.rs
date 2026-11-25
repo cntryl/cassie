@@ -19,6 +19,7 @@ thread_local! {
 struct ScopedNativeRead {
     snapshot: Arc<NativeStatementSnapshot>,
     checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,
+    _command_memory: Option<Arc<RequestMemoryReservation>>,
 }
 
 /// The concrete request boundary accepted by storage operations.
@@ -291,9 +292,20 @@ impl NativeStatementReadScope {
         snapshot: Option<&Arc<NativeStatementSnapshot>>,
         checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,
     ) -> Self {
+        Self::enter_with_command_memory(snapshot, checkpoint_storage, None)
+    }
+
+    /// Installs a snapshot and an optional per-command lease retained by reads.
+    #[must_use]
+    pub fn enter_with_command_memory(
+        snapshot: Option<&Arc<NativeStatementSnapshot>>,
+        checkpoint_storage: Option<Arc<super::CheckpointStorageSnapshot>>,
+        command_memory: Option<Arc<RequestMemoryReservation>>,
+    ) -> Self {
         let next = snapshot.map(|snapshot| ScopedNativeRead {
             snapshot: Arc::clone(snapshot),
             checkpoint_storage,
+            _command_memory: command_memory,
         });
         let previous = CURRENT_READ.with(|current| current.replace(next));
         Self {

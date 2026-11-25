@@ -11,6 +11,7 @@ use crate::midge::adapter::{
 };
 use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use cassie_core::request::RequestMemoryReservation;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::mem::size_of;
@@ -26,7 +27,7 @@ pub(crate) struct StatementDataRead {
     snapshot: Arc<NativeStatementSnapshot>,
     overlay: Option<Arc<StatementOverlay>>,
     private_outputs: Option<MaterializedReads>,
-    memory: QueryMemoryReservation,
+    memory: Arc<RequestMemoryReservation>,
 }
 
 #[derive(Clone)]
@@ -64,6 +65,17 @@ impl std::fmt::Debug for StatementDataRead {
 }
 
 impl StatementDataRead {
+    fn reserve_owner_memory(
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<RequestMemoryReservation>, CassieError> {
+        let bytes = size_of::<Self>()
+            + 2 * size_of::<usize>()
+            + size_of::<RequestMemoryReservation>()
+            + 2 * size_of::<usize>();
+        let memory = controls.reserve_query_memory(bytes)?.into_core();
+        Ok(Arc::new(memory))
+    }
+
     #[cfg(test)]
     pub(crate) fn shares_native_snapshot_for_test(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.snapshot, &other.snapshot)
@@ -81,7 +93,7 @@ impl StatementDataRead {
         snapshot: Arc<NativeStatementSnapshot>,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<Self>, CassieError> {
-        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let memory = Self::reserve_owner_memory(controls)?;
         Ok(Arc::new(Self {
             snapshot,
             overlay: None,
@@ -126,7 +138,7 @@ impl StatementDataRead {
         let context = controls.storage_request();
         let snapshot =
             NativeStatementSnapshot::capture(midge, database, &context, current_catalog)?;
-        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let memory = Self::reserve_owner_memory(controls)?;
         Ok(Arc::new(Self {
             snapshot,
             private_outputs: None,
@@ -147,7 +159,7 @@ impl StatementDataRead {
         )
         .with_scan_control(controls.query_scan_control_scope());
         context.check_interruption()?;
-        let memory = controls.reserve_query_memory(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let memory = Self::reserve_owner_memory(controls)?;
         Ok(Arc::new(Self {
             snapshot: Arc::clone(&retained.snapshot),
             private_outputs: retained.private_outputs.clone(),
@@ -249,11 +261,12 @@ pub(crate) struct StatementReadScope {
 impl StatementReadScope {
     pub(crate) fn enter(owner: Option<&Arc<StatementDataRead>>) -> Self {
         let native = owner.map(|owner| {
-            NativeStatementReadScope::enter(
+            NativeStatementReadScope::enter_with_command_memory(
                 Some(&owner.snapshot),
                 owner
                     .overlay()
                     .and_then(|overlay| overlay.checkpoint_storage().cloned()),
+                Some(Arc::clone(&owner.memory)),
             )
         });
         Self {

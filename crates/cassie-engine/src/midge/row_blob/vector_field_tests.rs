@@ -136,8 +136,10 @@ fn should_reject_a_non_finite_component_as_the_generic_decoder_does() {
         .vector
         .expect("vector present")
         .to_f32()
+        .map_err(crate::app::CassieError::from)
         .expect_err("direct decode rejects NaN");
 
     // Assert
+    assert_eq!(direct.sql_state(), generic.sql_state());
     assert_eq!(direct.to_string(), generic.to_string());
 }

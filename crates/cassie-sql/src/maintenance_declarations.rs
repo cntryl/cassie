@@ -57,6 +57,6 @@ mod tests {
         // Assert
         assert_eq!(encoded["target_generation"], 5);
         assert_eq!(encoded["fallback_reason"], "maintenance_pending");
-        assert_eq!(artifact, "add_column_backfill:UserId");
+        assert_eq!(artifact, r#"add_column_backfill:"UserId""#);
     }
 }

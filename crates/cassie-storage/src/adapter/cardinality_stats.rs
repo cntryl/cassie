@@ -1,3 +1,5 @@
+use cassie_core::catalog::storage_metadata::compare_histogram_endpoints;
+
 use super::{DocumentRef, FieldCardinalityStats, FieldHeavyHitter, FieldHistogramBucket};
 
 const MAX_HISTOGRAM_BUCKETS: usize = 8;
@@ -17,34 +19,24 @@ pub(super) fn field_cardinality_stats(
             Some(value) => {
                 stats.non_null_count += 1;
                 let canonical = canonical_stat_value(value);
-                *counts.entry(canonical.clone()).or_insert(0) += 1;
-                stats.min_value = match stats.min_value.take() {
-                    Some(current) => Some(current.min(canonical.clone())),
-                    None => Some(canonical.clone()),
-                };
-                stats.max_value = match stats.max_value.take() {
-                    Some(current) => Some(current.max(canonical)),
-                    None => Some(canonical),
-                };
+                *counts.entry(canonical).or_insert(0) += 1;
             }
         }
     }
 
     stats.distinct_count = counts.len() as u64;
     stats.sample_count = documents.len() as u64;
-    stats.histogram_buckets = histogram_buckets(&counts);
+    let mut entries = counts.iter().collect::<Vec<_>>();
+    entries.sort_by(|(left, _), (right, _)| compare_histogram_endpoints(left, right));
+    stats.min_value = entries.first().map(|(value, _)| (*value).clone());
+    stats.max_value = entries.last().map(|(value, _)| (*value).clone());
+    stats.histogram_buckets = histogram_buckets(&entries);
     stats.heavy_hitters = heavy_hitters(&counts);
     stats.confidence = confidence_score(&stats);
     stats
 }
 
-fn histogram_buckets(
-    counts: &std::collections::BTreeMap<String, u64>,
-) -> Vec<FieldHistogramBucket> {
-    if counts.is_empty() {
-        return Vec::new();
-    }
-    let entries = counts.iter().collect::<Vec<_>>();
+fn histogram_buckets(entries: &[(&String, &u64)]) -> Vec<FieldHistogramBucket> {
     let bucket_count = entries.len().min(MAX_HISTOGRAM_BUCKETS);
     let mut buckets = Vec::with_capacity(bucket_count);
 
@@ -112,7 +104,8 @@ mod tests {
     fn should_order_rebuilt_integer_histograms_by_exact_value() {
         // Arrange
         let midge = Midge::new_in_memory("postgres").expect("open memory fixture");
-        let samples: [(&str, DataType, &[i64], &[(&str, u64)]); 2] = [
+        type Fixture<'a> = (&'a str, DataType, &'a [i64], &'a [(&'a str, u64)]);
+        let samples: [Fixture<'_>; 2] = [
             ("numbers", DataType::Int, &[2, 10], &[("2", 1), ("10", 1)]),
             (
                 "wide_numbers",

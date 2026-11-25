@@ -389,6 +389,12 @@ fn should_accept_zoned_timestamp_function_signatures() {
              RETURNS timestamp with time zone IMMUTABLE AS \"x\"",
         )
         .expect("create a function with multiword timestamp types");
+    fixture
+        .execute(
+            "CREATE FUNCTION ts_text(x timestamp with time zone) \
+             RETURNS text AS 'SELECT x::text' LANGUAGE sql",
+        )
+        .expect("create a function that renders its timestamptz argument");
     let signature = single_text(
         &fixture,
         "SELECT to_regprocedure('ts(timestamp with time zone)')::text",
@@ -398,9 +404,12 @@ fn should_accept_zoned_timestamp_function_signatures() {
          '2020-01-01 00:00:00+00'::timestamp with time zone",
     );
 
+    let rendered = single_text(&fixture, "SELECT ts_text('2020-01-01 00:00:00+00')");
+
     // Assert
     assert_eq!(signature, text("ts(timestamp with time zone)"));
     assert_eq!(result, vec![vec![Value::Bool(true)]]);
+    assert_eq!(rendered, text("2020-01-01 00:00:00+00"));
 }
 
 #[test]

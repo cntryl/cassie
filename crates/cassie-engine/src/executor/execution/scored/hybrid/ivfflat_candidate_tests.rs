@@ -196,7 +196,8 @@ fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
         .expect("use standalone IVFFlat candidates");
 
     // Act
-    let actual = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &controls(4096))
+    let hybrid_controls = controls(64 * 1024);
+    let actual = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &hybrid_controls)
         .expect("select IVFFlat hybrid candidates")
         .expect("use trained IVFFlat candidates");
 

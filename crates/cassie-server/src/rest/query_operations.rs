@@ -253,4 +253,27 @@ mod tests {
 
         // Assert
     }
+
+    #[test]
+    fn should_hide_completed_operation_from_other_owners() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let id = uuid::Uuid::new_v4();
+        let owner = owner_fingerprint(Some("completed-operation-owner"));
+        let other_owner = owner_fingerprint(Some("other-completed-operation-owner"));
+        register(id, owner.clone(), QueryCancellationHandle::new())
+            .expect("register")
+            .finish();
+
+        // Act
+        let other_result = runtime.block_on(cancel(id, &other_owner, Duration::ZERO));
+        let owner_result = runtime.block_on(cancel(id, &owner, Duration::ZERO));
+
+        // Assert
+        assert_eq!(other_result, Err(CancelError::NotFound));
+        assert_eq!(owner_result, Err(CancelError::AlreadyCompleted));
+    }
 }

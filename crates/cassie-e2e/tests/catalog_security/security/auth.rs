@@ -288,19 +288,21 @@ fn should_rotate_login_role_password() {
 fn should_require_an_explicit_database_grant_for_non_admin_roles() {
     // Arrange
     let path = data_dir("database_grants");
+    let admin_password = uuid::Uuid::new_v4().to_string();
+    let alice_password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
-        password: "sa-secret".to_string(),
+        password: admin_password.clone(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).unwrap();
     cassie.startup().unwrap();
     let admin = cassie
-        .authenticate_role("root", Some("sa-secret"), None)
+        .authenticate_role("root", Some(&admin_password), None)
         .expect("admin login");
     cassie
         .execute_sql(
             &admin,
-            "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
+            &format!("CREATE ROLE alice LOGIN PASSWORD '{alice_password}'"),
             vec![],
         )
         .expect("create role");
@@ -310,18 +312,27 @@ fn should_require_an_explicit_database_grant_for_non_admin_roles() {
         .expect("analytics database");
 
     // Act
-    let before_grant =
-        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+    let before_grant = cassie.authenticate_role(
+        "alice",
+        Some(&alice_password),
+        Some("analytics".to_string()),
+    );
     cassie
         .grant_role_database_access(&admin, "alice", "analytics")
         .expect("grant analytics");
-    let after_grant =
-        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+    let after_grant = cassie.authenticate_role(
+        "alice",
+        Some(&alice_password),
+        Some("analytics".to_string()),
+    );
     cassie
         .revoke_role_database_access(&admin, "alice", "analytics")
         .expect("revoke analytics");
-    let after_revoke =
-        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+    let after_revoke = cassie.authenticate_role(
+        "alice",
+        Some(&alice_password),
+        Some("analytics".to_string()),
+    );
 
     // Assert
     assert!(matches!(
@@ -432,8 +443,10 @@ fn should_reject_authentication_for_dropped_login_role() {
 fn should_require_opaque_rest_sessions() {
     // Arrange
     let path = data_dir("rest_auth");
+    let admin_password = uuid::Uuid::new_v4().to_string();
+    let alice_password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
-        password: "topsecret".to_string(),
+        password: admin_password.clone(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).unwrap();
@@ -445,12 +458,12 @@ fn should_require_opaque_rest_sessions() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("root", Some("topsecret"), None)
+            .authenticate_role("root", Some(&admin_password), None)
             .expect("admin login");
         cassie
             .execute_sql(
                 &admin,
-                "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
+                &format!("CREATE ROLE alice LOGIN PASSWORD '{alice_password}'"),
                 vec![],
             )
             .expect("create role");
@@ -469,14 +482,14 @@ fn should_require_opaque_rest_sessions() {
             &client,
             format!("http://{addr}/api/v1/auth/login"),
             "root",
-            "topsecret",
+            &admin_password,
         )
         .await;
         let reader_cookie = rest_login_cookie(
             &client,
             format!("http://{addr}/api/v1/auth/login"),
             "alice",
-            "alice-secret",
+            &alice_password,
         )
         .await;
 

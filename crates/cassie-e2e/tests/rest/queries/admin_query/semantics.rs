@@ -301,6 +301,7 @@ fn should_explain_admin_query_through_rest() {
 fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
     // Arrange
     let data_dir = data_dir("restricted-schema-visibility");
+    let reader_password = Uuid::new_v4().to_string();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -312,6 +313,13 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
         let admin = cassie
             .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
             .expect("admin");
+        cassie
+            .execute_sql(
+                &admin,
+                &format!("CREATE ROLE rest_schema_reader LOGIN PASSWORD '{reader_password}'"),
+                Vec::new(),
+            )
+            .expect("create restricted schema reader");
         for sql in [
             "CREATE TABLE rest_schema_visible (id INTEGER)",
             "CREATE TABLE rest_schema_secret (token TEXT)",
@@ -331,7 +339,6 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
              SELECT direct.id FROM GRAPH_TABLE(rest_visibility_graph \
              MATCH (secret IS secret_node) COLUMNS (secret.id)) AS graph_rows \
              JOIN rest_graph_visible direct ON direct.id = graph_rows.id",
-            "CREATE ROLE rest_schema_reader LOGIN PASSWORD 'reader-secret'",
             "GRANT CONNECT ON DATABASE postgres TO rest_schema_reader",
             "GRANT USAGE ON SCHEMA public TO rest_schema_reader",
             "GRANT SELECT ON TABLE public.rest_graph_visible TO rest_schema_reader",
@@ -344,7 +351,7 @@ fn should_hide_ungranted_schema_items_from_restricted_rest_sessions() {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
         let reader_cookie =
-            login_cookie_as(&client, &base_url, "rest_schema_reader", "reader-secret").await;
+            login_cookie_as(&client, &base_url, "rest_schema_reader", &reader_password).await;
 
         // Act
         let response = client

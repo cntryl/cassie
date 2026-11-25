@@ -231,12 +231,18 @@ async fn copy_in_frames_as(
     frames
 }
 
-fn seed_rest_role_fixture(cassie: &Cassie, admin: &CassieSession) {
+fn seed_rest_role_fixture(cassie: &Cassie, admin: &CassieSession, reader_password: &str) {
+    cassie
+        .execute_sql(
+            admin,
+            &format!("CREATE ROLE rest_reader LOGIN PASSWORD '{reader_password}'"),
+            Vec::new(),
+        )
+        .expect("REST reader role SQL");
     for sql in [
         "CREATE TABLE rest_role_docs (title TEXT)",
         "INSERT INTO rest_role_docs (title) VALUES ('alpha')",
         "CREATE TABLE rest_hidden_docs (title TEXT)",
-        "CREATE ROLE rest_reader LOGIN PASSWORD 'reader-secret'",
         "GRANT USAGE ON SCHEMA public TO rest_reader",
         "GRANT SELECT ON TABLE public.rest_role_docs TO rest_reader",
     ] {
@@ -250,14 +256,17 @@ fn seed_rest_role_fixture(cassie: &Cassie, admin: &CassieSession) {
 fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     // Arrange
     let path = data_dir("statement_families");
+    let admin_password = uuid::Uuid::new_v4().to_string();
+    let reader_password = uuid::Uuid::new_v4().to_string();
+    let blocked_password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
-        password: "sa-secret".to_string(),
+        password: admin_password.clone(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("sa-secret"), None)
+        .authenticate_role("root", Some(&admin_password), None)
         .expect("admin login");
     cassie
         .execute_sql(
@@ -276,7 +285,7 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     cassie
         .execute_sql(
             &admin,
-            "CREATE ROLE reader LOGIN PASSWORD 'reader-secret'",
+            &format!("CREATE ROLE reader LOGIN PASSWORD '{reader_password}'"),
             Vec::new(),
         )
         .expect("create reader role");
@@ -289,7 +298,7 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
             .expect("grant reader access");
     }
     let reader = cassie
-        .authenticate_role("reader", Some("reader-secret"), None)
+        .authenticate_role("reader", Some(&reader_password), None)
         .expect("reader login");
 
     // Act
@@ -310,11 +319,11 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
         "DELETE FROM role_docs",
         "COPY role_docs FROM STDIN WITH (FORMAT CSV)",
         "CREATE TABLE blocked_table (title TEXT)",
-        "CREATE ROLE blocked_role LOGIN PASSWORD 'blocked-secret'",
+        &format!("CREATE ROLE blocked_role LOGIN PASSWORD '{blocked_password}'"),
         r#"CREATE PROCEDURE blocked_proc() AS "SELECT title FROM role_docs""#,
         "CREATE MATERIALIZED PROJECTION blocked_projection AS SELECT title FROM role_docs",
         "CREATE RETENTION POLICY blocked_retention ON role_docs USING event_at RETAIN FOR '1 day'",
-        "ALTER ROLE sa PASSWORD 'blocked-secret'",
+        &format!("ALTER ROLE sa PASSWORD '{blocked_password}'"),
     ]
     .into_iter()
     .map(|sql| (sql, cassie.execute_sql(&reader, sql, Vec::new())))
@@ -356,16 +365,18 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
 fn should_enforce_authenticated_read_only_access_through_rest() {
     // Arrange
     let path = data_dir("rest");
+    let admin_password = uuid::Uuid::new_v4().to_string();
+    let reader_password = uuid::Uuid::new_v4().to_string();
     let config = CassieRuntimeConfig {
-        password: "sa-secret".to_string(),
+        password: admin_password.clone(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("sa-secret"), None)
+        .authenticate_role("root", Some(&admin_password), None)
         .expect("admin login");
-    seed_rest_role_fixture(&cassie, &admin);
+    seed_rest_role_fixture(&cassie, &admin, &reader_password);
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -385,7 +396,7 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
             .post(format!("http://{addr}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "rest_reader",
-                "password": "reader-secret"
+                "password": reader_password
             }))
             .send()
             .await

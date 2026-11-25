@@ -6,11 +6,13 @@ use cassie::app::Cassie;
 
 use pgwire_support::{data_dir, parse_error_fields, password_message, startup_frame};
 
-const TEST_PASSWORD: &str = "cassie-pgwire-startup-password";
+fn fixture_password() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
 
-fn authenticated_config() -> cassie::config::CassieRuntimeConfig {
+fn authenticated_config(password: &str) -> cassie::config::CassieRuntimeConfig {
     cassie::config::CassieRuntimeConfig {
-        password: TEST_PASSWORD.to_string(),
+        password: password.to_string(),
         ..cassie::config::CassieRuntimeConfig::default()
     }
 }
@@ -60,6 +62,7 @@ async fn read_wire_frame(
 async fn complete_password_authentication(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
     writer: &mut tokio::net::tcp::WriteHalf<'_>,
+    password: &str,
 ) -> (i32, i32) {
     let (challenge_tag, _, challenge_payload) = read_wire_frame(reader).await;
     assert_eq!(challenge_tag, b'R', "password challenge should use R tag");
@@ -68,7 +71,7 @@ async fn complete_password_authentication(
             .try_into()
             .expect("authentication challenge code"),
     );
-    tokio::io::AsyncWriteExt::write_all(writer, &password_message(TEST_PASSWORD))
+    tokio::io::AsyncWriteExt::write_all(writer, &password_message(password))
         .await
         .expect("write password");
     let (authenticated_tag, _, authenticated_payload) = read_wire_frame(reader).await;
@@ -125,7 +128,8 @@ fn should_validate_every_startup_parameter_regardless_of_user_value() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let config = authenticated_config();
+            let password = fixture_password();
+            let config = authenticated_config(&password);
             let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
             cassie.startup().unwrap();
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -201,7 +205,8 @@ fn should_support_binary_startup_with_password_authentication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = authenticated_config();
+        let password = fixture_password();
+        let config = authenticated_config(&password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -228,7 +233,8 @@ fn should_support_binary_startup_with_password_authentication() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
+        let authentication =
+            complete_password_authentication(&mut reader, &mut write_half, &password).await;
 
         // Assert
         assert_eq!(authentication, (3, 0));
@@ -250,7 +256,8 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = authenticated_config();
+        let password = fixture_password();
+        let config = authenticated_config(&password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -277,7 +284,8 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
+        let authentication =
+            complete_password_authentication(&mut reader, &mut write_half, &password).await;
         let mut statuses = Vec::new();
         loop {
             let (tag, _len, payload) = read_wire_frame(&mut reader).await;
@@ -316,7 +324,8 @@ fn should_emit_backend_key_data_after_authentication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = authenticated_config();
+        let password = fixture_password();
+        let config = authenticated_config(&password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -338,7 +347,7 @@ fn should_emit_backend_key_data_after_authentication() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("root", "postgres"))
             .await
             .expect("write startup");
-        complete_password_authentication(&mut reader, &mut write_half).await;
+        complete_password_authentication(&mut reader, &mut write_half, &password).await;
 
         // Act
         let mut backend_key = None;
@@ -375,7 +384,8 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = authenticated_config();
+        let password = fixture_password();
+        let config = authenticated_config(&password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -409,7 +419,8 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
+        let authentication =
+            complete_password_authentication(&mut reader, &mut write_half, &password).await;
 
         // Assert
         assert_eq!(authentication, (3, 0));
@@ -431,7 +442,8 @@ fn should_return_not_supported_for_ssl_request() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = authenticated_config();
+        let password = fixture_password();
+        let config = authenticated_config(&password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -481,8 +493,9 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = authenticated_config();
-        config.password = "correct-password".to_string();
+        let correct_password = fixture_password();
+        let wrong_password = fixture_password();
+        let config = authenticated_config(&correct_password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
@@ -514,7 +527,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         assert_eq!(tag, b'R', "password challenge should use R tag");
 
         // password challenge for cleartext auth expects tag "R" status 3 then password message
-        let payload = password_message("wrong-password");
+        let payload = password_message(&wrong_password);
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &payload)
             .await
             .expect("write password");

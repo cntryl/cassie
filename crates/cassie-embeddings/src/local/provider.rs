@@ -16,6 +16,22 @@ pub struct LocalProvider {
     dimensions: usize,
 }
 
+/// Domain bytes are part of the deterministic local embedding format.
+#[derive(Clone, Copy)]
+enum EmbeddingDomain {
+    Document,
+    Query,
+}
+
+impl EmbeddingDomain {
+    const fn label(self) -> &'static [u8] {
+        match self {
+            Self::Document => b"document",
+            Self::Query => b"query",
+        }
+    }
+}
+
 impl LocalProvider {
     /// # Errors
     ///
@@ -38,7 +54,7 @@ impl LocalProvider {
         })
     }
 
-    fn derive_embedding(&self, input: &str, salt: &str) -> Embedding {
+    fn derive_embedding(&self, input: &str, domain: EmbeddingDomain) -> Embedding {
         let mut values = Vec::with_capacity(self.dimensions);
         let mut counter = 0u64;
 
@@ -46,7 +62,7 @@ impl LocalProvider {
             let mut hasher = Sha256::new();
             hasher.update(self.model.as_bytes());
             hasher.update([0]);
-            hasher.update(salt.as_bytes());
+            hasher.update(domain.label());
             hasher.update([0]);
             hasher.update(input.as_bytes());
             hasher.update(counter.to_be_bytes());
@@ -85,12 +101,12 @@ impl EmbeddingProvider for LocalProvider {
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
         Ok(inputs
             .iter()
-            .map(|input| self.derive_embedding(input, "document"))
+            .map(|input| self.derive_embedding(input, EmbeddingDomain::Document))
             .collect())
     }
 
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
-        Ok(self.derive_embedding(input, "query"))
+        Ok(self.derive_embedding(input, EmbeddingDomain::Query))
     }
 
     fn embed_query_with_interruption(
@@ -119,5 +135,46 @@ fn normalize(values: &mut [f32]) {
 
     for value in values {
         *value /= magnitude;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_preserve_deterministic_document_and_query_embeddings() {
+        // Arrange
+        let provider = LocalProvider::with_config(LocalProviderConfig {
+            model: "compat-model".to_owned(),
+            dimensions: 8,
+        })
+        .unwrap();
+        let input = "same input";
+        let expected = [
+            [
+                -0.438_204, -0.376_842, -0.429_595, 0.140_897, 0.311_611, -0.050_743, -0.423_699,
+                0.427_044,
+            ],
+            [
+                -0.368_898, -0.596_904, 0.025_896, 0.146_161, -0.414_255, 0.334_858, -0.403_034,
+                -0.198_527,
+            ],
+        ];
+
+        // Act
+        let documents = provider.embed_documents(&[input.to_owned()]).unwrap();
+        let query = provider.embed_query(input).unwrap();
+
+        // Assert
+        for (embedding, expected) in [&documents[0], &query].into_iter().zip(expected) {
+            assert_eq!(embedding.values.len(), expected.len());
+            for (actual, expected) in embedding.values.iter().zip(expected) {
+                assert!(
+                    (actual - expected).abs() < 0.000_002,
+                    "actual {actual}, expected {expected}"
+                );
+            }
+        }
     }
 }

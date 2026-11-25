@@ -294,10 +294,11 @@ fn should_require_admin_authorization_to_create_database() {
     let root = cassie
         .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
+    let reader_password = Uuid::new_v4().to_string();
     cassie
         .execute_sql(
             &root,
-            "CREATE ROLE reader LOGIN PASSWORD 'reader-secret'",
+            &format!("CREATE ROLE reader LOGIN PASSWORD '{reader_password}'"),
             Vec::new(),
         )
         .expect("create reader");
@@ -309,7 +310,7 @@ fn should_require_admin_authorization_to_create_database() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let reader_cookie = login_cookie(&client, &base_url, "reader", "reader-secret").await;
+        let reader_cookie = login_cookie(&client, &base_url, "reader", &reader_password).await;
 
         // Act
         let unauthorized = client
@@ -345,16 +346,23 @@ fn should_scope_admin_database_listing_to_granted_databases() {
     let root = cassie
         .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
+    let reader_password = Uuid::new_v4().to_string();
     for statement in [
         "CREATE DATABASE analytics",
         "CREATE DATABASE secrets",
-        "CREATE ROLE reader LOGIN PASSWORD 'reader-secret'",
         "GRANT CONNECT ON DATABASE analytics TO reader",
     ] {
         cassie
             .execute_sql(&root, statement, Vec::new())
             .expect("grant-scoped database fixture");
     }
+    cassie
+        .execute_sql(
+            &root,
+            &format!("CREATE ROLE reader LOGIN PASSWORD '{reader_password}'"),
+            Vec::new(),
+        )
+        .expect("create reader");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -363,7 +371,7 @@ fn should_scope_admin_database_listing_to_granted_databases() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let reader_cookie = login_cookie(&client, &base_url, "reader", "reader-secret").await;
+        let reader_cookie = login_cookie(&client, &base_url, "reader", &reader_password).await;
 
         // Act
         let response = client

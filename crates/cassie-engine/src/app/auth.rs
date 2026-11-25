@@ -365,7 +365,9 @@ impl Cassie {
 mod tests {
     use super::*;
 
-    const TEST_PASSWORD: &str = "cassie-rest-listener-password";
+    fn fixture_password() -> String {
+        uuid::Uuid::new_v4().to_string()
+    }
 
     fn password_hash_generation_count() -> usize {
         PASSWORD_HASH_GENERATION_COUNT.with(std::cell::Cell::get)
@@ -401,8 +403,9 @@ mod tests {
     #[test]
     fn should_require_rest_tls_for_actual_non_loopback_listener() {
         // Arrange
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password,
             ..crate::config::CassieRuntimeConfig::default()
         };
         let (cassie, path) = cassie_with_config("requires-tls", config);
@@ -422,8 +425,9 @@ mod tests {
     #[test]
     fn should_return_credential_free_network_principal() {
         // Arrange
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password: password.clone(),
             ..crate::config::CassieRuntimeConfig::default()
         };
         let (cassie, path) = cassie_with_config("network-principal", config);
@@ -432,7 +436,7 @@ mod tests {
         let principal = cassie
             .authenticate_network_principal(
                 "root",
-                Some(TEST_PASSWORD),
+                Some(&password),
                 None,
                 "127.0.0.1".parse().expect("peer address"),
             )
@@ -469,8 +473,9 @@ mod tests {
     #[test]
     fn should_allow_password_authenticated_loopback_rest_listener_without_tls() {
         // Arrange
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password,
             ..crate::config::CassieRuntimeConfig::default()
         };
         let (cassie, path) = cassie_with_config("loopback", config);
@@ -488,8 +493,9 @@ mod tests {
     #[test]
     fn should_preserve_explicit_insecure_non_loopback_rest_listener_override() {
         // Arrange
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password,
             allow_insecure_non_loopback_listen: true,
             ..crate::config::CassieRuntimeConfig::default()
         };
@@ -525,8 +531,9 @@ mod tests {
     fn should_hash_fresh_bootstrap_credentials_once_during_startup() {
         // Arrange
         let path = test_path("startup-hash");
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password,
             ..crate::config::CassieRuntimeConfig::default()
         };
         reset_password_hash_generation_count();
@@ -546,8 +553,9 @@ mod tests {
     fn should_reuse_persisted_bootstrap_hash_during_restart_authentication() {
         // Arrange
         let path = test_path("restart-hash");
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password: password.clone(),
             ..crate::config::CassieRuntimeConfig::default()
         };
         let initial =
@@ -561,7 +569,7 @@ mod tests {
             Cassie::new_with_data_dir_and_config(&path, config).expect("restarted Cassie");
         restarted.startup().expect("restart");
         let generated_during_restart = password_hash_generation_count();
-        let authentication = restarted.authenticate_principal("root", Some(TEST_PASSWORD), None);
+        let authentication = restarted.authenticate_principal("root", Some(&password), None);
         let generated_after_authentication = password_hash_generation_count();
         drop(restarted);
         let _ = std::fs::remove_dir_all(path);
@@ -576,10 +584,12 @@ mod tests {
     fn should_hash_rotated_bootstrap_credentials_once_during_restart() {
         // Arrange
         let path = test_path("rotated-hash");
+        let old_password = fixture_password();
+        let new_password = fixture_password();
         let initial = Cassie::new_with_data_dir_and_config(
             &path,
             crate::config::CassieRuntimeConfig {
-                password: "old-password".to_string(),
+                password: old_password.clone(),
                 ..crate::config::CassieRuntimeConfig::default()
             },
         )
@@ -592,7 +602,7 @@ mod tests {
         let restarted = Cassie::new_with_data_dir_and_config(
             &path,
             crate::config::CassieRuntimeConfig {
-                password: "new-password".to_string(),
+                password: new_password.clone(),
                 ..crate::config::CassieRuntimeConfig::default()
             },
         )
@@ -600,9 +610,9 @@ mod tests {
         restarted.startup().expect("rotated startup");
         let generated_during_restart = password_hash_generation_count();
         let old_authentication =
-            restarted.authenticate_principal("root", Some("old-password"), None);
+            restarted.authenticate_principal("root", Some(&old_password), None);
         let new_authentication =
-            restarted.authenticate_principal("root", Some("new-password"), None);
+            restarted.authenticate_principal("root", Some(&new_password), None);
         let generated_after_authentication = password_hash_generation_count();
         drop(restarted);
         let _ = std::fs::remove_dir_all(path);
@@ -618,8 +628,9 @@ mod tests {
     fn should_share_lazy_authentication_hashes_across_cassie_clones() {
         // Arrange
         let path = test_path("shared-hashes");
+        let password = fixture_password();
         let config = crate::config::CassieRuntimeConfig {
-            password: TEST_PASSWORD.to_string(),
+            password,
             ..crate::config::CassieRuntimeConfig::default()
         };
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
@@ -627,9 +638,10 @@ mod tests {
         reset_password_hash_generation_count();
 
         // Act
-        let first = cassie.authenticate_principal("root", Some("wrong"), None);
+        let wrong_password = fixture_password();
+        let first = cassie.authenticate_principal("root", Some(&wrong_password), None);
         let generated_after_first = password_hash_generation_count();
-        let second = cloned.authenticate_principal("root", Some("wrong"), None);
+        let second = cloned.authenticate_principal("root", Some(&wrong_password), None);
         let generated_after_second = password_hash_generation_count();
         drop(cloned);
         drop(cassie);
@@ -650,12 +662,13 @@ mod tests {
             crate::config::CassieRuntimeConfig::default(),
         );
         PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
+        let wrong_password = fixture_password();
 
         // Act
-        let known = cassie.authenticate_principal("root", Some("wrong"), None);
+        let known = cassie.authenticate_principal("root", Some(&wrong_password), None);
         let known_count = PASSWORD_VERIFICATION_COUNT.with(std::cell::Cell::get);
         PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
-        let unknown = cassie.authenticate_principal("missing-user", Some("wrong"), None);
+        let unknown = cassie.authenticate_principal("missing-user", Some(&wrong_password), None);
         let unknown_count = PASSWORD_VERIFICATION_COUNT.with(std::cell::Cell::get);
 
         // Assert

@@ -3,6 +3,7 @@ use super::support_pgwire as support;
 use tokio::io::AsyncWriteExt;
 
 fn database_copy_error(sql: &str) -> Vec<(char, String)> {
+    let reader_password = uuid::Uuid::new_v4().to_string();
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
@@ -11,7 +12,7 @@ fn database_copy_error(sql: &str) -> Vec<(char, String)> {
     cassie
         .execute_sql(
             &admin,
-            "CREATE ROLE image_reader LOGIN PASSWORD 'reader-secret'",
+            &format!("CREATE ROLE image_reader LOGIN PASSWORD '{reader_password}'"),
             vec![],
         )
         .expect("create reader");
@@ -52,7 +53,7 @@ fn database_copy_error(sql: &str) -> Vec<(char, String)> {
             &mut write_half,
             "image_reader",
             "postgres",
-            "reader-secret",
+            &reader_password,
         )
         .await;
         write_half

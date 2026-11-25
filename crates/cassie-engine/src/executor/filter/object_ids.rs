@@ -116,16 +116,15 @@ fn relation_is_publishable(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
-    let oid = match args {
-        [Value::String(text)] => with_scope(session, |scope| {
+    let oid = if let [Value::String(text)] = args {
+        with_scope(session, |scope| {
             scope.resolve_required(ObjectIdKind::RegClass, text)
-        })?,
-        _ => {
-            let Some(oid) = oid_argument(name, args)? else {
-                return Ok(Value::Null);
-            };
-            oid
-        }
+        })?
+    } else {
+        let Some(oid) = oid_argument(name, args)? else {
+            return Ok(Value::Null);
+        };
+        oid
     };
     with_scope(session, |scope| {
         Ok(scope

@@ -17,23 +17,30 @@ fn validate_series(
     Ok(())
 }
 
+fn validate_partition_ancestors(
+    function: &FunctionCall,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let [argument] = function.args.as_slice() else {
+        return Err(CassieError::Execution(
+            "pg_partition_ancestors requires one regclass argument".into(),
+        ));
+    };
+    if function.has_modifiers() {
+        return Err(CassieError::Execution(
+            "pg_partition_ancestors does not accept aggregate modifiers".into(),
+        ));
+    }
+    validate_expression(argument, lateral_fields, &HashSet::new(), false)
+}
+
 fn validate_table_function(
     function: &FunctionCall,
     form: Option<&TableFunctionForm>,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
     if crate::sql::table_sources::is_partition_ancestors(&function.name) {
-        let [argument] = function.args.as_slice() else {
-            return Err(CassieError::Execution(
-                "pg_partition_ancestors requires one regclass argument".into(),
-            ));
-        };
-        if function.has_modifiers() {
-            return Err(CassieError::Execution(
-                "pg_partition_ancestors does not accept aggregate modifiers".into(),
-            ));
-        }
-        return validate_expression(argument, lateral_fields, &HashSet::new(), false);
+        return validate_partition_ancestors(function, lateral_fields);
     }
     if crate::sql::table_sources::is_series(&function.name) {
         return validate_series(function, lateral_fields);

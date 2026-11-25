@@ -303,12 +303,11 @@ fn carrier(name: &str, oid: u32) -> DataType {
         23 => DataType::Int,
         700 | 701 => DataType::Float,
         22 if name == "prattrs" => DataType::Array(Box::new(DataType::SmallInt)),
-        1002 => DataType::Array(Box::new(DataType::Text)),
+        1002 | 1009 => DataType::Array(Box::new(DataType::Text)),
         1028 => DataType::Array(Box::new(DataType::ObjectId(
             crate::types::ObjectIdKind::Oid,
         ))),
         1005 => DataType::Array(Box::new(DataType::SmallInt)),
-        1009 => DataType::Array(Box::new(DataType::Text)),
         // Opaque catalog identities have no admitted value here because these
         // registries have no objects. Their native type/codecs remain #793 work.
         _ => DataType::Text,

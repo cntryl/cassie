@@ -62,18 +62,12 @@ impl SequenceMoveBuilder<'_> {
                 continue;
             };
             let current_name = self.cassie.midge.canonical_collection_name(sequence_name);
-            if self
-                .moved_sources
-                .contains(&current_name.to_ascii_lowercase())
-            {
+            if self.moved_sources.contains(&current_name) {
                 continue;
             }
             let Some(sequence) = self.sequences.iter().find_map(|sequence| {
-                self.cassie
-                    .midge
-                    .canonical_collection_name(&sequence.name)
-                    .eq_ignore_ascii_case(&current_name)
-                    .then(|| sequence.clone())
+                let name = self.cassie.midge.canonical_collection_name(&sequence.name);
+                (name == current_name).then(|| sequence.clone())
             }) else {
                 return Err(QueryError::General(format!(
                     "sequence '{current_name}' does not exist"
@@ -109,12 +103,10 @@ impl SequenceMoveBuilder<'_> {
         if let Some(owner) = sequence.owned_by.as_mut() {
             self.next_table.clone_into(&mut owner.table);
         }
-        if !current_name.eq_ignore_ascii_case(&next_name) {
-            self.plan
-                .renames
-                .insert(current_name.to_ascii_lowercase(), next_name);
+        if current_name != next_name {
+            self.plan.renames.insert(current_name.clone(), next_name);
         }
-        self.moved_sources.insert(current_name.to_ascii_lowercase());
+        self.moved_sources.insert(current_name.clone());
         self.plan.updates.push((current_name, sequence));
         Ok(())
     }
@@ -211,12 +203,12 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
             continue;
         };
         let next_name = crate::catalog::serial_sequence_name(table, &constraint.field);
-        if current_name.eq_ignore_ascii_case(&next_name) {
+        if cassie.midge.canonical_collection_name(current_name) == next_name {
             continue;
         }
         if sequences
             .iter()
-            .any(|sequence| sequence.name.eq_ignore_ascii_case(&next_name))
+            .any(|sequence| cassie.midge.canonical_collection_name(&sequence.name) == next_name)
         {
             return Err(QueryError::Cassie(
                 crate::app::DiagnosticError::new(
@@ -244,10 +236,7 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
         cassie.catalog.unregister_sequence(&stored_name);
         cassie.catalog.register_sequence(sequence);
         sequence_renames.insert(
-            cassie
-                .midge
-                .canonical_collection_name(&stored_name)
-                .to_ascii_lowercase(),
+            cassie.midge.canonical_collection_name(&stored_name),
             next_name.clone(),
         );
         constraints[index].default_sequence = Some(next_name.clone());
@@ -262,7 +251,7 @@ pub(super) fn rename_owned_table_sequences(cassie: &Cassie, table: &str) -> Resu
                 .as_deref()
                 .is_some_and(|sequence| {
                     crate::catalog::serial_sequence_name(table, &constraint.field)
-                        .eq_ignore_ascii_case(sequence)
+                        == cassie.midge.canonical_collection_name(sequence)
                 })
     }) {
         cassie.midge.save_constraints(table, &constraints)?;
@@ -315,7 +304,7 @@ fn reserve_sequence_move_target(
     indexes: &[crate::catalog::IndexMeta],
     reserved_names: &mut HashSet<String>,
 ) -> Result<(), QueryError> {
-    if !reserved_names.insert(next_name.to_ascii_lowercase()) {
+    if !reserved_names.insert(next_name.to_owned()) {
         return Err(QueryError::Cassie(
             crate::app::DiagnosticError::new(
                 "42P07",
@@ -324,17 +313,14 @@ fn reserve_sequence_move_target(
             .into(),
         ));
     }
-    if !current_name.eq_ignore_ascii_case(next_name)
+    if current_name != next_name
         && (sequences
             .iter()
-            .any(|sequence| sequence.name.eq_ignore_ascii_case(next_name))
+            .any(|sequence| cassie.midge.canonical_collection_name(&sequence.name) == next_name)
             || cassie.catalog.relation_exists(next_name)
-            || indexes.iter().any(|index| {
-                cassie
-                    .midge
-                    .canonical_collection_name(&index.name)
-                    .eq_ignore_ascii_case(next_name)
-            }))
+            || indexes
+                .iter()
+                .any(|index| cassie.midge.canonical_collection_name(&index.name) == next_name))
     {
         return Err(QueryError::Cassie(
             crate::app::DiagnosticError::new(
@@ -354,7 +340,7 @@ pub(super) fn move_owned_table_sequences(
 ) -> Result<(), QueryError> {
     for (current_name, sequence) in plan.updates {
         cassie.midge.put_sequence(&sequence)?;
-        if !current_name.eq_ignore_ascii_case(&sequence.name) {
+        if current_name != sequence.name {
             cassie.midge.delete_sequence(&current_name)?;
             cassie.catalog.unregister_sequence(&current_name);
         }
@@ -387,7 +373,7 @@ pub(super) fn rename_schema_sequences(
         }
         cassie.midge.delete_sequence(&current_name)?;
         cassie.midge.put_sequence(&sequence)?;
-        sequence_renames.insert(current_name.to_ascii_lowercase(), sequence.name);
+        sequence_renames.insert(current_name, sequence.name);
     }
     rewrite_constraint_references(cassie, &sequence_renames, relation_renames)
 }
@@ -437,15 +423,8 @@ fn rewrite_default_sequence(
 ) -> bool {
     let renamed = |name: &str| {
         sequence_renames
-            .get(&name.to_ascii_lowercase())
-            .or_else(|| {
-                sequence_renames.get(
-                    &cassie
-                        .midge
-                        .canonical_collection_name(name)
-                        .to_ascii_lowercase(),
-                )
-            })
+            .get(name)
+            .or_else(|| sequence_renames.get(&cassie.midge.canonical_collection_name(name)))
             .cloned()
     };
     let mut changed = false;

@@ -1,5 +1,5 @@
 use super::schema_fields::apply_default_constraint;
-use super::schema_identifiers::{parse_column_reference, parse_identifier};
+use super::schema_identifiers::{parse_column_reference, parse_identifier, parse_relation_path};
 use super::sequence_options::{parse_sequence_clauses, SequenceClauseRules};
 use super::{
     parse_if_exists, parse_if_not_exists, split_first_token, AlterSequenceStatement,
@@ -116,10 +116,7 @@ pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStateme
     let (if_not_exists, rest) = parse_if_not_exists(rest);
     let (name, trailing) = split_first_token(rest)
         .ok_or_else(|| SqlError::new("CREATE SEQUENCE requires a name".into()))?;
-    let name = parse_identifier(&name)?;
-    if name.is_empty() {
-        return Err(SqlError::new("CREATE SEQUENCE requires a name".into()));
-    }
+    let name = parse_relation_path(&name)?.into_string();
     let clauses = parse_sequence_clauses(
         trailing,
         SequenceClauseRules {
@@ -164,7 +161,7 @@ pub(super) fn parse_alter_sequence_statement(sql: &str) -> Result<ParsedStatemen
     let (if_exists, rest) = parse_if_exists(rest);
     let (name, trailing) = split_first_token(rest)
         .ok_or_else(|| SqlError::new("ALTER SEQUENCE requires a name".into()))?;
-    let name = parse_identifier(&name)?;
+    let name = parse_relation_path(&name)?.into_string();
     let clauses = parse_sequence_clauses(
         trailing,
         SequenceClauseRules {
@@ -192,9 +189,9 @@ pub(super) fn parse_drop_sequence_statement(sql: &str) -> Result<ParsedStatement
     let (if_exists, rest) = parse_if_exists(rest);
     let mut names = super::split_csv(rest)
         .iter()
-        .map(|name| parse_identifier(name.trim()))
+        .map(|name| parse_relation_path(name.trim()).map(crate::ast::IdentifierPath::into_string))
         .collect::<Result<Vec<_>, _>>()?;
-    if names.is_empty() || names.iter().any(String::is_empty) {
+    if names.is_empty() {
         return Err(SqlError::new("DROP SEQUENCE requires a name".into()));
     }
     if names

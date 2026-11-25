@@ -19,19 +19,19 @@ impl Catalog {
     pub fn register_sequence(&self, metadata: SequenceMeta) {
         self.sequences
             .write()
-            .insert(metadata.name.to_ascii_lowercase(), metadata);
+            .insert(metadata.name.clone(), metadata);
         self.bump_version();
     }
 
     /// Mirrors nontransactional cursor state for an existing sequence without
     /// changing its structural catalog version.
     pub(crate) fn update_sequence_cursor(&self, metadata: &SequenceMeta) {
-        let key = metadata.name.to_ascii_lowercase();
+        let key = &metadata.name;
         let mut sequences = self.sequences.write();
         // Storage publishes the canonical (database-qualified) name, while the
         // catalog may hold the same sequence under its shorter registered name.
-        let target = if sequences.contains_key(&key) {
-            Some(key)
+        let target = if sequences.contains_key(key) {
+            Some(key.clone())
         } else {
             sequences
                 .iter()
@@ -73,8 +73,7 @@ impl Catalog {
 
     pub fn unregister_sequence(&self, name: &str) {
         let mut sequences = self.sequences.write();
-        let key = name.to_ascii_lowercase();
-        if sequences.remove(&key).is_none() {
+        if sequences.remove(name).is_none() {
             let matching_key = sequences
                 .iter()
                 .find(|(_, sequence)| name_matches(&sequence.name, name))
@@ -88,9 +87,8 @@ impl Catalog {
 
     #[must_use]
     pub fn get_sequence(&self, name: &str) -> Option<SequenceMeta> {
-        let key = name.to_ascii_lowercase();
         let sequences = self.sequences.read();
-        sequences.get(&key).cloned().or_else(|| {
+        sequences.get(name).cloned().or_else(|| {
             sequences
                 .values()
                 .find(|sequence| name_matches(&sequence.name, name))
@@ -106,7 +104,7 @@ impl Catalog {
     #[must_use]
     pub fn list_sequences(&self) -> Vec<SequenceMeta> {
         let mut out = self.sequences.read().values().cloned().collect::<Vec<_>>();
-        out.sort_by_key(|sequence| sequence.name.to_ascii_lowercase());
+        out.sort_by(|left, right| left.name.cmp(&right.name));
         out
     }
 }

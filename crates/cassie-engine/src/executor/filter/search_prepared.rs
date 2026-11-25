@@ -188,11 +188,15 @@ impl Vocabulary for ContextVocabulary<'_> {
         matchers: &[TermMatcher],
         limit: usize,
     ) -> Result<Vec<Vec<String>>, Self::Error> {
-        let key = crate::sql::ColumnIdentifierPath::reference_field_key(self.field);
         let terms = self
             .context
             .doc_frequency
-            .get(&key)
+            .get(self.field)
+            .or_else(|| {
+                // Persisted single-field statistics use the base column's catalog key.
+                let base = crate::sql::ColumnIdentifierPath::reference_field_key(self.field);
+                self.context.doc_frequency.get(&base)
+            })
             .into_iter()
             .flat_map(|terms| terms.keys().map(String::as_str));
         Ok(matching_terms_in(terms, matchers, limit))
@@ -244,10 +248,7 @@ impl SearchContext {
         let (Some(context), Some(field)) = (context, field) else {
             return Self::resolve_uncached(input, &analyzer, &DocumentVocabulary(document));
         };
-        let key = (
-            crate::sql::ColumnIdentifierPath::reference_field_key(field),
-            input.text.clone(),
-        );
+        let key = (field.to_owned(), input.text.clone());
         if let Ok(cache) = context.prepared_queries.0.lock() {
             if let Some(found) = cache.get(&key) {
                 return Ok(Arc::clone(found));

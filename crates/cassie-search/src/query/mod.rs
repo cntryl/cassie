@@ -17,6 +17,7 @@ use std::fmt::{Display, Formatter};
 pub use compile::CompiledQuery;
 pub use eval::DocumentPositions;
 pub use expand::{matching_terms_in, TermMatcher, Vocabulary};
+pub use parse::requires_vocabulary;
 pub use resolve::{ResolveError, ResolvedQuery};
 
 /// A query compilation or expansion error, independent of the execution engine.

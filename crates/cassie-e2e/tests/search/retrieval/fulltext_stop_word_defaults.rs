@@ -120,3 +120,32 @@ fn should_restore_analyzer_default_stop_words_after_reset() {
     // Assert
     assert_eq!((before, after), (0, 1));
 }
+
+#[test]
+fn should_filter_stop_words_before_stemming_snippet_tokens() {
+    // Arrange
+    let cassie = docs(" WITH (stemming = 'english')", &["buts but", "but", "buts"]);
+
+    // Act
+    let rows = run(
+        &cassie,
+        "SELECT search(body, 'buts'), snippet(body, 'buts'), \
+         snippet(body, 'buts', 'terms'), snippet(body, 'buts', 'query') \
+         FROM docs ORDER BY label",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(
+        rows,
+        [
+            (true, "<mark>buts</mark> but"),
+            (false, "but"),
+            (true, "<mark>buts</mark>")
+        ]
+        .map(|(hit, snippet)| {
+            let excerpt = Value::String(snippet.to_string());
+            vec![Value::Bool(hit), excerpt.clone(), excerpt.clone(), excerpt]
+        })
+    );
+}

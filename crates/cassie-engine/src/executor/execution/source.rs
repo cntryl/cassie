@@ -30,6 +30,8 @@ mod source_json_table_columns;
 mod source_options;
 #[path = "source_pull.rs"]
 mod source_pull;
+#[path = "source_search_context.rs"]
+mod source_search_context;
 #[path = "source_series.rs"]
 mod source_series;
 #[path = "source_set_function.rs"]
@@ -482,9 +484,9 @@ pub(super) fn execute_source_query_with_outer_row(
     let candidate_rows = loaded
         .scanned_rows
         .unwrap_or_else(|| batches.iter().map(std::vec::Vec::len).sum::<usize>());
-    let fulltext_fields = plan_inspection::fulltext_query_fields(plan);
-    let search_context =
-        build_search_context(env.cassie, plan, &batches, &text_fields, &fulltext_fields)?;
+    let fulltext_fields = plan_inspection::SearchFields::for_plan(plan, env.params);
+    let (search_context, _vocabulary_memory) =
+        source_search_context::build(env, plan, &batches, &text_fields, &fulltext_fields)?;
     let phase_env = env.phase_env(search_context.as_ref());
     let resolved_filter;
     (batches, resolved_filter) =
@@ -539,7 +541,7 @@ pub(super) fn execute_source_query_with_outer_row(
     record_plan_metrics(
         env.cassie,
         plan,
-        &fulltext_fields,
+        &fulltext_fields.scored,
         started_at.elapsed(),
         candidate_rows,
         rows.len(),
@@ -605,77 +607,6 @@ fn load_source_batches(
         batches = attach_outer_scope(batches, outer_row, env.controls)?;
     }
     Ok((batches, text_fields))
-}
-
-fn build_search_context(
-    cassie: &Cassie,
-    plan: &LogicalPlan,
-    batches: &[Batch],
-    text_fields: &[String],
-    fulltext_fields: &HashSet<String>,
-) -> Result<Option<filter::SearchContext>, QueryError> {
-    if fulltext_fields.is_empty() {
-        return Ok(None);
-    }
-    let options = search_context_options(cassie, &plan.source, &plan.ctes, fulltext_fields)?;
-    cassie
-        .runtime
-        .record_fulltext_row_scan_fallback("authoritative_row_scan");
-    Ok(Some(filter::SearchContext::from_rows(
-        batches.iter().flat_map(|batch| batch.iter()),
-        text_fields,
-        &options.boost,
-        &options.k1,
-        &options.b,
-        &options.analyzer,
-    )))
-}
-
-struct SearchContextOptions {
-    boost: HashMap<String, f64>,
-    k1: HashMap<String, f64>,
-    b: HashMap<String, f64>,
-    analyzer: HashMap<String, AnalyzerConfig>,
-}
-
-fn search_context_options(
-    cassie: &Cassie,
-    source: &QuerySource,
-    ctes: &[crate::sql::ast::CommonTableExpression],
-    fulltext_fields: &HashSet<String>,
-) -> Result<SearchContextOptions, QueryError> {
-    // A derived table or CTE that passes a base table's columns through
-    // unrenamed searches with that table's fulltext index options.
-    let Some(name) = super::fulltext_options::fulltext_base_collection(source, ctes) else {
-        return Ok(SearchContextOptions {
-            boost: HashMap::new(),
-            k1: HashMap::new(),
-            b: HashMap::new(),
-            analyzer: HashMap::new(),
-        });
-    };
-
-    let mut field_boost = HashMap::with_capacity(cassie.catalog.text_fields(name).len());
-    for field in cassie.catalog.text_fields(name) {
-        if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
-            field_boost.insert(
-                crate::sql::ColumnIdentifierPath::stored_field_key(&field),
-                f64::from(value),
-            );
-        }
-    }
-
-    let index_options = load_fulltext_index_options(cassie, name, fulltext_fields)?;
-    for (field, value) in index_options.field_boost {
-        field_boost.insert(field, value);
-    }
-
-    Ok(SearchContextOptions {
-        boost: field_boost,
-        k1: index_options.field_k1,
-        b: index_options.field_b,
-        analyzer: index_options.field_analyzer,
-    })
 }
 
 struct PhaseExecutionEnv<'a> {

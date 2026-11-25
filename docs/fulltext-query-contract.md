@@ -149,15 +149,27 @@ that belong to satisfied positive items:
   corpus-wide, exactly as for the `'terms'` syntax. The boost, `k1` and `b`
   index options apply as before.
 
+Both indexed and authoritative scoring use an effective average document length
+of `max(1, average analyzed token count)` for BM25 length normalization. The
+average counts empty text as zero tokens. Once the average exceeds one, length
+normalization uses the corpus average directly.
+
 `search(..., 'query')` is true when the expression is satisfied.
 
 ## Snippets
 
+`snippet(body, q)` and `snippet(body, q, 'terms')` mark source tokens that
+survive the same stop-word removal, stemming and other analysis used by
+`search(body, q)`.
+
 `snippet(body, q, 'query')` wraps in `<mark>` the source spans of the tokens
 that satisfied positive items. For phrases only tokens that take part in a
-phrase occurrence are marked, so a stray occurrence of one phrase word elsewhere
-in the text is not. Items under `NOT` are never marked. A row that does not
-match is returned unmarked.
+phrase occurrence are marked, leaving stray occurrences elsewhere unchanged.
+Items under `NOT` are never marked. A row that does not match is returned
+unmarked.
+
+Highlights preserve the original source text, including combining marks on a
+matched token when accent folding removes them from the analyzed term.
 
 ## Limits and diagnostics
 

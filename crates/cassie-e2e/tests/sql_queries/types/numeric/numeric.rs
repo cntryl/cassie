@@ -231,7 +231,7 @@ fn should_support_numeric_typmod_precision_above_thirty_eight_digits() {
 }
 
 #[test]
-fn should_match_scalar_index_and_scan_for_numeric_special_values() {
+fn should_match_scanned_numeric_special_values_through_a_scalar_index() {
     // Arrange
     let fixture = sql_fixture(
         "numeric-special-index-scan-parity",

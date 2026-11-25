@@ -500,7 +500,7 @@ fn retained_row() -> (Vec<u8>, Vec<u8>) {
 }
 
 #[test]
-fn should_drop_an_empty_database_after_its_issued_writable_handle_closes_and_storage_reopens() {
+fn should_drop_an_empty_database_after_reopening_storage_without_its_native_writer() {
     // Arrange
     let path = std::env::temp_dir().join(format!("cassie-drop-reopen-{}", uuid::Uuid::new_v4()));
     let database = "drop_recovered";

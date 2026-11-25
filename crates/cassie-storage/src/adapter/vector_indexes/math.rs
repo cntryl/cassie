@@ -111,7 +111,7 @@ mod tests {
     use super::list_bounds;
 
     #[test]
-    fn should_cover_original_coordinates_after_normalization_and_center_rounding() {
+    fn should_bound_original_coordinates_after_rounding_normalized_vectors() {
         // Arrange
         let rounded = [0.1_f32, 1.0e-35];
         let ordinary = [[-2.0_f32, 3.0], [4.0, -6.5]];

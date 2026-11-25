@@ -48,7 +48,7 @@ fn should_preserve_tab_partitions_through_index_lifecycle() {
 }
 
 #[test]
-fn should_read_ambiguous_composite_partitions_through_writes_and_restart() {
+fn should_read_ambiguous_composite_partitions_across_reopen_after_writes() {
     use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 
     // Arrange

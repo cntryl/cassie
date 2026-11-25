@@ -599,6 +599,7 @@ fn should_leave_dropped_index_artifacts_absent_when_an_old_rebuild_resumes() {
         )
         .expect("create source table");
 
+    // Act: exercise the same delayed rebuild schedule for each index family.
     for (kind, field, options) in [
         (IndexKind::FullText, "body", BTreeMap::new()),
         (
@@ -620,6 +621,7 @@ fn should_leave_dropped_index_artifacts_absent_when_an_old_rebuild_resumes() {
             unique: false,
             options,
         };
+        // Assert: the retired artifact prefix stays empty through name reuse.
         assert_index_rebuild_stays_retired(&midge, &declaration);
     }
 }

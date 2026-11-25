@@ -198,9 +198,9 @@ responses must have finite coordinates after conversion to `f32`. Cassie also ch
 and finiteness before publishing a query embedding from any provider into its cache. A rejected
 response leaves the query eligible to fetch a replacement.
 
-Cassie does not infer a hosted
-service's quota or override `Retry-After`, so operators should choose retry counts and query
-deadlines from that service's current rate-limit policy and monitor rejected requests. Authentication
+Cassie does not infer a hosted service's quota or override `Retry-After`, so operators should
+choose retry counts and query deadlines from that service's current rate-limit policy and
+monitor rejected requests. Authentication
 and rate-limit behavior is verified with deterministic mock providers; this is protocol evidence,
 not a hosted-availability or account-authorization guarantee.
 

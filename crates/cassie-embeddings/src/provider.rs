@@ -116,7 +116,18 @@ pub(crate) fn controlled_request_timeout(
     Ok(configured.min(remaining))
 }
 
-pub(crate) fn controlled_backoff(
+pub(crate) fn retry_after_failure(
+    provider: &str,
+    retries: &mut usize,
+    interruption: Option<Interruption<'_>>,
+) -> Result<(), EmbeddingError> {
+    // Callers only retry while the number already used is below the configured budget.
+    *retries += 1;
+    let delay = Duration::from_millis(50_u64.saturating_mul(*retries as u64));
+    controlled_backoff(provider, delay, interruption)
+}
+
+fn controlled_backoff(
     provider: &str,
     delay: Duration,
     interruption: Option<Interruption<'_>>,

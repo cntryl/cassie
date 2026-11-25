@@ -1,5 +1,9 @@
-use crate::provider::{controlled_backoff, controlled_request_timeout, run_controlled_request};
-use crate::response::{read_response, validate_response_indices, ResponseReadError};
+use crate::provider::{
+    check_controls, controlled_request_timeout, retry_after_failure, run_controlled_request,
+};
+use crate::response::{
+    read_response, validate_response_components, validate_response_indices, ResponseReadError,
+};
 use crate::EmbeddingProvider;
 use cassie_core::request::Interruption;
 use std::time::{Duration, Instant};
@@ -115,7 +119,7 @@ impl OpenAiProvider {
             request_timeout: config.timeout,
             base_url: config.base_url,
             max_batch_size: config.max_batch_size.max(1),
-            max_retries: config.max_retries.max(1),
+            max_retries: config.max_retries,
             max_response_bytes: crate::DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
@@ -187,9 +191,9 @@ impl OpenAiProvider {
         };
         let endpoint = format!("{}/v1/embeddings", self.base_url.trim_end_matches('/'));
 
-        let mut attempt = 0usize;
+        let mut retries = 0usize;
         loop {
-            attempt += 1;
+            let attempt = retries.saturating_add(1);
             let started = Instant::now();
             let response =
                 self.request_embedding_batch(&endpoint, request.clone(), interruption)?;
@@ -206,7 +210,7 @@ impl OpenAiProvider {
                         );
                     }
 
-                    if Self::is_transient_status(status) && attempt < self.max_retries {
+                    if Self::is_transient_status(status) && retries < self.max_retries {
                         tracing::warn!(
                             provider = %self.provider_name(),
                             model = %self.model,
@@ -215,8 +219,7 @@ impl OpenAiProvider {
                             max_retries = self.max_retries,
                             "transient OpenAI response; retrying"
                         );
-                        let delay = Duration::from_millis(50 * attempt as u64);
-                        controlled_backoff(self.provider_name(), delay, interruption)?;
+                        retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                         continue;
                     }
 
@@ -230,7 +233,7 @@ impl OpenAiProvider {
                 }
                 Err(error) => {
                     let is_timeout = error.is_timeout();
-                    if (is_timeout || error.is_connect()) && attempt < self.max_retries {
+                    if (is_timeout || error.is_connect()) && retries < self.max_retries {
                         tracing::warn!(
                             provider = %self.provider_name(),
                             model = %self.model,
@@ -238,11 +241,7 @@ impl OpenAiProvider {
                             max_retries = self.max_retries,
                             "transient OpenAI network error; retrying"
                         );
-                        controlled_backoff(
-                            self.provider_name(),
-                            Duration::from_millis(50 * attempt as u64),
-                            interruption,
-                        )?;
+                        retry_after_failure(self.provider_name(), &mut retries, interruption)?;
                         continue;
                     }
 
@@ -268,7 +267,6 @@ impl OpenAiProvider {
             serde_json::from_str(response_body).map_err(|error| {
                 EmbeddingError::ParseError(format!("OpenAI response parse failure: {error}"))
             })?;
-        self.log_success(elapsed_ms, input_count, parsed.usage.as_ref());
         let mut ordered = parsed.data;
         ordered.sort_by_key(|entry| entry.index);
         if ordered.len() != input_count {
@@ -285,7 +283,9 @@ impl OpenAiProvider {
                     self.dimensions
                 )));
             }
+            validate_response_components("OpenAI", &item.embedding)?;
         }
+        self.log_success(elapsed_ms, input_count, parsed.usage.as_ref());
         Ok(ordered
             .into_iter()
             .map(|entry| Embedding {
@@ -349,6 +349,7 @@ impl EmbeddingProvider for OpenAiProvider {
         inputs: &[String],
         interruption: Interruption<'_>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
+        check_controls(self.provider_name(), interruption)?;
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
             out.extend(self.embed_documents_batch(chunk, Some(interruption))?);

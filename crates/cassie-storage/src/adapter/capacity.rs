@@ -323,7 +323,7 @@ mod tests {
         let after = midge.capacity_report();
 
         // Assert
-        assert_eq!(owner.as_ref(), b"row");
+        assert_eq!(owner.as_slice(), b"row");
         assert_eq!(
             before.categories[CATEGORY_SCALAR_INDEXES].total_bytes,
             after.categories[CATEGORY_SCALAR_INDEXES].total_bytes + reservation_bytes

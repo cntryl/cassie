@@ -220,7 +220,7 @@ pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
         (CapacityKeyKind::ScalarIndex, FAMILY_SCALAR_INDEX),
         (CapacityKeyKind::ScalarIndex, FAMILY_TIME_SERIES_INDEX),
         (CapacityKeyKind::IndexMetadata, FAMILY_INDEX),
-        (CapacityKeyKind::IndexMetadata, FAMILY_UNIQUE_RESERVATION),
+        (CapacityKeyKind::ScalarIndex, FAMILY_UNIQUE_RESERVATION),
         (CapacityKeyKind::VectorSidecar, FAMILY_VECTOR_INDEX),
         (CapacityKeyKind::VectorSidecar, FAMILY_NORMALIZED_VECTOR),
         (CapacityKeyKind::ColumnBatch, FAMILY_COLUMN_BATCH),

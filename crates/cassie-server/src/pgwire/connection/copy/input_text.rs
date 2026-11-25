@@ -53,7 +53,6 @@ pub(super) fn parse_text_payload(
     null_marker: &str,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<CopyRowsWithMemory, CassieError> {
-    crate::app::copy_decode::validate_payload_utf8(payload, controls)?;
     let mut memory = controls.reserve_query_memory(0)?;
     let mut row_memory = controls.reserve_query_memory(0)?;
     let mut rows = Vec::new();
@@ -103,11 +102,19 @@ pub(super) fn parse_text_payload(
             field_start = index;
             if newline || crlf {
                 line_start = index;
-                ending.get_or_insert(if crlf {
+                let style = if crlf {
                     LineEnding::Crlf
                 } else {
                     LineEnding::Lf
-                });
+                };
+                if ending.is_some_and(|previous| previous != style) {
+                    return Err(DiagnosticError::new(
+                        "22P04",
+                        "mixed record endings in text COPY data",
+                    )
+                    .into());
+                }
+                ending = Some(style);
                 crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
                 rows.push(std::mem::take(&mut row));
                 memory.absorb(row_memory);
@@ -140,6 +147,12 @@ fn push_text_field(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(), CassieError> {
     controls.check_interruption()?;
+    // Only consumed fields need encoding validation. Check the raw field
+    // before unescaping so an escaped byte cannot repair invalid input.
+    crate::app::copy_decode::validate_payload_utf8(raw, controls).map_err(|error| match error {
+        CassieError::Parse(_) => invalid_utf8(),
+        other => other,
+    })?;
     crate::app::copy_decode::grow_text_vec(row, memory, controls)?;
     let mut is_null = raw.len() == null_marker.len();
     if is_null {
@@ -166,11 +179,14 @@ fn push_text_field(
         ));
     }
     decode_escapes(raw, &mut bytes, controls)?;
-    let field = String::from_utf8(bytes)
-        .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".into()))?;
+    let field = String::from_utf8(bytes).map_err(|_| invalid_utf8())?;
     memory.absorb(field_memory);
     row.push(Some(field));
     Ok(())
+}
+
+fn invalid_utf8() -> CassieError {
+    DiagnosticError::new("22021", "COPY payload must be UTF-8").into()
 }
 
 fn hex_value(byte: Option<&u8>) -> Option<u32> {

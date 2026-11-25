@@ -11,7 +11,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::Value;
 
 use super::writers::{
-    append_command_complete_frame, append_data_row_frame_in, append_portal_suspended_frame,
+    append_command_complete_frame, append_portal_suspended_frame, append_result_data_row_frame_in,
     append_row_description_frame, select_command_tag,
 };
 
@@ -234,22 +234,24 @@ impl<'a> QueryResultFrames<'a> {
                 for (column, value) in replacements {
                     row[column] = value;
                 }
-                append_data_row_frame_in(
+                append_result_data_row_frame_in(
                     &mut self.bytes,
                     &row,
                     columns,
                     formats,
                     postgres_array_text_columns,
                     temporal,
+                    self.result.map(|result| (result, row_index)),
                 )
             }
-            _ => append_data_row_frame_in(
+            _ => append_result_data_row_frame_in(
                 &mut self.bytes,
                 row,
                 columns,
                 formats,
                 postgres_array_text_columns,
                 temporal,
+                self.result.map(|result| (result, row_index)),
             ),
         }
     }

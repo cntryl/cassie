@@ -7,7 +7,7 @@ use crate::app::CassieError;
 use crate::executor::retained_memory::{add, value_clone_bytes};
 use crate::runtime::owned_memory::{allocation_error, grow_vec, try_reserve_vec};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::Value;
+use crate::types::{typed::TypedValue, Value};
 
 use super::types::ColumnMeta;
 #[path = "result_rendering.rs"]
@@ -23,6 +23,9 @@ struct QueryResultPayload {
     /// The OIDs behind `reg*` columns, whose rows hold rendered names.
     #[serde(skip)]
     object_oids: Vec<(usize, Vec<Option<u32>>)>,
+    /// Binary REAL NaN bits that the public text representation cannot retain.
+    #[serde(skip)]
+    real_nan_bits: Vec<RealNan>,
     /// Columns whose direct text protocol output uses PostgreSQL array text.
     #[serde(skip)]
     postgres_array_text_columns: Vec<usize>,
@@ -30,6 +33,20 @@ struct QueryResultPayload {
     temporal: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
     #[serde(skip)]
     memory: QueryMemoryReservation,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct RealNan {
+    row: usize,
+    column: usize,
+    bits: u32,
+}
+
+fn real_nan_bits(value: &Value) -> Option<u32> {
+    let Value::Typed(TypedValue::Real(real)) = value else {
+        return None;
+    };
+    real.is_nan().then(|| real.to_bits())
 }
 
 struct PendingRow {
@@ -73,6 +90,16 @@ impl QueryResult {
             .and_then(|(_, oids)| oids.get(row).copied().flatten())
     }
 
+    /// The original binary payload for a REAL result rendered as NaN.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn real_nan_bits(&self, row: usize, column: usize) -> Option<u32> {
+        let bits = &self.payload.real_nan_bits;
+        bits.binary_search_by_key(&(row, column), |value| (value.row, value.column))
+            .ok()
+            .map(|index| bits[index].bits)
+    }
+
     #[doc(hidden)]
     #[must_use]
     pub fn postgres_array_text_columns(&self) -> &[usize] {
@@ -112,6 +139,7 @@ impl QueryResult {
             rows: Vec::new(),
             command: String::new(),
             object_oids: Vec::new(),
+            real_nan_bits: Vec::new(),
             postgres_array_text_columns: Vec::new(),
             memory,
             controls,
@@ -161,6 +189,7 @@ impl QueryResult {
             self.rows(),
             self.command(),
             &self.payload.object_oids,
+            &self.payload.real_nan_bits,
             &self.payload.postgres_array_text_columns,
         )
     }
@@ -177,6 +206,7 @@ impl QueryResult {
             self.columns(),
             rows,
             self.command(),
+            &[],
             &[],
             &self.payload.postgres_array_text_columns,
         )
@@ -198,6 +228,7 @@ impl QueryResult {
             self.rows(),
             command,
             &self.payload.object_oids,
+            &self.payload.real_nan_bits,
             &self.payload.postgres_array_text_columns,
         )
     }
@@ -241,14 +272,14 @@ impl QueryResult {
         size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>()
     }
 
-    /// Rebuilds the result; `object_oids` carries `reg*` identities only when
-    /// the rows are unchanged.
+    /// Rebuilds the result, retaining binary metadata when rows are unchanged.
     fn try_rebuild(
         controls: &QueryExecutionControls,
         columns: &[ColumnMeta],
         rows: &[Vec<Value>],
         command: &str,
         object_oids: &[(usize, Vec<Option<u32>>)],
+        real_nan_bits: &[RealNan],
         postgres_array_text_columns: &[usize],
     ) -> Result<Self, CassieError> {
         let mut builder = Self::try_builder(controls)?;
@@ -260,6 +291,12 @@ impl QueryResult {
         }
         for (column, oids) in object_oids {
             builder.try_set_object_oids(*column, oids.clone())?;
+        }
+        if !real_nan_bits.is_empty() {
+            let (mut retained, memory) = try_reserve_vec(real_nan_bits.len(), &builder.memory)?;
+            retained.extend_from_slice(real_nan_bits);
+            builder.real_nan_bits = retained;
+            builder.memory.absorb(memory);
         }
         builder.try_set_postgres_array_text_columns(postgres_array_text_columns)?;
         builder.try_set_command(command)?;
@@ -274,6 +311,7 @@ pub struct QueryResultBuilder<'a> {
     rows: Vec<Vec<Value>>,
     command: String,
     object_oids: Vec<(usize, Vec<Option<u32>>)>,
+    real_nan_bits: Vec<RealNan>,
     postgres_array_text_columns: Vec<usize>,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
@@ -307,15 +345,21 @@ impl QueryResultBuilder<'_> {
         self.controls.check_interruption()?;
         let temporal = crate::executor::filter::temporal::session_of(Some(self.controls));
         let _rendering_memory = rendering::admit(values.clone(), self.controls, &temporal)?;
-        let (count, variable_bytes) =
-            values.clone().try_fold((0, 0), |(count, bytes), value| {
-                self.controls.check_interruption()?;
-                let value_bytes = match value {
-                    Value::Typed(typed) => rendering::format(typed, &temporal).capacity(),
-                    other => value_clone_bytes(other)?,
-                };
-                Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_bytes)?))
-            })?;
+        let (count, variable_bytes, real_nans) =
+            values
+                .clone()
+                .try_fold((0, 0, 0), |(count, bytes, real_nans), value| {
+                    self.controls.check_interruption()?;
+                    let value_bytes = match value {
+                        Value::Typed(typed) => rendering::format(typed, &temporal).capacity(),
+                        other => value_clone_bytes(other)?,
+                    };
+                    Ok::<_, CassieError>((
+                        add(count, 1)?,
+                        add(bytes, value_bytes)?,
+                        add(real_nans, usize::from(real_nan_bits(value).is_some()))?,
+                    ))
+                })?;
         let variable_memory = self.memory.try_sibling(variable_bytes)?;
         grow_vec(&mut self.rows, 1, &mut self.memory)?;
         let (row, row_memory) = try_reserve_vec(count, &self.memory)?;
@@ -324,7 +368,7 @@ impl QueryResultBuilder<'_> {
             slots: row_memory,
             heap: variable_memory,
         };
-        for value in values {
+        for value in values.clone() {
             self.controls.check_interruption()?;
             // Natively represented types publish their PostgreSQL text output.
             pending.values.push(match value {
@@ -338,6 +382,14 @@ impl QueryResultBuilder<'_> {
             .try_fold(0, |bytes, value| add(bytes, value_clone_bytes(value)?))?;
         if actual_heap > pending.heap.bytes() {
             pending.heap.try_grow(actual_heap - pending.heap.bytes())?;
+        }
+        if real_nans != 0 {
+            grow_vec(&mut self.real_nan_bits, real_nans, &mut self.memory)?;
+            let row = self.rows.len();
+            self.real_nan_bits
+                .extend(values.enumerate().filter_map(|(column, value)| {
+                    real_nan_bits(value).map(|bits| RealNan { row, column, bits })
+                }));
         }
         self.rows.push(pending.values);
         self.memory.absorb(pending.slots);
@@ -434,6 +486,7 @@ impl QueryResultBuilder<'_> {
                 rows: self.rows,
                 command: self.command,
                 object_oids: self.object_oids,
+                real_nan_bits: self.real_nan_bits,
                 postgres_array_text_columns: self.postgres_array_text_columns,
                 temporal,
                 memory: self.memory,

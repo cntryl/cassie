@@ -83,3 +83,61 @@ pub(super) fn list_bounds(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
+
+    use super::list_bounds;
+
+    #[test]
+    fn should_cover_original_coordinates_after_normalization_and_center_rounding() {
+        // Arrange
+        let rounded = [0.1_f32, 1.0e-35];
+        let ordinary = [[-2.0_f32, 3.0], [4.0, -6.5]];
+        let vectors = [rounded, ordinary[0], ordinary[1]];
+        let centroids = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
+        let records = vectors.map(|vector| crate::vector::normalize(&vector).expect("normalize"));
+        let mut assignments = BTreeMap::new();
+        let records = records
+            .into_iter()
+            .enumerate()
+            .map(|(position, record)| {
+                let id = position.to_string();
+                assignments.insert(id.clone(), usize::from(position != 0));
+                NormalizedVectorRecord {
+                    collection: "vectors".to_owned(),
+                    field: "embedding".to_owned(),
+                    id,
+                    built_generation: 0,
+                    dimensions: 2,
+                    metric: DistanceMetric::Dot,
+                    normalization_version: 1,
+                    values: record.values,
+                    magnitude: record.magnitude,
+                    payload_available: true,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let bounds = list_bounds(&records, &assignments, &centroids);
+
+        // Assert
+        for (record, vector) in records.iter().zip(vectors) {
+            let bound = &bounds[assignments[&record.id]];
+            let (center, radius) = bound.split_at(2);
+            for query in [[0.0, -1.0], [1.0, 0.0], [0.0, 1.0], [-5.0, 7.0]] {
+                let actual = crate::vector::dot_score(&query, &vector);
+                let reach = crate::vector::dot_score(&query, center)
+                    + crate::vector::dot_score(&query, &query).sqrt() * f64::from(radius[0]);
+                assert!(
+                    reach >= actual,
+                    "query {query:?}, vector {vector:?}, bound {bound:?}"
+                );
+            }
+        }
+    }
+}

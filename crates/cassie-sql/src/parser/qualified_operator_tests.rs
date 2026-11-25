@@ -218,3 +218,60 @@ fn should_rebase_offsets_at_each_recursive_left_slice() {
     assert_eq!(inner_span.start, inner.find("OPERATOR").unwrap());
     assert!(prefix_binary.is_none(), "the qualified minus is a prefix");
 }
+
+#[test]
+fn should_lower_a_qualified_regex_in_the_psql_relation_discovery_predicate() {
+    // Arrange
+    use crate::ast::{BinaryOp, Expr};
+
+    let standalone = "c.relname OPERATOR(pg_catalog.~) '^(probe_docs)$' COLLATE pg_catalog.default";
+    let sql = "c.relname OPERATOR(pg_catalog.~) '^(probe_docs)$' COLLATE pg_catalog.default \
+               AND pg_catalog.pg_table_is_visible(c.oid)";
+
+    // Act
+    let parsed = super::super::parse_expression(sql).expect("psql relation discovery predicate");
+    let standalone = super::super::parse_expression(standalone).expect("standalone qualified regex");
+
+    // Assert
+    let Expr::Binary {
+        left,
+        op: BinaryOp::And,
+        right,
+    } = parsed
+    else {
+        panic!("expected AND conjunction");
+    };
+    assert_eq!(standalone, *left);
+    let Expr::Function(regex) = *left else {
+        panic!("expected regex predicate function");
+    };
+    assert_eq!(regex.name, "regexp_like");
+    assert!(matches!(
+        regex.args.as_slice(),
+        [_, Expr::Collate { expr, collation }]
+            if matches!(expr.as_ref(), Expr::StringLiteral(pattern) if pattern == "^(probe_docs)$")
+                && collation == "default"
+    ));
+    assert!(matches!(
+        right.as_ref(),
+        Expr::Function(function) if function.name == "pg_catalog.pg_table_is_visible"
+    ));
+}
+
+#[test]
+fn should_preserve_selected_collation_namespaces_for_qualified_regex_operands() {
+    // Arrange
+    let statements = [
+        "'a' OPERATOR(pg_catalog.~) 'a' COLLATE default",
+        "'a' OPERATOR(pg_catalog.~) 'a' COLLATE public.default",
+        "'a' OPERATOR(pg_catalog.~) 'a' COLLATE pg_catalog.unselected",
+    ];
+    // Act
+    let errors = statements.map(|sql| {
+        super::super::parse_expression(sql).expect_err("collation remains unsupported")
+    });
+    // Assert
+    assert!(errors
+        .iter()
+        .all(|error| error.kind() == SqlErrorKind::Unsupported));
+}

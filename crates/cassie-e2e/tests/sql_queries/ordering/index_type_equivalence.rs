@@ -332,5 +332,6 @@ fn should_use_scalar_index_for_equality_on_domain_over_int() {
 
     // Assert
     assert!(plan.contains("index_aware=true"), "{plan}");
-    assert!(plan.contains("index=t_v"), "{plan}");
+    let index = crate::support_sql::canonical_test_index(&fixture.cassie, "t", "t_v");
+    assert!(plan.contains(&format!("index={index}")), "{plan}");
 }

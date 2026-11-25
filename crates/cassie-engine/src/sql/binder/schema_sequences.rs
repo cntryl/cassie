@@ -41,12 +41,10 @@ pub(super) fn resolve_sequence_name(
     if catalog.sequence_exists(&qualified) {
         return Ok(Some(qualified));
     }
-    if crate::catalog::parse_name(raw.trim())
-        .is_ok_and(|parsed| matches!(parsed, crate::catalog::ParsedName::Unqualified(_)))
-    {
+    if let Ok(crate::catalog::ParsedName::Unqualified(name)) = crate::catalog::parse_name(raw) {
         for schema in context.relation_search_order() {
             let candidate =
-                crate::catalog::canonical_relation_name(&context.database, schema, raw.trim());
+                crate::catalog::canonical_relation_name(&context.database, schema, &name);
             if catalog.sequence_exists(&candidate) {
                 return Ok(Some(candidate));
             }

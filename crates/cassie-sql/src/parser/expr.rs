@@ -194,28 +194,16 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = membership_split(raw, " between ") {
         return parse_between_expression(left, right, false);
     }
-    for (op, parsed) in [
+    if let Some((left, op, right)) = super::operators::ordinary_comparison(raw) {
+        return row_predicates::comparison(left, op, right);
+    }
+    for (token, op) in [
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
         (" <#> ", BinaryOp::PgvectorDot),
-        ("<=", BinaryOp::Lte),
-        (">=", BinaryOp::Gte),
-        ("<>", BinaryOp::NotEq),
-        ("!=", BinaryOp::NotEq),
-        ("=", BinaryOp::Eq),
-        ("<", BinaryOp::Lt),
-        (">", BinaryOp::Gt),
     ] {
-        let split = if op.starts_with(' ') {
-            split_top_level(raw, op)
-        } else {
-            super::operators::split_operator(raw, op, false)
-        };
-        if let Some((left, right)) = split {
-            if let Some(comparison) = comparison_after_pgvector_operand(raw, &parsed, right) {
-                return comparison;
-            }
-            return row_predicates::comparison(left, parsed, right);
+        if let Some((left, right)) = split_top_level(raw, token) {
+            return row_predicates::comparison(left, op, right);
         }
     }
     row_predicates::reject_unselected_row_image_operator(raw)?;
@@ -230,40 +218,6 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 fn membership_split<'a>(raw: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
     split_top_level(raw, keyword)
         .filter(|(left, _)| !super::membership_precedence::left_operand_has_comparison(left))
-}
-
-/// pgvector distance operators bind tighter than comparisons, so
-/// `a <-> b < 1` is `(a <-> b) < 1`. `right` is the suffix of `raw` after the
-/// distance operator; split the comparison out of it when one is present.
-fn comparison_after_pgvector_operand(
-    raw: &str,
-    distance: &BinaryOp,
-    right: &str,
-) -> Option<Result<Expr, SqlError>> {
-    if !matches!(
-        distance,
-        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot
-    ) || [" <=> ", " <-> ", " <#> "]
-        .iter()
-        .any(|token| right.contains(token))
-    {
-        return None;
-    }
-    for (token, op) in [
-        ("<=", BinaryOp::Lte),
-        (">=", BinaryOp::Gte),
-        ("<>", BinaryOp::NotEq),
-        ("!=", BinaryOp::NotEq),
-        ("=", BinaryOp::Eq),
-        ("<", BinaryOp::Lt),
-        (">", BinaryOp::Gt),
-    ] {
-        if let Some((operand, rest)) = super::operators::split_operator(right, token, false) {
-            let end = raw.len() - right.len() + operand.len();
-            return Some(row_predicates::comparison(&raw[..end], op, rest));
-        }
-    }
-    None
 }
 
 /// The "any other operator" tokens split at the prefix-expression level.

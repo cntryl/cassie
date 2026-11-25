@@ -29,7 +29,7 @@ impl std::fmt::Debug for SessionSequenceValues {
 
 fn sequence_identity(name: &str, identity: u64) -> String {
     if identity == 0 {
-        format!("name:{}", name.to_ascii_lowercase())
+        format!("name:{name}")
     } else {
         format!("id:{identity}")
     }
@@ -77,7 +77,7 @@ impl CassieSession {
                 .by_sequence
                 .insert(sequence_identity(sequence, identity), value);
             if from_nextval {
-                values.last = Some((sequence.to_ascii_lowercase(), identity));
+                values.last = Some((sequence.to_owned(), identity));
             }
             Ok(())
         })

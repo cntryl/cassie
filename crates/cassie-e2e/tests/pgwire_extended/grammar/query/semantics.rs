@@ -87,3 +87,87 @@ fn should_reject_nested_block_comments_beyond_one_hundred_twenty_eight_levels() 
     );
     assert_eq!(wire::data_rows(result), Vec::<Vec<Option<String>>>::new());
 }
+
+#[test]
+fn should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands() {
+    // Arrange
+    let chained = [
+        "SELECT true = false = false",
+        "SELECT 1 < 2 <= 3",
+        "SELECT 1 >= 2 <> 3",
+    ];
+    let control = "SELECT true = (false = false), (1 < 2) = (2 <= 3)";
+    let steps = chained
+        .into_iter()
+        .chain([control])
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .collect();
+
+    // Act
+    let batches = run_script("ordinary-comparison-association", steps);
+
+    // Assert
+    for (sql, batch) in chained.into_iter().zip(&batches) {
+        assert_eq!(wire::error_code(batch).as_deref(), Some("42601"), "{sql}");
+        assert_eq!(
+            wire::data_rows(batch),
+            Vec::<Vec<Option<String>>>::new(),
+            "{sql}"
+        );
+    }
+    let valid = &batches[chained.len()];
+    assert_eq!(wire::error_code(valid), None);
+    assert_eq!(
+        wire::data_rows(valid),
+        vec![vec![Some("t".into()), Some("t".into())]]
+    );
+}
+
+#[test]
+fn should_report_unclosed_nested_comments_across_sql_entry_points() {
+    // Arrange
+    let unfinished = "SELECT 1 /* outer /* inner */";
+    let balanced = "SELECT 1 /* outer /* inner */ */";
+
+    // Act
+    let parsed = cassie::sql::parser::parse_statement(unfinished);
+    let balanced_parse = cassie::sql::parser::parse_statement(balanced);
+    let batches = run_script(
+        "unfinished-nested-comment",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(unfinished)]),
+            Step::ThroughReady(vec![wire::simple_query_frame(balanced)]),
+            Step::ThroughReady(vec![
+                wire::parse_frame("unfinished", unfinished),
+                wire::sync_frame(),
+            ]),
+            Step::ThroughReady(vec![
+                wire::parse_frame("balanced", balanced),
+                wire::bind_frame("", "balanced", &[]),
+                wire::execute_frame(""),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Assert
+    assert_eq!(
+        parsed.expect_err("unfinished outer comment").kind(),
+        cassie::sql::parser::SqlErrorKind::Syntax,
+    );
+    balanced_parse.expect("balanced nested comment");
+    for index in [0, 2] {
+        assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("42601"));
+        assert_eq!(
+            wire::data_rows(&batches[index]),
+            Vec::<Vec<Option<String>>>::new()
+        );
+    }
+    for index in [1, 3] {
+        assert_eq!(wire::error_code(&batches[index]), None);
+        assert_eq!(
+            wire::data_rows(&batches[index]),
+            vec![vec![Some("1".into())]]
+        );
+    }
+}

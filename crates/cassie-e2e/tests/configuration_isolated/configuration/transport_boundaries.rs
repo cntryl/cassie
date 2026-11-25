@@ -215,11 +215,10 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
-        let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie.clone()));
-
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let server = tokio::spawn(cassie::rest::router::run_with_listener(
+            listener,
+            cassie.clone(),
+        ));
 
         let client = reqwest::Client::new();
         let admin_cookie = client

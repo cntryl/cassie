@@ -59,14 +59,12 @@ async fn spawn_rest_server(
         .await
         .expect("bind REST");
     let address = listener.local_addr().expect("REST address");
-    drop(listener);
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        address.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         Arc::clone(&shutdown),
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (format!("http://{address}"), shutdown, server)
 }
 

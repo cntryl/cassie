@@ -22,15 +22,13 @@ async fn spawn_rest_server(
         .await
         .expect("bind listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
 
     let shutdown = Arc::new(Notify::new());
-    let server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        address.to_string(),
+    let server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        listener,
         cassie,
         shutdown.clone(),
     ));
-    tokio::time::sleep(std::time::Duration::from_millis(75)).await;
 
     (format!("http://{address}"), shutdown, server)
 }

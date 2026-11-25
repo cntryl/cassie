@@ -372,9 +372,7 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
             .await
             .expect("bind rest");
         let addr = listener.local_addr().expect("rest address");
-        drop(listener);
-        let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
-        tokio::time::sleep(Duration::from_millis(75)).await;
+        let server = tokio::spawn(cassie::rest::router::run_with_listener(listener, cassie));
         let client = reqwest::Client::new();
         let reader_cookie = client
             .post(format!("http://{addr}/api/v1/auth/login"))

@@ -9,6 +9,7 @@ use hyper::service::service_fn;
 use hyper::{Method, Request, StatusCode};
 use hyper_util::rt::{TokioIo, TokioTimer};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpListener;
 use tokio::sync::{Notify, Semaphore};
 use tokio::task;
 use tokio_rustls::TlsAcceptor;
@@ -33,29 +34,50 @@ pub(super) async fn run_server(
     let listen: SocketAddr = addr.parse().map_err(|error| {
         CassieError::Execution(format!("invalid rest address '{addr}': {error}"))
     })?;
-    let cassie = Arc::new(cassie);
-    let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
-    let tls_options = cassie.rest_tls_options();
-    let tls_config = crate::rest::tls::load_server_config(
-        tls_options.certificate_path,
-        tls_options.private_key_path,
-    )?;
-    let admission = Arc::new(Semaphore::new(
-        cassie.runtime().limits().rest_max_connections.max(1),
-    ));
-    let listener = tokio::net::TcpListener::bind(&listen)
+    let tls_config = rest_tls_config(&cassie)?;
+    let listener = TcpListener::bind(&listen)
         .await
         .map_err(|error| CassieError::Execution(error.to_string()))?;
+    serve(listener, cassie, shutdown, admin_ui_dir, tls_config).await
+}
+
+pub(super) async fn run_bound_server(
+    listener: TcpListener,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+    admin_ui_dir: PathBuf,
+) -> Result<(), CassieError> {
+    let tls_config = rest_tls_config(&cassie)?;
+    serve(listener, cassie, shutdown, admin_ui_dir, tls_config).await
+}
+
+fn rest_tls_config(cassie: &Cassie) -> Result<Option<Arc<rustls::ServerConfig>>, CassieError> {
+    let options = cassie.rest_tls_options();
+    crate::rest::tls::load_server_config(options.certificate_path, options.private_key_path)
+}
+
+async fn serve(
+    listener: TcpListener,
+    cassie: Cassie,
+    shutdown: Arc<Notify>,
+    admin_ui_dir: PathBuf,
+    tls_config: Option<Arc<rustls::ServerConfig>>,
+) -> Result<(), CassieError> {
     let actual_addr = listener
         .local_addr()
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     cassie.validate_rest_network_listener(actual_addr)?;
+    let admission = Arc::new(Semaphore::new(
+        cassie.runtime().limits().rest_max_connections.max(1),
+    ));
+    let cassie = Arc::new(cassie);
+    let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
 
     loop {
         tokio::select! {
             biased;
             () = shutdown.notified() => {
-                tracing::info!(target: "rest", address = %listen, "shutdown requested");
+                tracing::info!(target: "rest", address = %actual_addr, "shutdown requested");
                 break;
             }
             accept = listener.accept() => {

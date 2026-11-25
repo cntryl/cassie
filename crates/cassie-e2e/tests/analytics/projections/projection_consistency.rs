@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use cassie::app::{Cassie, CassieError, ProjectionManifestExportOptions};
 use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
@@ -62,14 +64,72 @@ fn create_manifest_source(
 async fn spawn_rest_server(
     cassie: Cassie,
 ) -> (String, tokio::task::JoinHandle<Result<(), CassieError>>) {
+    spawn_rest_server_after(cassie, std::future::ready(())).await
+}
+
+async fn spawn_rest_server_after(
+    cassie: Cassie,
+    before_serve: impl Future<Output = ()> + Send + 'static,
+) -> (String, tokio::task::JoinHandle<Result<(), CassieError>>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
-    drop(listener);
-    let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let server = tokio::spawn(async move {
+        before_serve.await;
+        cassie::rest::router::run_with_listener(listener, cassie).await
+    });
     (format!("http://{addr}"), server)
+}
+
+#[test]
+fn should_accept_first_rest_connection_before_the_server_future_is_polled() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        cassie.startup().expect("startup");
+        let (waiting, observed) = tokio::sync::oneshot::channel();
+        let (release, released) = tokio::sync::oneshot::channel();
+        let (base_url, server) = spawn_rest_server_after(cassie, async {
+            waiting.send(()).expect("announce server barrier");
+            released.await.expect("release server barrier");
+        })
+        .await;
+        let address = base_url.strip_prefix("http://").expect("REST address");
+
+        // Act
+        let response = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            observed.await.expect("server blocked before polling");
+            let mut first = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("first REST connection succeeds with server held");
+            release.send(()).expect("release server");
+            first
+                .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .await
+                .expect("send request on first connection");
+            let mut response = String::new();
+            first
+                .read_to_string(&mut response)
+                .await
+                .expect("read health response");
+            response
+        })
+        .await
+        .expect("request deadline");
+
+        // Assert
+        assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
+        server.abort();
+        let _ = server.await;
+    });
 }
 
 async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {

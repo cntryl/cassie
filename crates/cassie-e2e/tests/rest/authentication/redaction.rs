@@ -6,6 +6,7 @@ use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use reqwest::{Client, StatusCode};
 use tokio::io::AsyncWriteExt;
+use tokio::net::TcpListener;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
@@ -34,34 +35,6 @@ struct Observations {
     wire: Vec<WireObservation>,
     rest: Vec<RestObservation>,
     servers_stopped: bool,
-}
-
-async fn reserve_addresses() -> (SocketAddr, SocketAddr) {
-    // Hold both reservations together so the two endpoint candidates are distinct.
-    let wire = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("reserve wire address");
-    let rest = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("reserve REST address");
-    (
-        wire.local_addr().expect("wire address"),
-        rest.local_addr().expect("REST address"),
-    )
-}
-
-async fn wait_for_listener(address: SocketAddr) {
-    tokio::time::timeout(DEADLINE, async {
-        loop {
-            if let Ok(stream) = tokio::net::TcpStream::connect(address).await {
-                drop(stream);
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("owned listener readiness");
 }
 
 async fn wire_attempt(address: SocketAddr, user: &str, password: &str) -> WireObservation {
@@ -130,22 +103,27 @@ async fn stop_server(
 }
 
 async fn observe(cassie: &Cassie, config: CassieRuntimeConfig, password: &str) -> Observations {
-    let (wire_address, rest_address) = reserve_addresses().await;
+    let wire_listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind wire listener");
+    let rest_listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind REST listener");
+    let wire_address = wire_listener.local_addr().expect("wire address");
+    let rest_address = rest_listener.local_addr().expect("REST address");
     let wire_shutdown = Arc::new(Notify::new());
     let rest_shutdown = Arc::new(Notify::new());
-    let wire_server = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
-        wire_address.to_string(),
+    let wire_server = tokio::spawn(cassie::pgwire::server::run_with_listener_and_shutdown(
+        wire_listener,
         Arc::new(cassie.clone()),
         config,
         wire_shutdown.clone(),
     ));
-    let rest_server = tokio::spawn(cassie::rest::router::run_with_shutdown(
-        rest_address.to_string(),
+    let rest_server = tokio::spawn(cassie::rest::router::run_with_listener_and_shutdown(
+        rest_listener,
         cassie.clone(),
         rest_shutdown.clone(),
     ));
-    wait_for_listener(wire_address).await;
-    wait_for_listener(rest_address).await;
     emit_capture_positive_controls().await;
     let client = Client::builder()
         .timeout(DEADLINE)

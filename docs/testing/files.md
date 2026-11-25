@@ -1302,7 +1302,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/rest/queries/admin_query/errors.rs` | test_module | 162 | 3 | rest | keep | `tests/rest/queries/admin_query/errors.rs` |
 | `tests/rest/queries/admin_query/mod.rs` | module_registration | 228 | 0 | rest | keep | `tests/rest/queries/admin_query/mod.rs` |
 | `tests/rest/queries/admin_query/property_graphs.rs` | test_module | 74 | 1 | rest | move_with_module_alias | `tests/rest/queries/property_graphs.rs` |
-| `tests/rest/queries/admin_query/semantics.rs` | test_module | 689 | 9 | rest | keep | `tests/rest/queries/admin_query/semantics.rs` |
+| `tests/rest/queries/admin_query/semantics.rs` | test_module | 880 | 10 | rest | keep | `tests/rest/queries/admin_query/semantics.rs` |
 | `tests/rest/queries/admin_query_method_errors.rs` | test_module | 114 | 1 | rest | keep | `tests/rest/queries/admin_query_method_errors.rs` |
 | `tests/rest/queries/semantics/errors.rs` | test_module | 565 | 10 | rest | keep | `tests/rest/queries/semantics/errors.rs` |
 | `tests/rest/queries/semantics/mod.rs` | module_registration | 44 | 0 | rest | keep | `tests/rest/queries/semantics/mod.rs` |
@@ -1323,7 +1323,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/search/index_lifecycle/fulltext_publication_recovery.rs` | test_module | 101 | 2 | search | keep | `tests/search/index_lifecycle/fulltext_publication_recovery.rs` |
 | `tests/search/index_lifecycle/fulltext_write_amplification.rs` | test_module | 150 | 3 | search | move_with_module_alias | `tests/search/retrieval/fulltext_write_amplification.rs` |
 | `tests/search/retrieval/cranfield_workload.rs` | test_module | 332 | 13 | search | keep | `tests/search/retrieval/cranfield_workload.rs` |
-| `tests/search/retrieval/fulltext_analyzer_consistency.rs` | test_module | 424 | 7 | search | keep | `tests/search/retrieval/fulltext_analyzer_consistency.rs` |
+| `tests/search/retrieval/fulltext_analyzer_consistency.rs` | test_module | 460 | 8 | search | keep | `tests/search/retrieval/fulltext_analyzer_consistency.rs` |
 | `tests/search/retrieval/fulltext_analyzer_publication.rs` | test_module | 419 | 8 | search | keep | `tests/search/retrieval/fulltext_analyzer_publication.rs` |
 | `tests/search/retrieval/fulltext_boost_match.rs` | test_module | 116 | 5 | search | keep | `tests/search/retrieval/fulltext_boost_match.rs` |
 | `tests/search/retrieval/fulltext_index_completeness.rs` | test_module | 227 | 5 | search | keep | `tests/search/retrieval/fulltext_index_completeness.rs` |
@@ -1618,7 +1618,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_queries/names/reserved_id_row_identity_column.rs` | test_module | 220 | 4 | sql_queries | keep | `tests/sql_queries/names/reserved_id_row_identity_column.rs` |
 | `tests/sql_queries/names/reserved_id_source_resolution.rs` | test_module | 301 | 5 | sql_queries | keep | `tests/sql_queries/names/reserved_id_source_resolution.rs` |
 | `tests/sql_queries/offset_result_cap.rs` | test_module | 398 | 19 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/core/offset_result_cap.rs`; `tests/sql_queries/expressions/offset_result_cap.rs` |
-| `tests/sql_queries/ordering/index_type_equivalence.rs` | test_support | 304 | 0 | sql_queries | keep | `tests/sql_queries/ordering/index_type_equivalence.rs` |
+| `tests/sql_queries/ordering/index_type_equivalence.rs` | test_module | 337 | 1 | sql_queries | keep | `tests/sql_queries/ordering/index_type_equivalence.rs` |
 | `tests/sql_queries/ordering/jsonb_semantic_keys.rs` | test_module | 241 | 15 | sql_queries | split_by_contract | `tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs`; `tests/sql_queries/types/json/jsonb_semantic_keys.rs` |
 | `tests/sql_queries/ordering/numeric_real_order.rs` | test_module | 426 | 25 | sql_queries | move_with_module_alias | `tests/sql_queries/types/numeric/numeric_real_order.rs` |
 | `tests/sql_queries/ordering/order_by_ordinals.rs` | test_module | 251 | 11 | sql_queries | keep | `tests/sql_queries/ordering/order_by_ordinals.rs` |

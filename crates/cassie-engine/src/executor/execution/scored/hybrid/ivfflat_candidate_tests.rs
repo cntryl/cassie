@@ -29,6 +29,65 @@ fn record(id: &str, metric: DistanceMetric, values: &[f32]) -> NormalizedVectorR
     }
 }
 
+fn ivfflat_hybrid_fixture(build_index: bool) -> (crate::app::Cassie, super::super::HybridTopKSpec) {
+    let mut config = crate::config::CassieRuntimeConfig::default();
+    config.embeddings =
+        crate::config::EmbeddingsRuntimeConfig::Local(crate::config::LocalRuntimeConfig {
+            model: "hybrid-test".to_string(),
+            dimensions: 2,
+        });
+    let cassie = crate::app::Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("root", None);
+    cassie
+        .execute_sql(&session, "CREATE EXTENSION vector", Vec::new())
+        .expect("install vector extension");
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE ivf_rank (id BIGINT PRIMARY KEY, body TEXT, embedding VECTOR(2))",
+            Vec::new(),
+        )
+        .expect("create vector table");
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO ivf_rank (id, body, embedding) VALUES \
+                 (1, 'match', '[10,0]'), (2, 'match', '[1,0]')",
+            Vec::new(),
+        )
+        .expect("insert vector rows");
+    if build_index {
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX ivf_rank_embedding_idx ON ivf_rank USING vector (embedding) \
+                     WITH (source_field = body, metric = l2, index_type = ivfflat, \
+                     lists = 1, probes = 1, training_sample_size = 2, training_seed = 17)",
+                Vec::new(),
+            )
+            .expect("create trained IVFFlat index");
+    }
+    let collection = crate::catalog::canonical_relation_name(
+        &cassie.default_database,
+        crate::catalog::DEFAULT_SCHEMA,
+        "ivf_rank",
+    );
+    let spec = super::super::HybridTopKSpec {
+        collection,
+        text_field: "body".to_string(),
+        query: "match".to_string(),
+        vector_field: "embedding".to_string(),
+        vector_query: vec![1.0, 0.0],
+        filter: None,
+        id_column: "id".to_string(),
+        score_column: "score".to_string(),
+        limit: 1,
+        offset: 0,
+    };
+    (cassie, spec)
+}
+
 #[test]
 fn should_rank_ivfflat_hybrid_candidates_before_applying_the_limit() {
     // Arrange
@@ -89,6 +148,99 @@ fn should_reject_an_ivfflat_candidate_selection_over_the_memory_budget() {
         result,
         Err(crate::app::CassieError::ResourceLimit(_))
     ));
+}
+
+#[test]
+fn should_select_the_nearest_candidate_from_the_probed_ivfflat_lists() {
+    // Arrange
+    let (cassie, spec) = ivfflat_hybrid_fixture(true);
+    let retrieval_controls = controls(4096);
+    let request = retrieval_controls.storage_request();
+    let (_, training, _, _, _) = cassie
+        .midge
+        .get_ivfflat_training_manifest_controlled("ivf_rank", "embedding", &request)
+        .expect("read IVFFlat training state")
+        .expect("trained IVFFlat state")
+        .into_parts();
+    let probed_lists = crate::vector::ivfflat::probe_lists(&[1.0, 0.0], &training);
+    let (_, traversed, _, _, _) = cassie
+        .midge
+        .ivfflat_candidate_vectors_controlled(
+            &spec.collection,
+            "embedding",
+            &training,
+            &probed_lists,
+            &request,
+        )
+        .expect("read candidates from probed lists")
+        .into_parts();
+    let nearest_id = traversed
+        .iter()
+        .min_by(|left, right| {
+            super::ivfflat_candidate_distance(&[1.0, 0.0], left)
+                .expect("valid vector")
+                .total_cmp(
+                    &super::ivfflat_candidate_distance(&[1.0, 0.0], right).expect("valid vector"),
+                )
+        })
+        .expect("at least one probed vector")
+        .id
+        .clone();
+    let expected = rank_ivfflat_candidate_ids(traversed.clone(), &[1.0, 0.0], 1, &controls(4096))
+        .expect("rank every vector in probed lists")
+        .0;
+    let session = cassie.create_session("root", None);
+    let before = cassie.metrics()["vector"]["ivfflat_executions"]
+        .as_u64()
+        .expect("IVFFlat counter");
+    let standalone = cassie
+        .execute_sql(
+            &session,
+            "SELECT _id, vector_distance(embedding, '[1,0]') AS distance FROM ivf_rank ORDER BY distance ASC LIMIT 1",
+            Vec::new(),
+        )
+        .expect("run the standalone IVFFlat query");
+    let after = cassie.metrics()["vector"]["ivfflat_executions"]
+        .as_u64()
+        .expect("IVFFlat counter");
+
+    // Act
+    let hybrid_controls = controls(64 * 1024);
+    let actual = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &hybrid_controls)
+        .expect("select IVFFlat hybrid candidates")
+        .expect("use trained IVFFlat candidates");
+
+    // Assert
+    assert_eq!(traversed.len(), 2);
+    assert_ne!(
+        traversed.first().map(|record| record.id.as_str()),
+        Some(nearest_id.as_str()),
+        "the nearest vector must occur after the first traversal candidate"
+    );
+    assert_eq!(
+        expected.iter().map(String::as_str).collect::<Vec<_>>(),
+        [nearest_id.as_str()]
+    );
+    assert_eq!(standalone.rows().len(), 1);
+    assert_eq!(
+        standalone.rows()[0][0],
+        crate::types::Value::String(nearest_id.clone())
+    );
+    assert_eq!(after, before + 1, "standalone query must execute IVFFlat");
+    assert_eq!(actual.ids, expected);
+}
+
+#[test]
+fn should_keep_exact_hybrid_fallback_when_no_vector_index_exists() {
+    // Arrange
+    let (cassie, spec) = ivfflat_hybrid_fixture(false);
+
+    // Act
+    let selected = super::controlled_vector_candidate_ids(&cassie, &spec, 1, &controls(4096))
+        .expect("missing vector index selects exact fallback");
+
+    // Assert
+    assert!(selected.is_none());
 }
 
 #[test]

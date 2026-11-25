@@ -295,12 +295,31 @@ impl Midge {
         strict: bool,
         lease_ttl: std::time::Duration,
     ) -> Result<Self, CassieError> {
+        Self::new_cloud_simulated_with_lease_and_skew_for_test(
+            cache_path,
+            default_database,
+            strict,
+            lease_ttl,
+            lease_ttl / 2,
+        )
+    }
+
+    #[cfg(any(test, feature = "storage-test-hooks"))]
+    #[doc(hidden)]
+    pub fn new_cloud_simulated_with_lease_and_skew_for_test(
+        cache_path: impl AsRef<Path>,
+        default_database: impl Into<String>,
+        strict: bool,
+        lease_ttl: std::time::Duration,
+        lease_clock_skew_tolerance: std::time::Duration,
+    ) -> Result<Self, CassieError> {
         let options = cntryl_midge::OpenOptions::cloud_simulated(
             cache_path.as_ref(),
             "cassie-test",
             "startup",
         )
         .lease_ttl(lease_ttl)
+        .lease_clock_skew_tolerance(lease_clock_skew_tolerance)
         .build()
         .map_err(CassieError::from)?;
         let write_policy = if strict {

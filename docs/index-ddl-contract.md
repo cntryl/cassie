@@ -133,10 +133,13 @@ Focused evidence already present in the repository includes:
   `Midge::alter_fulltext_index_analyzer`.
 - **Versioning and rebuild.** Persisted metadata records the analyzer
   configuration, including `stemming` and the synonym map, under persisted state
-  version 4. An older persisted version is rebuilt from source on open (no
-  migration code). The active analyzer generation is the `analyzer_version`
-  index option (absent means 1, incremented by every ALTER), visible in
-  `pg_class.reloptions` together with non-default `stemming` and `synonyms`.
+  version 5. An older persisted version is rebuilt from source on open (no
+  migration code). This version fence also rebuilds existing postings after a
+  change to the simple analyzer's dotted-I case-folding implementation, because
+  older metadata does not identify which implementation produced its postings.
+  The active analyzer generation is the `analyzer_version` index option (absent
+  means 1, incremented by every ALTER), visible in `pg_class.reloptions`
+  together with non-default `stemming` and `synonyms`.
 - **Publication and writers.** The new postings, manifest and index options
   commit in one transaction while the collection write gate is held for the whole
   rebuild. Readers keep the previous generation and analyzer until it commits.

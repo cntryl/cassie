@@ -31,7 +31,7 @@ pub use controlled::{ControlledFulltextCandidateSet, ControlledRetrievalDocument
 pub(crate) use incremental::FulltextCommitChanges;
 pub(crate) use metrics::{FulltextMaintenanceMetrics, FulltextWriteTally};
 
-const STATE_VERSION: u32 = 4;
+const STATE_VERSION: u32 = 5;
 const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
 /// Key plus value bytes one index-build transaction may carry. Posting blocks
 /// reach 64 KiB each, so a batch bounded only by record count can exceed the
@@ -739,6 +739,8 @@ fn build_state(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::{FieldSchema, Schema, StorageFamily};
+    use crate::catalog::IndexKind;
 
     #[test]
     fn should_bound_prepared_fulltext_index_publication_batches() {
@@ -777,5 +779,93 @@ mod tests {
             let bytes = record_bytes[range.clone()].iter().sum::<usize>();
             assert!(range.len() == 1 || bytes <= FULLTEXT_INDEX_BUILD_WRITE_BATCH_BYTES);
         }
+    }
+
+    #[test]
+    fn should_rebuild_legacy_postings_before_serving_the_new_analyzer_generation() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("memory Midge");
+        let collection = "dotted_i_rebuild";
+        midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "body".to_string(),
+                        data_type: cassie_core::types::DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .expect("create full-text collection");
+        midge
+            .put_document(
+                collection,
+                Some("doc-1".to_string()),
+                serde_json::json!({"body": "İstanbul"}),
+            )
+            .expect("insert source document");
+        midge
+            .put_index(&IndexMeta {
+                definition_semantics_version: 0,
+                collection: collection.to_string(),
+                name: "dotted_i_rebuild_idx".to_string(),
+                field: "body".to_string(),
+                fields: vec!["body".to_string()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind: IndexKind::FullText,
+                unique: false,
+                options: BTreeMap::from([("analyzer".to_string(), "simple".to_string())]),
+            })
+            .expect("publish full-text index");
+        let index = midge
+            .get_index(collection, "dotted_i_rebuild_idx")
+            .expect("read full-text index")
+            .expect("full-text index exists");
+        midge
+            .rebuild_fulltext_index_for_index(&index)
+            .expect("build initial full-text state");
+        let (relation_id, index_id) = Midge::fulltext_storage_ids(&index).expect("storage ids");
+        let old_state = midge
+            .get_persisted_fulltext_index_state(collection, "dotted_i_rebuild_idx")
+            .expect("read current state")
+            .expect("full-text state exists");
+        let old_metadata = FulltextIndexMetadata {
+            version: 4,
+            built_generation: old_state.built_generation,
+            total_documents: old_state.total_documents,
+            documents_with_text: old_state.documents_with_text,
+            total_document_length: old_state.total_document_length,
+            posting_terms: old_state.postings.len(),
+            analyzer: old_state.analyzer,
+        };
+        midge
+            .raw_put(
+                StorageFamily::Data,
+                &Midge::fulltext_index_key(relation_id, index_id),
+                &codec::encode_metadata(&old_metadata),
+            )
+            .expect("restore legacy metadata version");
+
+        // Act
+        let legacy_read =
+            midge.get_persisted_fulltext_index_state(collection, "dotted_i_rebuild_idx");
+        midge
+            .reconcile_fulltext_indexes()
+            .expect("rebuild legacy full-text state");
+        let rebuilt = midge
+            .get_persisted_fulltext_index_state(collection, "dotted_i_rebuild_idx")
+            .expect("read rebuilt state")
+            .expect("rebuilt full-text state exists");
+
+        // Assert
+        assert!(
+            matches!(legacy_read, Err(CassieError::Parse(message)) if message.contains("unsupported fulltext metadata version 4"))
+        );
+        assert!(rebuilt.postings["istanbul"]
+            .iter()
+            .any(|posting| posting.document_id == "doc-1"));
     }
 }

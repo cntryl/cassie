@@ -537,6 +537,14 @@ fn partition_key_from_filter(
     values
         .into_iter()
         .collect::<Option<Vec<_>>>()
+        .filter(|values| {
+            // Legacy keys cannot distinguish an embedded separator or text
+            // "null" from a boundary or SQL NULL. Scan the timestamp buckets
+            // across partitions and let the authoritative filter distinguish them.
+            values
+                .iter()
+                .all(|value| value != "null" && !value.contains('\u{1f}'))
+        })
         .map(|values| values.join("\u{1f}"))
 }
 

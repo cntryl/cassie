@@ -4,12 +4,12 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1914 |
-| Rust files | 1871 |
-| Rust test declarations | 11786 |
+| Files under `tests/` | 1915 |
+| Rust files | 1872 |
+| Rust test declarations | 11787 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11811 |
-| Cargo test targets | 44 |
+| Static Rust registration instances | 11814 |
+| Cargo test targets | 45 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
@@ -47,6 +47,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [graph_weighted](inventory/graph_weighted.md) | 101 | 0 |
 | [json_writes](inventory/json_writes.md) | 21 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
+| [native_wal_background](inventory/native_wal_background.md) | 1 | 1 |
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 65 | 0 |
 | [parser_types](inventory/parser_types.md) | 404 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
@@ -101,6 +102,7 @@ Each suite's Cargo target and source root are recorded here.
 | `graph_weighted` | `tests/graph_weighted.rs` |
 | `json_writes` | `tests/json_writes.rs` |
 | `metrics` | `tests/metrics.rs` |
+| `native_wal_background` | `tests/native_wal_background.rs` |
 | `null_safe_predicates` | `tests/null_safe_predicates.rs` |
 | `parser_types` | `tests/parser_types.rs` |
 | `pgwire_catalogs` | `tests/pgwire_catalogs.rs` |

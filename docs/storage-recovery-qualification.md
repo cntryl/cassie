@@ -33,9 +33,20 @@ returns early joins the barrier after receiving its error. Before retrying the
 losing create once, the test checks that the logical database name has no
 registered metadata or routable handle. It then compares both physical owners
 and their distinct sentinel values at the same key across a local reopen.
-Broader native/background durability
-and physical power-loss or real-provider recovery remain open.
-[Cassie #1188](https://github.com/cntryl/cassie/issues/1188) · [Cassie #1271](https://github.com/cntryl/cassie/issues/1271)
+The native-writer unit fixture holds an issued native write while a creator
+reaches the physical CREATE boundary, then commits and flushes the old
+family before releasing the creator. The isolated `native_wal_background`
+integration fixture holds the released Midge 0.5.3 flush worker at its
+pre-build failpoint and requires a real physical CREATE to finish before
+releasing that worker. It accepts an initial typed conflict or stall only
+while the new logical name remains unpublished, then makes one explicit
+retry. Both cases verify physical database identities and database-specific
+strict-write sentinels across a local reopen.
+
+These controls cover [#1188](https://github.com/cntryl/cassie/issues/1188)'s
+native and background writer overlap during local database creation. Physical
+power-loss and real-provider durability remain under
+[#1271](https://github.com/cntryl/cassie/issues/1271).
 
 ## Qualification obligations
 

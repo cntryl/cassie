@@ -88,6 +88,10 @@
         "file": "tests/metrics.rs"
       },
       {
+        "name": "native_wal_background",
+        "file": "tests/native_wal_background.rs"
+      },
+      {
         "name": "null_safe_predicates",
         "file": "tests/null_safe_predicates.rs"
       },
@@ -180,11 +184,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1914,
-    "rust_files": 1871,
-    "rust_test_declarations": 11786,
+    "files": 1915,
+    "rust_files": 1872,
+    "rust_test_declarations": 11787,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11811,
+    "registered_rust_instances": 11814,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -90314,6 +90318,37 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/native_wal_background.rs::should_recover_native_data_when_database_creation_overlaps_a_flush",
+      "name": "should_recover_native_data_when_database_creation_overlaps_a_flush",
+      "current_file": "tests/native_wal_background.rs",
+      "line": 74,
+      "end_line": 147,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "native_wal_background",
+          "name": "should_recover_native_data_when_database_creation_overlaps_a_flush"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "native_wal_background",
+        "category": "ddl",
+        "directory": "tests/native_wal_background/ddl",
+        "file": "tests/native_wal_background/ddl/semantics.rs",
+        "basis": "individual_test_contract",
+        "review": "required",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -356686,6 +356721,10 @@
         {
           "suite": "cassie_test_support",
           "name": "support_temp_dirs::tests::should_separate_fixture_namespaces_for_users_sharing_a_temp_directory"
+        },
+        {
+          "suite": "native_wal_background",
+          "name": "support_temp_dirs::tests::should_separate_fixture_namespaces_for_users_sharing_a_temp_directory"
         }
       ],
       "attributes": [
@@ -356719,6 +356758,10 @@
       "instances": [
         {
           "suite": "cassie_test_support",
+          "name": "support_temp_dirs::tests::should_sweep_only_stale_owned_runs_without_a_live_lock"
+        },
+        {
+          "suite": "native_wal_background",
           "name": "support_temp_dirs::tests::should_sweep_only_stale_owned_runs_without_a_live_lock"
         }
       ],
@@ -375039,6 +375082,22 @@
       ],
       "destinations": [
         "tests/metrics.rs"
+      ],
+      "line_limit": 12000
+    },
+    {
+      "current_file": "tests/native_wal_background.rs",
+      "role": "cargo_target",
+      "action": "keep_harness_and_extract_tests",
+      "lines": 147,
+      "sha256": "d36f98483e4eeabf37679f9f11bd39b6b8203c4902a628b6759d366eece49900",
+      "test_declarations": 1,
+      "registered_suites": [
+        "native_wal_background"
+      ],
+      "destinations": [
+        "tests/native_wal_background.rs",
+        "tests/native_wal_background/ddl/semantics.rs"
       ],
       "line_limit": 12000
     },
@@ -393854,7 +393913,8 @@
       "sha256": "558c9b51721e43b6721bb25832d671a1659fa433e90734c3f123d08ad3cbdd0c",
       "test_declarations": 2,
       "registered_suites": [
-        "cassie_test_support"
+        "cassie_test_support",
+        "native_wal_background"
       ],
       "destinations": [
         "tests/support/temp_dirs.rs"

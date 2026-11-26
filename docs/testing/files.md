@@ -586,6 +586,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/metrics/runtime/semantics.rs` | test_module | 460 | 5 | metrics | keep | `tests/metrics/runtime/semantics.rs` |
 | `tests/metrics/search/semantics.rs` | test_module | 722 | 6 | metrics | keep | `tests/metrics/search/semantics.rs` |
 | `tests/metrics.rs` | cargo_target | 47 | 0 | metrics | keep | `tests/metrics.rs` |
+| `tests/native_wal_background.rs` | cargo_target | 147 | 1 | native_wal_background | keep_harness_and_extract_tests | `tests/native_wal_background.rs`; `tests/native_wal_background/ddl/semantics.rs` |
 | `tests/null_safe_predicates/arrays.rs` | test_module | 53 | 1 | null_safe_predicates | keep | `tests/null_safe_predicates/arrays.rs` |
 | `tests/null_safe_predicates/definitions.rs` | test_module | 439 | 14 | null_safe_predicates | keep | `tests/null_safe_predicates/definitions.rs` |
 | `tests/null_safe_predicates/loaded_materializations.rs` | test_module | 255 | 4 | null_safe_predicates | keep | `tests/null_safe_predicates/loaded_materializations.rs` |
@@ -1840,7 +1841,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/sql_fixture.rs` | shared_support | 323 | 4 | cassie_test_support | keep | `tests/support/sql_fixture.rs` |
 | `tests/support/storage_family_snapshot.rs` | shared_support | 90 | 0 | storage_indexes | keep | `tests/support/storage_family_snapshot.rs` |
 | `tests/support/teardown_evidence.rs` | shared_support | 46 | 0 | cassie_test_support, metrics, query_scan_controls | keep | `tests/support/teardown_evidence.rs` |
-| `tests/support/temp_dirs.rs` | shared_support | 234 | 2 | cassie_test_support | keep | `tests/support/temp_dirs.rs` |
+| `tests/support/temp_dirs.rs` | shared_support | 234 | 2 | cassie_test_support, native_wal_background | keep | `tests/support/temp_dirs.rs` |
 | `tests/support/temporal_cancellation.rs` | shared_support | 74 | 0 | pgwire_types | keep | `tests/support/temporal_cancellation.rs` |
 | `tests/support/time_series_evidence.rs` | shared_support | 348 | 0 | domain_models | keep | `tests/support/time_series_evidence.rs` |
 | `tests/support/tls.rs` | shared_support | 11 | 0 | executor, rest | keep | `tests/support/tls.rs` |

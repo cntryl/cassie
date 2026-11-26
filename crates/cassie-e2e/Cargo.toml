@@ -61,6 +61,8 @@ rust-stemmers = "1.2.0"
 rustix = { version = "1.1.6", features = ["process"] }
 
 [dev-dependencies]
+cntryl-midge = { version = "0.5.3", features = ["failpoints"] }
+fail = "0.5.1"
 cassie-core = { path = "../cassie-core" }
 cntryl-stress = "0.5.1"
 jiff-tzdb = "1.0.0"
@@ -148,6 +150,10 @@ path = "tests/json_writes.rs"
 [[test]]
 name = "metrics"
 path = "tests/metrics.rs"
+
+[[test]]
+name = "native_wal_background"
+path = "tests/native_wal_background.rs"
 
 [[test]]
 name = "null_safe_predicates"

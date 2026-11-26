@@ -229,7 +229,7 @@ fn create_materialized_relation(
             InitialMaterialization::AfterCatalogPublish
         )
     {
-        refresh_materialized_projection_data(cassie, session, name, user_functions, controls)?;
+        refresh_materialized_projection_data(cassie, name, user_functions, controls, &[])?;
     }
     Ok(output)
 }
@@ -281,13 +281,12 @@ fn rename_output_schema(schema: &mut Schema, column_names: &[String]) -> Result<
 
 pub(super) fn refresh_materialized_projection(
     cassie: &Cassie,
-    session: Option<&crate::app::CassieSession>,
     name: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("REFRESH MATERIALIZED PROJECTION", controls)?;
-    refresh_materialized_projection_data(cassie, session, name, user_functions, controls)?;
+    refresh_materialized_projection_data(cassie, name, user_functions, controls, &[])?;
     Ok(output)
 }
 
@@ -345,7 +344,32 @@ fn clear_materialized_view_data(cassie: &Cassie, name: &str) -> Result<(), Query
 
 pub(super) fn refresh_materialized_projection_data(
     cassie: &Cassie,
-    _session: Option<&crate::app::CassieSession>,
+    name: &str,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+    repair_collections: &[String],
+) -> Result<(), QueryError> {
+    cassie.with_projection_publication(
+        name,
+        || controls.check_interruption().map_err(QueryError::from),
+        || {
+            let refresh =
+                || refresh_materialized_projection_gated(cassie, name, user_functions, controls);
+            if repair_collections.is_empty() {
+                refresh()
+            } else {
+                cassie.midge.with_collection_write_gates_interruptible(
+                    repair_collections,
+                    || controls.check_interruption().map_err(QueryError::from),
+                    refresh,
+                )
+            }
+        },
+    )
+}
+
+fn refresh_materialized_projection_gated(
+    cassie: &Cassie,
     name: &str,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
@@ -859,7 +883,7 @@ fn replace_output_rows(
     rows: Vec<BatchRow>,
     controls: &QueryExecutionControls,
 ) -> Result<RootHashRecord, QueryError> {
-    crate::executor::pause_before_materialized_projection_replace();
+    crate::executor::projection_refresh_hooks::pause_before_materialized_projection_replace();
     let gated_collection = output_collection.to_string();
     cassie
         .midge
@@ -880,7 +904,7 @@ fn replace_output_rows_gated(
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
         let _ = cassie.catalog.unregister_collection(output_collection);
-        crate::executor::pause_after_materialized_projection_drop();
+        crate::executor::projection_refresh_hooks::pause_after_materialized_projection_drop();
     }
     cassie
         .midge

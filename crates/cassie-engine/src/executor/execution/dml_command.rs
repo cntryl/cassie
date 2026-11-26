@@ -186,7 +186,6 @@ fn execute_projection_command_group(
             Some(CommandExecution::invalidating(
                 super::materialized_projection::refresh_materialized_projection(
                     cassie,
-                    session,
                     &statement.name,
                     user_functions,
                     controls,

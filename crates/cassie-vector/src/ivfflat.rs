@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use crate::types::{IvfFlatTrainingState, NormalizedVectorRecord};
 
 /// Version of the `IVFFlat` training state recognized by the index algorithms.
-pub const TRAINING_VERSION: u32 = 1;
+pub const TRAINING_VERSION: u32 = 2;
 
 #[must_use]
 pub fn training_fallback_reason(
@@ -204,18 +204,21 @@ pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) ->
 /// alone cannot order lists for inner product because every list mixes
 /// magnitudes.
 ///
-/// Returns `None` when the manifest carries no per-list bounds, in which case
-/// the caller must score exactly.
+/// Returns `None` when the manifest does not carry usable per-list bounds.
+/// The caller must score exactly in that case.
 #[must_use]
 pub fn probe_lists_by_inner_product(
     query: &[f32],
     training: &IvfFlatTrainingState,
 ) -> Option<BTreeSet<usize>> {
-    if training.list_bounds.len() != training.lists
-        || training
-            .list_bounds
-            .iter()
-            .any(|bound| bound.len() != query.len() + 1)
+    if training.version != TRAINING_VERSION
+        || training.list_bounds.len() != training.lists
+        || query.iter().any(|component| !component.is_finite())
+        || training.list_bounds.iter().any(|bound| {
+            bound.len() != query.len() + 1
+                || bound.iter().any(|component| !component.is_finite())
+                || bound.last().is_none_or(|radius| *radius < 0.0)
+        })
     {
         return None;
     }
@@ -318,7 +321,7 @@ mod tests {
     fn should_probe_nearest_centroid_lists() {
         // Arrange
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: 1,
             trained: true,
             row_count: 2,
@@ -344,7 +347,7 @@ mod tests {
     fn should_rank_lists_by_inner_product_with_magnitude_not_direction_alone() {
         // Arrange
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: 1,
             trained: true,
             row_count: 2,
@@ -425,7 +428,7 @@ mod tests {
         let mut assignments = BTreeMap::new();
         assignments.insert("doc".to_string(), 0);
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: 1,
             trained: true,
             row_count: 1,
@@ -462,7 +465,7 @@ mod tests {
             values: vec![1.0, 0.0],
         }];
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: crate::normalized_vector_source_fingerprint(&records),
             trained: true,
             row_count: 1,
@@ -487,7 +490,7 @@ mod tests {
     fn should_reject_compact_manifest_with_stale_list_sizes() {
         // Arrange
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: 1,
             trained: true,
             row_count: 2,
@@ -512,7 +515,7 @@ mod tests {
     fn should_reject_compact_manifest_with_incomplete_total_membership() {
         // Arrange
         let training = IvfFlatTrainingState {
-            version: 1,
+            version: super::TRAINING_VERSION,
             source_fingerprint: 1,
             trained: true,
             row_count: 2,

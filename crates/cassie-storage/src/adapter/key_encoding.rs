@@ -189,6 +189,30 @@ pub(super) struct CapacityKeyPrefix {
     pub prefix: Vec<u8>,
 }
 
+pub(super) fn is_retained_database_data_key(key: &[u8]) -> bool {
+    let mut components = super::database_catalog_rewrite::key_components(key);
+    components.next() == Some(ROOT)
+        && components.next() == Some(BASELINE)
+        && matches!(
+            components.next(),
+            Some(
+                FAMILY_ROW
+                    | FAMILY_LEGACY_DOC
+                    | FAMILY_SCALAR_INDEX
+                    | FAMILY_TIME_SERIES_INDEX
+                    | FAMILY_NORMALIZED_VECTOR
+                    | FAMILY_VECTOR_INDEX_STATE
+                    | FAMILY_UNIQUE_RESERVATION
+                    | FAMILY_FULLTEXT_INDEX
+                    | FAMILY_COLUMN_BATCH
+                    | FAMILY_COLUMN_STORE
+                    | FAMILY_ROW_HASH
+                    | FAMILY_RANGE_HASH
+                    | FAMILY_ROOT_HASH
+            )
+        )
+}
+
 pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
     [
         (CapacityKeyKind::RowBlob, FAMILY_ROW),
@@ -196,7 +220,7 @@ pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
         (CapacityKeyKind::ScalarIndex, FAMILY_SCALAR_INDEX),
         (CapacityKeyKind::ScalarIndex, FAMILY_TIME_SERIES_INDEX),
         (CapacityKeyKind::IndexMetadata, FAMILY_INDEX),
-        (CapacityKeyKind::IndexMetadata, FAMILY_UNIQUE_RESERVATION),
+        (CapacityKeyKind::ScalarIndex, FAMILY_UNIQUE_RESERVATION),
         (CapacityKeyKind::VectorSidecar, FAMILY_VECTOR_INDEX),
         (CapacityKeyKind::VectorSidecar, FAMILY_NORMALIZED_VECTOR),
         (CapacityKeyKind::ColumnBatch, FAMILY_COLUMN_BATCH),

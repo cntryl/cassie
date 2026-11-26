@@ -50,17 +50,13 @@ mod worker;
 
 pub use aggregate::columns_from_projection;
 
-type MaterializedProjectionReplaceBarriers = (
-    std::sync::Arc<std::sync::Barrier>,
-    std::sync::Arc<std::sync::Barrier>,
-);
+mod projection_refresh_hooks;
+pub(crate) use projection_refresh_hooks::observe_projection_publication_wait;
+pub use projection_refresh_hooks::{
+    set_materialized_projection_replace_barriers,
+    set_materialized_projection_replace_start_barriers, set_projection_publication_wait_observer,
+};
 
-static MATERIALIZED_PROJECTION_REPLACE_BARRIERS: std::sync::OnceLock<
-    std::sync::Mutex<Option<MaterializedProjectionReplaceBarriers>>,
-> = std::sync::OnceLock::new();
-static MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS: std::sync::OnceLock<
-    std::sync::Mutex<Option<MaterializedProjectionReplaceBarriers>>,
-> = std::sync::OnceLock::new();
 type RollupPublicationTestBarriers = (
     String,
     u64,
@@ -73,52 +69,6 @@ static ROLLUP_PUBLICATION_BEFORE_REPLACE_BARRIERS: std::sync::OnceLock<
 static ROLLUP_PUBLICATION_BEFORE_READY_BARRIERS: std::sync::OnceLock<
     std::sync::Mutex<Option<RollupPublicationTestBarriers>>,
 > = std::sync::OnceLock::new();
-
-#[doc(hidden)]
-pub fn set_materialized_projection_replace_start_barriers(
-    ready: Option<std::sync::Arc<std::sync::Barrier>>,
-    resume: Option<std::sync::Arc<std::sync::Barrier>>,
-) {
-    *MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("materialized projection replace start barrier mutex") = ready.zip(resume);
-}
-
-#[doc(hidden)]
-pub fn set_materialized_projection_replace_barriers(
-    dropped: Option<std::sync::Arc<std::sync::Barrier>>,
-    resume: Option<std::sync::Arc<std::sync::Barrier>>,
-) {
-    *MATERIALIZED_PROJECTION_REPLACE_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("materialized projection replace barrier mutex") = dropped.zip(resume);
-}
-
-pub(crate) fn pause_after_materialized_projection_drop() {
-    let barriers = MATERIALIZED_PROJECTION_REPLACE_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("materialized projection replace barrier mutex")
-        .take();
-    if let Some((dropped, resume)) = barriers {
-        dropped.wait();
-        resume.wait();
-    }
-}
-
-pub(crate) fn pause_before_materialized_projection_replace() {
-    let barriers = MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS
-        .get_or_init(|| std::sync::Mutex::new(None))
-        .lock()
-        .expect("materialized projection replace start barrier mutex")
-        .take();
-    if let Some((ready, resume)) = barriers {
-        ready.wait();
-        resume.wait();
-    }
-}
 
 #[doc(hidden)]
 pub fn set_rollup_publication_before_replace_barriers(

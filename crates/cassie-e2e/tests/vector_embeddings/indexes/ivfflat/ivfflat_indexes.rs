@@ -765,3 +765,78 @@ fn should_fall_back_when_same_row_count_ivfflat_training_fingerprint_is_stale() 
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_use_exact_dot_scoring_when_ivfflat_radius_overflows() {
+    use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
+
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("configuration");
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    let cassie = Cassie::new_in_memory_with_config(config).expect("in-memory fixture");
+    cassie.startup().expect("start fixture");
+    let session = cassie.create_session("root", None);
+    let run = |sql| {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("execute fixture SQL")
+    };
+    run("CREATE EXTENSION vector VERSION '0.8.7'");
+    run("CREATE TABLE dot_bounds (id TEXT, content TEXT, embedding vector(2))");
+    let extreme = 3.0e38_f32;
+    let tilted = [extreme, extreme * 0.176_326_98];
+    for (id, vector) in [
+        ("centroid_a", tilted),
+        ("centroid_b", [1.0, 0.0]),
+        ("member_a", tilted),
+        ("query_c", [-extreme, 0.0]),
+    ] {
+        cassie
+            .midge
+            .put_document(
+                "dot_bounds",
+                Some(id.to_owned()),
+                serde_json::json!({"id": id, "content": id, "embedding": vector}),
+            )
+            .expect("store finite source vector");
+    }
+    let collection = cassie.midge.canonical_collection_name("dot_bounds");
+    let stats = cassie
+        .midge
+        .rebuild_cardinality_stats_for_collection(&collection)
+        .expect("build cardinality");
+    cassie.catalog.set_cardinality_stats(&collection, stats);
+    let query = "SELECT content, embedding <#> '[-3.0e38,0]' AS distance FROM dot_bounds ORDER BY distance LIMIT 1";
+    let exact = run(query);
+    run("CREATE INDEX dot_bounds_ivf ON dot_bounds USING ivfflat (embedding vector_ip_ops) WITH (lists = 2)");
+    let (training, members) = cassie
+        .midge
+        .get_ivfflat_training_manifest(&collection, "embedding")
+        .expect("read IVFFlat manifest")
+        .expect("trained IVFFlat index");
+    let before = cassie.metrics();
+
+    // Act
+    let with_index = run(query);
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(members, 4);
+    assert_eq!(training.centroid_ids, ["centroid_a", "centroid_b"]);
+    assert_eq!(training.list_bounds, Vec::<Vec<f32>>::new());
+    assert_eq!(exact.rows()[0][0], Value::from("query_c"));
+    assert_eq!(with_index.rows(), exact.rows());
+    for counter in ["ivfflat_executions", "ivfflat_exact_reranks_total"] {
+        assert_eq!(after["vector"][counter], before["vector"][counter]);
+    }
+    assert_eq!(
+        after["vector"]["ivfflat_fallbacks"].as_u64(),
+        before["vector"]["ivfflat_fallbacks"]
+            .as_u64()
+            .map(|count| count + 1)
+    );
+    assert_eq!(
+        after["vector"]["last_fallback_reason"].as_str(),
+        Some("missing-list-bounds")
+    );
+}

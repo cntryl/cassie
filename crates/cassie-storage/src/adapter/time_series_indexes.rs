@@ -456,20 +456,24 @@ impl Midge {
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
-        if !Self::time_series_index_supports_storage(index) {
-            self.delete_time_series_index_data(&index.collection, &index.name)?;
+        let collection = self.canonical_collection_name(&index.collection);
+        let write_gate = self.collection_write_gate(&collection);
+        let _write_guard = write_gate.lock();
+        if self.get_index(&collection, &index.name)?.as_ref() != Some(index) {
             return Ok(());
         }
-
-        let write_gate = self.collection_write_gate(&index.collection);
-        let _write_guard = write_gate.lock();
-        self.rebuild_time_series_index_for_index_locked(index)
+        self.rebuild_prepared_time_series_index_for_index(index)
     }
 
-    fn rebuild_time_series_index_for_index_locked(
+    // The caller holds the collection gate and owns either the installed
+    // definition or a durable prepared publication for this index.
+    pub(super) fn rebuild_prepared_time_series_index_for_index(
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
+        if !Self::time_series_index_supports_storage(index) {
+            return self.delete_time_series_index_data(&index.collection, &index.name);
+        }
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
         let generation = self.collection_generation(&index.collection)?;
         let (relation_id, index_id) = Self::time_series_storage_ids(index)?;

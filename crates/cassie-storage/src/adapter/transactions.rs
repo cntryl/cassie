@@ -899,7 +899,7 @@ impl Midge {
         family: cntryl_midge::ColumnFamilyId,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.publication.open_native(mode, || {
+        self.publication.open_native(family, mode, || {
             self.publication.ensure_recovered()?;
             self.engine
                 .begin_tx(family, mode)

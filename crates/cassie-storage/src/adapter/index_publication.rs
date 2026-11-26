@@ -304,7 +304,7 @@ impl Midge {
                     self.rebuild_prepared_scalar_index_for_index(&publication.index)?;
                 }
                 IndexKind::TimeSeries => {
-                    self.rebuild_time_series_index_for_index(&publication.index)?;
+                    self.rebuild_prepared_time_series_index_for_index(&publication.index)?;
                 }
                 IndexKind::Column => {
                     self.rebuild_column_batches_for_index(&publication.index)?;

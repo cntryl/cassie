@@ -212,7 +212,7 @@ Each fallback returns the exact result and increments the algorithm's
 | `unsupported-sort` | `ORDER BY ... DESC` |
 | `zero-query-exact` | cosine or dot query is the zero vector: every distance ties, so the order is row identity alone and cannot be reproduced from a candidate set |
 | `missing-graph` / `missing-training` | HNSW graph or IVFFlat manifest is absent or invalidated |
-| `missing-list-bounds` | IVFFlat manifest lacks the per-list inner-product bounds a `dot` probe needs |
+| `missing-list-bounds` | IVFFlat manifest lacks usable per-list inner-product bounds for a `dot` probe |
 | `candidate-exhausted` | fewer candidates than `min(limit + offset, rows)` (for example IVFFlat with too few probed lists) |
 | `concurrent-source-change` | the source row set changed between candidate selection and rerank in a way the captured snapshot cannot serve |
 | `structured-filter-exact`, `transaction-overlay-exact` | existing filtered / transactional fallbacks |
@@ -277,9 +277,15 @@ product each can still hold, `query . mean + |query| * radius`, where `mean`
 is the mean of the list's members at their original magnitude and `radius` is
 the largest member distance from it (a Cauchy-Schwarz bound). The manifest
 stores `[mean..., radius]` per list (`list_bounds`), derived with the
-assignments at training time, so training and probing stay consistent. L2 and
-cosine probing and the exact rerank are unchanged; there is no format
-compatibility with earlier manifests (pre-release).
+assignments at training time, so training and probing stay consistent.
+
+Training version 2 measures each radius from the stored `f32` center and
+rounds outward after allowing for normalization and arithmetic error. If any
+list cannot be conservatively represented with finite values, training omits
+the bounds, and dot queries record `missing-list-bounds` and use exact scoring.
+Startup rebuilds derived version 1 training from the authoritative vectors.
+The binary layout, L2 and cosine probing, and exact source-row rerank are
+unchanged. [#1523](https://github.com/cntryl/cassie/issues/1523)
 
 Orders measured on this fixture and its ten queries at lists=16, probes=4
 (mean / worst): direction 0.905 / 0.55; a per-list max-magnitude angular-cap

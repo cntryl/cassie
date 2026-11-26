@@ -56,6 +56,11 @@ pub fn hash_params(params: &[Value]) -> u64 {
                 // str::hash appends this delimiter after its UTF-8 bytes.
                 hasher.write_u8(0xff);
             }
+            Value::Typed(crate::types::typed::TypedValue::Real(v)) => {
+                // Result identity preserves binary payloads and signed zero.
+                9u8.hash(hasher);
+                v.to_bits().hash(hasher);
+            }
             Value::Typed(v) => {
                 7u8.hash(hasher);
                 v.key().hash(hasher);

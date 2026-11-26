@@ -302,6 +302,26 @@ pub(super) fn append_data_row_frame_in(
     postgres_array_text_columns: &[usize],
     session: &crate::types::extended::temporal::TemporalSession,
 ) -> io::Result<()> {
+    append_result_data_row_frame_in(
+        frame,
+        row,
+        columns,
+        result_formats,
+        postgres_array_text_columns,
+        session,
+        None,
+    )
+}
+
+pub(super) fn append_result_data_row_frame_in(
+    frame: &mut Vec<u8>,
+    row: &[Value],
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+    postgres_array_text_columns: &[usize],
+    session: &crate::types::extended::temporal::TemporalSession,
+    result_row: Option<(&crate::executor::QueryResult, usize)>,
+) -> io::Result<()> {
     validate_result_formats(columns, result_formats)?;
     ensure_row_width(row, columns)?;
 
@@ -317,6 +337,14 @@ pub(super) fn append_data_row_frame_in(
             Value::Null => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
             other => {
                 let format_code = result_format_for_index(result_formats, index);
+                if let Some(bits) = result_row
+                    .filter(|_| format_code == 1 && columns[index].type_oid == 700)
+                    .and_then(|(result, row)| result.real_nan_bits(row, index))
+                {
+                    payload.extend_from_slice(&4_i32.to_be_bytes());
+                    payload.extend_from_slice(&bits.to_be_bytes());
+                    continue;
+                }
                 let bytes = if let Some(enum_column) = columns[index].enum_column() {
                     super::codecs::enum_value::encode(other, enum_column, format_code)?
                 } else if let Some(descriptor) = columns[index].record_array() {

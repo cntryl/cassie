@@ -22,8 +22,12 @@ pub(super) fn execute_decoded_operation(
 ) -> Result<CopyCompletion, crate::app::transport::copy::CopyOperationError> {
     use crate::app::transport::copy::{CopyExecutionOptions, CopyHeaderMode};
 
-    let decoded_payload =
-        payload_owner::decode_copy_payload(payload, request.encoding.as_deref(), controls)?;
+    let decoded_payload = payload_owner::decode_copy_payload(
+        payload,
+        request.format,
+        request.encoding.as_deref(),
+        controls,
+    )?;
     let payload = decoded_payload
         .as_ref()
         .map_or(payload, payload_owner::DecodedPayload::as_slice);

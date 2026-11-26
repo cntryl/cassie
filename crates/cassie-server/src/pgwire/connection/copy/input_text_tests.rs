@@ -328,3 +328,22 @@ fn should_drop_trailing_lone_backslash_at_end_of_payload() {
     // Assert
     assert_eq!(rows, vec![some(&["end"])]);
 }
+
+#[test]
+fn should_reject_invalid_text_copy_encoding_before_decoding_field_escapes() {
+    // Arrange
+    // The raw leading byte and the escaped continuation could combine into a
+    // valid character after unescaping, but the input byte sequence is invalid.
+    let payload = b"\xc3\\251\n";
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+    // Act
+    let result = parse_text_payload(payload, '\t', "\\N", &controls);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::Diagnostic(ref error)) if error.sql_state == "22021"
+    ));
+}

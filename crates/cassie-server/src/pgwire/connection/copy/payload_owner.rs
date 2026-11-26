@@ -3,6 +3,8 @@
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+use super::request::CopyWireFormat;
+
 #[cfg(test)]
 #[path = "payload_owner_tests.rs"]
 mod tests;
@@ -169,6 +171,7 @@ pub(super) fn validate_utf8(
 
 pub(super) fn decode_copy_payload(
     payload: &[u8],
+    format: CopyWireFormat,
     encoding: Option<&str>,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<Option<DecodedPayload>, CassieError> {
@@ -177,7 +180,11 @@ pub(super) fn decode_copy_payload(
     };
     match encoding.trim().to_ascii_uppercase().as_str() {
         "UTF8" | "UTF-8" | "UNICODE" => {
-            validate_utf8(payload, controls)?;
+            // Text COPY validates consumed fields in its decoder. An end
+            // marker can leave trailing bytes outside that validation scope.
+            if format != CopyWireFormat::Text {
+                validate_utf8(payload, controls)?;
+            }
             Ok(None)
         }
         "LATIN1" | "ISO-8859-1" | "ISO8859-1" => decode_latin1(payload, controls).map(Some),

@@ -613,3 +613,42 @@ fn should_require_at_least_two_tuning_points_per_index() {
     // Assert
     assert!(error.contains("two tuning points"), "{error}");
 }
+
+#[path = "../../../benches/support/embedding_workloads/product_scratch.rs"]
+mod product_scratch;
+
+#[test]
+fn should_keep_product_vector_scratch_outside_published_output() {
+    // Arrange
+    let fixture = fixture_dir("vector-product-scratch");
+    let artifact_output = fixture.path().join("published");
+    let shard_output = artifact_output.join("vector");
+
+    // Act
+    let (work, cache) = {
+        let scratch = product_scratch::ProductScratch::create(
+            fixture.path(),
+            &shard_output,
+            Some(&artifact_output),
+        )
+        .expect("scratch");
+        let work = scratch.work_dir();
+        let cache = scratch.truth_cache_dir();
+        std::fs::create_dir(&work).expect("stage an ingested fixture");
+        std::fs::create_dir(&cache).expect("stage a truth cache");
+        (work, cache)
+    };
+
+    // Assert
+    let artifact_output = artifact_output.canonicalize().expect("canonical output");
+    assert!(!work.starts_with(&artifact_output));
+    assert!(!cache.starts_with(&artifact_output));
+    assert!(!work.exists());
+    assert!(!cache.exists());
+    assert!(product_scratch::ProductScratch::create(
+        &artifact_output,
+        &shard_output,
+        Some(&artifact_output),
+    )
+    .is_err());
+}

@@ -33,6 +33,8 @@
 mod embedding_workloads;
 #[path = "support/embedding_workloads/loader.rs"]
 mod loader;
+#[path = "support/embedding_workloads/product_scratch.rs"]
+mod product_scratch;
 #[path = "support/embedding_workloads/runner.rs"]
 mod runner;
 
@@ -205,15 +207,23 @@ fn run_product(profile: &str) -> Result<(), String> {
     let output_dir = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| "CASSIE_BENCH_PRODUCT_OUTPUT_DIR is required".to_string())?;
-    let (configuration, query_range, workload, work_dir) = match profile {
-        "smoke" => {
-            let config = Configuration::Exact;
-            let work_dir = output_dir.join("work");
-            let cache_dir = output_dir.join("truth-cache");
-            std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
-            let workload = product_smoke_workload(&manifest, &cache_dir);
-            (config, None, workload, work_dir)
-        }
+    let temporary_root =
+        std::env::var_os("RUNNER_TEMP").map_or_else(std::env::temp_dir, PathBuf::from);
+    let artifact_output = std::env::var_os("STRESS_OUTPUT_DIR").map(PathBuf::from);
+    let scratch = product_scratch::ProductScratch::create(
+        &temporary_root,
+        &output_dir,
+        artifact_output.as_deref(),
+    )
+    .map_err(|error| format!("cannot create vector product scratch: {error}"))?;
+    let truth_cache_dir = scratch.truth_cache_dir();
+    std::fs::create_dir(&truth_cache_dir).map_err(|error| error.to_string())?;
+    let (configuration, query_range, workload) = match profile {
+        "smoke" => (
+            Configuration::Exact,
+            None,
+            product_smoke_workload(&manifest, &truth_cache_dir),
+        ),
         "full" => {
             let config = product_selection::configuration(
                 &std::env::var("CASSIE_BENCH_PRODUCT_VECTOR_CONFIGURATION").map_err(|_| {
@@ -235,11 +245,8 @@ fn run_product(profile: &str) -> Result<(), String> {
             if workload.dimensions != 768 || workload.document_ids.len() != 100_000 {
                 return Err("pinned BGE-base product fixture must be 100k x 768".to_string());
             }
-            let cache_dir = output_dir.join("truth-cache");
-            std::fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
-            workload.dir = cache_dir;
-            let work_dir = output_dir.join("work");
-            (config, Some(range), workload, work_dir)
+            workload.dir = truth_cache_dir;
+            (config, Some(range), workload)
         }
         _ => return Err(format!("unsupported product profile {profile:?}")),
     };
@@ -258,7 +265,7 @@ fn run_product(profile: &str) -> Result<(), String> {
         query_limit: None,
         query_range: query_range.clone(),
         product_configuration: Some(configuration),
-        work_dir,
+        work_dir: scratch.work_dir(),
         query_memory_budget_bytes: 8 << 30,
     };
     let mut report = runner::run_workload(&manifest, &workload, &options)?;

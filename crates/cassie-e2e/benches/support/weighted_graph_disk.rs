@@ -15,6 +15,9 @@ use super::{
 #[path = "weighted_graph_disk_checks.rs"]
 mod checks;
 
+#[path = "weighted_graph_product_status.rs"]
+mod product_status;
+
 struct StoreDir(PathBuf);
 
 impl StoreDir {
@@ -193,11 +196,13 @@ fn measure_routes(
         .collect::<Vec<_>>();
     samples.sort_by(f64::total_cmp);
     let p95_ms = samples[(samples.len() * 95).div_ceil(100) - 1];
+    let (measurement_valid, target_met) =
+        product_status::measurement_status(profile, p95_ms, reopen_valid, &outcomes);
     let metric = serde_json::json!({
         "metric": "weighted_routes",
         "profile": profile,
-        "measurement_valid": reopen_valid && outcomes.len() == 100 && outcomes.iter().all(|row| row["matches_oracle"] == true && row["fallback"] == false),
-        "target_met": if profile == "full" { serde_json::json!(p95_ms <= 100.0) } else { serde_json::Value::Null },
+        "measurement_valid": measurement_valid,
+        "target_met": target_met,
         "target": "p95_ms <= 100",
         "measurements": {
             "fixture": {

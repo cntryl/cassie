@@ -164,7 +164,7 @@ pub fn validate_hnsw_release_evidence(
     Ok(())
 }
 
-/// Validates the fixed IVFFlat release evidence contract.
+/// Validates the fixed `IVFFlat` release evidence contract.
 ///
 /// # Errors
 ///

@@ -30,7 +30,7 @@ fn should_read_an_index_entry_written_in_one_adapter_batch() {
 
     // Act
     let actual = midge
-        .raw_get(StorageFamily::Data, key)
+        .raw_get(StorageFamily::Data, &key)
         .expect("read index entry");
 
     // Assert

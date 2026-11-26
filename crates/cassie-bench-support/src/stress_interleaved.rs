@@ -15,6 +15,7 @@ struct InterleavedCountedCase {
     preflight: Option<PreflightEvidence>,
 }
 
+#[must_use]
 pub fn alternating_pair_execution_order(case_count: usize, invocation_index: usize) -> Vec<usize> {
     let mut order = Vec::with_capacity(case_count.saturating_mul(2));
     for first in (0..case_count).step_by(2) {
@@ -36,6 +37,7 @@ pub fn alternating_pair_execution_order(case_count: usize, invocation_index: usi
 /// # Panics
 ///
 /// Panics when `iterations_per_case` is zero or odd.
+#[must_use]
 pub fn alternating_pair_chunk_execution_order(
     case_count: usize,
     iterations_per_case: usize,
@@ -55,6 +57,7 @@ pub fn alternating_pair_chunk_execution_order(
     order
 }
 
+#[must_use]
 pub fn adjacent_pair_execution_groups(case_count: usize) -> Vec<std::ops::Range<usize>> {
     (0..case_count)
         .step_by(2)

@@ -77,19 +77,13 @@ pub fn registered_targets() -> Vec<Target> {
         let name = scenario.benchmark;
         let tier = BenchmarkTier::from_number(scenario.declared_tier.number())
             .expect("scenario tier must be 1 through 6");
-        let category = category_for_target(name);
-        let features = if name == "tier3_replay_durability" {
-            vec!["replay-benchmark-observation"]
-        } else {
-            Vec::new()
-        };
-        let target = Target {
-            package: package_for_target(name).to_owned(),
-            target: name.to_owned(),
+        let target = Target::new(
+            package_for_target(name),
+            name,
             tier,
-            category,
-            required_features: features.into_iter().map(str::to_owned).collect(),
-        };
+            RunCategory::Timed,
+            &[],
+        );
         if let Some(previous) = records.insert(name.to_owned(), target.clone()) {
             assert_eq!(
                 previous, target,
@@ -149,6 +143,15 @@ pub fn registered_targets() -> Vec<Target> {
             Target::new("cassie-e2e", target, tier, category, &[]),
         );
     }
+    let replay = Target::new(
+        "cassie-e2e",
+        "tier3_replay_durability",
+        BenchmarkTier::Tier3,
+        RunCategory::Diagnostic,
+        &["replay-benchmark-observation"],
+    );
+    records.insert(replay.target.clone(), replay);
+
     records.into_values().collect()
 }
 
@@ -179,16 +182,6 @@ fn package_for_target(target: &str) -> &'static str {
         | "tier2_subsystem_sql_planning" => "cassie-engine",
         "tier1_hotpath_pgwire" | "tier2_subsystem_protocol_handlers" => "cassie",
         _ => "cassie-e2e",
-    }
-}
-
-fn category_for_target(target: &str) -> RunCategory {
-    match target {
-        "tier5_embedding_workloads" => RunCategory::Product,
-        "tier3_replay_durability" | "tier4_pgwire_fixture_profile" | "relevance_cranfield" => {
-            RunCategory::Diagnostic
-        }
-        _ => RunCategory::Timed,
     }
 }
 

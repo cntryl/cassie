@@ -1,5 +1,8 @@
+use std::process::Command;
+
 use super::{
-    validate_cargo_metadata, validate_scenario_registry, BenchmarkTier, RunCategory, Target,
+    registered_targets, validate_cargo_metadata, validate_scenario_registry, BenchmarkTier,
+    RunCategory, Target,
 };
 use crate::performance_benchmarks::benchmark_scenarios;
 
@@ -86,4 +89,22 @@ fn should_reject_cargo_feature_placement_mismatch() {
 
     // Assert
     assert!(result.unwrap_err().contains("required features mismatch"));
+}
+
+#[test]
+fn should_match_workspace_cargo_benchmark_targets() {
+    // Arrange
+    let output = Command::new(env!("CARGO"))
+        .args(["metadata", "--locked", "--no-deps", "--format-version", "1"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("run Cargo metadata for the benchmark workspace");
+    assert!(output.status.success(), "Cargo metadata failed");
+    let metadata = String::from_utf8(output.stdout).expect("Cargo metadata is UTF-8");
+
+    // Act
+    let result = validate_cargo_metadata(&registered_targets(), &metadata);
+
+    // Assert
+    assert_eq!(result, Ok(()));
 }

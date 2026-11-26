@@ -146,11 +146,7 @@ impl<T> AccountedVec<T> {
             .try_grow(retained_bytes)
             .map_err(AccountingError::from)?;
 
-        if let Err(error) = self.values.try_reserve_exact(1) {
-            self.reservation.shrink_to(previous_bytes);
-            return Err(AccountingError::AccountedAllocation(error).into());
-        }
-
+        // A failed builder must leave the existing backing allocation unchanged.
         let value = match build() {
             Ok(value) => value,
             Err(error) => {
@@ -158,6 +154,12 @@ impl<T> AccountedVec<T> {
                 return Err(error);
             }
         };
+        if let Err(error) = self.values.try_reserve_exact(1) {
+            drop(value);
+            self.reservation.shrink_to(previous_bytes);
+            return Err(AccountingError::AccountedAllocation(error).into());
+        }
+
         self.values.push(value);
         Ok(())
     }
@@ -214,4 +216,34 @@ fn retained_value_bytes<T>(variable_bytes: usize) -> Result<usize, AccountingErr
     size_of::<T>()
         .checked_add(variable_bytes)
         .ok_or(AccountingError::ValueSizeOverflow)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AccountedVec, AccountingError, RequestMemory};
+    use std::mem::size_of;
+
+    #[test]
+    fn should_cover_retained_vector_capacity_after_a_failed_append() {
+        // Arrange
+        let memory = RequestMemory::new(64);
+        let mut values = AccountedVec::try_new(&memory).expect("empty accounted vector");
+        values.try_push_with(0, || 1_u64).expect("first value");
+
+        // Act
+        let failure = values.try_push_with_result(8, || Err(AccountingError::ValueSizeOverflow));
+        let retained_after_failure = values.values.capacity() * size_of::<u64>();
+        let charged_after_failure = values.accounted_bytes();
+        values.try_push_with(0, || 2).expect("reuse the owner");
+        let retained_after_reuse = values.values.capacity() * size_of::<u64>();
+        let charged_after_reuse = memory.current_bytes();
+
+        // Assert
+        assert!(matches!(failure, Err(AccountingError::ValueSizeOverflow)));
+        assert_eq!(charged_after_failure, retained_after_failure);
+        assert_eq!(charged_after_reuse, retained_after_reuse);
+        assert_eq!(values.as_slice(), [1, 2]);
+        drop(values);
+        assert_eq!(memory.current_bytes(), 0);
+    }
 }

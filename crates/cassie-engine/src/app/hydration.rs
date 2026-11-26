@@ -196,12 +196,42 @@ impl Cassie {
             self.midge.rebuild_normalized_vectors_for_index(&index)?;
         }
 
-        let indexes = self.midge.list_indexes().map_err(|error| {
+        let mut indexes = self.midge.list_indexes().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list indexes: {error}"))
         })?;
         self.runtime.record_storage_access("schema", false, true);
+        // Reserve stored assignments before visiting legacy candidates in a
+        // reproducible order, regardless of their physical scan order.
+        indexes.sort_unstable_by(|left, right| {
+            left.catalog_oid()
+                .is_none()
+                .cmp(&right.catalog_oid().is_none())
+                .then_with(|| left.collection.cmp(&right.collection))
+                .then_with(|| left.name.cmp(&right.name))
+        });
         for mut index in indexes {
+            if index.catalog_oid().is_none() {
+                let candidate = crate::catalog::object_identity::catalog_index_oid(&index);
+                let selected = self.catalog.legacy_index_oid_for_registration(&index);
+                if selected != candidate {
+                    self.midge.update_index_metadata(
+                        &index.collection,
+                        &index.name,
+                        |stored| {
+                            if *stored != index {
+                                return Err(crate::midge::adapter::StorageError::Execution(
+                                    "legacy index changed during catalog hydration".into(),
+                                ));
+                            }
+                            stored.set_catalog_oid_if_missing(selected);
+                            Ok(())
+                        },
+                        |_| {},
+                    )?;
+                }
+                index.set_catalog_oid_if_missing(selected);
+            }
             index.clear_storage_ids();
             self.catalog.register_index(index);
         }

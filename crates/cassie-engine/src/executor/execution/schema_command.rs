@@ -643,7 +643,8 @@ fn alter_table_add_constraint(
                 cassie.catalog.unregister_index(table, &source_index_name);
                 cassie.catalog.register_index(adopted_index);
             } else {
-                for index in &unique_indexes {
+                for index in &mut unique_indexes {
+                    super::schema_creation::preserve_or_assign_index_catalog_oid(cassie, index)?;
                     cassie
                         .midge
                         .put_index_with_held_collection_gate(index)

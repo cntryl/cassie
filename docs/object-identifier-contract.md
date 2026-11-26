@@ -131,12 +131,17 @@ deferred to the batch gate.
   (`Catalog::routine_dependents_on_type` supplies the dependents).
 - **Schemas own their routines.** A function or procedure blocks a plain
   `DROP SCHEMA`, and `DROP SCHEMA ... CASCADE` drops it.
-- **Index identity.** `CREATE INDEX` assigns the index's `pg_class.oid` from
-  the common identity allocator, so it cannot collide with another object and
-  survives rename and restart. An index stored without an assigned identity
-  (a constraint-backing index, or one created before this change) keeps a
-  name-derived OID in the upper half of the OID space, which no allocator
-  identity reaches.
+- **Index identity.** `CREATE INDEX`, fresh constraint indexes, and
+  `CREATE TABLE LIKE` index copies receive distinct catalog identities from
+  the common allocator. Stored assignments survive rename and restart. A
+  legacy index stored without an assigned identity starts from its
+  name-derived OID in the upper half of the OID space. Startup registers
+  stored assignments first, then resolves missing assignments in canonical
+  collection and index name order. When an occupied index OID displaces a
+  fallback, Cassie saves the replacement in the index's owning transaction
+  before publishing it. The displaced survivor keeps that identity after
+  the original holder drops. Uncollided legacy records retain their existing
+  durable shape. The common allocator's ceiling and range policy are unchanged. [#1518](https://github.com/cntryl/cassie/issues/1518)
 - **`pg_identify_object` sub-objects.** The sub-object number is
   `pg_attribute.attnum`: a dropped table column or composite attribute keeps
   its number and is identified by PostgreSQL's `........pg.dropped.N........`

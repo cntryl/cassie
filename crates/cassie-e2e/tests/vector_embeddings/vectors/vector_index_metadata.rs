@@ -564,7 +564,8 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
 #[test]
 fn should_reload_generic_index_registry_after_restart() {
     // Arrange
-    use_local_storage();
+    let config =
+        crate::support_sql::with_test_root_password(cassie::config::CassieRuntimeConfig::default());
     let path = data_dir("generic_index_restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -574,7 +575,7 @@ fn should_reload_generic_index_registry_after_restart() {
 
     runtime.block_on(async move {
         // Act
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = Cassie::new_local_with_data_dir_and_config(&path, config.clone()).unwrap();
         crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
@@ -621,9 +622,16 @@ fn should_reload_generic_index_registry_after_restart() {
             options: BTreeMap::from_iter(vec![("case_sensitive".to_string(), "true".to_string())]),
         };
         cassie.midge.put_index(&record).unwrap();
+        let stored_before_restart = cassie
+            .midge
+            .get_index(collection, "idx_generic_title")
+            .unwrap()
+            .expect("persisted index");
+        assert_eq!(stored_before_restart.catalog_oid(), None);
 
+        cassie.shutdown();
         drop(cassie);
-        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        let restarted = Cassie::new_local_with_data_dir_and_config(&path, config).unwrap();
         restarted.startup().unwrap();
 
         // Assert
@@ -631,7 +639,17 @@ fn should_reload_generic_index_registry_after_restart() {
             .catalog
             .get_index(collection, "idx_generic_title")
             .expect("index should hydrate");
-        assert_eq!(loaded, record);
+        let oid = loaded.catalog_oid().expect("hydrated legacy index OID");
+        assert!(oid >= 0x8000_0000);
+        let mut hydrated = record.clone();
+        hydrated.set_catalog_oid_if_missing(oid);
+        assert_eq!(loaded, hydrated);
+        let stored = restarted
+            .midge
+            .get_index(collection, "idx_generic_title")
+            .unwrap();
+        assert_eq!(stored, Some(stored_before_restart));
+        restarted.shutdown();
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);
@@ -640,7 +658,8 @@ fn should_reload_generic_index_registry_after_restart() {
 #[test]
 fn should_persist_fulltext_index_metadata_after_restart() {
     // Arrange
-    use_local_storage();
+    let config =
+        crate::support_sql::with_test_root_password(cassie::config::CassieRuntimeConfig::default());
     let path = data_dir("fulltext_index_restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -650,7 +669,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
 
     runtime.block_on(async move {
         // Act
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let cassie = Cassie::new_local_with_data_dir_and_config(&path, config.clone()).unwrap();
         crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
@@ -701,10 +720,17 @@ fn should_persist_fulltext_index_metadata_after_restart() {
             ]),
         };
         cassie.midge.put_index(&expected).unwrap();
+        let stored_before_restart = cassie
+            .midge
+            .get_index(collection, "idx_fulltext_body")
+            .unwrap()
+            .expect("persisted index");
+        assert_eq!(stored_before_restart.catalog_oid(), None);
 
+        cassie.shutdown();
         drop(cassie);
 
-        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        let restarted = Cassie::new_local_with_data_dir_and_config(&path, config).unwrap();
         restarted.startup().unwrap();
 
         // Assert
@@ -712,7 +738,17 @@ fn should_persist_fulltext_index_metadata_after_restart() {
             .catalog
             .get_index(collection, "idx_fulltext_body")
             .expect("index should hydrate");
-        assert_eq!(loaded, expected);
+        let oid = loaded.catalog_oid().expect("hydrated legacy index OID");
+        assert!(oid >= 0x8000_0000);
+        let mut hydrated = expected.clone();
+        hydrated.set_catalog_oid_if_missing(oid);
+        assert_eq!(loaded, hydrated);
+        let stored = restarted
+            .midge
+            .get_index(collection, "idx_fulltext_body")
+            .unwrap();
+        assert_eq!(stored, Some(stored_before_restart));
+        restarted.shutdown();
     });
 
     let _ = std::fs::remove_dir_all(path_for_cleanup);

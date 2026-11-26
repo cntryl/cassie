@@ -152,18 +152,43 @@ fn initial_table_indexes(
     initial_indexes
 }
 
+fn assign_index_catalog_oid(cassie: &Cassie, index: &mut IndexMeta) -> Result<(), QueryError> {
+    if index.catalog_oid().is_none() {
+        let oid = catalog::object_identity::normal_oid(cassie.midge.allocate_object_id()?)
+            .ok_or_else(|| CassieError::Execution("index catalog OID space exhausted".into()))?;
+        index.set_catalog_oid_if_missing(oid);
+    }
+    Ok(())
+}
+
+/// Reuses an installed index's identity when constraint DDL republishes it.
+pub(super) fn preserve_or_assign_index_catalog_oid(
+    cassie: &Cassie,
+    index: &mut IndexMeta,
+) -> Result<(), QueryError> {
+    if let Some(stored) = cassie.midge.get_index(&index.collection, &index.name)? {
+        if let Some(oid) = stored.catalog_oid() {
+            index.set_catalog_oid_if_missing(oid);
+        }
+        // Keep an installed, uncollided legacy identity unassigned on disk.
+        return Ok(());
+    }
+    assign_index_catalog_oid(cassie, index)
+}
+
 /// Persists the indexes of a new table. A retry after a failed publication
 /// completes the journal the earlier attempt prepared rather than reusing its
 /// index name.
 fn persist_initial_indexes(
     cassie: &Cassie,
-    indexes: &[catalog::IndexMeta],
+    indexes: &mut [catalog::IndexMeta],
 ) -> Result<(), QueryError> {
     for index in indexes {
         let recovered = cassie
             .midge
             .recover_prepared_index_with_held_collection_gate(&index.collection, &index.name)
             .map_err(|error| QueryError::General(error.to_string()))?;
+        preserve_or_assign_index_catalog_oid(cassie, index)?;
         if recovered {
             continue;
         }
@@ -204,11 +229,14 @@ fn create_table_gated(
     let mut collection_meta =
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
-    let initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
+    let mut initial_indexes = initial_table_indexes(table, &constraints, additional_like_indexes);
     let copied_comments = prepare_like_column_comments(cassie, statement)?;
     let mut published_comments = Vec::new();
     let output = super::command_output::empty("CREATE TABLE", controls)?;
     if statement.like.is_some() {
+        for index in &mut initial_indexes {
+            assign_index_catalog_oid(cassie, index)?;
+        }
         let Some((storage_id, comments)) = cassie
             .midge
             .create_collection_with_meta_constraints_sequences_and_indexes_if_absent(
@@ -242,18 +270,9 @@ fn create_table_gated(
             .save_constraints(table, constraints.as_slice())
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
-    // Creation paths return only the storage identity; the allocator-backed
-    // row-type identities were persisted with the metadata.
-    if let Some(stored) = cassie
-        .midge
-        .collection_metadata(table)
-        .map_err(QueryError::from)?
-    {
-        collection_meta.row_type_object_id = stored.row_type_object_id;
-        collection_meta.row_array_object_id = stored.row_array_object_id;
-    }
+    restore_created_row_type_ids(cassie, table, &mut collection_meta)?;
     if statement.like.is_none() {
-        persist_initial_indexes(cassie, &initial_indexes)?;
+        persist_initial_indexes(cassie, &mut initial_indexes)?;
     }
     if statement.like.is_some() {
         super::sequence_command::register_created_sequences(cassie, table_sequences);
@@ -283,6 +302,24 @@ fn create_table_gated(
         super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     }
     Ok(CreationOutcome::created(output))
+}
+
+fn restore_created_row_type_ids(
+    cassie: &Cassie,
+    table: &str,
+    collection_meta: &mut catalog::CollectionMeta,
+) -> Result<(), QueryError> {
+    // Creation paths return only the storage identity; the allocator-backed
+    // row-type identities were persisted with the metadata.
+    if let Some(stored) = cassie
+        .midge
+        .collection_metadata(table)
+        .map_err(QueryError::from)?
+    {
+        collection_meta.row_type_object_id = stored.row_type_object_id;
+        collection_meta.row_array_object_id = stored.row_array_object_id;
+    }
+    Ok(())
 }
 
 fn prepare_like_column_comments(

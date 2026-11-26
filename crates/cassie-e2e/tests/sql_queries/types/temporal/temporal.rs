@@ -240,6 +240,41 @@ fn should_keep_months_distinct_from_thirty_day_intervals() {
 }
 
 #[test]
+fn should_order_one_month_as_equal_to_thirty_days() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-1544-interval-order",
+        &[
+            "CREATE TABLE durations (id BIGINT, span INTERVAL)",
+            "INSERT INTO durations VALUES (4, INTERVAL '31 days'), \
+             (3, INTERVAL '1 month'), (2, INTERVAL '30 days'), \
+             (1, INTERVAL '29 days 23 hours')",
+        ],
+    );
+
+    // Act
+    let comparisons = fixture
+        .execute(
+            "SELECT INTERVAL '1 month' = INTERVAL '30 days', \
+             INTERVAL '29 days 23 hours' < INTERVAL '1 month', \
+             INTERVAL '29 days 23 hours' < INTERVAL '30 days', \
+             INTERVAL '1 month' < INTERVAL '31 days', \
+             INTERVAL '30 days' < INTERVAL '31 days'",
+        )
+        .expect("compare intervals");
+    let sorted = fixture
+        .execute("SELECT id FROM durations ORDER BY span, id")
+        .expect("order by interval and tie-break ID");
+
+    // Assert
+    assert_eq!(comparisons.rows(), vec![vec![Value::Bool(true); 5]]);
+    assert_eq!(
+        sorted.rows(),
+        (1..=4).map(|id| vec![Value::Int64(id)]).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn should_apply_integer_day_offsets_to_date() {
     // Arrange
     let fixture = sql_fixture("issue-814-date-integer-arithmetic", &[]);

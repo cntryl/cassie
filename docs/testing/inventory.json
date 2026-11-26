@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11766,
+    "rust_test_declarations": 11771,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11791,
+    "registered_rust_instances": 11796,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -145013,6 +145013,68 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/grammar/query/semantics.rs::should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands",
+      "name": "should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands",
+      "current_file": "tests/pgwire_extended/grammar/query/semantics.rs",
+      "line": 92,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_query_inventory_wave2::should_reject_ordinary_comparison_chains_but_accept_parenthesized_operands"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar/query",
+        "directory": "tests/pgwire_extended/grammar/query",
+        "file": "tests/pgwire_extended/grammar/query/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/grammar/query/semantics.rs::should_report_unclosed_nested_comments_across_sql_entry_points",
+      "name": "should_report_unclosed_nested_comments_across_sql_entry_points",
+      "current_file": "tests/pgwire_extended/grammar/query/semantics.rs",
+      "line": 127,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_query_inventory_wave2::should_report_unclosed_nested_comments_across_sql_entry_points"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "grammar/query",
+        "directory": "tests/pgwire_extended/grammar/query",
+        "file": "tests/pgwire_extended/grammar/query/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/grammar/resources.rs::should_truncate_identifiers_at_the_utf8_safe_postgres_byte_limit",
       "name": "should_truncate_identifiers_at_the_utf8_safe_postgres_byte_limit",
       "current_file": "tests/pgwire_extended/grammar/resources.rs",
@@ -265007,6 +265069,99 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/migration_ddl_sequences.rs::should_round_trip_exported_sequence_defaults_through_information_schema",
+      "name": "should_round_trip_exported_sequence_defaults_through_information_schema",
+      "current_file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+      "line": 700,
+      "end_line": 778,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "migration_ddl_sequences::should_round_trip_exported_sequence_defaults_through_information_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/migration_ddl_sequences.rs::should_preserve_case_distinct_sequence_identities",
+      "name": "should_preserve_case_distinct_sequence_identities",
+      "current_file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+      "line": 781,
+      "end_line": 841,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "migration_ddl_sequences::should_preserve_case_distinct_sequence_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/migration_ddl_sequences.rs::should_preserve_case_distinct_sequence_defaults_through_schema_rename",
+      "name": "should_preserve_case_distinct_sequence_defaults_through_schema_rename",
+      "current_file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+      "line": 844,
+      "end_line": 883,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "migration_ddl_sequences::should_preserve_case_distinct_sequence_defaults_through_schema_rename"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/rebuild_swap_restart.rs::should_recover_swapped_rebuild_tables_after_local_restart",
       "name": "should_recover_swapped_rebuild_tables_after_local_restart",
       "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
@@ -378335,9 +378490,9 @@
       "current_file": "tests/pgwire_extended/grammar/query/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 89,
-      "sha256": "2227045a9e08c208be327d473a365f347fa4f2fe7c4529a9ea8c52cd6ed5b27c",
-      "test_declarations": 3,
+      "lines": 173,
+      "sha256": "f68b1f05281a460cb5cab339c4c99e0a0c9f2ae5879ee87d1ef99c7746d9d104",
+      "test_declarations": 5,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -386730,9 +386885,9 @@
       "current_file": "tests/sql_mutations/ddl/migration_ddl_sequences.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 697,
-      "sha256": "0d9bab233943f858b8f42ae1df7623e17fd1e14b17bf5d609aacf9afc9549b33",
-      "test_declarations": 8,
+      "lines": 883,
+      "sha256": "a6607c19d01b3a299c8a8ed15557a22d805c3e46be7c9f08db06da210f41c43a",
+      "test_declarations": 11,
       "registered_suites": [
         "sql_mutations"
       ],

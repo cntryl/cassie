@@ -90321,8 +90321,8 @@
       }
     },
     {
-      "id": "tests/native_wal_background.rs::should_recover_native_writes_and_database_owners_after_create_overlaps_a_flush_worker",
-      "name": "should_recover_native_writes_and_database_owners_after_create_overlaps_a_flush_worker",
+      "id": "tests/native_wal_background.rs::should_recover_native_data_when_database_creation_overlaps_a_flush",
+      "name": "should_recover_native_data_when_database_creation_overlaps_a_flush",
       "current_file": "tests/native_wal_background.rs",
       "line": 74,
       "end_line": 147,
@@ -90333,7 +90333,7 @@
       "instances": [
         {
           "suite": "native_wal_background",
-          "name": "should_recover_native_writes_and_database_owners_after_create_overlaps_a_flush_worker"
+          "name": "should_recover_native_data_when_database_creation_overlaps_a_flush"
         }
       ],
       "attributes": [
@@ -375090,7 +375090,7 @@
       "role": "cargo_target",
       "action": "keep_harness_and_extract_tests",
       "lines": 147,
-      "sha256": "ad6f18f67095d90969ecc03392e5e53835671b71b600b0a35bc8256e9aa7c8f9",
+      "sha256": "d36f98483e4eeabf37679f9f11bd39b6b8203c4902a628b6759d366eece49900",
       "test_declarations": 1,
       "registered_suites": [
         "native_wal_background"

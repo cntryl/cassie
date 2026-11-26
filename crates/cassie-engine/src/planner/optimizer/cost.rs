@@ -10,6 +10,8 @@ fn checked_cost(order: &[usize], inputs: &JoinInputs) -> Option<u128> {
     let mut intermediate = 1u128;
     let mut cost = 0u128;
     for (position, index) in order.iter().copied().enumerate() {
+        #[cfg(test)]
+        super::cost_observation_tests::record_checked_step();
         let raw = intermediate.checked_mul(u128::from(inputs.rows[index]))?;
         let prefix = &order[..position];
         let last = position + 1 == inputs.rows.len();

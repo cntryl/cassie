@@ -176,3 +176,147 @@ fn should_fall_back_for_the_whole_order_when_the_cost_sum_overflows() {
     // Assert
     assert_eq!(cost, u128::MAX);
 }
+
+fn reference_order(inputs: &super::inputs::JoinInputs) -> Vec<usize> {
+    let mut order = (0..inputs.rows.len()).collect::<Vec<_>>();
+    let mut best = None;
+    loop {
+        let rank = (
+            super::join_order_cost(&order, inputs),
+            order
+                .iter()
+                .map(|&index| inputs.labels[index].as_str())
+                .collect::<Vec<_>>(),
+            order.clone(),
+        );
+        if best.as_ref().is_none_or(|prior| rank < *prior) {
+            best = Some(rank);
+        }
+        // Generate complete orders independently of the optimizer's DFS.
+        let Some(pivot) = order.windows(2).rposition(|pair| pair[0] < pair[1]) else {
+            return best.expect("at least one complete order").2;
+        };
+        let swap = (pivot + 1..order.len())
+            .rfind(|&index| order[index] > order[pivot])
+            .expect("pivot has a larger successor");
+        order.swap(pivot, swap);
+        order[pivot + 1..].reverse();
+    }
+}
+
+#[test]
+fn should_rebuild_the_full_order_selected_by_whole_on_costs() {
+    // Arrange
+    let sql = "SELECT a.id FROM a JOIN b ON a.id=b.id \
+               JOIN c ON b.id=c.bk AND a.id=c.ak JOIN d ON c.ak=d.id";
+    let mut stats = fixture::star_stats(true);
+    stats.insert("d".to_owned(), fixture::collection(5, &[("id", 5)]));
+    let plan = fixture::plan(sql);
+    let terms = super::InnerJoinTerms::from_source(&plan.source).expect("eligible source");
+    let inputs = super::inputs::resolve(&terms.relations, &terms.predicates, &stats);
+
+    // Act
+    let reference = terms.rebuild(&reference_order(&inputs), &inputs);
+    let optimized = super::optimize_with_stats(plan, &stats);
+
+    // Assert
+    assert_eq!(
+        serde_json::to_value(optimized.source).expect("serialized optimized source"),
+        serde_json::to_value(reference).expect("serialized reference source"),
+    );
+}
+
+#[test]
+fn should_preserve_input_index_order_when_costs_tie_for_duplicate_labels() {
+    // Arrange
+    let inputs = super::inputs::JoinInputs {
+        rows: vec![1; 4],
+        labels: ["z", "a", "z", "b"].map(str::to_owned).into(),
+        predicates: Vec::new(),
+    };
+
+    // Act
+    let selected = super::enumerate_join_order(&inputs);
+
+    // Assert
+    assert_eq!(selected, reference_order(&inputs));
+    assert_eq!(selected, [1, 3, 0, 2]);
+}
+
+#[test]
+fn should_keep_legacy_fallback_for_complete_orders_with_checked_overflow() {
+    // Arrange
+    let product = fixture::Stats::from([
+        (
+            "a".to_owned(),
+            fixture::collection(u64::MAX, &[("id", u64::MAX)]),
+        ),
+        ("b".to_owned(), fixture::collection(u64::MAX, &[("id", 1)])),
+        ("c".to_owned(), fixture::collection(2, &[("id", 1)])),
+    ]);
+    let sum = fixture::Stats::from([
+        (
+            "a".to_owned(),
+            fixture::collection(u64::MAX, &[("id", u64::MAX)]),
+        ),
+        ("b".to_owned(), fixture::collection(274_177, &[])),
+        ("c".to_owned(), fixture::collection(67_280_421_310_721, &[])),
+        ("d".to_owned(), fixture::collection(7, &[("id", 7)])),
+    ]);
+    let cases = [
+        (
+            "SELECT a.id FROM a JOIN b ON a.id=b.id JOIN c ON a.id=c.id",
+            product,
+            &[1, 2, 0][..],
+        ),
+        (
+            "SELECT a.id FROM a JOIN b ON TRUE JOIN c ON TRUE JOIN d ON a.id=d.id",
+            sum,
+            &[0, 1, 2, 3][..],
+        ),
+    ];
+
+    // Act
+    for (sql, stats, overflow_order) in cases {
+        let plan = fixture::plan(sql);
+        let terms = super::InnerJoinTerms::from_source(&plan.source).expect("eligible source");
+        let inputs = super::inputs::resolve(&terms.relations, &terms.predicates, &stats);
+        let selected = super::enumerate_join_order(&inputs);
+
+        // Assert
+        assert_eq!(super::join_order_cost(overflow_order, &inputs), u128::MAX);
+        assert!(super::join_order_cost(&selected, &inputs) < u128::MAX);
+        assert_eq!(selected, reference_order(&inputs), "{sql}");
+    }
+}
+
+std::thread_local! {
+    static CHECKED_STEPS: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+pub(super) fn record_checked_step() {
+    CHECKED_STEPS.with(|steps| {
+        if let Some(count) = steps.get() {
+            steps.set(Some(count + 1));
+        }
+    });
+}
+
+#[test]
+fn should_score_each_exhaustive_join_prefix_once() {
+    // Arrange
+    let inputs = super::inputs::JoinInputs {
+        rows: vec![4; 4],
+        labels: ["d", "c", "b", "a"].map(str::to_owned).into(),
+        predicates: Vec::new(),
+    };
+    CHECKED_STEPS.set(Some(0));
+
+    // Act
+    let selected = super::enumerate_join_order(&inputs);
+    let steps = CHECKED_STEPS.take();
+
+    // Assert
+    assert_eq!(selected, [3, 2, 1, 0]);
+    assert_eq!(steps, Some(4 + 12 + 24 + 24));
+}

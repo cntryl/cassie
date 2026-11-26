@@ -1,11 +1,13 @@
 //! Loads and verifies the generated vector files and caches exact ground truth.
 
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use crate::embedding_workloads::ground_truth::{
     decode_truths, encode_truths, exact_top_k, Metric, Truth,
 };
 use crate::embedding_workloads::manifest::{in_tenant, Manifest, README_HINT};
+use crate::embedding_workloads::product_selection;
 use crate::embedding_workloads::synthetic;
 use crate::embedding_workloads::vector_file::{
     read_f32_rows, read_lines, sha256_file, verify_checksum,
@@ -178,13 +180,25 @@ impl Workload {
 
     /// Query indexes of a split, capped at `limit` when given.
     #[must_use]
-    pub fn split_queries(&self, split: &str, limit: Option<usize>) -> Vec<usize> {
-        let range = if split == "tuning" {
-            0..self.tuning_count
+    pub fn split_queries(
+        &self,
+        split: &str,
+        limit: Option<usize>,
+        shard: Option<&Range<usize>>,
+    ) -> Result<Vec<usize>, String> {
+        let length = if split == "tuning" {
+            self.tuning_count
         } else {
-            self.tuning_count..self.query_ids.len()
+            self.query_ids.len() - self.tuning_count
         };
-        range.take(limit.unwrap_or(usize::MAX)).collect()
+        let local_range = shard.cloned().unwrap_or(0..length);
+        let (split_start, split_size) = if split == "tuning" {
+            (0, self.tuning_count)
+        } else {
+            (self.tuning_count, self.query_ids.len() - self.tuning_count)
+        };
+        let range = product_selection::absolute_query_range(split_start, split_size, &local_range)?;
+        Ok(range.take(limit.unwrap_or(usize::MAX)).collect())
     }
 
     /// Exact top-`k` truth for every query index in `queries`, read from the checksummed
@@ -203,12 +217,12 @@ impl Workload {
         k: usize,
     ) -> Result<Vec<Truth>, String> {
         let stem = format!(
-            "cqadupstack-{}-{}-{}-{}-top{k}-q{}",
+            "cqadupstack-{}-{}-{}-{}-top{k}-{}",
             self.model_stem,
             self.set,
             metric.name(),
             filter,
-            queries.len()
+            product_selection::truth_cache_key(queries)
         );
         let data = self.dir.join(format!("{stem}.truth"));
         let sidecar = self.dir.join(format!("{stem}.truth.sha256"));

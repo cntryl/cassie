@@ -6,6 +6,7 @@
 //! accounted query memory belong to that configuration alone.
 
 use std::fmt::Write;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -18,6 +19,7 @@ use serde_json::{json, Value as Json};
 
 use crate::embedding_workloads::ground_truth::{distance, recall_at_k, Metric, Truth};
 use crate::embedding_workloads::manifest::{IndexTuning, Manifest};
+use crate::embedding_workloads::product_selection::Configuration;
 use crate::embedding_workloads::statistics::{mean, percentile};
 use crate::loader::{Workload, SPLITS};
 
@@ -47,6 +49,8 @@ pub struct RunOptions {
     /// Skip the exact configuration and the warmup: report recall and candidate counts only.
     pub recall_only: bool,
     pub query_limit: Option<usize>,
+    pub query_range: Option<Range<usize>>,
+    pub product_configuration: Option<Configuration>,
     pub work_dir: PathBuf,
     /// Accounted memory budget for one query; the 10 MiB default rejects exact scans of
     /// this size, so the runner raises it and records the value in the results.
@@ -676,12 +680,11 @@ pub fn run_workload(
         .iter()
         .filter(|split| options.splits.iter().any(|chosen| chosen == *split))
         .map(|split| {
-            (
-                (*split).to_string(),
-                workload.split_queries(split, options.query_limit),
-            )
+            workload
+                .split_queries(split, options.query_limit, options.query_range.as_ref())
+                .map(|queries| ((*split).to_string(), queries))
         })
-        .collect();
+        .collect::<Result<Vec<_>, String>>()?;
     let (base, ingest_seconds) = build_base(workload, options)?;
     let mut rows = Vec::new();
     let mut truth_seconds = 0.0;
@@ -714,7 +717,19 @@ pub fn run_workload(
             }
         }
         truth_seconds += started.elapsed().as_secs_f64();
-        if !options.recall_only && options.algorithms.iter().any(|name| name == "exact") {
+        let plans = index_plans(
+            workload.document_ids.len(),
+            options.tuning_points,
+            &manifest.index_tuning,
+            options.sweep,
+        );
+        if !options.recall_only
+            && match options.product_configuration {
+                Some(Configuration::Exact) => true,
+                Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_)) => false,
+                None => options.algorithms.iter().any(|name| name == "exact"),
+            }
+        {
             rows.extend(run_configuration(
                 workload,
                 options,
@@ -725,22 +740,43 @@ pub fn run_workload(
                 &query_sets,
             )?);
         }
-        let plans = index_plans(
-            workload.document_ids.len(),
-            options.tuning_points,
-            &manifest.index_tuning,
-            options.sweep,
-        );
-        for plan in plans
-            .into_iter()
-            .filter(|plan| options.algorithms.iter().any(|name| name == plan.algorithm))
+        let selected_plans: Vec<IndexPlan> = match options.product_configuration {
+            Some(Configuration::Exact) => Vec::new(),
+            Some(Configuration::Hnsw(point)) => plans
+                .iter()
+                .filter(|plan| plan.algorithm == "hnsw")
+                .nth(point)
+                .cloned()
+                .into_iter()
+                .collect(),
+            Some(Configuration::Ivfflat(point)) => plans
+                .iter()
+                .filter(|plan| plan.algorithm == "ivfflat")
+                .nth(point)
+                .cloned()
+                .into_iter()
+                .collect(),
+            None => plans
+                .into_iter()
+                .filter(|plan| options.algorithms.iter().any(|name| name == plan.algorithm))
+                .collect(),
+        };
+        if matches!(
+            options.product_configuration,
+            Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_))
+        ) && selected_plans.is_empty()
         {
+            return Err(
+                "selected product vector tuning point is absent from the manifest".to_string(),
+            );
+        }
+        for plan in &selected_plans {
             rows.extend(run_configuration(
                 workload,
                 options,
                 &base,
                 metric,
-                Some(&plan),
+                Some(plan),
                 &truths,
                 &query_sets,
             )?);
@@ -764,6 +800,14 @@ pub fn run_workload(
         "recall_only": options.recall_only,
         "splits": options.splits,
         "query_limit": options.query_limit,
+        "query_range": options.query_range.as_ref().map(|range| format!("{}..{}", range.start, range.end)),
+        "product_configuration": options.product_configuration.map(|configuration| match configuration {
+            Configuration::Exact => "exact",
+            Configuration::Hnsw(0) => "hnsw-1",
+            Configuration::Hnsw(_) => "hnsw-2",
+            Configuration::Ivfflat(0) => "ivfflat-1",
+            Configuration::Ivfflat(_) => "ivfflat-2",
+        }),
         "note": "peak_query_memory_bytes_configuration_scope is the process-lifetime peak of one configuration, shared by its filter rows.",
         "rows": rows,
     }))

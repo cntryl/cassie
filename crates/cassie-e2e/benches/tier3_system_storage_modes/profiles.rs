@@ -23,12 +23,36 @@ pub struct Profile {
 
 impl Profile {
     /// `BENCH_TIER3_STORAGE_MODES_PROFILE` selects `100k_256m` (default),
+    /// `100k_256m_local` (same comparison on native local storage),
     /// `100k_2g` (historical budget), `1m` (opt-in memory scale) or
     /// `1m_local` (same rows and query budget on native local storage).
     pub fn from_env(fixture: Fixture) -> Self {
         let name = std::env::var("BENCH_TIER3_STORAGE_MODES_PROFILE")
             .unwrap_or_else(|_| "100k_256m".to_owned());
-        let mut profile = match name.as_str() {
+        let mut profile = Self::named(&name);
+        if let Some(rows) = env_usize("BENCH_TIER3_STORAGE_MODES_ROWS") {
+            profile.fact_rows = rows;
+        }
+        profile.wide_rows =
+            env_usize("BENCH_TIER3_STORAGE_MODES_WIDE_ROWS").unwrap_or(profile.wide_rows);
+        if matches!(fixture, Fixture::All) {
+            profile.wide_rows = profile.wide_rows.min(profile.fact_rows);
+        }
+        assert!(
+            profile.fact_rows > 0,
+            "narrow fixture must have at least one row"
+        );
+        assert!(
+            profile.wide_rows > 0,
+            "wide fixture must have at least one row"
+        );
+        profile
+    }
+
+    /// Resolves a named fixture profile without consulting process environment.
+    #[must_use]
+    pub fn named(name: &str) -> Self {
+        match name {
             "100k_256m" => Self {
                 name: "storage_modes_100k_256m",
                 fact_rows: 100_000,
@@ -36,6 +60,15 @@ impl Profile {
                 native_total: 2 * GIB,
                 native_memtable: 512 * MIB,
                 local: false,
+                wide_rows: DEFAULT_WIDE_ROWS,
+            },
+            "100k_256m_local" => Self {
+                name: "storage_modes_100k_256m_local",
+                fact_rows: 100_000,
+                query_budget: 256 * MIB,
+                native_total: 2 * GIB,
+                native_memtable: 512 * MIB,
+                local: true,
                 wide_rows: DEFAULT_WIDE_ROWS,
             },
             "100k_2g" => Self {
@@ -61,28 +94,14 @@ impl Profile {
                 wide_rows: DEFAULT_WIDE_ROWS,
             },
             other => panic!("unknown BENCH_TIER3_STORAGE_MODES_PROFILE {other}"),
-        };
-        if let Some(rows) = env_usize("BENCH_TIER3_STORAGE_MODES_ROWS") {
-            profile.fact_rows = rows;
         }
-        profile.wide_rows =
-            env_usize("BENCH_TIER3_STORAGE_MODES_WIDE_ROWS").unwrap_or(profile.wide_rows);
-        if matches!(fixture, Fixture::All) {
-            profile.wide_rows = profile.wide_rows.min(profile.fact_rows);
-        }
-        assert!(
-            profile.fact_rows > 0,
-            "narrow fixture must have at least one row"
-        );
-        assert!(
-            profile.wide_rows > 0,
-            "wide fixture must have at least one row"
-        );
-        profile
     }
 
     pub fn is_advantage_profile(&self) -> bool {
-        self.name == "storage_modes_100k_256m" && self.fact_rows == 100_000
+        matches!(
+            self.name,
+            "storage_modes_100k_256m" | "storage_modes_100k_256m_local"
+        ) && self.fact_rows == 100_000
     }
 
     pub fn native_limits(&self) -> Option<(usize, usize)> {

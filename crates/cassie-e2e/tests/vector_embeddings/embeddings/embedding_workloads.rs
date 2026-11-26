@@ -4,6 +4,9 @@
 #[path = "../../../benches/support/embedding_workloads.rs"]
 mod workloads;
 
+#[path = "../../../benches/support/embedding_workloads/product_selection.rs"]
+mod product_selection;
+
 use workloads::ground_truth::{
     decode_truths, distance, encode_truths, exact_top_k, recall_at_k, Metric, Truth,
 };
@@ -14,6 +17,86 @@ use workloads::vector_file::{
 };
 
 use crate::support_temp_dirs::IsolatedDataDir;
+
+#[test]
+fn should_select_exactly_one_product_vector_configuration() {
+    // Arrange
+    let selectors = ["exact", "hnsw-1", "hnsw-2", "ivfflat-1", "ivfflat-2"];
+
+    // Act
+    let selected = selectors.map(|value| product_selection::configuration(value));
+
+    // Assert
+    assert_eq!(
+        selected,
+        [
+            Ok(product_selection::Configuration::Exact),
+            Ok(product_selection::Configuration::Hnsw(0)),
+            Ok(product_selection::Configuration::Hnsw(1)),
+            Ok(product_selection::Configuration::Ivfflat(0)),
+            Ok(product_selection::Configuration::Ivfflat(1)),
+        ]
+    );
+    assert!(product_selection::configuration("all").is_err());
+    assert!(product_selection::configuration("hnsw-3").is_err());
+    assert!(product_selection::configuration("ivfflat-0").is_err());
+}
+
+#[test]
+fn should_accept_only_one_quarter_query_shards_within_a_split() {
+    // Arrange
+    let ranges = ["0..250", "250..500", "500..750", "750..1000"];
+
+    // Act
+    let parsed = ranges.map(product_selection::query_range);
+
+    // Assert
+    assert_eq!(
+        parsed,
+        [Ok(0..250), Ok(250..500), Ok(500..750), Ok(750..1000)]
+    );
+    for invalid in [
+        "0..1000",
+        "1..251",
+        "750..1001",
+        "250..250",
+        "1..2",
+        "x..250",
+    ] {
+        assert!(
+            product_selection::query_range(invalid).is_err(),
+            "accepted invalid shard {invalid}"
+        );
+    }
+}
+
+#[test]
+fn should_separate_cached_truth_for_equal_sized_query_shards() {
+    // Arrange
+    let first = [0, 1, 2, 3];
+    let second = [4, 5, 6, 7];
+
+    // Act
+    let first_key = product_selection::truth_cache_key(&first);
+    let second_key = product_selection::truth_cache_key(&second);
+
+    // Assert
+    assert_ne!(first_key, second_key);
+}
+
+#[test]
+fn should_apply_each_query_shard_relative_to_its_own_split() {
+    // Arrange
+    let shard = 250..500;
+
+    // Act
+    let tuning = product_selection::absolute_query_range(0, 1_000, &shard);
+    let held_out = product_selection::absolute_query_range(1_000, 1_000, &shard);
+
+    // Assert
+    assert_eq!(tuning, Ok(250..500));
+    assert_eq!(held_out, Ok(1_250..1_500));
+}
 
 const MANIFEST_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),

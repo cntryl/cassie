@@ -1,6 +1,6 @@
-//! Tier 3 mapped graph representatives: projector-shaped workloads over ordinary tables, each
-//! mapped by a property graph that copies no data. The standard analytical profile runs
-//! in memory by default. The opt-in reopened weighted case records local storage counters.
+// Tier 3 mapped graph representatives: projector-shaped workloads over ordinary tables, each
+// mapped by a property graph that copies no data. The standard analytical profile runs
+// in memory by default. The opt-in reopened weighted case records local storage counters.
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -276,6 +276,7 @@ fn collect_evidence(
             &fixture,
             social,
             fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES),
+            FIXTURE_SCALE,
         );
         if i64::try_from(cold.validation_rows) != Ok(SOCIAL_EDGES) {
             evidence.finding(format!(
@@ -293,6 +294,7 @@ fn collect_weighted_evidence(
     fixture: &Fixture,
     social: &graph_social::Social,
     identity: serde_json::Value,
+    case: &str,
 ) -> (graph_evidence::Counts, graph_evidence::Counts) {
     let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
     let mut expected = (1..)
@@ -306,7 +308,7 @@ fn collect_weighted_evidence(
         &fixture.session,
         &graph_evidence::Spec {
             family: "graph_weighted_routes_query",
-            case: FIXTURE_SCALE,
+            case,
             sql: &route.sql(),
             params: &[],
             expected,
@@ -338,6 +340,13 @@ fn populated_fixture(
 }
 
 fn main() {
+    if let Ok(profile) = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE") {
+        let output_dir = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR")
+            .map(std::path::PathBuf::from)
+            .expect("CASSIE_BENCH_PRODUCT_OUTPUT_DIR is required");
+        weighted_graph_disk::run_product(&profile, &output_dir);
+        return;
+    }
     if std::env::var("CASSIE_BENCH_GRAPH_DISK_REOPEN").as_deref() == Ok("1") {
         weighted_graph_disk::run();
     } else {

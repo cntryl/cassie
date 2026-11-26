@@ -1,7 +1,7 @@
-//! Tier 3 representative row, column and mixed SQL workloads for #1113.
-//! Uses the registered fixed-duration harness at exactly 100k fact rows.
-//! Storage-mode result equality is checked before timing; no latency threshold
-//! is asserted by these correctness guards.
+// Tier 3 representative row, column and mixed SQL workloads for #1113.
+// Uses the registered fixed-duration harness at exactly 100k fact rows.
+// Storage-mode result equality is checked before timing; no latency threshold
+// is asserted by these correctness guards.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -305,6 +305,9 @@ fn run_queries(
 }
 
 fn main() -> std::process::ExitCode {
+    if std::env::var_os("CASSIE_BENCH_PRODUCT_PROFILE").is_some() {
+        return product_main();
+    }
     std::env::set_var("CASSIE_STORAGE_MODE", "memory");
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let mode = std::env::var("BENCH_TIER3_STORAGE_MODES_MODE")
@@ -340,4 +343,33 @@ fn main() -> std::process::ExitCode {
     run_queries(&mut runner, &db, &setup_time, selected);
     runner.finish();
     std::process::ExitCode::SUCCESS
+}
+
+/// Product entry point sharing the paired fixture, storage checks and independent query oracles.
+pub fn product_main() -> std::process::ExitCode {
+    let profile =
+        std::env::var("CASSIE_BENCH_PRODUCT_PROFILE").unwrap_or_else(|_| "full".to_owned());
+    let output_dir = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("CASSIE_BENCH_PRODUCT_OUTPUT_DIR is required");
+    std::fs::create_dir_all(&output_dir).expect("create product output directory");
+    let (storage_profile, rows, measurement, footprint) = match profile.as_str() {
+        "smoke" => ("100k_256m", "128", "0", "0"),
+        "full" => ("100k_256m_local", "100000", "1", "1"),
+        other => panic!("unsupported product profile {other:?}"),
+    };
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_MODE", "paired");
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_PROFILE", storage_profile);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_FIXTURE", "all");
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_ROWS", rows);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_WIDE_ROWS", rows);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_MEASUREMENT", measurement);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_CONTROL", measurement);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_FOOTPRINT", footprint);
+    std::env::set_var("BENCH_TIER3_STORAGE_MODES_STRICT", "0");
+    std::env::set_var(
+        "BENCH_TIER3_STORAGE_MODES_OUT",
+        output_dir.join("column_aggregate.json"),
+    );
+    paired::run()
 }

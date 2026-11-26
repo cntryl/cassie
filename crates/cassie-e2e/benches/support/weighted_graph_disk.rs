@@ -2,13 +2,14 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 
 use super::{
     collect_weighted_evidence, fixture_identity, graph_evidence, graph_social, workloads, Fixture,
-    SOCIAL_EDGES, SOCIAL_INDEXES, SOCIAL_MAPPED_ROWS, SOCIAL_PEOPLE,
+    SOCIAL_EDGES, SOCIAL_INDEXES, SOCIAL_PEOPLE,
 };
 
 #[path = "weighted_graph_disk_checks.rs"]
@@ -51,8 +52,21 @@ fn open(path: &Path) -> Fixture {
 }
 
 pub(super) fn run() {
+    run_inner(None);
+}
+
+pub(super) fn run_product(profile: &str, output_dir: &Path) {
+    run_inner(Some((profile, output_dir)));
+}
+
+fn run_inner(product: Option<(&str, &Path)>) {
     let store = StoreDir::create();
-    let social = graph_social::Social::new(SOCIAL_PEOPLE, SOCIAL_EDGES);
+    let (people, edges, scale) = match product.map(|(profile, _)| profile) {
+        Some("smoke") => (1_000, 2_500, "smoke"),
+        Some("full") | None => (SOCIAL_PEOPLE, SOCIAL_EDGES, "100k"),
+        Some(other) => panic!("unsupported graph product profile {other:?}"),
+    };
+    let social = graph_social::Social::new(people, edges);
     {
         let fixture = open(&store.0);
         social.plan().apply(&fixture.cassie, &fixture.session);
@@ -68,7 +82,9 @@ pub(super) fn run() {
         "reopened graph query budget"
     );
     assert!(!limits.execution_result_cache_enabled.is_enabled());
-    let mut identity = fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES);
+    let mapped_rows = people + edges;
+    let mut identity = fixture_identity(mapped_rows, SOCIAL_INDEXES);
+    identity["scale"] = serde_json::json!(scale);
     identity["storage_mode"] = serde_json::json!(native.mode);
     identity["native_memory_configuration"] = serde_json::json!(native);
     identity["snapshot"] = serde_json::json!("unchanged committed fixture after close and reopen");
@@ -77,13 +93,149 @@ pub(super) fn run() {
     identity["query_timeout_ms"] = serde_json::json!(limits.query_timeout_ms);
 
     let mut evidence = graph_evidence::Evidence::new("tier3_system_graph_disk_reopen");
-    let (cold, warm) = collect_weighted_evidence(&mut evidence, &fixture, &social, identity);
+    let (cold, warm) = collect_weighted_evidence(&mut evidence, &fixture, &social, identity, scale);
     checks::should_validate_and_expand_the_weighted_graph_after_reopen(
         &mut evidence,
-        u64::try_from(SOCIAL_EDGES).expect("positive fixture edge count"),
+        u64::try_from(edges).expect("positive fixture edge count"),
         cold,
         warm,
     );
+    let reopen_valid = [cold, warm].into_iter().all(|counts| {
+        counts.validation_rows == u64::try_from(edges).expect("positive fixture edge count")
+            && counts.index_entries > 0
+            && counts.neighborhoods > 0
+            && counts.edges_admitted > 0
+            && counts.full_rows == 0
+            && counts.result_cache_hits == 0
+    });
+    if let Some((profile, output_dir)) = product {
+        measure_routes(
+            &fixture,
+            &social,
+            people,
+            edges,
+            cold,
+            warm,
+            reopen_valid,
+            profile,
+            output_dir,
+        );
+    }
     fixture.cassie.shutdown();
     evidence.finish();
+}
+
+fn measure_routes(
+    fixture: &Fixture,
+    social: &graph_social::Social,
+    people: i64,
+    expected_edges: i64,
+    cold: graph_evidence::Counts,
+    warm: graph_evidence::Counts,
+    reopen_valid: bool,
+    profile: &str,
+    output_dir: &Path,
+) {
+    let route = social.route(1, super::ROUTE_HOPS, super::ROUTE_PATHS);
+    let mut expected = (1..)
+        .zip(&route.costs)
+        .map(|(rank, cost): (i64, &i64)| vec![rank.to_string(), cost.to_string()])
+        .collect::<Vec<_>>();
+    expected.sort();
+    let sql = route.sql();
+    for _ in 0..5 {
+        let result = fixture
+            .cassie
+            .execute_sql(&fixture.session, &sql, Vec::new())
+            .unwrap_or_else(|error| {
+                panic!("graph warmup failed with SQLSTATE {}", error.sql_state())
+            });
+        assert_eq!(graph_evidence::canonical_rows(result.rows()), expected);
+    }
+    let mut outcomes = Vec::with_capacity(100);
+    for query in 0..100 {
+        let before = graph_evidence::Counts::snapshot(&fixture.cassie);
+        let started = Instant::now();
+        let result = fixture
+            .cassie
+            .execute_sql(&fixture.session, &sql, Vec::new())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "graph product query failed with SQLSTATE {}",
+                    error.sql_state()
+                )
+            });
+        let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let counts = graph_evidence::Counts::snapshot(&fixture.cassie).since(before);
+        let matches_oracle = graph_evidence::canonical_rows(result.rows()) == expected;
+        assert!(
+            matches_oracle,
+            "weighted route differs from independent oracle"
+        );
+        assert_eq!(
+            counts.validation_rows,
+            u64::try_from(expected_edges).expect("edges")
+        );
+        assert_eq!(counts.full_rows, 0);
+        assert_eq!(counts.result_cache_hits, 0);
+        outcomes.push(serde_json::json!({
+            "query": query,
+            "latency_ms": elapsed_ms,
+            "matches_oracle": matches_oracle,
+            "returned_paths": result.rows().len(),
+            "fallback": counts.full_rows > 0 || counts.result_cache_hits > 0,
+            "counters": counts.to_json(),
+        }));
+    }
+    let mut samples = outcomes
+        .iter()
+        .map(|outcome| outcome["latency_ms"].as_f64().expect("latency"))
+        .collect::<Vec<_>>();
+    samples.sort_by(f64::total_cmp);
+    let p95_ms = samples[(samples.len() * 95).div_ceil(100) - 1];
+    let metric = serde_json::json!({
+        "metric": "weighted_routes",
+        "profile": profile,
+        "measurement_valid": reopen_valid && outcomes.len() == 100 && outcomes.iter().all(|row| row["matches_oracle"] == true && row["fallback"] == false),
+        "target_met": if profile == "full" { serde_json::json!(p95_ms <= 100.0) } else { serde_json::Value::Null },
+        "target": "p95_ms <= 100",
+        "measurements": {
+            "fixture": {
+                "scale": if profile == "full" { "100k" } else { "smoke" },
+                "mapped_rows": people + expected_edges,
+                "people": people,
+                "edges": expected_edges,
+                "storage_mode": "local",
+                "query_memory_budget_bytes": graph_evidence::BUDGET_BYTES,
+                "result_cache": "disabled",
+                "snapshot": "closed and reopened before timing",
+            },
+            "route": {
+                "source": route.source,
+                "target": route.target,
+                "maximum_hops": route.max_hops,
+                "path_limit": route.k,
+                "oracle_costs": route.costs,
+            },
+            "edge_rows": expected_edges,
+            "warmups": 5,
+            "queries": outcomes.len(),
+            "reopen_oracle_valid": reopen_valid,
+            "reopened_counters": {"cold": cold.to_json(), "warm": warm.to_json()},
+            "p50_ms": samples[(samples.len() * 50).div_ceil(100) - 1],
+            "p95_ms": p95_ms,
+            "per_query": outcomes,
+        },
+        "failures": if reopen_valid { vec![] } else { vec!["reopen counter oracle failed"] },
+    });
+    std::fs::create_dir_all(output_dir).expect("create product output directory");
+    let path = output_dir.join("weighted_routes.json");
+    let temporary = path.with_extension("json.tmp");
+    std::fs::write(
+        &temporary,
+        serde_json::to_vec_pretty(&metric).expect("serialize graph receipt"),
+    )
+    .expect("write graph receipt");
+    std::fs::rename(&temporary, &path).expect("publish graph receipt");
+    println!("product_graph_report={}", path.display());
 }

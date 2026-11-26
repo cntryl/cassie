@@ -8,6 +8,8 @@
 pub mod ground_truth;
 #[path = "embedding_workloads/manifest.rs"]
 pub mod manifest;
+#[path = "embedding_workloads/product_selection.rs"]
+pub mod product_selection;
 #[path = "embedding_workloads/statistics.rs"]
 pub mod statistics;
 #[path = "embedding_workloads/synthetic.rs"]

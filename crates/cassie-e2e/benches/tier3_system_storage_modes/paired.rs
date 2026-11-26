@@ -139,7 +139,7 @@ fn report_profile(db: &Db, profile: &Profile, options: &Sampling) -> Json {
         assert_eq!(native.total, total, "native memory budget");
         assert_eq!(native.memtable_limit, memtable, "native memtable budget");
     }
-    json!({
+    let mut report = json!({
         "benchmark": super::BENCHMARK,
         "profile": profile.name,
         "fixture": options.fixture.as_str(),
@@ -161,7 +161,15 @@ fn report_profile(db: &Db, profile: &Profile, options: &Sampling) -> Json {
         "advantage_gate": "primary queries: ci95 lower bound of the paired ratio > 1 + heap-versus-heap noise band; 1.25x median is the reported target",
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
-    })
+    });
+    if let Ok(product_profile) = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE") {
+        report["metric"] = json!("column_aggregate");
+        report["product_profile"] = json!(product_profile);
+        report["measurement_valid"] = json!(false);
+        report["target_met"] = Json::Null;
+        report["failures"] = json!(["measurement did not complete"]);
+    }
+    report
 }
 
 fn write_report(options: &Sampling, report: &Json) {
@@ -286,6 +294,9 @@ pub fn run() -> ExitCode {
             report["setup_error"] = json!(error);
             report["run_status"] = json!("setup_failed");
             report["advantage_status"] = json!("not_run");
+            if std::env::var_os("CASSIE_BENCH_PRODUCT_PROFILE").is_some() {
+                report["failures"] = json!([error]);
+            }
             write_report(&options, &report);
             return ExitCode::FAILURE;
         }
@@ -323,6 +334,49 @@ pub fn run() -> ExitCode {
         "complete"
     });
     report["advantage_status"] = json!(status);
+    if let Ok(product_profile) = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE") {
+        let aggregate = results
+            .iter()
+            .find(|result| result["name"] == "filtered_aggregate");
+        let speedup = aggregate.and_then(|result| {
+            result["analysis"]["paired_ratio_heap_over_column"]["median"].as_f64()
+        });
+        let profile_valid = match product_profile.as_str() {
+            "smoke" => profile.fact_rows == 128 && !profile.local,
+            "full" => {
+                profile.fact_rows == 100_000
+                    && profile.local
+                    && profile.query_budget == 256 * 1024 * 1024
+                    && options.measurement
+                    && options.control
+            }
+            _ => false,
+        };
+        let measurement_valid = profile_valid
+            && !query_failed
+            && aggregate.is_some_and(primary_has_qualified_path)
+            && !results.is_empty();
+        let full_profile = product_profile == "full"
+            && profile.local
+            && profile.fact_rows == 100_000
+            && profile.query_budget == 256 * 1024 * 1024
+            && options.measurement
+            && options.control;
+        report["metric"] = json!("column_aggregate");
+        report["product_profile"] = json!(product_profile);
+        report["measurement_valid"] = json!(measurement_valid);
+        report["target_met"] = if full_profile && measurement_valid {
+            json!(
+                aggregate.is_some_and(|result| result["analysis"]["gate_pass"] == true)
+                    && speedup.is_some_and(|ratio| ratio >= 2.0)
+            )
+        } else {
+            Json::Null
+        };
+        report["target"] = json!("filtered aggregate median heap/column ratio >= 2.0");
+        report["measurements"] = json!({"filtered_aggregate": aggregate});
+        report["failures"] = json!(failures);
+    }
     write_report(&options, &report);
     println!("storage_modes_gate={status} queries={lost:?}");
     if !query_failed && (!options.gate.strict || status == "pass") {

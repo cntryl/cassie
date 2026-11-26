@@ -51,7 +51,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/bench_diagnostics/replay_index_metadata.rs` | test_module | 152 | 4 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/indexes/replay_index_metadata.rs` |
 | `tests/bench_diagnostics/replay_mode.rs` | test_module | 197 | 11 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/semantics/replay_mode.rs` |
 | `tests/bench_diagnostics/replay_read_ownership.rs` | test_module | 311 | 9 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/security/replay_read_ownership.rs` |
-| `tests/bench_diagnostics.rs` | cargo_target | 35 | 1 | bench_diagnostics | keep_harness_and_extract_tests | `tests/bench_diagnostics.rs`; `tests/bench_diagnostics/semantics/semantics.rs` |
+| `tests/bench_diagnostics.rs` | cargo_target | 38 | 1 | bench_diagnostics | keep_harness_and_extract_tests | `tests/bench_diagnostics.rs`; `tests/bench_diagnostics/semantics/semantics.rs` |
 | `tests/bench_operations/artifacts/ann_recall.rs` | test_module | 258 | 5 | bench_operations | keep | `tests/bench_operations/artifacts/ann_recall.rs` |
 | `tests/bench_operations/artifacts/host_identity.rs` | test_module | 252 | 11 | bench_operations | keep | `tests/bench_operations/artifacts/host_identity.rs` |
 | `tests/bench_operations.rs` | cargo_target | 6 | 0 | bench_operations | keep | `tests/bench_operations.rs` |

@@ -7350,8 +7350,8 @@
       "id": "tests/bench_diagnostics.rs::should_preserve_local_column_product_profile",
       "name": "should_preserve_local_column_product_profile",
       "current_file": "tests/bench_diagnostics.rs",
-      "line": 23,
-      "end_line": 35,
+      "line": 26,
+      "end_line": 38,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -367343,8 +367343,8 @@
       "current_file": "tests/bench_diagnostics.rs",
       "role": "cargo_target",
       "action": "keep_harness_and_extract_tests",
-      "lines": 35,
-      "sha256": "3a1300888369da28119f8f95a78abbd619d29fa95e4d896cd200a7d37b78fce8",
+      "lines": 38,
+      "sha256": "e8c83926a3c6251f8d2b6dca3f1d673e0c745a6e6bc8875dfdc44e3fab90d745",
       "test_declarations": 1,
       "registered_suites": [
         "bench_diagnostics"

@@ -35,6 +35,7 @@ mod collection_gates;
 mod commit_source;
 mod core;
 pub mod fulltext_retrieval;
+mod iam_role_bindings;
 #[cfg(feature = "replay-benchmark-observation")]
 mod native_metrics;
 #[cfg(feature = "replay-benchmark-observation")]

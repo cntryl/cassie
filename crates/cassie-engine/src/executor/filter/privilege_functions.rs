@@ -142,12 +142,10 @@ fn current_role(catalog: &Catalog, session: &CassieSession) -> Result<RoleMeta, 
     if !session.is_network_authenticated() {
         return Ok(RoleMeta::bootstrap_admin("root", None));
     }
-    catalog
-        .get_role(&session.user)
+    session
+        .catalog_role(catalog)
         .or_else(|| {
-            session
-                .user
-                .eq_ignore_ascii_case("root")
+            (!session.uses_aws_iam() && session.user.eq_ignore_ascii_case("root"))
                 .then(|| RoleMeta::bootstrap_admin("root", None))
         })
         .ok_or_else(|| {

@@ -575,10 +575,21 @@ pub(super) fn parse_create_role_statement(
     }
 
     let mut login = user_alias;
+    let mut aws_iam_login = false;
     let mut password = None;
     while let Some(token) = tokens.next() {
         match token.to_ascii_lowercase().as_str() {
             "login" => login = true,
+            "external" if !aws_iam_login => {
+                if !tokens
+                    .next()
+                    .is_some_and(|next| next.eq_ignore_ascii_case("login"))
+                {
+                    return Err(SqlError::new("EXTERNAL requires LOGIN".into()));
+                }
+                login = true;
+                aws_iam_login = true;
+            }
             "nologin" => login = false,
             "password" => {
                 let raw_password = tokens
@@ -594,12 +605,18 @@ pub(super) fn parse_create_role_statement(
         }
     }
 
+    if aws_iam_login && (!login || password.is_some()) {
+        return Err(SqlError::new(
+            "EXTERNAL LOGIN cannot use PASSWORD or NOLOGIN".into(),
+        ));
+    }
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::CreateRole(CreateRoleStatement {
             name,
             if_not_exists,
             login,
+            aws_iam_login,
             password,
         }),
     })
@@ -613,7 +630,19 @@ pub(super) fn parse_alter_role_statement(
     let rest = trimmed[10..].trim();
     let (name, rest) =
         split_first_token(rest).ok_or_else(|| SqlError::new("missing role name".into()))?;
-    let mut tokens = tokenize_schema_field(rest).into_iter();
+    let options = tokenize_schema_field(rest);
+    if let Some(binding) = parse_aws_iam_binding(&options)? {
+        return Ok(ParsedStatement {
+            raw_sql: trimmed.to_owned(),
+            statement: QueryStatement::AlterRole(AlterRoleStatement {
+                name,
+                login: None,
+                password: None,
+                aws_iam_binding: Some(binding),
+            }),
+        });
+    }
+    let mut tokens = options.into_iter();
     let mut login = None;
     let mut password = None;
 
@@ -647,8 +676,53 @@ pub(super) fn parse_alter_role_statement(
             name,
             login,
             password,
+            aws_iam_binding: None,
         }),
     })
+}
+
+fn parse_aws_iam_binding(
+    options: &[String],
+) -> Result<Option<crate::ast::AlterAwsIamBinding>, SqlError> {
+    let Some(verb) = options.first() else {
+        return Ok(None);
+    };
+    let bind = if verb.eq_ignore_ascii_case("BIND") {
+        true
+    } else if verb.eq_ignore_ascii_case("UNBIND") {
+        false
+    } else {
+        return Ok(None);
+    };
+    let [_, aws, iam, role, arn, issuer, uri] = options else {
+        return Err(SqlError::new(
+            "expected BIND or UNBIND AWS IAM ROLE '<arn>' ISSUER '<url>'".into(),
+        ));
+    };
+    if !aws.eq_ignore_ascii_case("AWS")
+        || !iam.eq_ignore_ascii_case("IAM")
+        || !role.eq_ignore_ascii_case("ROLE")
+        || !issuer.eq_ignore_ascii_case("ISSUER")
+    {
+        return Err(SqlError::new(
+            "expected BIND or UNBIND AWS IAM ROLE '<arn>' ISSUER '<url>'".into(),
+        ));
+    }
+    let unquote = |token: &str| {
+        token
+            .strip_prefix('\'')
+            .and_then(|value| value.strip_suffix('\''))
+            .filter(|value| !value.is_empty() && !value.contains('\''))
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                SqlError::new("AWS IAM role ARN and issuer require quoted strings".into())
+            })
+    };
+    Ok(Some(crate::ast::AlterAwsIamBinding {
+        bind,
+        role_arn: unquote(arn)?,
+        issuer: unquote(uri)?,
+    }))
 }
 
 pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

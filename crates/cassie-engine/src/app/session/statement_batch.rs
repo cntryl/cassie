@@ -50,6 +50,7 @@ impl CassieSession {
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,
+            aws_iam_authority: self.aws_iam_authority.clone(),
             schema_context,
             search_path: Arc::new(Mutex::new(self.search_path())),
             settings: Arc::new(Mutex::new(self.settings.lock().clone())),

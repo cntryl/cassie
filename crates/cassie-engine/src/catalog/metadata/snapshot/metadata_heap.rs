@@ -609,6 +609,7 @@ unit_enum_heap!(crate::catalog::retention::RetentionScheduleState {
 metadata_heap!(crate::catalog::roles::RoleMeta {
     name,
     can_login,
+    aws_iam_login,
     is_admin,
     password_hash,
     database_grants,

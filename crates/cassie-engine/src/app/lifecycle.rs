@@ -97,6 +97,7 @@ impl Cassie {
         let CassieRuntimeConfig {
             database: default_database,
             password: auth_password,
+            pgwire_aws_iam_trust_file,
             rest_tls_cert_file,
             rest_tls_key_file,
             rest_external_https,
@@ -130,6 +131,7 @@ impl Cassie {
             )),
             auth_user: "root".to_string(),
             auth_password,
+            aws_iam_login_enabled: pgwire_aws_iam_trust_file.is_some(),
             bootstrap_password_hash: super::auth::LazyPasswordHash::default(),
             dummy_password_hash: super::auth::LazyPasswordHash::default(),
             auth_rate_limiter,

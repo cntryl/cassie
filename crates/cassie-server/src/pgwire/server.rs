@@ -91,6 +91,7 @@ async fn serve(
     crate::config::validate_pgwire_listener_transport(&config, listen_address)?;
     let require_tls =
         !config.allow_insecure_non_loopback_listen && !listen_address.ip().is_loopback();
+    let iam = super::iam::configure(&cassie, &config, tls_config.is_some())?;
     tracing::info!(target: "pgwire", address = %listen_address, "listening");
     let admission = Arc::new(Semaphore::new(config.limits.pgwire_max_connections.max(1)));
 
@@ -120,16 +121,18 @@ async fn serve(
                         let cassie = cassie.clone();
                         let config = config.clone();
                         let tls_config = tls_config.clone();
+                        let iam = iam.clone();
                         tokio::spawn(async move {
                             let () = crate::pgwire::connection::worker_lease::with_connection_lease(
                                 permit,
-                                Box::pin(crate::pgwire::connection::run_connection(
+                                Box::pin(crate::pgwire::connection::run_connection_with_iam(
                                     socket,
                                     cassie,
                                     config,
                                     tls_config,
                                     require_tls,
                                     peer.ip(),
+                                    iam,
                                 )),
                             ).await;
                         });

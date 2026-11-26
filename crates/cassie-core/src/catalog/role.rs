@@ -8,6 +8,8 @@ use std::collections::BTreeSet;
 pub struct RoleMeta {
     pub name: String,
     pub can_login: bool,
+    #[serde(default)]
+    pub aws_iam_login: bool,
     pub is_admin: bool,
     pub password_hash: Option<String>,
     #[serde(default)]
@@ -63,6 +65,7 @@ impl RoleMeta {
         Self {
             name: normalize_role_name(name),
             can_login,
+            aws_iam_login: false,
             is_admin,
             password_hash,
             database_grants: Some(BTreeSet::new()),

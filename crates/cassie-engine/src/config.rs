@@ -62,11 +62,15 @@ pub enum CassieRuntimeConfigError {
     InvalidRestListener { listener: String },
 }
 
+/// Nonsecret pgwire startup user that selects AWS IAM token authentication.
+pub const AWS_IAM_PGWIRE_SELECTOR: &str = "cassie_aws_iam";
+
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
     pub pgwire_tls_cert_file: Option<String>,
     pub pgwire_tls_key_file: Option<String>,
+    pub pgwire_aws_iam_trust_file: Option<String>,
     pub rest_listen: String,
     pub rest_tls_cert_file: Option<String>,
     pub rest_tls_key_file: Option<String>,
@@ -200,6 +204,7 @@ impl Default for CassieRuntimeConfig {
             pgwire_listen: "127.0.0.1:5432".to_string(),
             pgwire_tls_cert_file: None,
             pgwire_tls_key_file: None,
+            pgwire_aws_iam_trust_file: None,
             rest_listen: "127.0.0.1:8080".to_string(),
             rest_tls_cert_file: None,
             rest_tls_key_file: None,
@@ -319,6 +324,7 @@ impl CassieRuntimeConfig {
         }
         config.pgwire_tls_cert_file = env_reader("CASSIE_PGWIRE_TLS_CERT_FILE");
         config.pgwire_tls_key_file = env_reader("CASSIE_PGWIRE_TLS_KEY_FILE");
+        config.pgwire_aws_iam_trust_file = env_reader("CASSIE_PGWIRE_AWS_IAM_TRUST_FILE");
         config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
         config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
         config.rest_external_https =

@@ -155,8 +155,8 @@ fn may_read(catalog: &Catalog, session: Option<&CassieSession>, table: &str) -> 
     let Some(session) = session.filter(|session| session.is_network_authenticated()) else {
         return true;
     };
-    let Some(role) = catalog.get_role(&session.user) else {
-        return session.user.eq_ignore_ascii_case(ADMINISTRATOR);
+    let Some(role) = session.catalog_role(catalog) else {
+        return !session.uses_aws_iam() && session.user.eq_ignore_ascii_case(ADMINISTRATOR);
     };
     if role.is_admin {
         return true;

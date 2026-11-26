@@ -84,15 +84,27 @@ impl Cassie {
         let database = session
             .current_database()
             .unwrap_or(self.default_database.as_str());
-        let role = self.lookup_role(&session.user)?.or_else(|| {
-            (normalize_role_name(&session.user) == normalize_role_name(&self.auth_user))
-                .then(|| RoleMeta::bootstrap_admin(&self.auth_user, None))
-        });
+        let role = self.current_network_role(session)?;
         if role.is_some_and(|role| role.can_access_database(database)) {
             Ok(())
         } else {
             Err(CassieError::InsufficientPrivilege)
         }
+    }
+
+    pub(super) fn current_network_role(
+        &self,
+        session: &CassieSession,
+    ) -> Result<Option<RoleMeta>, CassieError> {
+        if let Some(authority) = session.aws_iam_authority.as_deref() {
+            return self
+                .check_aws_iam_authority(authority, &session.user)
+                .map(Some);
+        }
+        Ok(self.lookup_role(&session.user)?.or_else(|| {
+            (normalize_role_name(&session.user) == normalize_role_name(&self.auth_user))
+                .then(|| RoleMeta::bootstrap_admin(&self.auth_user, None))
+        }))
     }
 
     pub(crate) fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
@@ -150,21 +162,9 @@ impl Cassie {
         if_not_exists: bool,
         database: &str,
     ) -> Result<(), CassieError> {
-        let normalized = normalize_role_name(name);
-        if normalized.is_empty() {
-            return Err(CassieError::Planner(
-                "CREATE ROLE requires a name".to_string(),
-            ));
-        }
-
-        if self.lookup_role(&normalized)?.is_some() {
-            if if_not_exists {
-                return Ok(());
-            }
-            return Err(CassieError::Planner(format!(
-                "role '{normalized}' already exists"
-            )));
-        }
+        let Some(normalized) = self.admit_new_role(name, if_not_exists)? else {
+            return Ok(());
+        };
 
         let password_hash = match (login, password) {
             (true, Some(password)) if password.is_empty() => {
@@ -186,12 +186,47 @@ impl Cassie {
             (false, None) => None,
         };
 
-        let mut role = RoleMeta::new(normalized, login, false, password_hash);
+        self.store_new_role(
+            RoleMeta::new(normalized, login, false, password_hash),
+            database,
+        )
+    }
+
+    pub(super) fn admit_new_role(
+        &self,
+        name: &str,
+        if_not_exists: bool,
+    ) -> Result<Option<String>, CassieError> {
+        let normalized = normalize_role_name(name);
+        if normalized.is_empty() {
+            return Err(CassieError::Planner("CREATE ROLE requires a name".into()));
+        }
+        if self.aws_iam_login_enabled && normalized == crate::config::AWS_IAM_PGWIRE_SELECTOR {
+            return Err(CassieError::Planner(
+                "the pgwire AWS IAM startup selector is reserved".into(),
+            ));
+        }
+        if self.lookup_role(&normalized)?.is_some() {
+            if if_not_exists {
+                return Ok(None);
+            }
+            return Err(CassieError::Planner(format!(
+                "role '{normalized}' already exists"
+            )));
+        }
+        Ok(Some(normalized))
+    }
+
+    pub(super) fn store_new_role(
+        &self,
+        mut role: RoleMeta,
+        database: &str,
+    ) -> Result<(), CassieError> {
         role.grant_database(database);
         role.object_id = self.midge.allocate_object_id()?;
-        self.midge
-            .put_role(&role)
-            .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
+        self.midge.put_role(&role).map_err(|error| {
+            CassieError::Storage(format!("persist role '{}': {error}", role.name))
+        })?;
         self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
@@ -222,6 +257,12 @@ impl Cassie {
             }
         }
 
+        if role.aws_iam_login && password.is_some() {
+            return Err(CassieError::Unsupported(
+                "AWS IAM external roles cannot have a password".into(),
+            ));
+        }
+
         if password.as_deref().is_some_and(str::is_empty) {
             return Err(CassieError::Planner(
                 "login roles require a password".into(),
@@ -236,7 +277,7 @@ impl Cassie {
             role.password_hash = Some(hash_password(&password)?);
         }
 
-        if role.can_login && role.password_hash.is_none() {
+        if role.can_login && !role.aws_iam_login && role.password_hash.is_none() {
             return Err(CassieError::Planner(
                 "login roles require a password".into(),
             ));

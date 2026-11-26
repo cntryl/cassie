@@ -827,6 +827,8 @@ pub struct CreateRoleStatement {
     pub name: String,
     pub if_not_exists: bool,
     pub login: bool,
+    #[serde(default)]
+    pub aws_iam_login: bool,
     pub password: Option<String>,
 }
 
@@ -835,6 +837,15 @@ pub struct AlterRoleStatement {
     pub name: String,
     pub login: Option<bool>,
     pub password: Option<String>,
+    #[serde(default)]
+    pub aws_iam_binding: Option<AlterAwsIamBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlterAwsIamBinding {
+    pub bind: bool,
+    pub role_arn: String,
+    pub issuer: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

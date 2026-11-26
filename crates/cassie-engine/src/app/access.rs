@@ -41,12 +41,7 @@ impl super::Cassie {
         if !session.is_network_authenticated() {
             return Ok(());
         }
-        let role = self.lookup_role(&session.user)?.or_else(|| {
-            session
-                .user
-                .eq_ignore_ascii_case(&self.auth_user)
-                .then(|| crate::catalog::RoleMeta::bootstrap_admin(&self.auth_user, None))
-        });
+        let role = self.current_network_role(session)?;
         let Some(role) = role else {
             return Err(CassieError::InsufficientPrivilege);
         };

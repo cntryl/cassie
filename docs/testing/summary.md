@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1914 |
 | Rust files | 1871 |
-| Rust test declarations | 11750 |
+| Rust test declarations | 11753 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11775 |
+| Static Rust registration instances | 11778 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -63,7 +63,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 7 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 61 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 798 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 800 | 0 |
 | [sql_queries](inventory/sql_queries.md) | 2135 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 12 | 0 |
@@ -72,7 +72,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
 | [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
-| [vector_embeddings](inventory/vector_embeddings.md) | 301 | 0 |
+| [vector_embeddings](inventory/vector_embeddings.md) | 302 | 0 |
 
 ## Cargo targets
 

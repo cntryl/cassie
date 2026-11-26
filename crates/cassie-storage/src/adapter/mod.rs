@@ -530,7 +530,8 @@ pub use scan_types::{
     ColumnBatchSummaryDecision, DocumentRef, MidgeScanTimings, RowDecode, RowFilter,
 };
 pub use verification::{
-    IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
+    IntegrityCheckReport, ProjectionManifestSnapshot, RangeHashRecord, RootHashRecord,
+    RowHashRecord, StoredHashState,
 };
 
 pub(crate) fn collect_scan(

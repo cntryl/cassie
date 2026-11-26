@@ -13,7 +13,6 @@ pub(super) struct NormalizedVectorCacheKey {
 pub(super) struct NormalizedVectorCacheEntry {
     pub(super) ids: Vec<String>,
     pub(super) values: Vec<f32>,
-    pub(super) magnitudes: Vec<f64>,
     pub(super) dimensions: usize,
     pub(super) metric: DistanceMetric,
     pub(super) first_record: Option<NormalizedVectorRecord>,

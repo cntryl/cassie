@@ -1,5 +1,5 @@
 use super::{execute, Cassie, Value};
-use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use crate::app::{ProjectionManifestExportOptions, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
 
 #[test]
@@ -75,9 +75,8 @@ fn should_reconcile_committed_native_unknown_after_restart() {
     std::fs::remove_dir_all(path).unwrap();
 }
 
-#[test]
-fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
-    // Arrange
+fn indexed_postcommit_replay_fixture(
+) -> (Cassie, super::CassieSession, String, ProjectionReplayBatch) {
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("reader", None);
@@ -107,6 +106,13 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
             payload: Some(serde_json::json!({"title": "committed"})),
         }],
     };
+    (cassie, session, projection, batch)
+}
+
+#[test]
+fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
+    // Arrange
+    let (cassie, session, projection, batch) = indexed_postcommit_replay_fixture();
     super::super::replay::inject_replay_postcommit_metadata_read_failure();
 
     // Act
@@ -124,7 +130,20 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
         .source_checkpoint;
     let checkpoint_query = format!("SELECT source_checkpoint FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'");
     let catalog_before_retry = execute(&cassie, &session, &checkpoint_query);
+    let export = || {
+        cassie
+            .export_projection_verification_manifest(
+                &projection,
+                ProjectionManifestExportOptions {
+                    include_row_hashes: true,
+                    ..ProjectionManifestExportOptions::for_instance("replay")
+                },
+            )
+            .unwrap()
+    };
+    let manifest_before_retry = export();
     let retry = cassie.replay_projection_batch_strict(batch).unwrap();
+    let manifest_after_retry = export();
     let catalog_after_retry = execute(&cassie, &session, &checkpoint_query);
     let row_after_retry = cassie.midge.get_document(&projection, "doc-1").unwrap();
     let index = cassie
@@ -155,6 +174,16 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
     );
     assert!(event);
     assert_eq!(checkpoint.as_deref(), Some("checkpoint-1"));
+    for manifest in [&manifest_before_retry, &manifest_after_retry] {
+        assert_eq!(manifest.source_checkpoint, checkpoint);
+        assert_eq!(manifest.row_hashes.len(), 1);
+        assert_eq!(manifest.row_hashes[0].row_id, "doc-1");
+    }
+    assert_eq!(
+        manifest_before_retry.row_hashes[0].digest,
+        manifest_after_retry.row_hashes[0].digest
+    );
+
     // The view reads the committed storage snapshot, not the live catalog the
     // failed post-commit reread left stale, so it matches the stored checkpoint
     // and rows before any retry reconciles the catalog.
@@ -178,6 +207,66 @@ fn should_reconcile_committed_replay_when_postcommit_metadata_read_fails() {
     assert_eq!(index_hits.as_slice()[0].id, "doc-1");
     assert_eq!(retry.applied_event_count, 0);
     assert_eq!(retry.skipped_duplicate_count, 1);
+    assert_fresh_manifest_after_reconciliation(&cassie, &session, &projection, &checkpoint_query);
+}
+
+fn assert_fresh_manifest_after_reconciliation(
+    cassie: &Cassie,
+    session: &super::CassieSession,
+    projection: &str,
+    checkpoint_query: &str,
+) {
+    let fresh = cassie
+        .replay_projection_batch_strict(ProjectionReplayBatch {
+            projection: projection.to_owned(),
+            source_identity: "orders".to_owned(),
+            batch_id: "batch-2".to_owned(),
+            lag: 0,
+            events: vec![ProjectionReplayEvent {
+                event_id: "event-2".to_owned(),
+                checkpoint: "checkpoint-2".to_owned(),
+                position: Some(2),
+                document_id: "doc-2".to_owned(),
+                payload: Some(serde_json::json!({"title":"fresh"})),
+            }],
+        })
+        .expect("apply a fresh batch after reconciliation");
+    let manifest = cassie
+        .export_projection_verification_manifest(
+            projection,
+            ProjectionManifestExportOptions {
+                include_row_hashes: true,
+                ..ProjectionManifestExportOptions::for_instance("replay")
+            },
+        )
+        .unwrap();
+    let durable = cassie
+        .midge
+        .projection_metadata(projection)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(fresh.applied_event_count, 1);
+    assert_eq!(fresh.skipped_duplicate_count, 0);
+    assert_eq!(durable.source_checkpoint.as_deref(), Some("checkpoint-2"));
+    assert_eq!(manifest.source_checkpoint, durable.source_checkpoint);
+    assert_eq!(
+        execute(cassie, session, checkpoint_query),
+        vec![vec![Value::String("checkpoint-2".to_owned())]]
+    );
+    assert_eq!(manifest.row_hashes.len(), 2);
+    for (actual, (id, title)) in manifest
+        .row_hashes
+        .iter()
+        .zip([("doc-1", "committed"), ("doc-2", "fresh")])
+    {
+        let expected = cassie
+            .midge
+            .compute_expected_row_hash(projection, id, &serde_json::json!({"title":title}))
+            .unwrap();
+        assert_eq!(actual.row_id, id);
+        assert_eq!(actual.digest, expected.digest);
+    }
 }
 
 #[test]

@@ -1,6 +1,78 @@
 use super::{execute, Arc, CaptureHook, Cassie, Value};
-use crate::app::{ProjectionReplayBatch, ProjectionReplayEvent};
+use crate::app::{ProjectionManifestExportOptions, ProjectionReplayBatch, ProjectionReplayEvent};
 use crate::config::CassieRuntimeConfig;
+
+#[test]
+fn should_reject_new_empty_document_ids_before_publishing_replay() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let reader = cassie.create_session("reader", None);
+    execute(&cassie, &reader, "CREATE TABLE replay_ids (val INTEGER)");
+    let projection = cassie.midge.canonical_collection_name("replay_ids");
+    let make_batch = |kind: &str, id: &str, payload, position| ProjectionReplayBatch {
+        projection: projection.clone(),
+        source_identity: "orders".to_owned(),
+        batch_id: format!("batch-{kind}"),
+        lag: 0,
+        events: vec![ProjectionReplayEvent {
+            event_id: format!("event-{kind}"),
+            checkpoint: format!("checkpoint-{kind}"),
+            position: Some(position),
+            document_id: id.to_owned(),
+            payload,
+        }],
+    };
+    let accepted = make_batch("control", " ", Some(serde_json::json!({"val": 11})), 1);
+    cassie
+        .replay_projection_batch_strict(accepted.clone())
+        .unwrap();
+    let mut rejected = make_batch("empty-put", "", Some(serde_json::json!({"val": 37})), 3);
+    let valid_before_rejection =
+        make_batch("other", "other", Some(serde_json::json!({"val": 21})), 2);
+    rejected
+        .events
+        .insert(0, valid_before_rejection.events.into_iter().next().unwrap());
+    let rejected_delete = make_batch("empty-delete", "", None, 2);
+
+    // Act
+    let put = cassie.replay_projection_batch_strict(rejected.clone());
+    let retry = cassie.replay_projection_batch_strict(rejected);
+    let delete = cassie.replay_projection_batch_strict(rejected_delete);
+    let accepted_retry = cassie.replay_projection_batch_strict(accepted).unwrap();
+    let metadata = cassie
+        .midge
+        .projection_metadata(&projection)
+        .unwrap()
+        .unwrap();
+    let point = cassie.midge.get_document(&projection, "").unwrap();
+    let scan = cassie.midge.scan_documents(&projection).unwrap();
+    let rows = execute(&cassie, &reader, "SELECT val FROM replay_ids ORDER BY val");
+
+    // Assert
+    for result in [put, retry, delete] {
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("document id cannot be empty"));
+    }
+    assert_eq!(accepted_retry.applied_event_count, 0);
+    assert_eq!(accepted_retry.skipped_duplicate_count, 1);
+    assert_eq!(
+        metadata.source_checkpoint.as_deref(),
+        Some("checkpoint-control")
+    );
+    for event in ["event-other", "event-empty-put", "event-empty-delete"] {
+        assert!(!cassie
+            .midge
+            .has_projection_event(&projection, "orders", event)
+            .unwrap());
+    }
+    assert!(point.is_none());
+    assert_eq!(scan.len(), 1);
+    assert_eq!(scan[0].id, " ");
+    assert_eq!(rows, vec![vec![Value::Int64(11)]]);
+}
 
 #[test]
 fn should_read_replay_row_with_checkpoint_from_same_statement_snapshot() {
@@ -62,6 +134,71 @@ fn should_read_replay_row_with_checkpoint_from_same_statement_snapshot() {
             Value::String("checkpoint-2".to_string())
         ]]
     );
+}
+
+#[test]
+fn should_export_the_committed_projection_selected_by_manifest_alias() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("reader", None);
+    execute(&cassie, &session, "CREATE SCHEMA analytics");
+    execute(&cassie, &session, "CREATE SCHEMA reports");
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE analytics.events (title TEXT)",
+    );
+    let projection = cassie.midge.canonical_collection_name("analytics.events");
+    cassie
+        .replay_projection_batch_strict(ProjectionReplayBatch {
+            projection: projection.clone(),
+            source_identity: "stream".into(),
+            batch_id: "batch-1".into(),
+            lag: 0,
+            events: vec![ProjectionReplayEvent {
+                event_id: "event-1".into(),
+                checkpoint: "one".into(),
+                position: Some(1),
+                document_id: "doc-1".into(),
+                payload: Some(serde_json::json!({"title": "committed"})),
+            }],
+        })
+        .unwrap();
+    let export = |name| {
+        cassie.export_projection_verification_manifest(
+            name,
+            ProjectionManifestExportOptions {
+                generated_ms: Some(1),
+                include_row_hashes: true,
+                ..ProjectionManifestExportOptions::for_instance("manifest-alias")
+            },
+        )
+    };
+
+    // Act
+    let bare = export("events");
+    let schema_qualified = export("analytics.events").unwrap();
+    let canonical = export(&projection).unwrap();
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE reports.events (title TEXT)",
+    );
+    let ambiguous = export("events");
+    execute(&cassie, &session, "CREATE TABLE public.events (title TEXT)");
+    let exact = export("events").unwrap();
+    let public = export("public.events").unwrap();
+
+    // Assert
+    assert_eq!(bare.unwrap(), canonical);
+    assert_eq!(schema_qualified, canonical);
+    assert_eq!(canonical.source_checkpoint.as_deref(), Some("one"));
+    assert_eq!(canonical.row_hashes.len(), 1);
+    assert_eq!(canonical.row_hashes[0].row_id, "doc-1");
+    assert!(ambiguous.unwrap_err().to_string().contains("ambiguous"));
+    assert_eq!(exact, public);
+    assert_ne!(exact.projection_id, canonical.projection_id);
 }
 
 #[test]

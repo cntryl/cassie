@@ -8,6 +8,9 @@ use super::{
 
 #[path = "verification/encoding.rs"]
 mod encoding;
+#[path = "verification/snapshot.rs"]
+mod snapshot;
+pub use snapshot::ProjectionManifestSnapshot;
 #[path = "verification/storage.rs"]
 pub(super) mod storage;
 use encoding::{digest_hex, write_json_canonical, write_option_str, write_str, write_u64};

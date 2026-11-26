@@ -32,6 +32,13 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
                 .execute_sql(&session, sql, vec![])
                 .expect("insert row");
         }
+        let sql = "SELECT COUNT(*) AS rows, COUNT(amount) AS present, \
+                   SUM(amount) AS total, AVG(amount) AS average, \
+                   MIN(amount) AS smallest, MAX(amount) AS largest \
+                   FROM filtered_aggregate WHERE status = 'active'";
+        let row_result = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("row-path filtered aggregate");
         cassie
             .execute_sql(
                 &session,
@@ -44,14 +51,7 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
 
         // Act
         let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT COUNT(*) AS rows, COUNT(amount) AS present, \
-                 SUM(amount) AS total, AVG(amount) AS average, \
-                 MIN(amount) AS smallest, MAX(amount) AS largest \
-                 FROM filtered_aggregate WHERE status = 'active'",
-                vec![],
-            )
+            .execute_sql(&session, sql, vec![])
             .expect("execute filtered aggregate");
         let explain = cassie
             .execute_sql(
@@ -64,6 +64,12 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
         let after = cassie.metrics();
 
         // Assert
+        assert_eq!(result.rows(), row_result.rows());
+        assert!(result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .eq(row_result.columns().iter().map(|column| column.type_oid)));
         assert_eq!(
             result.rows(),
             vec![vec![

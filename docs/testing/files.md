@@ -5,7 +5,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | Current file | Role | Lines | Tests | Registered suites | Action | Selected destinations |
 | --- | --- | ---: | ---: | --- | --- | --- |
 | `tests/analytics/aggregates/aggregate_acceleration.rs` | test_module | 522 | 7 | analytics | keep | `tests/analytics/aggregates/aggregate_acceleration.rs` |
-| `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 228 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
+| `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` | test_module | 234 | 3 | analytics | keep | `tests/analytics/aggregates/column_batch_encoded_aggregates.rs` |
 | `tests/analytics/column_store/column_batch_encoded_scans.rs` | test_module | 397 | 4 | analytics | keep | `tests/analytics/column_store/column_batch_encoded_scans.rs` |
 | `tests/analytics/column_store/column_batch_format_v1.rs` | test_module | 515 | 20 | analytics | keep | `tests/analytics/column_store/column_batch_format_v1.rs` |
 | `tests/analytics/column_store/column_batch_incremental_maintenance.rs` | test_module | 580 | 5 | analytics | keep | `tests/analytics/column_store/column_batch_incremental_maintenance.rs` |
@@ -1453,7 +1453,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_mutations/transactions/repeatable_conflicts.rs` | test_module | 161 | 3 | sql_mutations | move_with_module_alias | `tests/sql_mutations/conflicts/repeatable_conflicts.rs` |
 | `tests/sql_mutations/transactions/repeatable_read.rs` | test_module | 258 | 5 | sql_mutations | keep | `tests/sql_mutations/transactions/repeatable_read.rs` |
 | `tests/sql_mutations/transactions/repeatable_waits.rs` | test_module | 98 | 1 | sql_mutations | keep | `tests/sql_mutations/transactions/repeatable_waits.rs` |
-| `tests/sql_mutations/transactions/restart_publication.rs` | test_module | 459 | 4 | sql_mutations | keep | `tests/sql_mutations/transactions/restart_publication.rs` |
+| `tests/sql_mutations/transactions/restart_publication.rs` | test_module | 522 | 5 | sql_mutations | keep | `tests/sql_mutations/transactions/restart_publication.rs` |
 | `tests/sql_mutations/transactions/semantics/errors.rs` | test_module | 147 | 4 | sql_mutations | keep | `tests/sql_mutations/transactions/semantics/errors.rs` |
 | `tests/sql_mutations/transactions/semantics/mod.rs` | module_registration | 59 | 0 | sql_mutations | keep | `tests/sql_mutations/transactions/semantics/mod.rs` |
 | `tests/sql_mutations/transactions/semantics/semantics.rs` | test_module | 150 | 3 | sql_mutations | keep | `tests/sql_mutations/transactions/semantics/semantics.rs` |
@@ -1469,7 +1469,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/sql_mutations/transactions/transaction_staging.rs` | test_module | 332 | 6 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_staging.rs` |
 | `tests/sql_mutations/transactions/transaction_storage_failures.rs` | test_module | 393 | 5 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_storage_failures.rs` |
 | `tests/sql_mutations/transactions/transaction_visibility.rs` | test_module | 219 | 4 | sql_mutations | keep | `tests/sql_mutations/transactions/transaction_visibility.rs` |
-| `tests/sql_mutations/transactions/transactional_ddl.rs` | test_module | 594 | 14 | sql_mutations | keep | `tests/sql_mutations/transactions/transactional_ddl.rs` |
+| `tests/sql_mutations/transactions/transactional_ddl.rs` | test_module | 651 | 15 | sql_mutations | keep | `tests/sql_mutations/transactions/transactional_ddl.rs` |
 | `tests/sql_mutations/types/arrays/array_bound_limits.rs` | test_module | 124 | 8 | sql_mutations | keep | `tests/sql_mutations/types/arrays/array_bound_limits.rs` |
 | `tests/sql_mutations/types/arrays/array_input_copy.rs` | test_module | 84 | 1 | sql_mutations | keep | `tests/sql_mutations/types/arrays/array_input_copy.rs` |
 | `tests/sql_mutations/types/json/json_array_copy.rs` | test_module | 147 | 3 | sql_mutations | keep | `tests/sql_mutations/types/json/json_array_copy.rs` |
@@ -1857,7 +1857,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/support/values_casts.rs` | shared_support | 97 | 0 | pgwire_catalogs, pgwire_grammar, pgwire_types | keep | `tests/support/values_casts.rs` |
 | `tests/support/vector_filtered.rs` | shared_support | 432 | 0 | vector_embeddings | keep | `tests/support/vector_filtered.rs` |
 | `tests/support/vector_publication.rs` | shared_support | 383 | 0 | vector_embeddings | keep | `tests/support/vector_publication.rs` |
-| `tests/support/vector_qualification.rs` | shared_support | 301 | 0 | vector_embeddings | keep | `tests/support/vector_qualification.rs` |
+| `tests/support/vector_qualification.rs` | shared_support | 304 | 0 | vector_embeddings | keep | `tests/support/vector_qualification.rs` |
 | `tests/support/wire_bind.rs` | shared_support | 47 | 0 | cassie_test_support, pgwire_core | keep | `tests/support/wire_bind.rs` |
 | `tests/support/wire_queries.rs` | shared_support | 166 | 0 | cassie_test_support, catalog_security, pgwire_core, sql_queries | keep | `tests/support/wire_queries.rs` |
 | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | test_module | 115 | 1 | temporal_predicate_literals | keep | `tests/temporal_predicate_literals/types/temporal/semantics.rs` |
@@ -1900,7 +1900,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` | test_module | 228 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/ann_candidate_exhaustion.rs` |
 | `tests/vector_embeddings/vectors/candidate_max_decline.rs` | test_module | 103 | 3 | vector_embeddings | keep | `tests/vector_embeddings/vectors/candidate_max_decline.rs` |
 | `tests/vector_embeddings/vectors/exact_vector_cost.rs` | test_module | 817 | 16 | vector_embeddings | split_by_contract | `tests/vector_embeddings/vectors/cancellation.rs`; `tests/vector_embeddings/vectors/direct_decode.rs`; `tests/vector_embeddings/vectors/memory.rs`; `tests/vector_embeddings/vectors/results.rs`; `tests/vector_embeddings/vectors/shapes.rs`; `tests/vector_embeddings/vectors/two_column_shape.rs` |
-| `tests/vector_embeddings/vectors/metric_qualification.rs` | test_module | 549 | 11 | vector_embeddings | keep | `tests/vector_embeddings/vectors/metric_qualification.rs` |
+| `tests/vector_embeddings/vectors/metric_qualification.rs` | test_module | 632 | 12 | vector_embeddings | keep | `tests/vector_embeddings/vectors/metric_qualification.rs` |
 | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` | test_module | 96 | 1 | vector_embeddings | keep | `tests/vector_embeddings/vectors/normalized_vector_generation.rs` |
 | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` | test_module | 249 | 5 | vector_embeddings | keep | `tests/vector_embeddings/vectors/sql_ann_metric_lifecycle.rs` |
 | `tests/vector_embeddings/vectors/sql_ann_metric_recall.rs` | test_module | 185 | 9 | vector_embeddings | keep | `tests/vector_embeddings/vectors/sql_ann_metric_recall.rs` |

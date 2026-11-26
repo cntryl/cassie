@@ -22,7 +22,10 @@ identities or candidate membership.
 SQL operators execute generic scalar projection/ordering. Native SQL top-k selects
 `vector_distance` L2, an identity projection, a matching ORDER BY expression and
 a bounded LIMIT. SQL DESC retains exact fallback. Equality filters over eligible scalar indexes follow the [filtered vector contract](vector-filtered-search-contract.md). REST HNSW handles all three
-metrics. REST IVFFlat handles L2 natively; cosine/dot use normalized exact fallback.
+metrics. REST IVFFlat handles L2 natively. Exact cosine can use complete normalized
+sidecars. Exact dot scans the authoritative vector components, including on the
+REST IVFFlat fallback path. Rounding normalized components to f32 can change
+dot scores and their identity ties. [#1510](https://github.com/cntryl/cassie/issues/1510)
 A five-vector fixture uses HNSW search capacity covering all candidates and IVF
 probes covering all lists. Its independent exact ranking checks metric and identity
 semantics; it does not promise arbitrary approximate-index recall. Runtime counters
@@ -87,6 +90,7 @@ catalog and sentinel validity checks. No persistent format or public API changes
 The warm regression also exercises stale/missing-statistics fallback and verifies
 released query reservations. Jev's 0.35 warm-generation judgment prompted this
 focused reproduction and correction.
+The current regression exercises cosine, which still uses normalized sidecars.
 
 The isolated worktree retains exact commands, red and green logs, source hashes,
 Jev requests/responses and the tested patch under ignored `target/`. Jev's initial

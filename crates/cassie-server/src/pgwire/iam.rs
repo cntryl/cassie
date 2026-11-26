@@ -154,6 +154,24 @@ fn jwks_endpoint(issuer: &str) -> Result<reqwest::Url, Rejected> {
     Ok(url)
 }
 
+pub(super) fn configure(
+    cassie: &crate::Cassie,
+    config: &crate::config::CassieRuntimeConfig,
+    tls_available: bool,
+) -> Result<Option<Arc<Verifier>>, crate::CassieError> {
+    let path = config.pgwire_aws_iam_trust_file.as_deref().map(Path::new);
+    cassie.validate_aws_iam_pgwire_selector(path.is_some())?;
+    if path.is_some() && (!tls_available || !cassie.authentication_enabled()) {
+        return Err(crate::CassieError::Execution(
+            "AWS IAM pgwire authentication requires TLS and a root password".into(),
+        ));
+    }
+    path.map(Verifier::from_path)
+        .transpose()
+        .map(|verifier| verifier.map(Arc::new))
+        .map_err(|_| crate::CassieError::Execution("invalid AWS IAM pgwire trust file".into()))
+}
+
 fn client_builder() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
         .https_only(true)
@@ -201,7 +219,7 @@ pub(super) struct Verifier {
 }
 
 impl Verifier {
-    pub(super) fn from_path(path: &Path) -> Result<Self, Rejected> {
+    fn from_path(path: &Path) -> Result<Self, Rejected> {
         let file = std::fs::File::open(path).map_err(|_| Rejected)?;
         let mut contents = Vec::new();
         file.take(u64::try_from(MAX_TRUST_BYTES + 1).map_err(|_| Rejected)?)

@@ -123,6 +123,9 @@ pub async fn run_connection(
     require_tls: bool,
     peer_ip: IpAddr,
 ) {
+    let Ok(iam) = super::iam::configure(&cassie, &config, tls_config.is_some()) else {
+        return;
+    };
     run_connection_with_iam(
         socket,
         cassie,
@@ -130,7 +133,7 @@ pub async fn run_connection(
         tls_config,
         require_tls,
         peer_ip,
-        None,
+        iam,
     )
     .await;
 }

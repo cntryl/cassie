@@ -102,7 +102,8 @@ impl Cassie {
             role_id: role.object_id,
             binding_id,
         }));
-        self.auth_rate_limiter.refund(&attempt.0);
+        let AwsIamLoginAttempt(attempt) = attempt;
+        self.auth_rate_limiter.refund(&attempt);
         Ok(session)
     }
 

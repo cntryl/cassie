@@ -1,0 +1,17 @@
+[package]
+name = "cassie-bench-support"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cntryl-stress = "0.5.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "cassie-bench"
+path = "src/main.rs"

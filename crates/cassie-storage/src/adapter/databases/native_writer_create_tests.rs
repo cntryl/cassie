@@ -19,7 +19,7 @@ pub(super) fn observe_native_create(family: &str) {
 }
 
 #[test]
-fn should_preserve_an_issued_native_writer_and_its_flush_across_database_creation() {
+fn should_preserve_an_issued_native_commit_during_database_creation() {
     // Arrange
     let path =
         std::env::temp_dir().join(format!("cassie-native-wal-create-{}", uuid::Uuid::new_v4()));

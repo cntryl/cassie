@@ -71,7 +71,7 @@ fn create_while_flush_is_held<'scope>(
 }
 
 #[test]
-fn should_recover_native_writes_and_database_owners_after_create_overlaps_a_flush_worker() {
+fn should_recover_native_data_when_database_creation_overlaps_a_flush() {
     // Arrange
     let directory = support_temp_dirs::IsolatedDataDir::new("native-wal-background");
     let storage = Midge::new_strict_with_data_dir(directory.path()).expect("open strict storage");

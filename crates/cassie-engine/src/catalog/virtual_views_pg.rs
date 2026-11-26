@@ -778,6 +778,9 @@ pub(super) fn constraint_default_expression(
     constraint: &FieldConstraint,
     data_type: &crate::types::DataType,
 ) -> Option<String> {
+    if let Some(sequence) = constraint.default_sequence.as_deref() {
+        return Some(crate::catalog::canonical_nextval_expression(sequence));
+    }
     if let Some(expression) = constraint.default_expression.as_ref() {
         return Some(expression.clone());
     }

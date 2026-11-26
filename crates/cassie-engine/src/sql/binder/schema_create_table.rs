@@ -272,25 +272,18 @@ pub fn resolve_default_sequence(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<String, CassieError> {
-    let sequences = catalog.list_sequences();
     let (schema, name) = match crate::catalog::parse_name(sequence).map_err(CassieError::Planner)? {
         crate::catalog::ParsedName::Unqualified(name) => {
             let table_schema = crate::catalog::relation_schema_name(bound_table);
             let candidate =
                 crate::catalog::canonical_relation_name(&context.database, &table_schema, &name);
-            if sequences
-                .iter()
-                .any(|item| item.name.eq_ignore_ascii_case(&candidate))
-            {
+            if catalog.sequence_exists(&candidate) {
                 return Ok(candidate);
             }
             for schema in &context.search_path {
                 let candidate =
                     crate::catalog::canonical_relation_name(&context.database, schema, &name);
-                if sequences
-                    .iter()
-                    .any(|item| item.name.eq_ignore_ascii_case(&candidate))
-                {
+                if catalog.sequence_exists(&candidate) {
                     return Ok(candidate);
                 }
             }

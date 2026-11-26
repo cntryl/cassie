@@ -1,9 +1,31 @@
 //! Pure parsing and canonicalization for sequence-backed default expressions.
 
+use cassie_core::catalog::scope::{canonical_identifier_component, split_identifier_path};
+
 /// Returns the canonical stored expression for a sequence default.
 #[must_use]
 pub fn canonical_nextval_expression(sequence: &str) -> String {
-    format!("nextval('{sequence}'::regclass)")
+    if !sequence.contains('\'') {
+        return format!("nextval('{sequence}'::regclass)");
+    }
+
+    let identifier = split_identifier_path(sequence).map_or_else(
+        |_| sequence.to_owned(),
+        |parts| {
+            parts
+                .into_iter()
+                .map(|part| {
+                    if part.contains('\'') {
+                        format!("\"{}\"", part.replace('"', "\"\""))
+                    } else {
+                        canonical_identifier_component(&part)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(".")
+        },
+    );
+    format!("nextval('{}'::regclass)", identifier.replace('\'', "''"))
 }
 
 /// Extracts a sequence name from a supported `nextval` default expression.

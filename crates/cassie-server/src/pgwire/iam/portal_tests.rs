@@ -42,7 +42,7 @@ async fn portal_fixture(sql: &str) {
         "CREATE ROLE service EXTERNAL LOGIN".to_owned(),
         format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
         "CREATE TABLE observed (value INT)".to_owned(),
-        "INSERT INTO observed VALUES (1), (2)".to_owned(),
+        "INSERT INTO observed VALUES (1), (2), (3)".to_owned(),
         "GRANT USAGE ON SCHEMA public TO service".to_owned(),
         "GRANT SELECT ON TABLE observed TO service".to_owned(),
     ] {
@@ -86,6 +86,12 @@ async fn portal_fixture(sql: &str) {
     .await;
     send(&mut socket, Some(b'B'), b"portal\0stmt\0\0\0\0\0\0\0").await;
     let execute = b"portal\0\0\0\0\x01";
+    send(&mut socket, Some(b'E'), execute).await;
+    send(&mut socket, Some(b'H'), &[]).await;
+    assert_eq!(read_until(&mut socket, b's').await, 1);
+    assert_eq!(cassie.metrics()["pgwire"]["portals"], 1);
+
+    // A bound session can resume the same suspended portal before revocation.
     send(&mut socket, Some(b'E'), execute).await;
     send(&mut socket, Some(b'H'), &[]).await;
     assert_eq!(read_until(&mut socket, b's').await, 1);

@@ -8,5 +8,18 @@ publish = false
 cassie-core = { path = "../cassie-core" }
 serde = { version = "1.0", features = ["derive"] }
 
+[dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
+
+[[bench]]
+name = "tier1_hotpath_vector_distance"
+harness = false
+path = "benches/tier1_hotpath_vector_distance.rs"
+
+[[bench]]
+name = "tier2_subsystem_vector"
+harness = false
+path = "benches/tier2_subsystem_vector.rs"
+
 [lints]
 workspace = true

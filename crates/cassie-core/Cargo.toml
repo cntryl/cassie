@@ -20,5 +20,13 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
 jiff-tzdb = "1.0.0"
 
+[dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
+
+[[bench]]
+name = "tier1_hotpath_request_controls"
+harness = false
+path = "benches/tier1_hotpath_request_controls.rs"
+
 [lints]
 workspace = true

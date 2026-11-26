@@ -9,5 +9,23 @@ rust-stemmers = "1.2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
 
+[dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
+
+[[bench]]
+name = "tier1_hotpath_search_vector"
+harness = false
+path = "benches/tier1_hotpath_search_vector.rs"
+
+[[bench]]
+name = "tier1_hotpath_bm25"
+harness = false
+path = "benches/tier1_hotpath_bm25.rs"
+
+[[bench]]
+name = "tier2_subsystem_search"
+harness = false
+path = "benches/tier2_subsystem_search.rs"
+
 [lints]
 workspace = true

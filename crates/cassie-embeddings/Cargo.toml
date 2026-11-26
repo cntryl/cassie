@@ -14,5 +14,18 @@ thiserror = "2.0"
 tokio = { version = "1.54", features = ["full"] }
 tracing = "0.1"
 
+[dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
+
+[[bench]]
+name = "tier1_hotpath_local_embedding"
+harness = false
+path = "benches/tier1_hotpath_local_embedding.rs"
+
+[[bench]]
+name = "tier2_subsystem_local_embeddings"
+harness = false
+path = "benches/tier2_subsystem_local_embeddings.rs"
+
 [lints]
 workspace = true

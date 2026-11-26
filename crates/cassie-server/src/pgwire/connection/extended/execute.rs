@@ -32,11 +32,20 @@ pub(super) async fn handle_execute(
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
         if session.uses_aws_iam() {
             let authenticated = session.clone();
-            run_pgwire_blocking(Arc::clone(&cassie), "pgwire_auth", move |cassie| {
-                cassie.ensure_session_database_access(&authenticated)
-            })
-            .await
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
+            if let Err(error) =
+                run_pgwire_blocking(Arc::clone(&cassie), "pgwire_auth", move |cassie| {
+                    cassie.ensure_session_database_access(&authenticated)
+                })
+                .await
+            {
+                if let Some(cancellation) = suspended.cancellation.as_ref() {
+                    state.clear_query_cancellation(cancellation);
+                }
+                if state.remove_portal(&portal_name).is_some() {
+                    runtime.record_pgwire_portal_delta(-1);
+                }
+                return Err(ExtendedQueryError::cassie(&error));
+            }
         }
         super::super::transactions::capture_and_validate_protocol_owner(session)
             .await

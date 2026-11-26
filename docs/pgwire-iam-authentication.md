@@ -16,7 +16,7 @@ the matching AWS account and requesting principal, and one matching audience.
 The selected issuer format covers commercial AWS account endpoints under
 `tokens.sts.global.api.aws`. The server requires a pgwire TLS certificate and
 key plus the existing root password before enabling IAM. Live AWS
-qualification is tracked in [#1566](https://github.com/cntryl/cassie/issues/1566).
+qualification is tracked in [#1567](https://github.com/cntryl/cassie/issues/1567).
 
 The pgwire selector is the nonsecret startup username
 `cassie_aws_iam`. The token goes in the driver's password field over a
@@ -30,7 +30,17 @@ database, schema and table privileges as for any other non-admin role.
 Dropping the role retires its bindings. Cassie checks the role object ID and
 binding identity on later commands, including when a driver resumes a
 suspended result. Revocation or replacement does not carry authority into
-a different role. Existing password logins retain their password flow.
+a different role. Removing the binding also releases the suspended portal.
+An ordinary table grant change applies to newly admitted queries. Resuming an
+already materialized result follows the original statement admission and
+snapshot. Existing password logins retain their password flow.
+
+On Fargate, assign the calling application task an IAM task role authorized to
+request the token. The ECS task execution role serves the container platform,
+and the Cassie task storage role grants its storage access. Allow the
+application task to reach regional STS and the Cassie task to reach the
+configured issuer JWKS endpoint. Connect the application to the Cassie service
+DNS name covered by the pgwire TLS certificate.
 
 A pool should acquire a fresh regional STS token when it opens a physical
 connection, using a current valid token only until its expiry. Configure

@@ -1,4 +1,4 @@
-use super::{weight, QueryError};
+use super::{check_weight, weight, CheckedWeight, QueryError};
 use crate::types::extended::numeric::{parse_text, Numeric};
 use crate::types::{typed::TypedValue, Value};
 
@@ -65,4 +65,23 @@ fn should_report_the_selected_edge_diagnostic_for_invalid_weights() {
             "a selected edge has a missing, negative or non-finite weight",
         );
     }
+}
+
+#[test]
+fn should_borrow_the_original_numeric_during_weight_validation() {
+    // Arrange
+    let value = Value::Typed(TypedValue::Numeric(
+        parse_text("9223372036854775808.0000000000000000000000000001").expect("exact numeric"),
+    ));
+    let Value::Typed(TypedValue::Numeric(original)) = &value else {
+        unreachable!("numeric fixture");
+    };
+
+    // Act
+    let checked = check_weight(Some(&value)).expect("valid weight");
+
+    // Assert
+    assert!(
+        matches!(checked, CheckedWeight::Numeric(borrowed) if std::ptr::eq(borrowed, original))
+    );
 }

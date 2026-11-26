@@ -3,11 +3,11 @@
 use super::{
     current_catalog_version, describe_prepared, execute_prepared_portal,
     execute_streaming_portal_page, missing_portal_error, prepared_for_portal,
-    resume_suspended_portal, streamable_portal_query, take_portal_execution, transaction_boundary,
-    validate_prepared_result_types, write_completed_portal, write_empty_query_response, Arc,
-    AsyncWrite, Cassie, CassieSession, ExtendedQueryError, PreparedPortalRequest,
-    PreparedStatement, RuntimeState, SessionState, StreamingPortalPageRequest,
-    SuspendedPortalRequest,
+    resume_suspended_portal, run_pgwire_blocking, streamable_portal_query, take_portal_execution,
+    transaction_boundary, validate_prepared_result_types, write_completed_portal,
+    write_empty_query_response, Arc, AsyncWrite, Cassie, CassieSession, ExtendedQueryError,
+    PreparedPortalRequest, PreparedStatement, RuntimeState, SessionState,
+    StreamingPortalPageRequest, SuspendedPortalRequest,
 };
 
 pub(super) async fn handle_execute(
@@ -30,6 +30,14 @@ pub(super) async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
+        if session.uses_aws_iam() {
+            let authenticated = session.clone();
+            run_pgwire_blocking(Arc::clone(&cassie), "pgwire_auth", move |cassie| {
+                cassie.ensure_session_database_access(&authenticated)
+            })
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
+        }
         super::super::transactions::capture_and_validate_protocol_owner(session)
             .await
             .map_err(|error| ExtendedQueryError::cassie(&error))?;

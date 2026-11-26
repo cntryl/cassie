@@ -84,19 +84,27 @@ impl Cassie {
         let database = session
             .current_database()
             .unwrap_or(self.default_database.as_str());
-        let role = if let Some(authority) = session.aws_iam_authority.as_deref() {
-            Some(self.check_aws_iam_authority(authority, &session.user)?)
-        } else {
-            self.lookup_role(&session.user)?.or_else(|| {
-                (normalize_role_name(&session.user) == normalize_role_name(&self.auth_user))
-                    .then(|| RoleMeta::bootstrap_admin(&self.auth_user, None))
-            })
-        };
+        let role = self.current_network_role(session)?;
         if role.is_some_and(|role| role.can_access_database(database)) {
             Ok(())
         } else {
             Err(CassieError::InsufficientPrivilege)
         }
+    }
+
+    pub(super) fn current_network_role(
+        &self,
+        session: &CassieSession,
+    ) -> Result<Option<RoleMeta>, CassieError> {
+        if let Some(authority) = session.aws_iam_authority.as_deref() {
+            return self
+                .check_aws_iam_authority(authority, &session.user)
+                .map(Some);
+        }
+        Ok(self.lookup_role(&session.user)?.or_else(|| {
+            (normalize_role_name(&session.user) == normalize_role_name(&self.auth_user))
+                .then(|| RoleMeta::bootstrap_admin(&self.auth_user, None))
+        }))
     }
 
     pub(crate) fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {

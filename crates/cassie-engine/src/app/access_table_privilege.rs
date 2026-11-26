@@ -54,7 +54,7 @@ fn resolved_table_privilege(
     )) else {
         return Err(CassieError::InsufficientPrivilege);
     };
-    let Some(role) = catalog.get_role(&session.user) else {
+    let Some(role) = session.catalog_role(catalog) else {
         return Err(CassieError::InsufficientPrivilege);
     };
     let schema_usage = catalog.get_role_object_grant(
@@ -183,8 +183,8 @@ pub(crate) fn session_is_unprivileged(
     session: &CassieSession,
 ) -> bool {
     session.is_network_authenticated()
-        && !catalog.get_role(&session.user).map_or_else(
-            || session.user.eq_ignore_ascii_case("root"),
+        && !session.catalog_role(catalog).map_or_else(
+            || !session.uses_aws_iam() && session.user.eq_ignore_ascii_case("root"),
             |role| role.is_admin,
         )
 }

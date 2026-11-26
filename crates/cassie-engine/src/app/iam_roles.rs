@@ -22,6 +22,22 @@ pub(super) struct AwsIamAuthority {
     binding_id: u64,
 }
 
+impl CassieSession {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn uses_aws_iam(&self) -> bool {
+        self.aws_iam_authority.is_some()
+    }
+
+    pub(crate) fn catalog_role(&self, catalog: &crate::catalog::Catalog) -> Option<RoleMeta> {
+        catalog.get_role(&self.user).filter(|role| {
+            self.aws_iam_authority.as_deref().is_none_or(|authority| {
+                role.object_id == authority.role_id && role.aws_iam_login && !role.is_admin
+            })
+        })
+    }
+}
+
 impl Cassie {
     /// Checks that constructor and listener settings agree and that the selector is available.
     ///

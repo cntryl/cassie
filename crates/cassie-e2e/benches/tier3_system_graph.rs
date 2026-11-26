@@ -340,8 +340,12 @@ fn populated_fixture(
 fn main() {
     if std::env::var("CASSIE_BENCH_GRAPH_DISK_REOPEN").as_deref() == Ok("1") {
         weighted_graph_disk::run();
-        return;
+    } else {
+        run_memory();
     }
+}
+
+fn run_memory() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
     let authorization = selected_case(&runner, "graph_authorization_reachability_query");
     let hierarchy = selected_case(&runner, "graph_hierarchy_ancestry_query");

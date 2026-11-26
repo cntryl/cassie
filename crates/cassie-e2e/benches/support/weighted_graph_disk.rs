@@ -27,7 +27,10 @@ impl StoreDir {
 impl Drop for StoreDir {
     fn drop(&mut self) {
         if let Err(error) = std::fs::remove_dir_all(&self.0) {
-            eprintln!("cannot clean isolated graph store {:?}: {error}", self.0);
+            eprintln!(
+                "cannot clean isolated graph store {}: {error}",
+                self.0.display()
+            );
         }
     }
 }

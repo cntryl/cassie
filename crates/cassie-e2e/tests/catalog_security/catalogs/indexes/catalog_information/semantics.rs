@@ -215,7 +215,7 @@ fn should_reuse_the_index_oid_when_alter_repeats_a_unique_constraint() {
 }
 
 #[test]
-fn should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart() {
+fn should_preserve_assigned_constraint_index_oids_across_catalog_restart() {
     // Arrange
     let directory = crate::support_temp_dirs::IsolatedDataDir::new("issue-1518-fresh-index-oids");
     let config =

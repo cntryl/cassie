@@ -12065,8 +12065,8 @@
       }
     },
     {
-      "id": "tests/catalog_security/catalogs/indexes/catalog_information/semantics.rs::should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart",
-      "name": "should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart",
+      "id": "tests/catalog_security/catalogs/indexes/catalog_information/semantics.rs::should_preserve_assigned_constraint_index_oids_across_catalog_restart",
+      "name": "should_preserve_assigned_constraint_index_oids_across_catalog_restart",
       "current_file": "tests/catalog_security/catalogs/indexes/catalog_information/semantics.rs",
       "line": 218,
       "end_line": 271,
@@ -12077,7 +12077,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "postgresql18_catalog_information::should_preserve_fresh_constraint_and_cloned_index_oids_after_catalog_restart"
+          "name": "postgresql18_catalog_information::should_preserve_assigned_constraint_index_oids_across_catalog_restart"
         }
       ],
       "attributes": [
@@ -366744,7 +366744,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 639,
-      "sha256": "325f3317a71e846805465c237e2fd83f20138c7225311f0f1392f5bd68e90de9",
+      "sha256": "cb8a42753e7d1dcea920d37a1a61a0740d7e2b0d9952b3d63a27d2ae23e1146f",
       "test_declarations": 15,
       "registered_suites": [
         "catalog_security"

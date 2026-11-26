@@ -170,125 +170,177 @@ fn should_only_derive_key_endpoints_from_exact_https_aws_account_issuers() {
     assert_eq!(accepted, [true, false, false, false, false, false]);
 }
 
-#[test]
-fn should_route_a_certificate_verified_driver_to_the_bound_role() {
-    // Arrange
+fn tls_identities() -> (
+    std::sync::Arc<rustls::ServerConfig>,
+    tokio_rustls::TlsConnector,
+) {
     use std::sync::Arc;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio_rustls::rustls::{pki_types::ServerName, ClientConfig, RootCertStore};
-    use tokio_rustls::TlsConnector;
+    use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 
+    let identity = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let private = rustls::pki_types::PrivateKeyDer::Pkcs8(
+        rustls::pki_types::PrivatePkcs8KeyDer::from(identity.signing_key.serialize_der()),
+    );
+    let server = Arc::new(
+        rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![identity.cert.der().clone()], private)
+            .unwrap(),
+    );
+    let mut roots = RootCertStore::empty();
+    roots.add(identity.cert.der().clone()).unwrap();
+    let client = tokio_rustls::TlsConnector::from(Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth(),
+    ));
+    (server, client)
+}
+
+fn driver_config() -> tokio_postgres::Config {
+    let mut client = tokio_postgres::Config::new();
+    client
+        .user(crate::config::AWS_IAM_PGWIRE_SELECTOR)
+        .dbname("postgres")
+        // The caller has already negotiated and verified the TLS transport.
+        .ssl_mode(tokio_postgres::config::SslMode::Disable);
+    client
+}
+
+async fn connect_and_read_role(
+    address: std::net::SocketAddr,
+    connector: &tokio_rustls::TlsConnector,
+    credential: &str,
+) -> Result<String, tokio_postgres::Error> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+    socket
+        .write_all(&[0, 0, 0, 8, 4, 210, 22, 47])
+        .await
+        .unwrap();
+    assert_eq!(socket.read_u8().await.unwrap(), b'S');
+    let socket = connector
+        .connect(
+            rustls::pki_types::ServerName::try_from("localhost").unwrap(),
+            socket,
+        )
+        .await
+        .expect("verify TLS server certificate and hostname");
+    let mut client = driver_config();
+    client.password(credential);
+    let (client, connection) = client.connect_raw(socket, tokio_postgres::NoTls).await?;
+    let connection = tokio::spawn(connection);
+    let result = client
+        .query_one("SELECT current_user::text AS role_name", &[])
+        .await
+        .map(|row| row.get("role_name"));
+    drop(client);
+    connection.await.unwrap().unwrap();
+    result
+}
+
+async fn signed_driver_connections() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
+    // Arrange
+    let config = crate::config::CassieRuntimeConfig {
+        pgwire_aws_iam_trust_file: Some("fixture-trust.json".into()),
+        password: "test-root".into(),
+        ..crate::config::CassieRuntimeConfig::default()
+    };
+    let cassie = Arc::new(crate::Cassie::new_in_memory_with_config(config.clone()).unwrap());
+    cassie.startup().unwrap();
+    let admin = cassie.create_session("root", None);
+    cassie
+        .execute_sql(&admin, "CREATE ROLE service EXTERNAL LOGIN", vec![])
+        .unwrap();
+    cassie
+        .execute_sql(
+            &admin,
+            &format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
+            vec![],
+        )
+        .unwrap();
+    let (server_tls, client_tls) = tls_identities();
+    let signing_key = signing_key();
+    let trust = trust();
+    trust.accounts.get(ISSUER).unwrap().cache.lock().await.keys =
+        Some((super::Instant::now(), Arc::new(keys(&jwk(&signing_key)))));
+    let clock = Arc::new(AtomicU64::new(NOW));
+    let verifier = Arc::new(super::Verifier {
+        trust,
+        client: reqwest::Client::new(),
+        fixture_clock: Some(Arc::clone(&clock)),
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for _ in 0..4 {
+            let (socket, peer) = listener.accept().await.unwrap();
+            crate::pgwire::connection::run_connection_with_iam(
+                socket,
+                Arc::clone(&cassie),
+                config.clone(),
+                Some(Arc::clone(&server_tls)),
+                false,
+                peer.ip(),
+                Some(Arc::clone(&verifier)),
+            )
+            .await;
+        }
+    });
+
+    // Act
+    let plaintext = driver_config()
+        .connect_raw(
+            tokio::net::TcpStream::connect(address).await.unwrap(),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .err()
+        .expect("the plaintext selector was rejected");
+    let original_token = sign(&signing_key, "fixture", &claims());
+    let original = connect_and_read_role(address, &client_tls, &original_token).await;
+    let later = NOW + 200;
+    clock.store(later, Ordering::Relaxed);
+    let expired = connect_and_read_role(address, &client_tls, &original_token).await;
+    let mut refreshed_claims = claims();
+    refreshed_claims["iat"] = json!(later);
+    refreshed_claims["exp"] = json!(later + 200);
+    let refreshed_token = sign(&signing_key, "fixture", &refreshed_claims);
+    let refreshed = connect_and_read_role(address, &client_tls, &refreshed_token).await;
+
+    // Assert
+    let invalid_password = Some(&tokio_postgres::error::SqlState::INVALID_PASSWORD);
+    assert_eq!(
+        plaintext.code(),
+        invalid_password,
+        "plaintext rejected before password prompt"
+    );
+    assert_eq!(original.unwrap(), "service");
+    assert_eq!(expired.unwrap_err().code(), invalid_password);
+    assert_eq!(refreshed.unwrap(), "service");
+    server.await.unwrap();
+}
+
+#[test]
+fn should_route_verified_tls_connections_and_require_a_fresh_token_after_expiry() {
+    // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
-    runtime.block_on(async {
-        let config = crate::config::CassieRuntimeConfig {
-            pgwire_aws_iam_trust_file: Some("fixture-trust.json".into()),
-            password: "test-root".into(),
-            ..crate::config::CassieRuntimeConfig::default()
-        };
-        let cassie = Arc::new(crate::Cassie::new_in_memory_with_config(config.clone()).unwrap());
-        cassie.startup().unwrap();
-        let admin = cassie.create_session("root", None);
-        cassie
-            .execute_sql(&admin, "CREATE ROLE service EXTERNAL LOGIN", vec![])
-            .unwrap();
-        cassie
-            .execute_sql(
-                &admin,
-                &format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
-                vec![],
-            )
-            .unwrap();
 
-        let identity = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-        let private = rustls::pki_types::PrivateKeyDer::Pkcs8(
-            rustls::pki_types::PrivatePkcs8KeyDer::from(identity.signing_key.serialize_der()),
-        );
-        let server_tls = Arc::new(
-            rustls::ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(vec![identity.cert.der().clone()], private)
-                .unwrap(),
-        );
-        let mut trust_roots = RootCertStore::empty();
-        trust_roots.add(identity.cert.der().clone()).unwrap();
-        let client_tls = TlsConnector::from(Arc::new(
-            ClientConfig::builder()
-                .with_root_certificates(trust_roots)
-                .with_no_client_auth(),
-        ));
-
-        let signing_key = signing_key();
-        let trust = trust();
-        let account = trust.accounts.get(ISSUER).unwrap();
-        account.cache.lock().await.keys =
-            Some((super::Instant::now(), Arc::new(keys(&jwk(&signing_key)))));
-        let verifier = Arc::new(super::Verifier {
-            trust,
-            client: reqwest::Client::new(),
-        });
-
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            let (socket, peer) = listener.accept().await.unwrap();
-            crate::pgwire::connection::run_connection_with_iam(
-                socket,
-                cassie,
-                config,
-                Some(server_tls),
-                false,
-                peer.ip(),
-                Some(verifier),
-            )
-            .await;
-        });
-
-        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
-        socket
-            .write_all(&[0, 0, 0, 8, 4, 210, 22, 47])
-            .await
-            .unwrap();
-        assert_eq!(socket.read_u8().await.unwrap(), b'S');
-        let socket = client_tls
-            .connect(ServerName::try_from("localhost").unwrap(), socket)
-            .await
-            .unwrap();
-        let now = super::SystemTime::now()
-            .duration_since(super::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let mut claims = claims();
-        claims["iat"] = json!(now);
-        claims["exp"] = json!(now + 200);
-        let token = sign(&signing_key, "fixture", &claims);
-
-        // Act
-        let mut client = tokio_postgres::Config::new();
-        client
-            .user(crate::config::AWS_IAM_PGWIRE_SELECTOR)
-            .dbname("postgres")
-            .ssl_mode(tokio_postgres::config::SslMode::Disable)
-            .password(token);
-        let (client, connection) = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            client.connect_raw(socket, tokio_postgres::NoTls),
+    // Act
+    let result = runtime.block_on(async {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            signed_driver_connections(),
         )
         .await
-        .unwrap()
-        .unwrap();
-        let connection = tokio::spawn(connection);
-        let row = client
-            .query_one("SELECT current_user::text AS role_name", &[])
-            .await
-            .unwrap();
-
-        // Assert
-        assert_eq!(row.get::<_, &str>("role_name"), "service");
-        drop(client);
-        connection.await.unwrap().unwrap();
-        server.await.unwrap();
     });
+
+    // Assert
+    result.expect("fixture completed within its hang guard");
 }

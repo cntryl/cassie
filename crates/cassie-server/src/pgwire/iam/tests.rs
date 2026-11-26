@@ -122,7 +122,7 @@ fn should_reject_signed_tokens_with_wrong_issuer_audience_time_or_role_claims() 
 }
 
 #[test]
-fn should_reject_a_forged_signature_unknown_key_and_duplicate_key_ids() {
+fn should_require_a_valid_signature_from_a_unique_issuer_key() {
     // Arrange
     let key = signing_key();
     let forged = signing_key();
@@ -307,6 +307,18 @@ async fn start_fixture_pgwire(
     (address, server)
 }
 
+fn install_driver_grants(cassie: &crate::Cassie, admin: &crate::app::CassieSession) {
+    for sql in [
+        "CREATE ROLE service EXTERNAL LOGIN",
+        &format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
+        "CREATE TABLE driver_visible (value INT)",
+        "GRANT USAGE ON SCHEMA public TO service",
+        "GRANT SELECT ON TABLE driver_visible TO service",
+    ] {
+        cassie.execute_sql(admin, sql, vec![]).unwrap();
+    }
+}
+
 async fn signed_driver_connections() {
     use std::sync::Arc;
 
@@ -319,31 +331,9 @@ async fn signed_driver_connections() {
     let cassie = Arc::new(crate::Cassie::new_in_memory_with_config(config.clone()).unwrap());
     cassie.startup().unwrap();
     let admin = cassie.create_session("root", None);
-    cassie
-        .execute_sql(&admin, "CREATE ROLE service EXTERNAL LOGIN", vec![])
-        .unwrap();
-    cassie
-        .execute_sql(
-            &admin,
-            &format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
-            vec![],
-        )
-        .unwrap();
+    install_driver_grants(&cassie, &admin);
     let (server_tls, client_tls) = tls_identities();
     let signing_key = signing_key();
-    cassie
-        .execute_sql(&admin, "CREATE TABLE driver_visible (value INT)", vec![])
-        .unwrap();
-    cassie
-        .execute_sql(&admin, "GRANT USAGE ON SCHEMA public TO service", vec![])
-        .unwrap();
-    cassie
-        .execute_sql(
-            &admin,
-            "GRANT SELECT ON TABLE driver_visible TO service",
-            vec![],
-        )
-        .unwrap();
     let issuer =
         rotation_tests::IssuerFixture::start(vec![rotation_tests::response(&[jwk(&signing_key)])])
             .await;
@@ -417,7 +407,7 @@ async fn signed_driver_connections() {
 }
 
 #[test]
-fn should_route_verified_tls_connections_and_require_a_fresh_token_after_expiry() {
+fn should_require_current_iam_authority_for_driver_connections() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

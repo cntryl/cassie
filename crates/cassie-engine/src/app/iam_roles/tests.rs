@@ -19,7 +19,7 @@ fn bind_sql(user: &str, operation: &str) -> String {
 }
 
 #[test]
-fn should_bind_external_login_to_one_immutable_role_and_revoke_active_access() {
+fn should_require_the_original_binding_for_active_iam_sessions() {
     // Arrange
     let cassie = cassie();
     let admin = cassie.create_session("root", None);
@@ -65,7 +65,7 @@ fn should_bind_external_login_to_one_immutable_role_and_revoke_active_access() {
 }
 
 #[test]
-fn should_reject_reserved_selector_password_fallback_disabled_role_and_name_reuse() {
+fn should_reject_unauthorized_logins_through_the_reserved_iam_selector() {
     // Arrange
     let cassie = cassie();
     let admin = cassie.create_session("root", None);

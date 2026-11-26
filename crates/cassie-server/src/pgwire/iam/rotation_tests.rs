@@ -129,7 +129,7 @@ fn run_fixture(fixture: impl std::future::Future<Output = ()>) {
 }
 
 #[test]
-fn should_refresh_unknown_kid_at_the_bounded_boundary_and_retire_the_old_key() {
+fn should_replace_cached_issuer_keys_at_the_refresh_boundary() {
     // Arrange
     run_fixture(async {
         let old = signing_key();
@@ -162,7 +162,7 @@ fn should_refresh_unknown_kid_at_the_bounded_boundary_and_retire_the_old_key() {
 }
 
 #[test]
-fn should_fail_closed_on_issuer_timeout_and_admit_a_later_refresh() {
+fn should_require_a_successful_issuer_fetch_after_timeout() {
     // Arrange
     run_fixture(async {
         let key = signing_key();
@@ -188,7 +188,7 @@ fn should_fail_closed_on_issuer_timeout_and_admit_a_later_refresh() {
 }
 
 #[test]
-fn should_reject_issuer_response_and_key_count_over_their_limits() {
+fn should_enforce_issuer_key_response_limits() {
     // Arrange
     run_fixture(async {
         let key = signing_key();

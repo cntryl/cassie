@@ -30,3 +30,21 @@ uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
+
+[[bench]]
+name = "tier1_hotpath_row_codec"
+harness = false
+path = "benches/tier1_hotpath_row_codec.rs"
+
+[[bench]]
+name = "tier1_hotpath_keys"
+harness = false
+path = "benches/tier1_hotpath_keys.rs"
+
+[[bench]]
+name = "tier2_subsystem_storage"
+harness = false
+path = "benches/tier2_subsystem_storage.rs"

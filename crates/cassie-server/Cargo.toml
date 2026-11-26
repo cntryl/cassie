@@ -38,7 +38,18 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 aws-lc-rs = { version = "1.19", features = ["ring-io"] }
 tokio-postgres = "0.7"
 cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
+cassie-bench-support = { path = "../cassie-bench-support" }
 num-bigint = "0.5.1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
 cntryl-stress = "0.5.1"
 rcgen = "0.14"
+
+[[bench]]
+name = "tier1_hotpath_pgwire"
+harness = false
+path = "benches/tier1_hotpath_pgwire.rs"
+
+[[bench]]
+name = "tier2_subsystem_protocol_handlers"
+harness = false
+path = "benches/tier2_subsystem_protocol_handlers.rs"

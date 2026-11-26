@@ -46,7 +46,73 @@ fancy-regex = { version = "=0.20.2", default-features = false, features = ["std"
 sql-json-path = "0.2.0"
 
 [dev-dependencies]
+cassie-bench-support = { path = "../cassie-bench-support" }
 cassie-core = { path = "../cassie-core", features = ["numeric-test-hooks"] }
 cassie-storage = { path = "../cassie-storage", features = ["storage-test-hooks"] }
 cntryl-midge = "0.6.0"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+[[bench]]
+name = "tier1_hotpath_filter_projection"
+harness = false
+path = "benches/tier1_hotpath_filter_projection.rs"
+
+[[bench]]
+name = "tier1_hotpath_predicates"
+harness = false
+path = "benches/tier1_hotpath_predicates.rs"
+
+[[bench]]
+name = "tier1_hotpath_topk"
+harness = false
+path = "benches/tier1_hotpath_topk.rs"
+
+[[bench]]
+name = "tier1_hotpath_graph_paths"
+harness = false
+path = "benches/tier1_hotpath_graph_paths.rs"
+
+[[bench]]
+name = "tier2_subsystem_binder"
+harness = false
+path = "benches/tier2_subsystem_binder.rs"
+
+[[bench]]
+name = "tier2_subsystem_sql_planning"
+harness = false
+path = "benches/tier2_subsystem_sql_planning.rs"
+
+[[bench]]
+name = "tier2_subsystem_plan_cache"
+harness = false
+path = "benches/tier2_subsystem_plan_cache.rs"
+
+[[bench]]
+name = "tier2_subsystem_executor"
+harness = false
+path = "benches/tier2_subsystem_executor.rs"
+
+[[bench]]
+name = "tier2_subsystem_column_scan"
+harness = false
+path = "benches/tier2_subsystem_column_scan.rs"
+
+[[bench]]
+name = "tier2_subsystem_hybrid"
+harness = false
+path = "benches/tier2_subsystem_hybrid.rs"
+
+[[bench]]
+name = "tier2_subsystem_graph"
+harness = false
+path = "benches/tier2_subsystem_graph.rs"
+
+[[bench]]
+name = "tier2_subsystem_generated_sources"
+harness = false
+path = "benches/tier2_subsystem_generated_sources.rs"
+
+[[bench]]
+name = "tier2_subsystem_ingest"
+harness = false
+path = "benches/tier2_subsystem_ingest.rs"

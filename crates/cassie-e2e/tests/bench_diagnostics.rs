@@ -14,7 +14,7 @@ mod replay_index_metadata;
 mod graph_topology;
 
 #[path = "../benches/tier3_system_storage_modes/profiles.rs"]
-mod column_profiles;
+pub mod column_profiles;
 
 #[path = "../benches/support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;

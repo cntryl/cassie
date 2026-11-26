@@ -105,9 +105,13 @@ async fn portal_fixture(sql: &str) {
     // Assert
     let (tag, error) = read(&mut socket).await;
     assert_eq!(tag, b'E', "resume emits no further row or completion");
-    assert!(error
-        .split(|byte| *byte == 0)
-        .any(|field| field == b"C28000"));
+    assert!(
+        error
+            .split(|byte| *byte == 0)
+            .any(|field| field == b"C28000"),
+        "unexpected portal resume ErrorResponse: {}",
+        String::from_utf8_lossy(&error)
+    );
     assert_eq!(
         cassie.metrics()["pgwire"]["portals"],
         0,

@@ -66,7 +66,7 @@ struct KeyCache {
 
 struct AccountTrust {
     account_id: String,
-    jwks: reqwest::Url,
+    public_issuer_host: String,
     algorithms: HashSet<Algorithm>,
     cache: Mutex<KeyCache>,
 }
@@ -98,14 +98,14 @@ impl TrustSet {
             if !valid_account_id(&account.account_id) || account.algorithms.is_empty() {
                 return Err(Rejected);
             }
-            let jwks = jwks_endpoint(&account.issuer)?;
+            let public_issuer_host = validate_issuer_host(&account.issuer)?;
             if !account_ids.insert(account.account_id.clone())
                 || accounts
                     .insert(
                         account.issuer,
                         AccountTrust {
                             account_id: account.account_id,
-                            jwks,
+                            public_issuer_host,
                             algorithms: account.algorithms.into_iter().collect(),
                             cache: Mutex::default(),
                         },
@@ -134,8 +134,8 @@ fn valid_account_id(id: &str) -> bool {
     id.len() == 12 && id.bytes().all(|b| b.is_ascii_digit())
 }
 
-fn jwks_endpoint(issuer: &str) -> Result<reqwest::Url, Rejected> {
-    let mut url = reqwest::Url::parse(issuer).map_err(|_| Rejected)?;
+fn validate_issuer_host(issuer: &str) -> Result<String, Rejected> {
+    let url = reqwest::Url::parse(issuer).map_err(|_| Rejected)?;
     let host = url.host_str().ok_or(Rejected)?;
     let account_label = host
         .strip_suffix(".tokens.sts.global.api.aws")
@@ -150,8 +150,7 @@ fn jwks_endpoint(issuer: &str) -> Result<reqwest::Url, Rejected> {
     {
         return Err(Rejected);
     }
-    url.set_path("/.well-known/jwks.json");
-    Ok(url)
+    Ok(host.to_owned())
 }
 
 pub(super) fn configure(
@@ -286,9 +285,20 @@ impl Verifier {
             return Err(Rejected);
         }
         cache.refreshed_at = Some(now);
+        let keys = self.fetch_issuer_keys(&account.public_issuer_host).await?;
+        cache.keys = Some((current_instant(), Arc::clone(&keys)));
+        Ok(keys)
+    }
+
+    async fn fetch_issuer_keys(
+        &self,
+        public_issuer_host: &str,
+    ) -> Result<Arc<IssuerKeys>, Rejected> {
         let mut response = self
             .client
-            .get(account.jwks.clone())
+            .get(format!(
+                "https://{public_issuer_host}/.well-known/jwks.json"
+            ))
             .send()
             .await
             .map_err(|_| Rejected)?;
@@ -306,8 +316,6 @@ impl Verifier {
             }
             contents.extend_from_slice(&chunk);
         }
-        let keys = Arc::new(IssuerKeys::from_json(&contents)?);
-        cache.keys = Some((current_instant(), Arc::clone(&keys)));
-        Ok(keys)
+        IssuerKeys::from_json(&contents).map(Arc::new)
     }
 }

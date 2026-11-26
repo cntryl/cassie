@@ -143,6 +143,47 @@ fn should_reject_a_forged_signature_unknown_key_and_duplicate_key_ids() {
 }
 
 #[test]
+fn should_verify_an_aws_rsa_key_without_an_optional_algorithm_annotation() {
+    // Arrange
+    use aws_lc_rs::signature::KeyPair as _;
+
+    let pair =
+        aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048).unwrap();
+    let public = pair.public_key();
+    let jwks = keys(&json!({
+        "kid": "fixture", "kty": "RSA", "use": "sig",
+        "n": URL_SAFE_NO_PAD.encode(public.modulus().big_endian_without_leading_zero()),
+        "e": URL_SAFE_NO_PAD.encode(public.exponent().big_endian_without_leading_zero()),
+    }));
+    let trust = TrustSet::from_json(
+        &serde_json::to_vec(&json!({
+            "audience": AUDIENCE,
+            "accounts": [{"account_id": ACCOUNT, "issuer": ISSUER, "algorithms": ["RS256"]}]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256","kid":"fixture"}"#);
+    let body = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims()).unwrap());
+    let signed = format!("{header}.{body}");
+    let mut signature = vec![0; public.modulus_len()];
+    pair.sign(
+        &aws_lc_rs::signature::RSA_PKCS1_SHA256,
+        &aws_lc_rs::rand::SystemRandom::new(),
+        signed.as_bytes(),
+        &mut signature,
+    )
+    .unwrap();
+    let token = format!("{signed}.{}", URL_SAFE_NO_PAD.encode(signature));
+
+    // Act
+    let identity = verify(&trust, &jwks, &token);
+
+    // Assert
+    assert_eq!(identity, Some((ISSUER.into(), ROLE.into())));
+}
+
+#[test]
 fn should_only_derive_key_endpoints_from_exact_https_aws_account_issuers() {
     // Arrange
     let hosts = [
@@ -312,14 +353,14 @@ async fn signed_driver_connections() {
     let refreshed = connect_and_read_role(address, &client_tls, &refreshed_token).await;
 
     // Assert
-    let invalid_password = Some(&tokio_postgres::error::SqlState::INVALID_PASSWORD);
+    let auth_failed = Some(&tokio_postgres::error::SqlState::INVALID_AUTHORIZATION_SPECIFICATION);
     assert_eq!(
         plaintext.code(),
-        invalid_password,
+        auth_failed,
         "plaintext rejected before password prompt"
     );
     assert_eq!(original.unwrap(), "service");
-    assert_eq!(expired.unwrap_err().code(), invalid_password);
+    assert_eq!(expired.unwrap_err().code(), auth_failed);
     assert_eq!(refreshed.unwrap(), "service");
     server.await.unwrap();
 }

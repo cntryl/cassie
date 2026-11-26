@@ -35,6 +35,7 @@ sql-json-path = "0.2.0"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 
 [dev-dependencies]
+aws-lc-rs = { version = "1.19", features = ["ring-io"] }
 tokio-postgres = "0.7"
 cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
 num-bigint = "0.5.1"

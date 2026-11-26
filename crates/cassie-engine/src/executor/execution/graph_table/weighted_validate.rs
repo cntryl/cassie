@@ -15,7 +15,7 @@ use std::mem::size_of;
 
 use super::super::super::source_collection_pull::Cursor;
 use super::access::Access;
-use super::keys::{key_of, KeyPart};
+use super::keys::{key_is_valid, key_of, KeyPart};
 use super::lazy::lookup_rows;
 use super::store::{key_types, read_rows, Reads};
 use super::weighted_weight::check_weight;
@@ -209,7 +209,7 @@ pub(super) fn validate(
         let (edge_columns, edge_types) = key_types(&meta.key);
         let mut source = Rows::open(env, &meta.table, &validation_fields(meta, column))?;
         while let Some(row) = source.next(env)? {
-            if key_of(|name| row.get(name), &edge_columns, &edge_types).is_none() {
+            if !key_is_valid(|name| row.get(name), &edge_columns, &edge_types) {
                 continue;
             }
             rows += 1;

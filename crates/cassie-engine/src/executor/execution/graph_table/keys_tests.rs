@@ -1,4 +1,4 @@
-use super::{key_of, KeyPart};
+use super::{key_is_valid, key_of, KeyPart};
 use crate::types::{DataType, Value};
 
 const UUID: &str = "00112233-4455-6677-8899-AABBCCDDEEFF";
@@ -38,6 +38,7 @@ fn should_accept_a_mixed_key_tuple_with_exact_scalar_components() {
     ]
     .map(Some);
     let mut owned_reads = Vec::new();
+    let mut validity_reads = Vec::new();
 
     // Act
     let owned = key_of(
@@ -45,8 +46,15 @@ fn should_accept_a_mixed_key_tuple_with_exact_scalar_components() {
         &columns,
         &types,
     );
+    let valid = key_is_valid(
+        read_values(&columns, &values, &mut validity_reads),
+        &columns,
+        &types,
+    );
 
     // Assert
+    assert!(valid);
+    assert_eq!(validity_reads, owned_reads);
     assert_eq!(
         owned.expect("valid key"),
         [
@@ -99,6 +107,7 @@ fn should_stop_at_the_first_invalid_component_of_a_mixed_graph_key() {
         let types = [DataType::Text, number_type, DataType::Uuid];
         let values = [Some(Value::String("key".to_owned())), number, uuid];
         let mut owned_reads = Vec::new();
+        let mut validity_reads = Vec::new();
 
         // Act
         let owned = key_of(
@@ -106,8 +115,15 @@ fn should_stop_at_the_first_invalid_component_of_a_mixed_graph_key() {
             &columns,
             &types,
         );
+        let valid = key_is_valid(
+            read_values(&columns, &values, &mut validity_reads),
+            &columns,
+            &types,
+        );
 
         // Assert
+        assert!(!valid, "{types:?}: {values:?}");
+        assert_eq!(validity_reads, owned_reads);
         assert!(owned.is_none(), "{types:?}: {values:?}");
         assert_eq!(owned_reads, (0..examined).collect::<Vec<_>>());
     }
@@ -119,6 +135,7 @@ fn should_read_only_paired_columns_in_the_graph_key_tuple() {
     let columns = ["mapped", "unpaired"].map(str::to_owned);
     let values = [Some(Value::Int64(3)), None];
     let mut owned_reads = Vec::new();
+    let mut validity_reads = Vec::new();
 
     // Act
     let owned = key_of(
@@ -126,8 +143,15 @@ fn should_read_only_paired_columns_in_the_graph_key_tuple() {
         &columns,
         &[DataType::Int],
     );
+    let valid = key_is_valid(
+        read_values(&columns, &values, &mut validity_reads),
+        &columns,
+        &[DataType::Int],
+    );
 
     // Assert
+    assert!(valid);
+    assert_eq!(validity_reads, owned_reads);
     assert_eq!(
         owned.expect("only the paired column is required"),
         [KeyPart::Integer(3)]

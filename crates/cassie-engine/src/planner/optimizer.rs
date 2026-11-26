@@ -129,6 +129,7 @@ fn enumerate_join_order(inputs: &inputs::JoinInputs) -> Vec<usize> {
             &mut Vec::with_capacity(count),
             &mut vec![false; count],
             inputs,
+            Some(cost::CheckedPrefix::empty()),
             &mut best,
         );
         best.map_or_else(Vec::new, |(_, order)| order)
@@ -141,10 +142,15 @@ fn enumerate_permutations(
     current: &mut Vec<usize>,
     used: &mut [bool],
     inputs: &inputs::JoinInputs,
+    score: Option<cost::CheckedPrefix>,
     best: &mut Option<(u128, Vec<usize>)>,
 ) {
     if current.len() == inputs.rows.len() {
-        let cost = join_order_cost(current, inputs);
+        // A failed checked step requires the legacy score for the whole order.
+        let cost = score.map_or_else(
+            || cost::legacy_cost(current, &inputs.rows),
+            |score| score.total,
+        );
         if best.as_ref().is_none_or(|(best_cost, best_order)| {
             cost < *best_cost
                 || (cost == *best_cost
@@ -163,8 +169,9 @@ fn enumerate_permutations(
             continue;
         }
         used[index] = true;
+        let next_score = score.and_then(|score| score.extend(current, index, inputs));
         current.push(index);
-        enumerate_permutations(current, used, inputs, best);
+        enumerate_permutations(current, used, inputs, next_score, best);
         current.pop();
         used[index] = false;
     }

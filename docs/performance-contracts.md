@@ -247,8 +247,10 @@ the prior NDV capped by the current prefix estimate and the next relation's
 NDV. Duplicate, correlated and cyclic equalities are not multiplied. The cost
 sums estimated intermediate rows; a cheaper Cartesian prefix remains legal.
 Both bounded exhaustive enumeration and greedy expansion use this heuristic,
-with deterministic lexical ties. No predicate, row limit, admission decision,
-or publication guarantee is decided by an estimate.
+with deterministic lexical ties. Exhaustive enumeration reuses the checked
+score of each shared prefix as it extends candidate orders. Greedy expansion
+scores each candidate prefix independently. No predicate, row limit, admission
+decision, or publication guarantee is decided by an estimate.
 
 Products and sums use checked `u128` arithmetic. Ceiling division uses quotient
 and remainder, avoiding an overflowing `raw + divisor - 1`. An overflow returns

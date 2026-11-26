@@ -57,6 +57,37 @@ fn stored_catalog_oid(cassie: &cassie::Cassie, collection: &str, name: &str) -> 
         .catalog_oid()
 }
 
+fn install_legacy_index_collision(
+    cassie: &cassie::Cassie,
+    collection: &str,
+    registration_order: [&str; 2],
+    shared_fallback_oid: u32,
+) {
+    // Standalone CREATE INDEX stores a scoped index name. Check the candidate
+    // from each durable record's actual name, in startup registration order.
+    for name in registration_order {
+        let mut index = cassie
+            .midge
+            .get_index(collection, name)
+            .expect("read durable index")
+            .expect("index");
+        assert_eq!(
+            cassie_core::catalog::object_identity::stable_index_oid(&format!(
+                "{}.{}",
+                index.collection, index.name
+            )),
+            shared_fallback_oid,
+        );
+        assert!(index.options.remove("__cassie_catalog_oid").is_some());
+        cassie
+            .midge
+            .put_index(&index)
+            .expect("store legacy identity");
+        cassie.catalog.unregister_index(collection, name);
+        cassie.catalog.register_index(index);
+    }
+}
+
 #[test]
 fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     // Arrange
@@ -88,30 +119,13 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     let collection = cassie.midge.canonical_collection_name("orders");
     let survivor = "idx_legacy_yttnwseryd";
     let original_holder = "idx_legacy_xsmdnoggin";
-    // Standalone CREATE INDEX stores a scoped index name. Check the candidate
-    // from each durable record's actual name, in startup registration order.
     let shared_fallback_oid = 4_065_978_230;
-    for name in [original_holder, survivor] {
-        let mut index = cassie
-            .midge
-            .get_index(&collection, name)
-            .expect("read durable index")
-            .expect("index");
-        assert_eq!(
-            cassie_core::catalog::object_identity::stable_index_oid(&format!(
-                "{}.{}",
-                index.collection, index.name
-            )),
-            shared_fallback_oid,
-        );
-        assert!(index.options.remove("__cassie_catalog_oid").is_some());
-        cassie
-            .midge
-            .put_index(&index)
-            .expect("store legacy identity");
-        cassie.catalog.unregister_index(&collection, name);
-        cassie.catalog.register_index(index);
-    }
+    install_legacy_index_collision(
+        &cassie,
+        &collection,
+        [original_holder, survivor],
+        shared_fallback_oid,
+    );
 
     // Act
     let legacy = cassie

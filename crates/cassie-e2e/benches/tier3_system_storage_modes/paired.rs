@@ -13,9 +13,9 @@ use super::evidence::{
     add_vector_delta_tokens, arm_record, assert_storage_mode, assert_vector_path, counted_run,
     explain_tokens,
 };
-use super::profiles::{Profile, Sampling};
+use super::profiles::{Fixture, Profile, Sampling};
 use super::queries::{self, Query, Role};
-use super::{amplification, expected, sampling, setup, wide, Db};
+use super::{amplification, expected, fixture_dir::FixtureDir, sampling, setup, wide, Db};
 
 fn rendered_equal(left: &[Vec<cassie::types::Value>], right: &[Vec<cassie::types::Value>]) -> bool {
     expected::fingerprint(left) == expected::fingerprint(right)
@@ -71,6 +71,7 @@ fn verify(db: &Db, query: &Query, options: &Sampling) -> Result<((usize, u64, u6
         fingerprint,
         json!({
             "result_rows": heap_counters["rows"],
+            "result_fingerprint": fingerprint,
             "heap": arm_record(&heap_tokens, &heap_counters),
             "column": arm_record(&column_tokens, &column_counters),
             "vector_tokens_asserted": options.gate.require_vector,
@@ -82,8 +83,8 @@ fn run_query(db: &Db, query: &Query, options: &Sampling) -> Json {
     let (fingerprint, evidence) = match verify(db, query, options) {
         Ok(verified) => verified,
         Err(error) => {
-            println!(
-                "storage_modes_query_skipped query={} error={error}",
+            eprintln!(
+                "storage_modes_query_failed query={} error={error}",
                 query.name
             );
             return json!({"name": query.name, "role": query.role.as_str(), "skipped": error});
@@ -102,7 +103,11 @@ fn run_query(db: &Db, query: &Query, options: &Sampling) -> Json {
     let analysis = match series {
         Ok(series) => sampling::analyze(&series, options.bootstrap),
         Err(error) => {
-            return json!({"name": query.name, "role": query.role.as_str(), "evidence": evidence, "failed": error})
+            eprintln!(
+                "storage_modes_query_failed query={} error={error}",
+                query.name
+            );
+            return json!({"name": query.name, "role": query.role.as_str(), "evidence": evidence, "failed": error});
         }
     };
     println!(
@@ -121,79 +126,208 @@ fn run_query(db: &Db, query: &Query, options: &Sampling) -> Json {
 fn lost_primary(results: &[Json]) -> Vec<String> {
     results
         .iter()
-        .filter(|result| result["role"] == "primary" && result["analysis"]["gate_pass"] != true)
+        .filter(|result| result["role"] == "primary" && result["analysis"]["gate_pass"] == false)
         .filter_map(|result| result["name"].as_str().map(str::to_owned))
         .collect()
 }
 
-pub fn run() -> ExitCode {
-    let profile = Profile::from_env();
-    let options = Sampling::from_env(&profile);
-    println!("storage_modes_profile={profile:?}");
-    println!("storage_modes_sampling={options:?}");
-    let db = Db::open(
-        setup::NativeProfile::Qualification,
-        profile.fact_rows * 2,
-        profile.query_budget,
-        Some((profile.native_total, profile.native_memtable)),
-    );
-    let setup_ns = wide::seed(&db, profile.fact_rows, profile.wide_rows);
-    let results: Vec<Json> = queries::all(profile.fact_rows, profile.wide_rows)
-        .iter()
-        .filter(|query| options.selects(&query.name))
-        .map(|query| run_query(&db, query, &options))
-        .collect();
-    let amplification = options
-        .selects("amplification")
-        .then(|| amplification::write_amplification(&db, options.amplification_rows));
-    let footprint = (options.footprint && options.selects("footprint")).then(|| {
-        amplification::disk_footprint(
-            &options.out.with_extension("footprint"),
-            options.footprint_rows,
-        )
-    });
-    let lost = lost_primary(&results);
-    let report = json!({
+fn report_profile(db: &Db, profile: &Profile, options: &Sampling) -> Json {
+    let native = db.cassie.midge.native_memory_configuration();
+    let expected_mode = if profile.local { "local" } else { "memory" };
+    assert_eq!(native.mode, expected_mode, "native storage mode");
+    if let Some((total, memtable)) = profile.native_limits() {
+        assert_eq!(native.total, total, "native memory budget");
+        assert_eq!(native.memtable_limit, memtable, "native memtable budget");
+    }
+    json!({
         "benchmark": super::BENCHMARK,
         "profile": profile.name,
+        "fixture": options.fixture.as_str(),
         "fact_rows": profile.fact_rows,
         "wide_rows": profile.wide_rows,
         "query_memory_budget_bytes": profile.query_budget,
-        "native_total_bytes": profile.native_total,
-        "native_memtable_bytes": profile.native_memtable,
-        "storage_mode": "memory",
+        "native_total_bytes": native.total,
+        "native_memtable_bytes": native.memtable_limit,
+        "native_configuration": native,
+        "native_budget_source": if profile.local { "local_defaults" } else { "declared_memory_profile" },
+        "storage_mode": native.mode,
         "result_cache": "disabled",
         "warmup": options.warmup,
         "samples": options.samples,
         "control": options.control,
         "measurement_mode": options.measurement,
-        "setup_time_ns": setup_ns.to_string(),
+        "query_filter": options.filter,
         "ratio_definition": "heap_seconds / column_seconds; above 1 means the column arm is faster",
         "advantage_gate": "primary queries: ci95 lower bound of the paired ratio > 1 + heap-versus-heap noise band; 1.25x median is the reported target",
-        "queries": results,
-        "write_amplification": amplification,
-        "disk_footprint": footprint,
-        "primary_losses": lost,
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
-    });
-    if let Some(parent) = options.out.parent() {
+    })
+}
+
+fn write_report(options: &Sampling, report: &Json) {
+    if let Some(parent) = options
+        .out
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent).expect("create output directory");
     }
     std::fs::write(
         &options.out,
-        serde_json::to_vec_pretty(&report).expect("serialize report"),
+        serde_json::to_vec_pretty(report).expect("serialize report"),
     )
     .expect("write report");
     println!("storage_modes_report={}", options.out.display());
-    if lost.is_empty() {
-        println!("storage_modes_gate=pass");
-        return ExitCode::SUCCESS;
+}
+
+fn primary_has_qualified_path(result: &Json) -> bool {
+    let column = &result["evidence"]["column"];
+    let tokens = &column["tokens"];
+    let reads = &column["counters"]["column_vector_reads"];
+    tokens["storage_mode"] == "column-store"
+        && tokens["fallback_reason"] == "none"
+        && tokens["column_vector"] == "eligible"
+        && reads["batches"].as_u64().is_some_and(|batches| batches > 0)
+        && reads["row_documents_built"] == 0
+}
+
+fn advantage_status(
+    results: &[Json],
+    profile: &Profile,
+    options: &Sampling,
+    failures: &[&str],
+    lost: &[String],
+) -> &'static str {
+    if !failures.is_empty() {
+        return "incomplete";
     }
-    println!("storage_modes_gate=loss queries={lost:?}");
-    if options.gate.strict {
-        ExitCode::FAILURE
+    let primary = || results.iter().filter(|result| result["role"] == "primary");
+    match primary().count() {
+        0 => "not_run",
+        1 => "partial",
+        _ if !(profile.is_advantage_profile() && options.measurement && options.control) => {
+            "diagnostic"
+        }
+        _ if !primary().all(primary_has_qualified_path) => "unqualified_path",
+        _ if lost.is_empty() => "pass",
+        _ => "loss",
+    }
+}
+
+fn run_optional_probes(
+    db: &Db,
+    profile: &Profile,
+    options: &Sampling,
+    amplification: bool,
+    footprint: bool,
+    report: &mut Json,
+) {
+    if amplification {
+        report["run_status"] = json!("amplification_incomplete");
+        write_report(options, report);
+        report["write_amplification"] =
+            amplification::write_amplification(db, options.amplification_rows, profile.local);
+    }
+    if footprint {
+        report["run_status"] = json!("footprint_incomplete");
+        write_report(options, report);
+        report["disk_footprint"] = amplification::disk_footprint(
+            &options.out.with_extension("footprint"),
+            options.footprint_rows,
+        );
+    }
+}
+
+pub fn run() -> ExitCode {
+    let fixture = Fixture::from_env();
+    let profile = Profile::from_env(fixture);
+    let options = Sampling::from_env(&profile, fixture);
+    let selected: Vec<Query> = queries::all(profile.fact_rows, profile.wide_rows)
+        .into_iter()
+        .filter(|query| fixture.includes_query(&query.name) && options.selects(&query.name))
+        .collect();
+    let amplification = fixture.includes_narrow() && options.selects("amplification");
+    let footprint = fixture.includes_narrow() && options.footprint && options.selects("footprint");
+    assert!(
+        !selected.is_empty() || amplification || footprint,
+        "no paired workloads match fixture {} and filters {:?}",
+        fixture.as_str(),
+        options.filter,
+    );
+
+    println!("storage_modes_profile={profile:?}");
+    println!("storage_modes_sampling={options:?}");
+    let local_path = profile.local.then(|| {
+        std::env::temp_dir().join(format!("cassie-storage-modes-{}", uuid::Uuid::new_v4()))
+    });
+    let _directory = local_path.as_ref().map(FixtureDir::new);
+    let db = Db::open(
+        setup::NativeProfile::Qualification,
+        profile
+            .fact_rows
+            .max(profile.wide_rows)
+            .checked_mul(2)
+            .expect("result row limit"),
+        profile.query_budget,
+        profile.native_limits(),
+        local_path.as_deref(),
+    );
+    let mut report = report_profile(&db, &profile, &options);
+    let setup_ns = match wide::seed(
+        &db,
+        profile.fact_rows,
+        profile.wide_rows,
+        fixture,
+        profile.local,
+    ) {
+        Ok(elapsed) => elapsed,
+        Err(error) => {
+            eprintln!("storage_modes_setup_failed={error}");
+            report["setup_error"] = json!(error);
+            report["run_status"] = json!("setup_failed");
+            report["advantage_status"] = json!("not_run");
+            write_report(&options, &report);
+            return ExitCode::FAILURE;
+        }
+    };
+    let results: Vec<Json> = selected
+        .iter()
+        .map(|query| run_query(&db, query, &options))
+        .collect();
+    let failures: Vec<&str> = results
+        .iter()
+        .filter(|result| result["analysis"].is_null())
+        .filter_map(|result| result["name"].as_str())
+        .collect();
+    let lost = lost_primary(&results);
+    let status = advantage_status(&results, &profile, &options, &failures, &lost);
+    let query_failed = !failures.is_empty();
+    report["setup_time_ns"] = json!(setup_ns.to_string());
+    report["advantage_status"] = json!("incomplete");
+    report["query_failures"] = json!(failures);
+    report["queries"] = json!(results);
+    report["write_amplification"] = Json::Null;
+    report["disk_footprint"] = Json::Null;
+    report["primary_losses"] = json!(lost);
+    run_optional_probes(
+        &db,
+        &profile,
+        &options,
+        amplification,
+        footprint,
+        &mut report,
+    );
+    report["run_status"] = json!(if query_failed {
+        "incomplete"
     } else {
+        "complete"
+    });
+    report["advantage_status"] = json!(status);
+    write_report(&options, &report);
+    println!("storage_modes_gate={status} queries={lost:?}");
+    if !query_failed && (!options.gate.strict || status == "pass") {
         ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }

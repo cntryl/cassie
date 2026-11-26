@@ -1,6 +1,6 @@
 //! Tier 3 mapped graph representatives: projector-shaped workloads over ordinary tables, each
-//! mapped by a property graph that copies no data. Fixtures select memory storage and the
-//! standard analytical query-memory profile.
+//! mapped by a property graph that copies no data. The standard analytical profile runs
+//! in memory by default. The opt-in reopened weighted case records local storage counters.
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -18,6 +18,8 @@ mod graph_social;
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
+#[path = "support/weighted_graph_disk.rs"]
+mod weighted_graph_disk;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -269,25 +271,11 @@ fn collect_evidence(
     if routes {
         let fixture = open_fixture();
         social.plan().apply(&fixture.cassie, &fixture.session);
-        let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
-        let mut expected = (1..)
-            .zip(&route.costs)
-            .map(|(rank, cost): (i64, &i64)| vec![rank.to_string(), cost.to_string()])
-            .collect::<Vec<_>>();
-        expected.sort();
-        let sql = route.sql();
-        let (cold, _) = evidence.collect(
-            &fixture.cassie,
-            &fixture.session,
-            &graph_evidence::Spec {
-                family: "graph_weighted_routes_query",
-                case: FIXTURE_SCALE,
-                sql: &sql,
-                params: &[],
-                expected,
-                exact_switch: false,
-                fixture: fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES),
-            },
+        let (cold, _) = collect_weighted_evidence(
+            &mut evidence,
+            &fixture,
+            social,
+            fixture_identity(SOCIAL_MAPPED_ROWS, SOCIAL_INDEXES),
         );
         if i64::try_from(cold.validation_rows) != Ok(SOCIAL_EDGES) {
             evidence.finding(format!(
@@ -298,6 +286,34 @@ fn collect_evidence(
         fixture.cassie.shutdown();
     }
     evidence
+}
+
+fn collect_weighted_evidence(
+    evidence: &mut graph_evidence::Evidence,
+    fixture: &Fixture,
+    social: &graph_social::Social,
+    identity: serde_json::Value,
+) -> (graph_evidence::Counts, graph_evidence::Counts) {
+    let route = social.route(1, ROUTE_HOPS, ROUTE_PATHS);
+    let mut expected = (1..)
+        .zip(&route.costs)
+        .map(|(rank, cost): (i64, &i64)| vec![rank.to_string(), cost.to_string()])
+        .collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(expected.len(), ROUTE_PATHS, "weighted oracle path count");
+    evidence.collect(
+        &fixture.cassie,
+        &fixture.session,
+        &graph_evidence::Spec {
+            family: "graph_weighted_routes_query",
+            case: FIXTURE_SCALE,
+            sql: &route.sql(),
+            params: &[],
+            expected,
+            exact_switch: false,
+            fixture: identity,
+        },
+    )
 }
 
 /// Opens the shared timing fixture and loads the selected graphs; returns it with its setup time.
@@ -322,6 +338,14 @@ fn populated_fixture(
 }
 
 fn main() {
+    if std::env::var("CASSIE_BENCH_GRAPH_DISK_REOPEN").as_deref() == Ok("1") {
+        weighted_graph_disk::run();
+    } else {
+        run_memory();
+    }
+}
+
+fn run_memory() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
     let authorization = selected_case(&runner, "graph_authorization_reachability_query");
     let hierarchy = selected_case(&runner, "graph_hierarchy_ancestry_query");

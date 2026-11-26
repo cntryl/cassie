@@ -20,10 +20,10 @@ depends on how fast the machine ran.
 
 | Criterion | How it is decided |
 |---|---|
-| Reader pages | A synchronized probe opens a repeatable-read snapshot, reads the projection checkpoint inside it, runs sampled prepared pages, and compares them with the independent event model replayed through exactly that checkpoint. |
-| Backfill | When the whole correction burst is acknowledged (counter equality with the 2% expected count), a full-relation probe compares every row against the model at its snapshot's checkpoint. |
-| Retention | Retention starts only after the refresh, the correction drain and their probes are complete, so the model's retention state is known. After it, the policy-reported deleted rows must equal the model's expired-row count, no expired row may remain, and a page probe and the final full-relation comparison run against the retained model. |
-| Ingest accounting | Every offered event is acknowledged, and the final relation and grouped rollups equal the model. |
+| Reader pages | A synchronized probe opens a repeatable-read snapshot, reads the projection checkpoint inside it, and checks that it includes the last acknowledgement observed before BEGIN. It runs sampled prepared pages and compares them with the independent event model replayed through that checkpoint. |
+| Backfill | When the whole correction burst is acknowledged (counter equality with the 2% expected count), a keyset-paginated probe compares every row against the model at its snapshot's checkpoint. |
+| Retention | Retention starts only after the refresh, the correction drain and their probes are complete, so the model's retention state is known. After it, the policy-reported deleted rows must equal the model's expired-row count, no expired row may remain, and a page probe and the final reopened relation comparison run against the retained model. |
+| Ingest accounting | Every offered event is acknowledged. After the workers join and the timed window ends, reopen the store and compare the durable checkpoint, keyset-paginated relation, deterministic range pages and grouped totals against the model. If refresh completed and there is no debt, require the reopened rollup to serve the grouped query. |
 | Phase release | The contract minutes are release times. A phase never starts early, and a phase the measured window did not reach runs to completion afterwards. There is no completion deadline; the hang guards abort a wedged run and never decide a verdict. |
 
 ## Timing criteria that stay open
@@ -51,7 +51,7 @@ so a decision needs a quiet qualification host.
 
 No engine defect was found in the retention, refresh or snapshot paths by this
 pass. These engine observations are not defects: a full rollup refresh does not publish while the source commits
-(by design, the harness quiesces the writer), a full relation read costs about
+(by design, the harness quiesces the writer), the earlier unpaginated relation read cost about
 5.5 KB of query memory per row, time-series pages are not limited early, and
 `event_at::TEXT` skips the time-series path without a fallback counter. One
 retention batch of 256 scanned rows took on the order of a second at 100k rows on
@@ -86,6 +86,11 @@ result.
 ## Evidence
 
 Raw JSON for each scenario is written under `target/time-series-mixed-1350/`.
+The report keeps scenario-wide offered and acknowledged totals for drain
+accounting. The measured window has separate event deltas and reader and
+writer latency samples captured at its start and end. Bracket attempts and
+post-window drain are excluded from those measurements. The sampler retains
+scenario-wide samples, including backlog and peak RSS.
 
 Clean smoke run (20,000 seed events, 16 devices, 5% time scale, loaded machine, so
 all rates are not-quiet and decide nothing): `correctness verdict: PASS`. The run

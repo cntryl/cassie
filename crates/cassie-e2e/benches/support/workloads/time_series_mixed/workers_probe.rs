@@ -5,6 +5,9 @@
 //! replayed through exactly that checkpoint, so the verdict does not depend on
 //! how far the writer, readers or maintenance have progressed.
 
+use super::oracle_controls::{
+    should_advance_past_the_last_relation_id, should_include_the_acknowledged_checkpoint,
+};
 use super::{
     model, temporal, thread, value_text, BTreeMap, Cassie, CassieSession, Duration, EventRow,
     Instant, Ordering, ProbeResult, ProbeScope, SharedMetrics, Value, PAGE_ROWS, PROBE_DEVICES,
@@ -59,29 +62,41 @@ fn open_snapshot(
     cassie: &Cassie,
     session: &CassieSession,
     probe: &PreparedReaderProbe<'_>,
-) -> String {
+) -> (String, u64) {
     probe.shared.readers_paused.store(true, Ordering::Release);
     while probe.shared.readers_in_flight.load(Ordering::Acquire) > 0 {
         thread::sleep(Duration::from_millis(1));
     }
     let resume = ResumeReaders(probe.shared);
+    let acknowledged_before_begin = probe.shared.committed_position.load(Ordering::Acquire);
     execute_checked(
         cassie,
         session,
         "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
     );
-    let checkpoint_result = cassie
+    let checkpoint = read_checkpoint(cassie, session, probe.projection);
+    drop(resume);
+    (checkpoint, acknowledged_before_begin)
+}
+
+pub(super) fn read_checkpoint(
+    cassie: &Cassie,
+    session: &CassieSession,
+    projection: &str,
+) -> String {
+    let result = cassie
         .execute_sql(
             session,
             &format!(
-                "SELECT source_checkpoint FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{}'",
-                probe.projection
+                "SELECT source_checkpoint FROM pg_catalog.pg_projection_checkpoints WHERE collection = '{projection}'"
             ),
             Vec::new(),
         )
-        .unwrap_or_else(|error| panic!("read checkpoint in snapshot: {error}"));
-    drop(resume);
-    checkpoint_result.rows()[0][0]
+        .expect("read projection checkpoint");
+    let [row] = result.rows() else {
+        panic!("expected one checkpoint for {projection}");
+    };
+    row[0]
         .as_str()
         .expect("projection checkpoint text")
         .to_owned()
@@ -114,7 +129,8 @@ pub(super) fn verify_snapshot(
     session: &CassieSession,
     probe: &PreparedReaderProbe<'_>,
 ) -> ProbeResult {
-    let checkpoint = open_snapshot(cassie, session, probe);
+    let (checkpoint, acknowledged_before_begin) = open_snapshot(cassie, session, probe);
+    let fresh = should_include_the_acknowledged_checkpoint(&checkpoint, acknowledged_before_begin);
     let (expected_rows, actual_rows, matched) = match probe.scope {
         ProbeScope::Pages => compare_pages(cassie, session, probe, &checkpoint),
         ProbeScope::FullRelation => compare_relation(cassie, session, probe, &checkpoint),
@@ -123,7 +139,7 @@ pub(super) fn verify_snapshot(
         checkpoint,
         expected_rows,
         actual_rows,
-        matched,
+        matched: matched && fresh,
     }
 }
 
@@ -178,14 +194,7 @@ fn compare_relation(
     probe: &PreparedReaderProbe<'_>,
     checkpoint: &str,
 ) -> (usize, usize, bool) {
-    let result = cassie
-        .execute_sql(
-            session,
-            &format!("SELECT id,device,event_at,amount FROM {TABLE} ORDER BY id"),
-            Vec::new(),
-        )
-        .expect("read full relation in checkpoint snapshot");
-    let actual = result_event_rows(result.rows());
+    let actual = read_relation_pages(cassie, session);
     execute_checked(cassie, session, "COMMIT");
 
     let expected = expected_at_checkpoint(probe, checkpoint)
@@ -200,6 +209,44 @@ fn compare_relation(
         );
     }
     (expected.len(), actual.len(), matched)
+}
+
+pub(super) fn range_page_sql(window: usize) -> String {
+    let (start, end) = model::window_bounds(window);
+    format!(
+        "SELECT id,device,event_at,amount FROM {TABLE} WHERE device = $1 AND event_at >= '{start}' AND event_at < '{end}' ORDER BY event_at,id LIMIT {PAGE_ROWS}"
+    )
+}
+
+/// Each request stays below the result cap as the measured relation grows.
+/// Calling inside the snapshot keeps every page on the same committed state.
+pub(super) fn read_relation_pages(cassie: &Cassie, session: &CassieSession) -> Vec<EventRow> {
+    const RELATION_PAGE_ROWS: usize = 1024;
+    let first = format!(
+        "SELECT id,device,event_at,amount FROM {TABLE} ORDER BY id LIMIT {RELATION_PAGE_ROWS}"
+    );
+    let next = format!(
+        "SELECT id,device,event_at,amount FROM {TABLE} WHERE id > $1 ORDER BY id LIMIT {RELATION_PAGE_ROWS}"
+    );
+    let mut cursor = None;
+    let mut rows = Vec::new();
+    loop {
+        let result = match cursor {
+            None => cassie.execute_sql(session, &first, Vec::new()),
+            Some(previous) => cassie.execute_sql(session, &next, vec![Value::Int64(previous)]),
+        }
+        .expect("read bounded relation page");
+        if result.rows().is_empty() {
+            return rows;
+        }
+        let page = result_event_rows(result.rows());
+        cursor = Some(should_advance_past_the_last_relation_id(
+            cursor,
+            &page,
+            RELATION_PAGE_ROWS,
+        ));
+        rows.extend(page);
+    }
 }
 
 fn wait_for_committed_position(shared: &SharedMetrics, target: u64) {

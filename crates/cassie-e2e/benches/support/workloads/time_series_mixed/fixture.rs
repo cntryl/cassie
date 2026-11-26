@@ -24,6 +24,7 @@ pub struct Fixture {
     pub event_count: usize,
     pub device_count: usize,
     pub initial_rows: Arc<std::collections::BTreeMap<i64, EventRow>>,
+    config: CassieRuntimeConfig,
     _fixture_dir: FixtureDir,
 }
 
@@ -43,12 +44,7 @@ impl Fixture {
         config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
         config.limits.max_result_rows = event_count.saturating_add(50_000);
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
-        let cassie = Arc::new(
-            Cassie::new_local_with_data_dir_and_config(&data_dir, config)
-                .expect("create local APFS campaign store"),
-        );
-        cassie.startup().expect("start local campaign store");
-        let session = cassie.create_session("benchmark", None);
+        let (cassie, session) = open_store(&data_dir, config.clone());
         create_schema(&cassie, &session);
         let projection = canonical_relation_name("postgres", "public", TABLE);
         let initial_rows = Arc::new(model::initial_rows(event_count, device_count));
@@ -63,6 +59,42 @@ impl Fixture {
             event_count,
             device_count,
             initial_rows,
+            config,
+            _fixture_dir: fixture_dir,
+        }
+    }
+
+    /// Close the measured engine and open its committed store without reseeding.
+    pub fn reopen(self) -> Self {
+        let Self {
+            cassie,
+            session,
+            projection,
+            data_dir,
+            event_count,
+            device_count,
+            initial_rows,
+            config,
+            _fixture_dir: fixture_dir,
+        } = self;
+        cassie.shutdown();
+        drop(session);
+        assert_eq!(
+            Arc::strong_count(&cassie),
+            1,
+            "campaign workers must be joined"
+        );
+        drop(cassie);
+        let (cassie, session) = open_store(&data_dir, config.clone());
+        Self {
+            cassie,
+            session,
+            projection,
+            data_dir,
+            event_count,
+            device_count,
+            initial_rows,
+            config,
             _fixture_dir: fixture_dir,
         }
     }
@@ -74,10 +106,14 @@ impl Fixture {
     }
 }
 
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        self.cassie.shutdown();
-    }
+fn open_store(path: &Path, config: CassieRuntimeConfig) -> (Arc<Cassie>, CassieSession) {
+    let cassie = Arc::new(
+        Cassie::new_local_with_data_dir_and_config(path, config)
+            .expect("open local APFS campaign store"),
+    );
+    cassie.startup().expect("start local campaign store");
+    let session = cassie.create_session("benchmark", None);
+    (cassie, session)
 }
 
 /// Table and fixed one-day time-series index exist before the seed so the

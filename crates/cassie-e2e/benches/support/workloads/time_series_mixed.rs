@@ -14,7 +14,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use cntryl_stress::artifact::{BenchmarkMode, BenchmarkSpec, MeasurementIntent};
-use cntryl_stress::{StressContext, StressRunner, StressRunnerConfig};
+use cntryl_stress::{
+    LogicalUnit, OperationOutcome, StressContext, StressRunner, StressRunnerConfig,
+};
 
 use self::evidence::HostProfile;
 use self::fixture::Fixture;
@@ -114,7 +116,7 @@ pub fn run() {
                         &report,
                     ));
                     match kind {
-                        RunKind::IngestOnly => sustainable_rate = Some(report.writer_rate),
+                        RunKind::IngestOnly => sustainable_rate = Some(report.sustainable_rate),
                         RunKind::ReaderOnly => reader_baseline_p95 = Some(report.reader_p95_us),
                         RunKind::Mixed => {}
                     }
@@ -124,6 +126,10 @@ pub fn run() {
     }
 
     let _run = runner.finish();
+    assert!(
+        expected_scenarios > 0,
+        "no mixed workload scenarios matched"
+    );
     assert_eq!(
         completed_scenarios, expected_scenarios,
         "the mixed qualification campaign requires every matched scenario"
@@ -204,14 +210,15 @@ fn run_scenario_spec(
             input.device_count,
             QUERY_BUDGET_BYTES,
         );
-        let report = workers::run_scenario(
-            &fixture,
+        let (fixture, report) = workers::run_scenario(
+            fixture,
             input.kind,
             input.kind.duration(),
             input.sustainable_rate,
             input.reader_baseline_p95,
         );
         record_scenario(context, &host, &fixture, input, &report);
+        fixture.cassie.shutdown();
         *output_capture.lock().expect("campaign result mutex") = Some(report);
     });
     let report = output.lock().expect("campaign result mutex").clone();
@@ -230,6 +237,12 @@ fn record_scenario(
         .metadata("raw_evidence_path", raw_path.display())
         .metadata("offered_events", report.offered_events)
         .metadata("acknowledged_events", report.acknowledged_events)
+        .metadata("window_offered_events", report.window_offered_events)
+        .metadata(
+            "window_acknowledged_events",
+            report.window_acknowledged_events,
+        )
+        .metadata("window_writer_events_per_second", report.writer_rate)
         .metadata("peak_backlog_events", report.peak_backlog_events)
         .metadata("backlog_stable", report.backlog_stable)
         .metadata(
@@ -256,10 +269,16 @@ fn record_scenario(
         )
         .metadata("time_series_fallback_scans", report.fallback_scans)
         .metadata("sampled_peak_rss_bytes", report.sampled_peak_rss_bytes)
-        .record_external(
+        .record_external_outcome(
             "campaign_window",
             report.elapsed,
-            report.completed_operations.max(1),
+            LogicalUnit::new("event_or_query"),
+            OperationOutcome::new(
+                report
+                    .window_offered_events
+                    .saturating_add(report.reader_queries),
+                report.completed_operations,
+            ),
         );
 }
 
@@ -278,8 +297,12 @@ fn correctness_failures(
         }
     };
     require(
+        report.completed_operations > 0,
+        "no work completed in the measured window",
+    );
+    require(
         report.oracle_mismatches == 0,
-        "snapshot page, full-relation, rollup and retention accounting oracles must have zero differences",
+        "snapshot and reopened checkpoint, page, relation, rollup and retention oracles must have zero differences",
     );
     require(
         report.correction_events_acknowledged == report.correction_events_expected,

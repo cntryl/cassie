@@ -70,8 +70,8 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     let session = cassie.create_session("tester", None);
     for sql in [
         "CREATE TABLE orders (col1 INT, col2 INT, col3 INT)",
-        "CREATE INDEX idx_probe_mruviborgh ON orders (col1)",
-        "CREATE INDEX idx_probe_khsnofgfon ON orders (col2)",
+        "CREATE INDEX idx_legacy_yttnwseryd ON orders (col1)",
+        "CREATE INDEX idx_legacy_xsmdnoggin ON orders (col2)",
         "CREATE INDEX idx_allocated_control ON orders (col3)",
     ] {
         cassie
@@ -80,25 +80,30 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     }
     let join = "SELECT c.relname, i.indkey, c.oid::text \
                 FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON i.indexrelid = c.oid \
-                WHERE c.relname IN ('idx_allocated_control', 'idx_probe_mruviborgh', 'idx_probe_khsnofgfon') \
+                WHERE c.relname IN ('idx_allocated_control', 'idx_legacy_yttnwseryd', 'idx_legacy_xsmdnoggin') \
                 ORDER BY c.relname, i.indkey";
     let fresh = cassie
         .execute_sql(&session, join, vec![])
         .expect("read fresh indexes");
     let collection = cassie.midge.canonical_collection_name("orders");
-    let survivor = "idx_probe_mruviborgh";
-    let original_holder = "idx_probe_khsnofgfon";
-    let candidate = |name| {
-        cassie_core::catalog::object_identity::stable_index_oid(&format!("{collection}.{name}"))
-    };
-    assert_eq!(candidate(survivor), candidate(original_holder));
-    // Register the legacy fixtures in the startup's canonical order.
+    let survivor = "idx_legacy_yttnwseryd";
+    let original_holder = "idx_legacy_xsmdnoggin";
+    // Standalone CREATE INDEX stores a scoped index name. Check the candidate
+    // from each durable record's actual name, in startup registration order.
+    let shared_fallback_oid = 4_065_978_230;
     for name in [original_holder, survivor] {
         let mut index = cassie
             .midge
             .get_index(&collection, name)
             .expect("read durable index")
             .expect("index");
+        assert_eq!(
+            cassie_core::catalog::object_identity::stable_index_oid(&format!(
+                "{}.{}",
+                index.collection, index.name
+            )),
+            shared_fallback_oid,
+        );
         assert!(index.options.remove("__cassie_catalog_oid").is_some());
         cassie
             .midge
@@ -137,7 +142,7 @@ fn should_join_colliding_legacy_index_oids_after_catalog_restart() {
     assert_eq!(legacy.rows(), hydrated.rows());
     let surviving_oid = stored_catalog_oid(&reopened, &collection, survivor)
         .expect("displaced legacy OID was persisted");
-    assert_ne!(surviving_oid, candidate(survivor));
+    assert_ne!(surviving_oid, shared_fallback_oid);
     assert_eq!(
         hydrated.rows()[2][2],
         Value::String(surviving_oid.to_string())

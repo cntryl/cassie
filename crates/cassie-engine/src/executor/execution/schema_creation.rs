@@ -270,16 +270,7 @@ fn create_table_gated(
             .save_constraints(table, constraints.as_slice())
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
-    // Creation paths return only the storage identity; the allocator-backed
-    // row-type identities were persisted with the metadata.
-    if let Some(stored) = cassie
-        .midge
-        .collection_metadata(table)
-        .map_err(QueryError::from)?
-    {
-        collection_meta.row_type_object_id = stored.row_type_object_id;
-        collection_meta.row_array_object_id = stored.row_array_object_id;
-    }
+    restore_created_row_type_ids(cassie, table, &mut collection_meta)?;
     if statement.like.is_none() {
         persist_initial_indexes(cassie, &mut initial_indexes)?;
     }
@@ -311,6 +302,24 @@ fn create_table_gated(
         super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     }
     Ok(CreationOutcome::created(output))
+}
+
+fn restore_created_row_type_ids(
+    cassie: &Cassie,
+    table: &str,
+    collection_meta: &mut catalog::CollectionMeta,
+) -> Result<(), QueryError> {
+    // Creation paths return only the storage identity; the allocator-backed
+    // row-type identities were persisted with the metadata.
+    if let Some(stored) = cassie
+        .midge
+        .collection_metadata(table)
+        .map_err(QueryError::from)?
+    {
+        collection_meta.row_type_object_id = stored.row_type_object_id;
+        collection_meta.row_array_object_id = stored.row_array_object_id;
+    }
+    Ok(())
 }
 
 fn prepare_like_column_comments(

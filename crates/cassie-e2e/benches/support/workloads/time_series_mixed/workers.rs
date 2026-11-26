@@ -814,19 +814,7 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         acknowledged_events,
     );
     let samples = shared.samples.lock().expect("sample vector mutex").clone();
-    let reader_latency_ns = shared
-        .reader_latency_ns
-        .lock()
-        .expect("reader latency mutex")[window.before.reader_samples..window.after.reader_samples]
-        .to_vec();
-    let reader_queries = u64::try_from(reader_latency_ns.len()).expect("reader count fits u64");
-    let writer_latency_ns = shared
-        .writer_latency_ns
-        .lock()
-        .expect("writer latency mutex")[window.before.writer_samples..window.after.writer_samples]
-        .to_vec();
-    let reader_p50_us = percentile_us(&reader_latency_ns, 5_000);
-    let reader_p95_us = percentile_us(&reader_latency_ns, 9_500);
+    let latencies = capture_window_latencies(shared, window);
     let backlog_stable = backlog_is_stable(kind, backlog_events_at_window_end, &samples);
     let writer_rate = writer_rate(window_acknowledged_events, elapsed);
     let peak_backlog_events = shared.peak_backlog_events.load(Ordering::Acquire);
@@ -835,7 +823,7 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         kind,
         backlog_events_at_window_end,
         &outcome.rate_attempts,
-        reader_p95_us,
+        latencies.reader_p95_us,
         reader_baseline_p95,
         final_state.rollup_debt,
         final_state.fallback_scans,
@@ -847,7 +835,7 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         .map(|attempt| attempt.target_events_per_second);
     let correction_events_expected = outcome.correction_events_expected;
     let correction_events_acknowledged = outcome.correction_events_acknowledged;
-    let completed_operations = window_acknowledged_events.saturating_add(reader_queries);
+    let completed_operations = window_acknowledged_events.saturating_add(latencies.reader_queries);
     let oracle_mismatches = final_state.oracle_mismatches.saturating_add(
         usize::try_from(shared.oracle_mismatches.load(Ordering::Acquire)).unwrap_or(usize::MAX),
     );
@@ -866,9 +854,9 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         backlog_stable,
         sustainable_rate: outcome.sustainable_rate,
         target_writer_rate: outcome.target_writer_rate,
-        reader_queries,
-        reader_p50_us,
-        reader_p95_us,
+        reader_queries: latencies.reader_queries,
+        reader_p50_us: latencies.reader_p50_us,
+        reader_p95_us: latencies.reader_p95_us,
         maintenance: MaintenanceFlags {
             rollup_debt: final_state.rollup_debt,
             rollup_refresh_completed,
@@ -901,8 +889,39 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         rate_attempts: outcome.rate_attempts,
         samples,
         maintenance_actions: outcome.maintenance_actions,
-        raw_reader_latency_us: latency_samples_us(&reader_latency_ns),
-        raw_writer_latency_us: latency_samples_us(&writer_latency_ns),
+        raw_reader_latency_us: latency_samples_us(&latencies.reader_latency_ns),
+        raw_writer_latency_us: latency_samples_us(&latencies.writer_latency_ns),
+    }
+}
+
+struct WindowLatencies {
+    reader_latency_ns: Vec<u128>,
+    writer_latency_ns: Vec<u128>,
+    reader_queries: u64,
+    reader_p50_us: f64,
+    reader_p95_us: f64,
+}
+
+fn capture_window_latencies(shared: &SharedMetrics, window: &MeasuredWindow) -> WindowLatencies {
+    let reader_latency_ns = shared
+        .reader_latency_ns
+        .lock()
+        .expect("reader latency mutex")[window.before.reader_samples..window.after.reader_samples]
+        .to_vec();
+    let reader_queries = u64::try_from(reader_latency_ns.len()).expect("reader count fits u64");
+    let writer_latency_ns = shared
+        .writer_latency_ns
+        .lock()
+        .expect("writer latency mutex")[window.before.writer_samples..window.after.writer_samples]
+        .to_vec();
+    let reader_p50_us = percentile_us(&reader_latency_ns, 5_000);
+    let reader_p95_us = percentile_us(&reader_latency_ns, 9_500);
+    WindowLatencies {
+        reader_latency_ns,
+        writer_latency_ns,
+        reader_queries,
+        reader_p50_us,
+        reader_p95_us,
     }
 }
 

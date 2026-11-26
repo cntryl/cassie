@@ -3,27 +3,27 @@
 use super::{model, EventRow};
 
 pub(super) fn should_advance_past_the_last_relation_id(
-    previous: i64,
+    previous: Option<i64>,
     rows: &[EventRow],
     page_limit: usize,
 ) -> i64 {
-    // Arrange: ids are positive primary keys and the query orders by id.
+    // Arrange: the primary key is unique and the query orders by id.
     let mut cursor = previous;
 
     // Act: consume the page in the returned order.
     for row in rows {
         // Assert: duplicates, overlap or a stalled cursor cannot pass.
         assert!(
-            row.id > cursor,
-            "relation cursor did not advance past {cursor}"
+            cursor.is_none_or(|previous| row.id > previous),
+            "relation cursor did not advance past {cursor:?}"
         );
-        cursor = row.id;
+        cursor = Some(row.id);
     }
     assert!(
         rows.len() <= page_limit,
         "relation page exceeded its row limit"
     );
-    cursor
+    cursor.expect("relation page contained a row")
 }
 
 pub(super) fn should_include_the_acknowledged_checkpoint(

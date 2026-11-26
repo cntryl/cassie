@@ -15,7 +15,12 @@ use super::RunKind;
 
 #[path = "workers_probe.rs"]
 mod probe;
-use probe::{probe_devices, result_event_rows, verify_snapshot, PreparedReaderProbe};
+use probe::{
+    probe_devices, range_page_sql, read_checkpoint, read_relation_pages, result_event_rows,
+    verify_snapshot, PreparedReaderProbe,
+};
+#[path = "workers_oracle_controls.rs"]
+mod oracle_controls;
 #[path = "workers_retention.rs"]
 mod retention;
 #[path = "workers_runtime.rs"]
@@ -70,6 +75,8 @@ pub struct ScenarioReport {
     pub oracle_checkpoints: Vec<String>,
     pub oracle_rows_compared: usize,
     pub oracle_rollup_groups_compared: usize,
+    pub reopened_checkpoint: String,
+    pub reopened_page_checks: usize,
     pub oracle_mismatches: usize,
     pub retention_expected_deleted_rows: u64,
     pub retention_reported_deleted_rows: u64,
@@ -486,12 +493,12 @@ impl EventCursor {
 }
 
 pub fn run_scenario(
-    fixture: &Fixture,
+    fixture: Fixture,
     kind: RunKind,
     duration: Duration,
     sustainable_rate: Option<u64>,
     reader_baseline_p95: Option<f64>,
-) -> ScenarioReport {
+) -> (Fixture, ScenarioReport) {
     if matches!(kind, RunKind::Mixed) {
         assert!(
             sustainable_rate.is_some_and(|rate| rate > 0),
@@ -502,11 +509,22 @@ pub fn run_scenario(
             "mixed profile requires a measured reader-only p95 baseline"
         );
     }
-    let mut run = ScenarioRun::start(fixture, kind);
-    let outcome = run.execute(fixture, kind, duration, sustainable_rate);
+    let mut run = ScenarioRun::start(&fixture, kind);
+    let outcome = run.execute(&fixture, kind, duration, sustainable_rate);
     let elapsed = outcome.measured_elapsed;
     run.stop();
-    run.report(fixture, kind, elapsed, reader_baseline_p95, outcome)
+    let fallback_scans =
+        current_fallback_scans(&fixture.cassie).saturating_sub(run.fallback_scans_before);
+    let reopened = fixture.reopen();
+    let report = run.report(
+        &reopened,
+        kind,
+        elapsed,
+        reader_baseline_p95,
+        outcome,
+        fallback_scans,
+    );
+    (reopened, report)
 }
 
 #[derive(Default)]
@@ -667,6 +685,7 @@ impl ScenarioRun {
         elapsed: Duration,
         reader_baseline_p95: Option<f64>,
         outcome: ScenarioOutcome,
+        fallback_scans: u64,
     ) -> ScenarioReport {
         let backlog_at_window_end = outcome
             .backlog_events_at_window_end
@@ -675,7 +694,7 @@ impl ScenarioRun {
             fixture,
             &self.shared,
             outcome.retention_applied,
-            self.fallback_scans_before,
+            fallback_scans,
             outcome
                 .maintenance_actions
                 .iter()
@@ -809,6 +828,8 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
             .oracle_rows_compared
             .saturating_add(final_state.oracle_rows_compared),
         oracle_rollup_groups_compared: final_state.oracle_rollup_groups_compared,
+        reopened_checkpoint: final_state.reopened_checkpoint,
+        reopened_page_checks: final_state.reopened_page_checks,
         oracle_mismatches,
         retention_expected_deleted_rows: final_state.retention_expected_deleted_rows,
         retention_reported_deleted_rows: final_state.retention_reported_deleted_rows,

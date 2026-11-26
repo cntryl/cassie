@@ -124,6 +124,10 @@ pub fn run() {
     }
 
     let _run = runner.finish();
+    assert!(
+        expected_scenarios > 0,
+        "no mixed workload scenarios matched"
+    );
     assert_eq!(
         completed_scenarios, expected_scenarios,
         "the mixed qualification campaign requires every matched scenario"
@@ -204,14 +208,15 @@ fn run_scenario_spec(
             input.device_count,
             QUERY_BUDGET_BYTES,
         );
-        let report = workers::run_scenario(
-            &fixture,
+        let (fixture, report) = workers::run_scenario(
+            fixture,
             input.kind,
             input.kind.duration(),
             input.sustainable_rate,
             input.reader_baseline_p95,
         );
         record_scenario(context, &host, &fixture, input, &report);
+        fixture.cassie.shutdown();
         *output_capture.lock().expect("campaign result mutex") = Some(report);
     });
     let report = output.lock().expect("campaign result mutex").clone();
@@ -279,7 +284,7 @@ fn correctness_failures(
     };
     require(
         report.oracle_mismatches == 0,
-        "snapshot page, full-relation, rollup and retention accounting oracles must have zero differences",
+        "snapshot and reopened checkpoint, page, relation, rollup and retention oracles must have zero differences",
     );
     require(
         report.correction_events_acknowledged == report.correction_events_expected,

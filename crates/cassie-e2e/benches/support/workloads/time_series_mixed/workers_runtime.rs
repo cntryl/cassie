@@ -1,11 +1,12 @@
 use super::{
-    enforce_retention, model, mpsc, probe_devices, result_event_rows, retention_accounting, thread,
-    verify_snapshot, Arc, BTreeMap, Cassie, CassieSession, Duration, EventCursor, EventRow,
-    Fixture, Instant, JoinHandle, MaintenanceAction, MaintenanceCommand, MaintenanceResult,
-    MaintenanceWorker, Mutation, Ordering, PreparedReaderProbe, ProducerCommand, RateAttempt,
-    ReaderCommand, ReaderPool, Receiver, RunKind, SecondSample, SharedMetrics, TryRecvError, Value,
-    WriterQueue, WriterService, BRACKET_FIRST_RATE, BRACKET_MAX_RATE, BRACKET_REFINEMENTS,
-    BRACKET_WINDOW, DAILY_ROLLUP, PAGE_ROWS, READER_COUNT, TABLE, WRITER_DRAIN_TIMEOUT,
+    enforce_retention, model, mpsc, probe_devices, range_page_sql, read_checkpoint,
+    read_relation_pages, result_event_rows, retention_accounting, thread, verify_snapshot, Arc,
+    BTreeMap, Cassie, CassieSession, Duration, EventCursor, EventRow, Fixture, Instant, JoinHandle,
+    MaintenanceAction, MaintenanceCommand, MaintenanceResult, MaintenanceWorker, Mutation,
+    Ordering, PreparedReaderProbe, ProducerCommand, RateAttempt, ReaderCommand, ReaderPool,
+    Receiver, RunKind, SecondSample, SharedMetrics, TryRecvError, Value, WriterQueue,
+    WriterService, BRACKET_FIRST_RATE, BRACKET_MAX_RATE, BRACKET_REFINEMENTS, BRACKET_WINDOW,
+    DAILY_ROLLUP, PAGE_ROWS, READER_COUNT, TABLE, WRITER_DRAIN_TIMEOUT,
 };
 
 pub(super) fn writer_loop(
@@ -148,10 +149,10 @@ fn reader_loop(worker: ReaderWorker) {
     let session = cassie.create_session("benchmark-reader", None);
     let statement = |window: usize| format!("mixed_range_reader_{reader_id}_w{window}");
     for window in 0..model::RANGE_WINDOWS {
-        let (start, end) = model::window_bounds(window);
         let prepare = format!(
-            "PREPARE {} (TEXT) AS SELECT id,device,event_at,amount FROM {TABLE} WHERE device = $1 AND event_at >= '{start}' AND event_at < '{end}' ORDER BY event_at,id LIMIT {PAGE_ROWS}",
-            statement(window)
+            "PREPARE {} (TEXT) AS {}",
+            statement(window),
+            range_page_sql(window),
         );
         cassie
             .execute_sql(&session, &prepare, Vec::new())
@@ -561,6 +562,8 @@ pub(super) struct FinalStateEvidence {
     pub(super) fallback_scans: u64,
     pub(super) oracle_rollup_groups_compared: usize,
     pub(super) oracle_rows_compared: usize,
+    pub(super) reopened_checkpoint: String,
+    pub(super) reopened_page_checks: usize,
     pub(super) oracle_mismatches: usize,
     pub(super) retention_expected_deleted_rows: u64,
     pub(super) retention_reported_deleted_rows: u64,
@@ -571,7 +574,7 @@ pub(super) fn verify_final_mixed_state(
     fixture: &Fixture,
     shared: &SharedMetrics,
     retention_applied: bool,
-    fallback_scans_before: u64,
+    fallback_scans: u64,
     rollup_refresh_completed: bool,
     retention_reported_deleted_rows: u64,
 ) -> FinalStateEvidence {
@@ -587,7 +590,7 @@ pub(super) fn verify_final_mixed_state(
         maximum_position,
         retention_applied,
     );
-    let actual = read_relation_in_pages(fixture);
+    let actual = read_relation_pages(&fixture.cassie, &fixture.session);
     let expected_relation = expected.values().cloned().collect::<Vec<_>>();
     if actual != expected_relation {
         let first_difference = actual
@@ -601,6 +604,17 @@ pub(super) fn verify_final_mixed_state(
         );
     }
     let mut mismatches = usize::from(actual != expected_relation);
+    let reopened_checkpoint =
+        read_checkpoint(&fixture.cassie, &fixture.session, &fixture.projection);
+    if model::checkpoint_position(&reopened_checkpoint) != Some(maximum_position) {
+        eprintln!(
+            "mixed: durable checkpoint={reopened_checkpoint} expected_position={maximum_position}"
+        );
+        mismatches += 1;
+    }
+    let (reopened_page_checks, reopened_page_mismatches) =
+        verify_reopened_pages(fixture, &expected);
+    mismatches += reopened_page_mismatches;
     let retention = retention_accounting(
         fixture,
         &committed,
@@ -628,7 +642,19 @@ pub(super) fn verify_final_mixed_state(
         mismatches = mismatches.saturating_add(1);
     }
     if rollup_refresh_completed && !rollup_debt {
-        let served_rollups = read_rollup_map(fixture, &grouped(""));
+        let sql = grouped("");
+        let plan = fixture
+            .execute(&format!("EXPLAIN {sql}"))
+            .expect("read plan for reopened rollup");
+        if !plan.iter().flatten().any(|field| {
+            field.as_str().is_some_and(|text| {
+                text.contains(&format!("rollup_rewrite=postgres.public.{DAILY_ROLLUP}"))
+            })
+        }) {
+            eprintln!("mixed: expected reopened {DAILY_ROLLUP} to serve grouped query");
+            mismatches += 1;
+        }
+        let served_rollups = read_rollup_map(fixture, &sql);
         if served_rollups != expected_rollups {
             let first_difference = served_rollups
                 .iter()
@@ -642,10 +668,11 @@ pub(super) fn verify_final_mixed_state(
     }
     FinalStateEvidence {
         rollup_debt,
-        fallback_scans: current_fallback_scans(&fixture.cassie)
-            .saturating_sub(fallback_scans_before),
+        fallback_scans,
         oracle_rollup_groups_compared: expected_rollups.len(),
         oracle_rows_compared: expected.len(),
+        reopened_checkpoint,
+        reopened_page_checks,
         oracle_mismatches: mismatches,
         retention_expected_deleted_rows: retention.expected_deleted,
         retention_reported_deleted_rows,
@@ -653,20 +680,26 @@ pub(super) fn verify_final_mixed_state(
     }
 }
 
-/// Reads the whole relation with one ordered scan inside the campaign's query
-/// memory budget, so the final comparison does not depend on paging shapes.
-fn read_relation_in_pages(fixture: &Fixture) -> Vec<EventRow> {
-    let result = fixture
-        .execute(&format!(
-            "SELECT id,device,event_at,amount FROM {TABLE} ORDER BY id"
-        ))
-        .unwrap_or_else(|error| {
-            panic!(
-                "read final relation within the {} byte query budget: {error}",
-                crate::workload::fixture::QUERY_MEMORY_BUDGET_BYTES
+fn verify_reopened_pages(fixture: &Fixture, expected: &BTreeMap<i64, EventRow>) -> (usize, usize) {
+    let devices = probe_devices(fixture.device_count, 0);
+    let mut mismatches = 0;
+    for (index, device) in devices.iter().enumerate() {
+        let window = index % model::RANGE_WINDOWS;
+        let page = fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                &range_page_sql(window),
+                vec![Value::String(device.clone())],
             )
-        });
-    result_event_rows(&result)
+            .expect("read deterministic reopened range page");
+        let expected_page = model::oracle_pages(expected, device, window, PAGE_ROWS);
+        if result_event_rows(page.rows()) != expected_page {
+            eprintln!("mixed: reopened range page mismatch device={device} window={window}");
+            mismatches += 1;
+        }
+    }
+    (devices.len(), mismatches)
 }
 
 fn oracle_rollups(rows: &BTreeMap<i64, EventRow>) -> BTreeMap<(String, String), (i64, i64)> {

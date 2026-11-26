@@ -13,11 +13,15 @@ The implementation uses a trust file selected with
 derives the same-host `/.well-known/jwks.json` endpoint from that issuer.
 The verifier requires the ordinary AWS identity subject, its exact IAM role ARN,
 the matching AWS account and requesting principal, and one matching audience.
-Live AWS qualification is tracked in [#1566](https://github.com/cntryl/cassie/issues/1566).
+The selected issuer format covers commercial AWS account endpoints under
+`tokens.sts.global.api.aws`. The server requires a pgwire TLS certificate and
+key plus the existing root password before enabling IAM. Live AWS
+qualification is tracked in [#1566](https://github.com/cntryl/cassie/issues/1566).
 
 The pgwire selector is the nonsecret startup username
 `cassie_aws_iam`. The token goes in the driver's password field over a
-certificate-verified TLS connection. The selector is reserved while IAM
+certificate-verified TLS connection and specifies the target database
+explicitly. The selector is reserved while IAM
 authentication is configured. The session's actual user is the bound Cassie
 role. Provision service roles with `CREATE ROLE service EXTERNAL LOGIN`, then
 add a binding through `ALTER ROLE service BIND AWS IAM ROLE 'role ARN' ISSUER 'issuer URL'`.
@@ -34,7 +38,7 @@ the client to verify the server certificate and hostname (for libpq use
 `sslmode=verify-full` and a trusted root). The issuer's key cache has a
 five-minute lifetime and limits unknown-key refreshes per account to one
 attempt in 15 seconds. Fetches use a two-second timeout, a 64 KiB response
-limit, HTTPS to the configured issuer and disabled redirects. Restrict AWS
+limit, at most 32 keys, HTTPS to the configured issuer and disabled redirects. Restrict AWS
 `sts:GetWebIdentityToken` to the deployment audience, ordinary
 `AWSIdentity` subjects and the required lifetime. Enable outbound identity
 federation in each issuing account. The server receives role proof and uses

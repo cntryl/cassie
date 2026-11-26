@@ -281,7 +281,6 @@ async fn connect_and_read_role(
 }
 
 async fn signed_driver_connections() {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
 
     // Arrange
@@ -306,9 +305,9 @@ async fn signed_driver_connections() {
     let (server_tls, client_tls) = tls_identities();
     let signing_key = signing_key();
     let trust = trust();
+    let clock = Arc::new(super::FixtureClock::new(NOW));
     trust.accounts.get(ISSUER).unwrap().cache.lock().await.keys =
-        Some((super::Instant::now(), Arc::new(keys(&jwk(&signing_key)))));
-    let clock = Arc::new(AtomicU64::new(NOW));
+        Some((clock.instant(), Arc::new(keys(&jwk(&signing_key)))));
     let verifier = Arc::new(super::Verifier {
         trust,
         client: reqwest::Client::new(),
@@ -344,7 +343,7 @@ async fn signed_driver_connections() {
     let original_token = sign(&signing_key, "fixture", &claims());
     let original = connect_and_read_role(address, &client_tls, &original_token).await;
     let later = NOW + 200;
-    clock.store(later, Ordering::Relaxed);
+    clock.set(later);
     let expired = connect_and_read_role(address, &client_tls, &original_token).await;
     let mut refreshed_claims = claims();
     refreshed_claims["iat"] = json!(later);

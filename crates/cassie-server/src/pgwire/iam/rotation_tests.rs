@@ -60,9 +60,13 @@ impl IssuerFixture {
                 let observed = Arc::clone(&observed);
                 connections.spawn(async move {
                     let tls = acceptor.accept(socket).await.unwrap();
-                    let mut reply = Some(reply);
+                    let reply = std::sync::Mutex::new(Some(reply));
                     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
-                        let response = reply.take().expect("one request per fixture connection");
+                        let response = reply
+                            .lock()
+                            .unwrap()
+                            .take()
+                            .expect("one request per fixture connection");
                         let observed = Arc::clone(&observed);
                         async move {
                             assert_eq!(request.method(), hyper::Method::GET);

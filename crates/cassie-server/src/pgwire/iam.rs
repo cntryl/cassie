@@ -154,11 +154,50 @@ fn jwks_endpoint(issuer: &str) -> Result<reqwest::Url, Rejected> {
     Ok(url)
 }
 
+fn client_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .https_only(true)
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(FETCH_TIMEOUT)
+}
+
+#[cfg(test)]
+struct FixtureClock {
+    start_instant: Instant,
+    start_seconds: u64,
+    seconds: std::sync::atomic::AtomicU64,
+}
+
+#[cfg(test)]
+impl FixtureClock {
+    fn new(seconds: u64) -> Self {
+        Self {
+            start_instant: Instant::now(),
+            start_seconds: seconds,
+            seconds: std::sync::atomic::AtomicU64::new(seconds),
+        }
+    }
+
+    fn set(&self, seconds: u64) {
+        self.seconds
+            .store(seconds, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn seconds(&self) -> u64 {
+        self.seconds.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn instant(&self) -> Instant {
+        self.start_instant + Duration::from_secs(self.seconds().saturating_sub(self.start_seconds))
+    }
+}
+
 pub(super) struct Verifier {
     trust: TrustSet,
     client: reqwest::Client,
     #[cfg(test)]
-    fixture_clock: Option<Arc<std::sync::atomic::AtomicU64>>,
+    fixture_clock: Option<Arc<FixtureClock>>,
 }
 
 impl Verifier {
@@ -169,13 +208,7 @@ impl Verifier {
             .read_to_end(&mut contents)
             .map_err(|_| Rejected)?;
         let trust = TrustSet::from_json(&contents)?;
-        let client = reqwest::Client::builder()
-            .https_only(true)
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(FETCH_TIMEOUT)
-            .build()
-            .map_err(|_| Rejected)?;
+        let client = client_builder().build().map_err(|_| Rejected)?;
         Ok(Self {
             trust,
             client,
@@ -194,12 +227,20 @@ impl Verifier {
     fn current_seconds(&self) -> Result<u64, Rejected> {
         #[cfg(test)]
         if let Some(clock) = self.fixture_clock.as_ref() {
-            return Ok(clock.load(std::sync::atomic::Ordering::Relaxed));
+            return Ok(clock.seconds());
         }
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .map_err(|_| Rejected)
+    }
+
+    fn current_instant(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(clock) = self.fixture_clock.as_ref() {
+            return clock.instant();
+        }
+        Instant::now()
     }
 
     async fn keys_for(
@@ -208,18 +249,21 @@ impl Verifier {
         token: &Token<'_>,
     ) -> Result<Arc<IssuerKeys>, Rejected> {
         let mut cache = account.cache.lock().await;
+        let now = self.current_instant();
         if let Some((loaded, keys)) = cache.keys.as_ref() {
-            if loaded.elapsed() < KEY_LIFETIME && keys.has_key(token.kid(), token.algorithm()) {
+            if now.saturating_duration_since(*loaded) < KEY_LIFETIME
+                && keys.has_key(token.kid(), token.algorithm())
+            {
                 return Ok(Arc::clone(keys));
             }
         }
         if cache
             .refreshed_at
-            .is_some_and(|start| start.elapsed() < REFRESH_INTERVAL)
+            .is_some_and(|start| now.saturating_duration_since(start) < REFRESH_INTERVAL)
         {
             return Err(Rejected);
         }
-        cache.refreshed_at = Some(Instant::now());
+        cache.refreshed_at = Some(now);
         let mut response = self
             .client
             .get(account.jwks.clone())
@@ -241,7 +285,7 @@ impl Verifier {
             contents.extend_from_slice(&chunk);
         }
         let keys = Arc::new(IssuerKeys::from_json(&contents)?);
-        cache.keys = Some((Instant::now(), Arc::clone(&keys)));
+        cache.keys = Some((self.current_instant(), Arc::clone(&keys)));
         Ok(keys)
     }
 }

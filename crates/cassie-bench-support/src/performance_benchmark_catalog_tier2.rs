@@ -20,39 +20,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None,
         None
     ),
-    scenario!(
-        "perf.executor.generated_source_limit.100k",
-        "core_read",
-        "generated_source",
-        "tier2_subsystem_generated_sources",
-        "generated_source_filtered_limit",
-        "100k",
-        100_000,
-        Tier2,
-        Counted,
-        Subsystem,
-        "query",
-        Disabled,
-        None,
-        None
-    ),
     // Tier 2: one operation over a bounded subsystem fixture.
-    scenario!(
-        "perf.sql_planning.parsing.128",
-        "core_read",
-        "parser",
-        "tier2_subsystem_sql_planning",
-        "sql_parsing",
-        "128",
-        128,
-        Tier2,
-        Counted,
-        Subsystem,
-        "statement",
-        Disabled,
-        None,
-        None
-    ),
     scenario!(
         "perf.sql_planning.binding.128",
         "core_read",

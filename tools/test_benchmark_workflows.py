@@ -1,8 +1,10 @@
 """Focused tests for registered owner selection and vector input validation."""
 
 import importlib.util
+import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).with_name("benchmark_workflows.py")
@@ -41,7 +43,32 @@ class BenchmarkWorkflowTests(unittest.TestCase):
         # Assert
         self.assertEqual(command[:7], ["cargo", "bench", "--locked", "-p", "cassie-core", "--bench", "tier1_memory"])
         self.assertEqual(command[7:9], ["--features", "bench-observation"])
-        self.assertEqual(command[-3:], ["--", "--output-dir", "target/stress"])
+        self.assertEqual(command[-3:], ["--", "--output-dir", str(Path("target/stress").resolve())])
+
+    def test_should_set_absolute_timed_output_and_short_smoke_soak(self) -> None:
+        # Arrange
+        registry = [{
+            "package": "cassie-e2e",
+            "target": "tier6_soak_mixed",
+            "tier": 6,
+            "category": "timed",
+            "required_features": [],
+        }]
+
+        # Act
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(workflow.subprocess, "check_output", return_value="source-head\n"),
+            patch.object(workflow.subprocess, "run") as run,
+        ):
+            workflow.run_target(
+                "tier6_soak_mixed", "timed", "smoke", Path("target/stress"), registry
+            )
+
+        # Assert
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env["STRESS_OUTPUT_DIR"], str(Path("target/stress").resolve()))
+        self.assertEqual(env["CASSIE_BENCH_SOAK_DURATION_SECONDS"], "5")
 
     def test_should_parse_all_and_selected_tiers(self) -> None:
         # Arrange / Act / Assert

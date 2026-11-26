@@ -60,7 +60,8 @@ impl PostingMergeFixture {
         }
     }
 
-    fn merge_batch(&self, invocations: usize) -> u64 {
+    // Isolated in-memory posting-union baseline; Tier 5 measures database full-text retrieval.
+    fn merge_batch(&self, invocations: usize) -> CountedBatch {
         let mut result_count = 0_u64;
         for _ in 0..invocations {
             let candidates = self.index.candidate_documents(&self.query_tokens);

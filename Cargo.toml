@@ -9,6 +9,7 @@ members = [
     "crates/cassie-engine",
     "crates/cassie-server",
     "crates/cassie-e2e",
+    "crates/cassie-bench-support",
 ]
 default-members = [
     "crates/cassie-core",

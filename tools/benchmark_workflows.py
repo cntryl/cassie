@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -52,6 +51,7 @@ def validate_vector_selector(configuration: str, query_range: str) -> None:
 def cargo_command(
     record: dict[str, Any], category: str, output_dir: Path
 ) -> list[str]:
+    output_dir = output_dir.expanduser().resolve()
     command = [
         "cargo", "bench", "--locked", "-p", record["package"], "--bench", record["target"]
     ]
@@ -79,17 +79,17 @@ def run_target(
 ) -> None:
     if category not in {"timed", "product"} or profile not in {"smoke", "full"}:
         raise ValueError("category must be timed/product and profile must be smoke/full")
+    output_dir = output_dir.expanduser().resolve()
     env = os.environ.copy()
     env.setdefault("CASSIE_BENCH_SOURCE_COMMIT", subprocess.check_output(
         ["git", "rev-parse", "HEAD"], text=True
     ).strip())
     env.setdefault("CASSIE_BENCH_RUN_ID", f"{env.get('GITHUB_RUN_ID', 'local')}-{env.get('GITHUB_RUN_ATTEMPT', '1')}")
     env.setdefault("CASSIE_BENCH_JOB_ID", env.get("GITHUB_JOB", target))
-    env.setdefault("CASSIE_BENCH_HOST_OS", platform.system().lower())
-    env.setdefault("CASSIE_BENCH_HOST_ARCH", platform.machine())
-    env.setdefault("CASSIE_BENCH_HOST_HARDWARE_CLASS", f"local-{platform.system().lower()}-{platform.machine()}")
-    env.setdefault("CASSIE_BENCH_TOOLCHAIN", subprocess.check_output(["rustc", "--version"], text=True).strip())
     env["STRESS_PROFILE"] = "smoke" if profile == "smoke" else "release"
+    env["STRESS_OUTPUT_DIR"] = str(output_dir)
+    if profile == "smoke" and "CASSIE_BENCH_SOAK_DURATION_SECONDS" not in env:
+        env["CASSIE_BENCH_SOAK_DURATION_SECONDS"] = "5"
     if category == "product":
         env["CASSIE_BENCH_PRODUCT_PROFILE"] = profile
         env.setdefault("CASSIE_BENCH_PRODUCT_OUTPUT_DIR", str(output_dir / "product" / target))

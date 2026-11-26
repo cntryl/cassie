@@ -4,6 +4,7 @@ mod observation;
 use cassie_bench_support::{performance_benchmarks, stress};
 use cassie_engine::benchmark::ExecutorKernel;
 use observation::ObservationBridge;
+use std::time::Instant;
 
 const OPERATIONS_PER_SAMPLE: u64 = 32;
 
@@ -48,4 +49,3 @@ fn main() {
     }
     runner.finish();
 }
-use std::time::Instant;

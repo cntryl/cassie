@@ -18,6 +18,9 @@ and benchmark environment overrides.
 # List registered timed owners in a tier.
 python3 tools/benchmark_workflows.py list --tiers 3
 
+# Run an owner directly with Cargo.
+cargo bench --locked -p cassie-sql --bench tier2_subsystem_parser
+
 # Run one owner in its release profile, writing cntryl-stress output below target/stress.
 python3 tools/benchmark_workflows.py run tier3_system_query --profile full
 

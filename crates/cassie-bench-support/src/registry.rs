@@ -84,7 +84,7 @@ pub fn registered_targets() -> Vec<Target> {
             Vec::new()
         };
         let target = Target {
-            package: "cassie-e2e".to_owned(),
+            package: package_for_target(name).to_owned(),
             target: name.to_owned(),
             tier,
             category,
@@ -114,6 +114,16 @@ pub fn registered_targets() -> Vec<Target> {
             RunCategory::Product,
         ),
         (
+            "tier3_product_graph",
+            BenchmarkTier::Tier3,
+            RunCategory::Product,
+        ),
+        (
+            "tier3_product_column",
+            BenchmarkTier::Tier3,
+            RunCategory::Product,
+        ),
+        (
             "relevance_cranfield",
             BenchmarkTier::Tier3,
             RunCategory::Diagnostic,
@@ -125,6 +135,38 @@ pub fn registered_targets() -> Vec<Target> {
         );
     }
     records.into_values().collect()
+}
+
+fn package_for_target(target: &str) -> &'static str {
+    match target {
+        "tier1_hotpath_request_controls" => "cassie-core",
+        "tier1_hotpath_local_embedding" | "tier2_subsystem_local_embeddings" => {
+            "cassie-embeddings"
+        }
+        "tier1_hotpath_search_vector" | "tier1_hotpath_bm25" | "tier2_subsystem_search" => {
+            "cassie-search"
+        }
+        "tier2_subsystem_parser" => "cassie-sql",
+        "tier1_hotpath_vector_distance" | "tier2_subsystem_vector" => "cassie-vector",
+        "tier1_hotpath_row_codec" | "tier1_hotpath_keys" | "tier2_subsystem_storage" => {
+            "cassie-storage"
+        }
+        "tier1_hotpath_filter_projection"
+        | "tier1_hotpath_predicates"
+        | "tier1_hotpath_topk"
+        | "tier1_hotpath_graph_paths"
+        | "tier2_subsystem_binder"
+        | "tier2_subsystem_column_scan"
+        | "tier2_subsystem_executor"
+        | "tier2_subsystem_generated_sources"
+        | "tier2_subsystem_graph"
+        | "tier2_subsystem_hybrid"
+        | "tier2_subsystem_ingest"
+        | "tier2_subsystem_plan_cache"
+        | "tier2_subsystem_sql_planning" => "cassie-engine",
+        "tier1_hotpath_pgwire" | "tier2_subsystem_protocol_handlers" => "cassie-server",
+        _ => "cassie-e2e",
+    }
 }
 
 fn category_for_target(target: &str) -> RunCategory {

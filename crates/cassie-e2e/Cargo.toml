@@ -64,6 +64,7 @@ rustix = { version = "1.1.6", features = ["process"] }
 cntryl-midge = { version = "0.6.0", features = ["failpoints"] }
 fail = "0.5.1"
 cassie-core = { path = "../cassie-core" }
+cassie-bench-support = { path = "../cassie-bench-support" }
 cntryl-stress = "0.5.1"
 jiff-tzdb = "1.0.0"
 rcgen = "0.14"
@@ -248,119 +249,9 @@ name = "vector_embeddings"
 path = "tests/vector_embeddings.rs"
 
 [[bench]]
-name = "tier1_hotpath_row_codec"
-harness = false
-path = "benches/tier1_hotpath_row_codec.rs"
-
-[[bench]]
-name = "tier1_hotpath_keys"
-harness = false
-path = "benches/tier1_hotpath_keys.rs"
-
-[[bench]]
-name = "tier1_hotpath_filter_projection"
-harness = false
-path = "benches/tier1_hotpath_filter_projection.rs"
-
-[[bench]]
-name = "tier1_hotpath_search_vector"
-harness = false
-path = "benches/tier1_hotpath_search_vector.rs"
-
-[[bench]]
-name = "tier1_hotpath_pgwire"
-harness = false
-path = "benches/tier1_hotpath_pgwire.rs"
-
-[[bench]]
-name = "tier1_hotpath_predicates"
-harness = false
-path = "benches/tier1_hotpath_predicates.rs"
-
-[[bench]]
-name = "tier1_hotpath_topk"
-harness = false
-path = "benches/tier1_hotpath_topk.rs"
-
-[[bench]]
-name = "tier1_hotpath_vector_distance"
-harness = false
-path = "benches/tier1_hotpath_vector_distance.rs"
-
-[[bench]]
-name = "tier1_hotpath_bm25"
-harness = false
-path = "benches/tier1_hotpath_bm25.rs"
-
-[[bench]]
-name = "tier1_hotpath_graph_paths"
-harness = false
-path = "benches/tier1_hotpath_graph_paths.rs"
-
-[[bench]]
 name = "tier2_subsystem_sql_planning"
 harness = false
 path = "benches/tier2_subsystem_sql_planning.rs"
-
-[[bench]]
-name = "tier2_subsystem_parser"
-harness = false
-path = "benches/tier2_subsystem_parser.rs"
-
-[[bench]]
-name = "tier2_subsystem_binder"
-harness = false
-path = "benches/tier2_subsystem_binder.rs"
-
-[[bench]]
-name = "tier2_subsystem_plan_cache"
-harness = false
-path = "benches/tier2_subsystem_plan_cache.rs"
-
-[[bench]]
-name = "tier2_subsystem_search"
-harness = false
-path = "benches/tier2_subsystem_search.rs"
-
-[[bench]]
-name = "tier2_subsystem_vector"
-harness = false
-path = "benches/tier2_subsystem_vector.rs"
-
-[[bench]]
-name = "tier2_subsystem_hybrid"
-harness = false
-path = "benches/tier2_subsystem_hybrid.rs"
-
-[[bench]]
-name = "tier2_subsystem_protocol_handlers"
-harness = false
-path = "benches/tier2_subsystem_protocol_handlers.rs"
-
-[[bench]]
-name = "tier2_subsystem_executor"
-harness = false
-path = "benches/tier2_subsystem_executor.rs"
-
-[[bench]]
-name = "tier2_subsystem_generated_sources"
-harness = false
-path = "benches/tier2_subsystem_generated_sources.rs"
-
-[[bench]]
-name = "tier2_subsystem_column_scan"
-harness = false
-path = "benches/tier2_subsystem_column_scan.rs"
-
-[[bench]]
-name = "tier2_subsystem_ingest"
-harness = false
-path = "benches/tier2_subsystem_ingest.rs"
-
-[[bench]]
-name = "tier2_subsystem_graph"
-harness = false
-path = "benches/tier2_subsystem_graph.rs"
 
 [[bench]]
 name = "tier3_replay_durability"
@@ -374,9 +265,24 @@ harness = false
 path = "benches/tier3_system_query.rs"
 
 [[bench]]
+name = "tier3_system_generated_sources"
+harness = false
+path = "benches/tier3_system_generated_sources.rs"
+
+[[bench]]
 name = "tier3_system_graph"
 harness = false
 path = "benches/tier3_system_graph.rs"
+
+[[bench]]
+name = "tier3_product_graph"
+harness = false
+path = "benches/tier3_product_graph.rs"
+
+[[bench]]
+name = "tier3_product_column"
+harness = false
+path = "benches/tier3_product_column.rs"
 
 [[bench]]
 name = "tier3_system_storage_modes"

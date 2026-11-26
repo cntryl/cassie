@@ -6,6 +6,22 @@ use super::{
 pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
     // Tier 3: one 100k representative for each required system family.
     scenario!(
+        "perf.executor.generated_source_limit.100k",
+        "core_read",
+        "generated_source",
+        "tier3_system_generated_sources",
+        "generated_source_filtered_limit",
+        "100k",
+        100_000,
+        Tier3,
+        Batch,
+        Representative,
+        "query",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
         "perf.read_path.mixed_order.100k",
         "core_read",
         "relational_index",

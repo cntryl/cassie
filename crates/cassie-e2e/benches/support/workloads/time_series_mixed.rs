@@ -62,8 +62,16 @@ pub fn run() {
     let only = std::env::var("CASSIE_BENCH_TS_MIXED_ONLY").ok();
     let mut open_timing = Vec::new();
 
+    let cardinalities: &[usize] = if std::env::var("STRESS_PROFILE")
+        .is_ok_and(|profile| profile == "smoke")
+        || std::env::var_os("CASSIE_BENCH_PRODUCT_PROFILE").is_some()
+    {
+        &[16]
+    } else {
+        &CARDINALITIES
+    };
     for (event_count, scale) in scales() {
-        for device_count in CARDINALITIES {
+        for &device_count in cardinalities {
             // Smoke runs may select one combination as `<scale>:<devices>`;
             // the qualification run leaves the filter unset.
             if only
@@ -76,9 +84,13 @@ pub fn run() {
             let mut reader_baseline_p95 = None;
             // Harness smoke runs may pin the ingest-only point and run only the
             // mixed scenario; qualification runs never set this variable.
-            let smoke_mixed_rate = std::env::var("CASSIE_BENCH_TS_MIXED_SMOKE_MIXED_ONLY_RATE")
-                .ok()
-                .and_then(|rate| rate.parse::<u64>().ok());
+            let smoke_mixed_rate = if std::env::var_os("CASSIE_BENCH_PRODUCT_PROFILE").is_some() {
+                Some(2_000)
+            } else {
+                std::env::var("CASSIE_BENCH_TS_MIXED_SMOKE_MIXED_ONLY_RATE")
+                    .ok()
+                    .and_then(|rate| rate.parse::<u64>().ok())
+            };
             if smoke_mixed_rate.is_some() {
                 sustainable_rate = smoke_mixed_rate;
                 reader_baseline_p95 = Some(1.0e12);
@@ -151,6 +163,12 @@ pub fn run() {
 /// seed through `CASSIE_BENCH_TS_MIXED_SMOKE_EVENTS`; the qualification run
 /// never sets it.
 fn scales() -> Vec<(usize, &'static str)> {
+    if product_smoke() || std::env::var("STRESS_PROFILE").is_ok_and(|profile| profile == "smoke") {
+        return vec![(512, "smoke")];
+    }
+    if std::env::var_os("CASSIE_BENCH_PRODUCT_PROFILE").is_some() {
+        return vec![(100_000, "100k")];
+    }
     match std::env::var("CASSIE_BENCH_TS_MIXED_SMOKE_EVENTS")
         .ok()
         .and_then(|events| events.parse::<usize>().ok())
@@ -158,6 +176,10 @@ fn scales() -> Vec<(usize, &'static str)> {
         Some(events) => vec![(events, "smoke")],
         None => SCALES.to_vec(),
     }
+}
+
+fn product_smoke() -> bool {
+    std::env::var("CASSIE_BENCH_PRODUCT_PROFILE").is_ok_and(|profile| profile == "smoke")
 }
 
 fn stress_runner(host: &HostProfile) -> StressRunner {

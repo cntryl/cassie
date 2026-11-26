@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum BenchmarkTier {
@@ -207,6 +209,3 @@ impl StressArtifactRowSummary {
         self.signal_role != "informational"
     }
 }
-use serde::{Deserialize, Serialize};
-
-use serde::{Deserialize, Serialize};

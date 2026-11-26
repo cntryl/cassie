@@ -20,7 +20,7 @@ mod column_profiles;
 pub mod performance_benchmarks;
 
 #[test]
-fn should_keep_the_local_column_product_profile_at_100k_and_256_mib() {
+fn should_preserve_local_column_product_profile() {
     // Arrange
     let profile = column_profiles::Profile::named("100k_256m_local");
 

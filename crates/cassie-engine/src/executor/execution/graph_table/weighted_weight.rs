@@ -26,3 +26,7 @@ pub(super) fn weight(value: Option<&Value>) -> Result<Numeric, QueryError> {
         _ => Err(invalid_weight()),
     }
 }
+
+#[cfg(test)]
+#[path = "weighted_weight_tests.rs"]
+mod tests;

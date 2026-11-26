@@ -51,7 +51,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/bench_diagnostics/replay_index_metadata.rs` | test_module | 152 | 4 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/indexes/replay_index_metadata.rs` |
 | `tests/bench_diagnostics/replay_mode.rs` | test_module | 197 | 11 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/semantics/replay_mode.rs` |
 | `tests/bench_diagnostics/replay_read_ownership.rs` | test_module | 311 | 9 | bench_diagnostics | move_with_module_alias | `tests/bench_diagnostics/security/replay_read_ownership.rs` |
-| `tests/bench_diagnostics.rs` | cargo_target | 17 | 0 | bench_diagnostics | keep | `tests/bench_diagnostics.rs` |
+| `tests/bench_diagnostics.rs` | cargo_target | 35 | 1 | bench_diagnostics | keep_harness_and_extract_tests | `tests/bench_diagnostics.rs`; `tests/bench_diagnostics/semantics/semantics.rs` |
 | `tests/bench_operations/artifacts/ann_recall.rs` | test_module | 258 | 5 | bench_operations | keep | `tests/bench_operations/artifacts/ann_recall.rs` |
 | `tests/bench_operations/artifacts/host_identity.rs` | test_module | 252 | 11 | bench_operations | keep | `tests/bench_operations/artifacts/host_identity.rs` |
 | `tests/bench_operations.rs` | cargo_target | 6 | 0 | bench_operations | keep | `tests/bench_operations.rs` |
@@ -1870,7 +1870,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` | test_module | 207 | 4 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` |
 | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` | test_module | 586 | 13 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` |
 | `tests/vector_embeddings/embeddings/embedding_validation.rs` | test_module | 417 | 5 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_validation.rs` |
-| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 532 | 24 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
+| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 615 | 28 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_contract.rs` | test_module | 182 | 6 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_selectivity.rs` | test_module | 166 | 8 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_selectivity.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_snapshots.rs` | test_module | 186 | 3 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_snapshots.rs` |

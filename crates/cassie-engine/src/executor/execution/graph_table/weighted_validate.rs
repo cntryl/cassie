@@ -18,7 +18,7 @@ use super::access::Access;
 use super::keys::{key_of, KeyPart};
 use super::lazy::lookup_rows;
 use super::store::{key_types, read_rows, Reads};
-use super::weighted_weight::weight;
+use super::weighted_weight::check_weight;
 use super::{BatchRow, QueryError, SourceExecutionEnv};
 use crate::catalog::{GraphEdgeMeta, PropertyGraphMeta};
 use crate::executor::retained_memory::{add, mul};
@@ -213,7 +213,7 @@ pub(super) fn validate(
                 continue;
             }
             rows += 1;
-            if let Err(invalid) = weight(row.get(column)) {
+            if let Err(invalid) = check_weight(row.get(column)) {
                 if endpoints.visible(env, meta, &row)? {
                     return Err(invalid);
                 }

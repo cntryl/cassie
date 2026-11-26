@@ -144,6 +144,17 @@ impl ObjectScope<'_> {
         identity
     }
 
+    /// A known user table can participate in a PostgreSQL publication. Named
+    /// views, indexes and built-in relations do not have that relation kind.
+    pub(crate) fn relation_is_publishable(&self, oid: u32) -> Option<bool> {
+        let relation = self.relation_by_oid(oid)?;
+        Some(
+            oid >= FIRST_NORMAL_OBJECT_ID
+                && relation.schema != crate::catalog::PG_CATALOG_SCHEMA
+                && self.relation_kind(&relation) == 'r',
+        )
+    }
+
     /// The `relkind` of a relation `relation_by_oid` found.
     fn relation_kind(&self, relation: &RelationIdentity) -> char {
         let oid = relation.oid;

@@ -224,7 +224,7 @@ fn push_terms(
 }
 
 /// Names that qualify columns of the given sources.
-fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
+pub(super) fn collect_qualifiers(sources: &[&QuerySource], out: &mut Vec<String>) {
     for source in sources {
         match source {
             // An alias hides the names inside the aliased source.

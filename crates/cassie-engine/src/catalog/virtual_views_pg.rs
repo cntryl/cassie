@@ -58,6 +58,16 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         int("reltuples"),
         text("relacl"),
         text("reloptions"),
+        ("relchecks".to_owned(), DataType::SmallInt),
+        bool("relhasrules"),
+        bool("relhastriggers"),
+        bool("relrowsecurity"),
+        bool("relforcerowsecurity"),
+        bool("relispartition"),
+        oid("reltablespace"),
+        oid("reloftype"),
+        text("relreplident"),
+        text("relpartbound"),
     ]
 }
 
@@ -80,7 +90,7 @@ pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
         text("attgenerated"),
         text("attstorage"),
         text("attcompression"),
-        int("attcollation"),
+        oid("attcollation"),
     ]
 }
 
@@ -110,6 +120,8 @@ pub(super) fn index_schema() -> Vec<(String, DataType)> {
         bool("indisready"),
         text("indpred"),
         text("indexprs"),
+        bool("indisclustered"),
+        bool("indisreplident"),
     ]
 }
 
@@ -138,6 +150,7 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
         bool("typnotnull"),
         int("typtypmod"),
         oid("typrelid"),
+        oid("typcollation"),
     ]
 }
 
@@ -402,6 +415,8 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                         .collect::<Vec<_>>()
                         .join(", "),
                 ),
+                bool_value("indisclustered", false),
+                bool_value("indisreplident", false),
             ]
         })
         .collect()
@@ -540,6 +555,27 @@ fn class_row(
             || ("reloptions".to_string(), Value::Null),
             |value| string("reloptions", value),
         ),
+        int_value(
+            "relchecks",
+            if kind == "r" {
+                catalog
+                    .get_constraints(name)
+                    .iter()
+                    .filter(|constraint| constraint.check.is_some())
+                    .count()
+            } else {
+                0
+            },
+        ),
+        bool_value("relhasrules", false),
+        bool_value("relhastriggers", false),
+        bool_value("relrowsecurity", false),
+        bool_value("relforcerowsecurity", false),
+        bool_value("relispartition", false),
+        int_value("reltablespace", 0),
+        int_value("reloftype", 0),
+        string("relreplident", if kind == "r" { "d" } else { "n" }),
+        ("relpartbound".to_owned(), Value::Null),
     ]
 }
 

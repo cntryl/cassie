@@ -7,7 +7,7 @@ pub(super) type Fields = &'static [(&'static str, u32)];
 pub(super) fn build_fields(fields: Fields) -> Vec<(String, DataType)> {
     fields
         .iter()
-        .map(|(name, oid)| ((*name).to_owned(), carrier(*oid)))
+        .map(|(name, oid)| ((*name).to_owned(), carrier(name, *oid)))
         .collect()
 }
 
@@ -66,6 +66,29 @@ const REGISTRIES: &[(&str, Fields)] = &[
     (
         "pg_catalog.pg_foreign_table",
         &[("ftrelid", 26), ("ftserver", 26), ("ftoptions", 1009)],
+    ),
+    (
+        "pg_catalog.pg_inherits",
+        &[
+            ("inhrelid", 26),
+            ("inhparent", 26),
+            ("inhseqno", 23),
+            ("inhdetachpending", 16),
+        ],
+    ),
+    (
+        "pg_catalog.pg_statistic_ext",
+        &[
+            ("oid", 26),
+            ("stxrelid", 26),
+            ("stxname", 19),
+            ("stxnamespace", 26),
+            ("stxowner", 26),
+            ("stxkeys", 22),
+            ("stxstattarget", 21),
+            ("stxkind", 1002),
+            ("stxexprs", 194),
+        ],
     ),
     (
         "pg_catalog.pg_init_privs",
@@ -270,7 +293,7 @@ pub(super) fn rows(name: &str) -> Option<Vec<super::VirtualRow>> {
     fields(name).map(|_| Vec::new())
 }
 
-fn carrier(oid: u32) -> DataType {
+fn carrier(name: &str, oid: u32) -> DataType {
     match oid {
         16 => DataType::Boolean,
         17 => DataType::Bytea,
@@ -279,8 +302,12 @@ fn carrier(oid: u32) -> DataType {
         21 => DataType::SmallInt,
         23 => DataType::Int,
         700 | 701 => DataType::Float,
+        22 if name == "prattrs" => DataType::Array(Box::new(DataType::SmallInt)),
+        1002 | 1009 => DataType::Array(Box::new(DataType::Text)),
+        1028 => DataType::Array(Box::new(DataType::ObjectId(
+            crate::types::ObjectIdKind::Oid,
+        ))),
         1005 => DataType::Array(Box::new(DataType::SmallInt)),
-        1009 => DataType::Array(Box::new(DataType::Text)),
         // Opaque catalog identities have no admitted value here because these
         // registries have no objects. Their native type/codecs remain #793 work.
         _ => DataType::Text,

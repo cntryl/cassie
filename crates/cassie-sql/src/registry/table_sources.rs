@@ -20,9 +20,16 @@ pub fn is_series(name: &str) -> bool {
 }
 
 #[must_use]
+pub fn is_partition_ancestors(name: &str) -> bool {
+    name.eq_ignore_ascii_case("pg_partition_ancestors")
+        || name.eq_ignore_ascii_case("pg_catalog.pg_partition_ancestors")
+}
+
+#[must_use]
 pub fn is_generated(name: &str) -> bool {
     is_unnest(name)
         || is_series(name)
+        || is_partition_ancestors(name)
         || json_element_source(name).is_some()
         || record_source(name).is_some()
         || is_json_table(name)

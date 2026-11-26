@@ -1,6 +1,6 @@
 //! Qualified input rules are separate from the public return metadata.
 
-use super::FunctionId;
+use super::{json::JsonFunction, FunctionId};
 use crate::types::extended::ExtendedType;
 use crate::types::DataType;
 
@@ -112,22 +112,34 @@ impl FunctionInputSignature {
     }
 }
 
-pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
+pub(crate) const fn catalog_oid_input(id: FunctionId) -> Option<crate::types::ObjectIdKind> {
     match id {
-        FunctionId::Json(super::json::JsonFunction::ExtractPath { binary, .. }) => {
-            Some(FunctionInputSignature::VariadicTail {
-                first: if binary { 3802 } else { 114 },
-                tail: 25,
-            })
+        FunctionId::PgGetStatisticsObjDefColumns => Some(crate::types::ObjectIdKind::Oid),
+        FunctionId::PgRelationIsPublishable => Some(crate::types::ObjectIdKind::RegClass),
+        _ => None,
+    }
+}
+
+const fn json_input_signature(kind: JsonFunction) -> Option<FunctionInputSignature> {
+    match kind {
+        JsonFunction::ExtractPath { binary, .. } => Some(FunctionInputSignature::VariadicTail {
+            first: if binary { 3802 } else { 114 },
+            tail: 25,
+        }),
+        JsonFunction::ToJson(_) | JsonFunction::RowToJson => {
+            Some(FunctionInputSignature::AnyElement)
         }
-        FunctionId::Json(
-            super::json::JsonFunction::ToJson(_) | super::json::JsonFunction::RowToJson,
-        )
-        | FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),
-        FunctionId::Json(kind) => match super::json::inputs(kind) {
+        _ => match super::json::inputs(kind) {
             Some(oids) => Some(FunctionInputSignature::Positional(oids)),
             None => None,
         },
+    }
+}
+
+pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
+    match id {
+        FunctionId::Json(kind) => json_input_signature(kind),
+        FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),
         FunctionId::Encode => Some(FunctionInputSignature::Positional(&[17, 25])),
         FunctionId::GetByte => Some(FunctionInputSignature::Positional(&[17, 23])),
         FunctionId::SetByte => Some(FunctionInputSignature::Positional(&[17, 23, 23])),
@@ -144,6 +156,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgInputIsValid => Some(FunctionInputSignature::Positional(&[25, 25])),
+        FunctionId::PgRelationIsPublishable => Some(FunctionInputSignature::Positional(&[2205])),
         FunctionId::ObjDescription => Some(FunctionInputSignature::Positional(&[26, 19])),
         FunctionId::ColDescription => Some(FunctionInputSignature::Positional(&[26, 23])),
         FunctionId::PgCharToEncoding
@@ -160,7 +173,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::ToRegType
         | FunctionId::ToRegProcedure => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
-        FunctionId::PgGetFunctionArguments
+        FunctionId::PgGetStatisticsObjDefColumns
+        | FunctionId::PgGetFunctionArguments
         | FunctionId::PgGetFunctionIdentityArguments
         | FunctionId::PgGetFunctionResult
         | FunctionId::PgIsOtherTempSchema => Some(FunctionInputSignature::Positional(&[26])),

@@ -6,6 +6,8 @@ use std::hash::BuildHasher;
 
 #[path = "optimizer/cost.rs"]
 mod cost;
+#[path = "optimizer/cross_joins.rs"]
+mod cross_joins;
 #[path = "optimizer/inputs.rs"]
 mod inputs;
 
@@ -23,6 +25,7 @@ pub fn optimize_with_stats<S: BuildHasher>(
     mut plan: LogicalPlan,
     cardinality_stats: &HashMap<String, CollectionCardinalityStats, S>,
 ) -> LogicalPlan {
+    cross_joins::bind_equalities(&mut plan);
     if let Some(terms) = InnerJoinTerms::from_source(&plan.source) {
         if terms.relations.len() >= 3 {
             let inputs = inputs::resolve(&terms.relations, &terms.predicates, cardinality_stats);

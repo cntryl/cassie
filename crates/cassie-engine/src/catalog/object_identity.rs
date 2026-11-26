@@ -569,24 +569,23 @@ impl<'a> ObjectScope<'a> {
     #[must_use]
     pub fn role_oid(&self, name: &str) -> Option<u32> {
         let role = self.catalog.get_role(name)?;
-        if role.is_admin && role.object_id == 0 {
-            return Some(BOOTSTRAP_ROLE_OID);
-        }
-        normal_oid(role.object_id)
+        catalog_role_oid(&role)
     }
 
     pub(crate) fn role_name(&self, oid: u32) -> Option<String> {
         self.catalog
             .list_roles()
             .into_iter()
-            .find(|role| {
-                if oid == BOOTSTRAP_ROLE_OID {
-                    role.is_admin && role.object_id == 0
-                } else {
-                    normal_oid(role.object_id) == Some(oid)
-                }
-            })
+            .find(|role| catalog_role_oid(role) == Some(oid))
             .map(|role| role.name)
+    }
+}
+
+pub(super) fn catalog_role_oid(role: &crate::catalog::RoleMeta) -> Option<u32> {
+    if role.is_admin && role.object_id == 0 {
+        Some(BOOTSTRAP_ROLE_OID)
+    } else {
+        normal_oid(role.object_id)
     }
 }
 

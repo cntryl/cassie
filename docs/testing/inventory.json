@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11775,
+    "rust_test_declarations": 11786,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11800,
+    "registered_rust_instances": 11811,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -9120,6 +9120,192 @@
       }
     },
     {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_read_empty_object_families_with_the_psql_table_description_queries",
+      "name": "should_read_empty_object_families_with_the_psql_table_description_queries",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 480,
+      "end_line": 561,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_read_empty_object_families_with_the_psql_table_description_queries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_resolve_psql_catalog_helpers_by_object_identity",
+      "name": "should_resolve_psql_catalog_helpers_by_object_identity",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 564,
+      "end_line": 602,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_resolve_psql_catalog_helpers_by_object_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal",
+      "name": "should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 605,
+      "end_line": 630,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_compare_a_catalog_oid_with_the_psql_quoted_oid_literal"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_use_regrole_identity_for_policy_role_lookups",
+      "name": "should_use_regrole_identity_for_policy_role_lookups",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 633,
+      "end_line": 658,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_use_regrole_identity_for_policy_role_lookups"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_bind_psql_catalog_helpers_to_their_declared_input_types",
+      "name": "should_bind_psql_catalog_helpers_to_their_declared_input_types",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 661,
+      "end_line": 708,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_bind_psql_catalog_helpers_to_their_declared_input_types"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/catalog_empty_registries.rs::should_preserve_relation_name_lookup_for_the_pg_attribute_relation_oid_sibling",
+      "name": "should_preserve_relation_name_lookup_for_the_pg_attribute_relation_oid_sibling",
+      "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+      "line": 711,
+      "end_line": 723,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "catalog_empty_registries::should_preserve_relation_name_lookup_for_the_pg_attribute_relation_oid_sibling"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/catalog_security/catalogs/catalog_introspection.rs::should_list_user_tables_through_information_schema",
       "name": "should_list_user_tables_through_information_schema",
       "current_file": "tests/catalog_security/catalogs/catalog_introspection.rs",
@@ -11449,7 +11635,7 @@
       "name": "should_expose_selected_relation_type_fields_with_non_domain_defaults",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
       "line": 23,
-      "end_line": 130,
+      "end_line": 93,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11479,8 +11665,8 @@
       "id": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs::should_preserve_relhasindex_after_dropping_last_index_through_restart",
       "name": "should_preserve_relhasindex_after_dropping_last_index_through_restart",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
-      "line": 133,
-      "end_line": 190,
+      "line": 96,
+      "end_line": 153,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11510,8 +11696,8 @@
       "id": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs::should_rollback_relhasindex_history_with_transactional_index_ddl",
       "name": "should_rollback_relhasindex_history_with_transactional_index_ddl",
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
-      "line": 193,
-      "end_line": 228,
+      "line": 156,
+      "end_line": 191,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -11644,6 +11830,161 @@
         {
           "suite": "catalog_security",
           "name": "postgresql18_catalog_information::should_discover_the_visible_relation_for_psql_describe"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_describe_a_constrained_relation_for_psql",
+      "name": "should_describe_a_constrained_relation_for_psql",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 172,
+      "end_line": 271,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_describe_a_constrained_relation_for_psql"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_lookups",
+      "name": "should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_lookups",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 274,
+      "end_line": 305,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_return_no_partition_ancestors_for_ordinary_tables_in_psql_foreign_key_lookups"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_bind_partition_ancestor_arguments_using_the_regclass_input_signature",
+      "name": "should_bind_partition_ancestor_arguments_using_the_regclass_input_signature",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 308,
+      "end_line": 354,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_bind_partition_ancestor_arguments_using_the_regclass_input_signature"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_list_all_relation_indexes_with_psql_mixed_joins",
+      "name": "should_list_all_relation_indexes_with_psql_mixed_joins",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 357,
+      "end_line": 408,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_list_all_relation_indexes_with_psql_mixed_joins"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs/constraints/catalog_information",
+        "directory": "tests/catalog_security/catalogs/constraints/catalog_information",
+        "file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs::should_bind_an_unknown_array_literal_in_a_projected_policy_comparison",
+      "name": "should_bind_an_unknown_array_literal_in_a_projected_policy_comparison",
+      "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
+      "line": 411,
+      "end_line": 436,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "postgresql18_catalog_information::should_bind_an_unknown_array_literal_in_a_projected_policy_comparison"
         }
       ],
       "attributes": [
@@ -366832,9 +367173,9 @@
       "current_file": "tests/catalog_security/catalogs/catalog_empty_registries.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 477,
-      "sha256": "eba957d91b99c7750decca0429fddd23ade6024117fa96861faec87a3dfbea1e",
-      "test_declarations": 30,
+      "lines": 723,
+      "sha256": "17e81194d8e5f7b38f207504cb97b188dee93f0e4842eccba2afabb941e80034",
+      "test_declarations": 36,
       "registered_suites": [
         "catalog_security"
       ],
@@ -367027,8 +367368,8 @@
       "current_file": "tests/catalog_security/catalogs/columns/type_catalog_fields.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 228,
-      "sha256": "e9edee732bd91ade10e4e1657d06ef5ce62d97295d8ccec1120954f5a55dc895",
+      "lines": 235,
+      "sha256": "d9c1fbb5a698fe66326cf9c80823b344f74efccdcc4c533cf0d82500dce5e0ba",
       "test_declarations": 3,
       "registered_suites": [
         "catalog_security"
@@ -367042,9 +367383,9 @@
       "current_file": "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 169,
-      "sha256": "889b52e0f83bafae4f79046c7e75eca3e1abdced21817e59dbe865c4682e0754",
-      "test_declarations": 4,
+      "lines": 436,
+      "sha256": "eb1188b22b3a352910fb42c0b0fdd5b2606bfb4717e13ed3dff769fedb7baa0a",
+      "test_declarations": 9,
       "registered_suites": [
         "catalog_security"
       ],

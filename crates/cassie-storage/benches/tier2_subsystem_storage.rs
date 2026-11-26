@@ -68,7 +68,7 @@ fn main() {
             }
             tx.commit(midge.write_options_sync())
                 .expect("commit benchmark batch");
-            u64::try_from(ROWS).expect("fixture rows fit u64")
+            1
         });
     }
     runner.finish();

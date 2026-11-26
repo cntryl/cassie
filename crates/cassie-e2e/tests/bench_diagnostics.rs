@@ -19,6 +19,9 @@ mod column_profiles;
 #[path = "../benches/support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 
+#[path = "../benches/support/product_mixed.rs"]
+pub mod product_mixed;
+
 #[test]
 fn should_preserve_local_column_product_profile() {
     // Arrange

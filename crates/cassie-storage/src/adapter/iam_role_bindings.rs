@@ -7,7 +7,7 @@ use super::{AdapterTransaction, CassieError, Midge, Query, RoleMeta};
 const KEY_FAMILY: &[u8] = b"pgwire-aws-iam-role";
 
 #[derive(Deserialize, Serialize)]
-struct Binding {
+struct RoleBindingRecord {
     role_name: String,
     role_id: u64,
     binding_id: u64,
@@ -36,7 +36,7 @@ impl Midge {
         let Some(raw) = tx.get(&key(issuer, arn)).map_err(CassieError::from)? else {
             return Ok(None);
         };
-        let binding: Binding = decode(&raw)?;
+        let binding: RoleBindingRecord = decode(&raw)?;
         let Some(raw) = tx
             .get(&Self::role_key(&binding.role_name))
             .map_err(CassieError::from)?
@@ -84,7 +84,7 @@ impl Midge {
             let existing = tx
                 .get(&key)
                 .map_err(CassieError::from)?
-                .map(|raw| decode::<Binding>(&raw))
+                .map(|raw| decode::<RoleBindingRecord>(&raw))
                 .transpose()?;
             if let Some(current) = existing.as_ref() {
                 if current.role_name != role.name || current.role_id != role.object_id {
@@ -95,7 +95,7 @@ impl Midge {
             }
             match (bind, existing) {
                 (true, None) => {
-                    let binding = Binding {
+                    let binding = RoleBindingRecord {
                         role_name: role.name,
                         role_id: role.object_id,
                         binding_id: Self::allocate_object_id_to_tx(&mut tx)?,
@@ -121,7 +121,7 @@ impl Midge {
             .scan(&Query::new().prefix(crate::key_codec::encode_prefix(KEY_FAMILY, &[]).into()))
             .map_err(CassieError::from)?
             .filter_map(|entry| match entry.map_err(CassieError::from) {
-                Ok((key, value)) => match decode::<Binding>(&value) {
+                Ok((key, value)) => match decode::<RoleBindingRecord>(&value) {
                     Ok(binding) if binding.role_id == role_id => Some(Ok(key)),
                     Ok(_) => None,
                     Err(error) => Some(Err(error)),

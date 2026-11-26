@@ -30,6 +30,9 @@ pub(super) async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
+        super::super::transactions::capture_and_validate_protocol_owner(session)
+            .await
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         if session.uses_aws_iam() {
             let authenticated = session.clone();
             if let Err(error) =
@@ -47,9 +50,6 @@ pub(super) async fn handle_execute(
                 return Err(ExtendedQueryError::cassie(&error));
             }
         }
-        super::super::transactions::capture_and_validate_protocol_owner(session)
-            .await
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
         return resume_suspended_portal(
             cassie,
             write_half,

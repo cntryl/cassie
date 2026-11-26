@@ -5,8 +5,11 @@ mod tests {
 
     #[test]
     fn should_choose_a_deterministic_product_smoke_profile() {
-        // Arrange / Act
-        let selected = profile_from(Some("smoke"));
+        // Arrange
+        let profile = Some("smoke");
+
+        // Act
+        let selected = profile_from(profile);
 
         // Assert
         assert_eq!(selected.name, "smoke");
@@ -31,18 +34,31 @@ mod tests {
     }
 
     #[test]
-    fn should_count_fixed_rate_arrivals_and_acknowledgements_separately() {
+    fn should_count_arrivals_in_a_fixed_rate_window() {
         // Arrange
-        let window = Duration::from_millis(100);
+        let cases = [
+            (20, Duration::from_millis(100)),
+            (2_000, Duration::from_secs(60)),
+        ];
 
         // Act
-        let scheduled = scheduled_arrivals(20, window);
+        let scheduled = cases.map(|(rate, window)| scheduled_arrivals(rate, window));
 
         // Assert
-        assert_eq!(scheduled, 2);
-        assert_eq!(scheduled_arrivals(2_000, Duration::from_secs(60)), 120_000);
-        assert_eq!(backlog_at_window_end(3, 2), 1);
-        assert_eq!(backlog_at_window_end(2, 3), 0);
+        assert_eq!(scheduled, [2, 120_000]);
+    }
+
+    #[test]
+    fn should_count_only_unacknowledged_arrivals_in_the_backlog() {
+        // Arrange
+        let cases = [(3, 2), (2, 3)];
+
+        // Act
+        let backlog = cases
+            .map(|(arrivals, acknowledgements)| backlog_at_window_end(arrivals, acknowledgements));
+
+        // Assert
+        assert_eq!(backlog, [1, 0]);
     }
 }
 

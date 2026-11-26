@@ -385,5 +385,61 @@ fn should_route_verified_tls_connections_and_require_a_fresh_token_after_expiry(
     result.expect("fixture completed within its hang guard");
 }
 
+#[test]
+fn should_never_challenge_for_credentials_on_invalid_iam_transport_configuration() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        use std::sync::Arc;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let config = crate::config::CassieRuntimeConfig {
+            pgwire_aws_iam_trust_file: Some("fixture-trust.json".into()),
+            password: "test-root".into(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
+        let cassie = Arc::new(crate::Cassie::new_in_memory_with_config(config.clone()).unwrap());
+        cassie.startup().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, peer) = listener.accept().await.unwrap();
+            crate::pgwire::connection::run_connection(
+                socket,
+                cassie,
+                config,
+                None,
+                false,
+                peer.ip(),
+            )
+            .await;
+        });
+        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+
+        // Act
+        let mut startup = vec![0, 0, 0, 0, 0, 3, 0, 0];
+        startup.extend_from_slice(b"user\0cassie_aws_iam\0database\0postgres\0\0");
+        let packet_len = u32::try_from(startup.len()).unwrap().to_be_bytes();
+        startup[..4].copy_from_slice(&packet_len);
+        let _ = socket.write_all(&startup).await;
+        let mut bytes = [0; 1];
+        let read = tokio::time::timeout(std::time::Duration::from_secs(5), socket.read(&mut bytes))
+            .await
+            .expect("transport did not hang");
+
+        // Assert
+        assert!(
+            !matches!(read, Ok(1)),
+            "unexpected auth message tag {}",
+            bytes[0]
+        );
+        server.await.unwrap();
+    });
+}
+
 #[path = "rotation_tests.rs"]
 mod rotation_tests;

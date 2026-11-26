@@ -181,6 +181,7 @@ mod query_wire;
 pub(crate) use domain_enforcement::DomainRowRule;
 mod type_scope;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;
+mod iam_roles;
 mod projection_publication;
 mod query_metrics;
 mod query_parameters;
@@ -190,6 +191,8 @@ mod referential;
 mod registry;
 mod replay;
 mod roles;
+#[doc(hidden)]
+pub use iam_roles::AwsIamLoginAttempt;
 mod schema_cleanup;
 mod snapshots;
 mod statement_mutation;

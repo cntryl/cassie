@@ -916,12 +916,18 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
+        self.ensure_families_ready()?;
+        self.with_schema_publication(|| self.delete_role_under_publication(name))
+    }
+
+    fn delete_role_under_publication(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         let role_key = Self::role_key(name);
         if let Some(raw) = tx.get(&role_key).map_err(CassieError::from)? {
             let role: RoleMeta = serde_json::from_slice(&raw)
                 .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))?;
             Self::delete_role_object_grants_for_role_to_tx(&mut tx, role.object_id)?;
+            Self::delete_aws_iam_bindings_to_tx(&mut tx, role.object_id)?;
         }
         tx.delete(role_key).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())

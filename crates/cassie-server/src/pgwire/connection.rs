@@ -123,6 +123,27 @@ pub async fn run_connection(
     require_tls: bool,
     peer_ip: IpAddr,
 ) {
+    run_connection_with_iam(
+        socket,
+        cassie,
+        config,
+        tls_config,
+        require_tls,
+        peer_ip,
+        None,
+    )
+    .await;
+}
+
+pub(super) async fn run_connection_with_iam(
+    socket: TcpStream,
+    cassie: Arc<Cassie>,
+    config: CassieRuntimeConfig,
+    tls_config: Option<Arc<rustls::ServerConfig>>,
+    require_tls: bool,
+    peer_ip: IpAddr,
+    iam: Option<Arc<super::iam::Verifier>>,
+) {
     let runtime = cassie.runtime().clone();
     let _session_guard = runtime.begin_pgwire_session();
     let Ok(Ok(transport)) = tokio::time::timeout(
@@ -133,7 +154,8 @@ pub async fn run_connection(
     else {
         return;
     };
-    if require_tls && !transport.is_tls() {
+    let tls = transport.is_tls();
+    if require_tls && !tls {
         return;
     }
     let transport = crate::transport::TimedWriteTransport::new(
@@ -157,6 +179,7 @@ pub async fn run_connection(
                         &mut reader,
                         &mut write_half,
                         &mut state,
+                        iam.as_ref().map(|_| tls),
                     ),
                 )
                 .await
@@ -181,6 +204,7 @@ pub async fn run_connection(
                             user: user.clone(),
                             database: database.clone(),
                             peer_ip,
+                            iam: iam.as_deref().filter(|_| is_iam_selector(user)),
                         },
                     ),
                 )
@@ -243,6 +267,7 @@ async fn handle_startup(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
+    iam_tls: Option<bool>,
 ) -> ConnectionStep {
     match read_startup_frame(reader).await {
         Ok(StartupFrame::SslRequest) => {
@@ -269,7 +294,18 @@ async fn handle_startup(
                 .clone()
                 .unwrap_or_else(|| "root".to_string());
             let startup_database = state.startup_database.clone();
-            if cassie.authentication_enabled() {
+            if is_iam_selector(&startup_user) && iam_tls == Some(false) {
+                runtime.record_pgwire_auth_failed();
+                let _ = write_error_response(
+                    write_half,
+                    &PgWireError::auth_failed("authentication failed"),
+                )
+                .await;
+                return ConnectionStep::Break;
+            }
+            if cassie.authentication_enabled()
+                || (is_iam_selector(&startup_user) && iam_tls.is_some())
+            {
                 let _ = write_auth_cleartext(write_half).await;
                 ConnectionStep::Continue(HandshakeState::AwaitPassword {
                     user: startup_user,
@@ -291,27 +327,7 @@ async fn handle_startup(
                     let _ = write_error_response(write_half, &pg_error).await;
                     return ConnectionStep::Break;
                 }
-                state.authenticated = true;
-                state.session = Some(session.clone());
-                state.ready = ReadyState::Idle;
-                runtime.record_pgwire_auth_ok();
-                let registration = cassie.runtime().register_pgwire_backend();
-                session.set_backend_pid(registration.process_id());
-                let _ = write_auth_ok(write_half).await;
-                state.parameter_statuses =
-                    match write_parameter_statuses(write_half, &session).await {
-                        Ok(statuses) => statuses,
-                        Err(_) => return ConnectionStep::Break,
-                    };
-                let _ = write_backend_key_data(
-                    write_half,
-                    registration.process_id(),
-                    registration.secret_key(),
-                )
-                .await;
-                state.backend_registration = Some(registration);
-                let _ = write_ready_for_query(write_half, &session).await;
-                ConnectionStep::Continue(HandshakeState::Ready)
+                finish_startup(&cassie, runtime, write_half, state, session).await
             }
         }
         Ok(StartupFrame::CancelRequest {
@@ -334,10 +350,76 @@ async fn handle_startup(
     }
 }
 
-struct PasswordAuthContext {
+async fn finish_startup(
+    cassie: &Cassie,
+    runtime: &crate::runtime::RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: CassieSession,
+) -> ConnectionStep {
+    state.authenticated = true;
+    state.session = Some(session.clone());
+    state.ready = ReadyState::Idle;
+    runtime.record_pgwire_auth_ok();
+    let registration = cassie.runtime().register_pgwire_backend();
+    session.set_backend_pid(registration.process_id());
+    let _ = write_auth_ok(write_half).await;
+    state.parameter_statuses = match write_parameter_statuses(write_half, &session).await {
+        Ok(statuses) => statuses,
+        Err(_) => return ConnectionStep::Break,
+    };
+    let _ = write_backend_key_data(
+        write_half,
+        registration.process_id(),
+        registration.secret_key(),
+    )
+    .await;
+    state.backend_registration = Some(registration);
+    let _ = write_ready_for_query(write_half, &session).await;
+    ConnectionStep::Continue(HandshakeState::Ready)
+}
+
+fn is_iam_selector(user: &str) -> bool {
+    user.trim()
+        .eq_ignore_ascii_case(crate::config::AWS_IAM_PGWIRE_SELECTOR)
+}
+
+struct PasswordAuthContext<'a> {
     user: String,
     database: Option<String>,
     peer_ip: IpAddr,
+    iam: Option<&'a super::iam::Verifier>,
+}
+
+async fn authenticate_startup_credential(
+    cassie: Arc<Cassie>,
+    auth: PasswordAuthContext<'_>,
+    credential: String,
+) -> Result<CassieSession, CassieError> {
+    let PasswordAuthContext {
+        user,
+        database,
+        peer_ip,
+        iam,
+    } = auth;
+    if let Some(verifier) = iam {
+        let attempt = cassie.begin_aws_iam_login(peer_ip)?;
+        let identity = verifier
+            .verify(&credential)
+            .await
+            .map_err(|_| CassieError::Unauthorized)?;
+        drop(credential);
+        return run_pgwire_blocking(cassie, "pgwire_auth", move |cassie| {
+            cassie.complete_aws_iam_login(attempt, &identity.issuer, &identity.role_arn, database)
+        })
+        .await;
+    }
+    run_pgwire_blocking(cassie, "pgwire_auth", move |cassie| {
+        cassie
+            .authenticate_network_principal(&user, Some(&credential), database, peer_ip)
+            .map(|principal| principal.session)
+    })
+    .await
 }
 
 async fn handle_password(
@@ -346,22 +428,14 @@ async fn handle_password(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
-    auth: PasswordAuthContext,
+    auth: PasswordAuthContext<'_>,
 ) -> ConnectionStep {
-    match read_password_message(reader).await {
-        Ok(password) => {
+    let credential_limit = auth.iam.map(|_| super::iam::MAX_TOKEN_BYTES);
+    match read_password_message(reader, credential_limit).await {
+        Ok(credential) => {
             runtime.record_pgwire_message("password");
-            let auth_result = run_pgwire_blocking(cassie.clone(), "pgwire_auth", move |cassie| {
-                cassie
-                    .authenticate_network_principal(
-                        &auth.user,
-                        Some(&password),
-                        auth.database.clone(),
-                        auth.peer_ip,
-                    )
-                    .map(|principal| principal.session)
-            })
-            .await;
+            let auth_result =
+                authenticate_startup_credential(cassie.clone(), auth, credential).await;
             match auth_result {
                 Ok(session) => {
                     if let Err(error) =
@@ -372,27 +446,7 @@ async fn handle_password(
                         let _ = write_error_response(write_half, &pg_error).await;
                         return ConnectionStep::Break;
                     }
-                    state.authenticated = true;
-                    state.session = Some(session.clone());
-                    state.ready = ReadyState::Idle;
-                    runtime.record_pgwire_auth_ok();
-                    let registration = cassie.runtime().register_pgwire_backend();
-                    session.set_backend_pid(registration.process_id());
-                    let _ = write_auth_ok(write_half).await;
-                    state.parameter_statuses =
-                        match write_parameter_statuses(write_half, &session).await {
-                            Ok(statuses) => statuses,
-                            Err(_) => return ConnectionStep::Break,
-                        };
-                    let _ = write_backend_key_data(
-                        write_half,
-                        registration.process_id(),
-                        registration.secret_key(),
-                    )
-                    .await;
-                    state.backend_registration = Some(registration);
-                    let _ = write_ready_for_query(write_half, &session).await;
-                    ConnectionStep::Continue(HandshakeState::Ready)
+                    finish_startup(&cassie, runtime, write_half, state, session).await
                 }
                 Err(CassieError::Unauthorized | CassieError::AuthenticationRateLimited) => {
                     runtime.record_pgwire_auth_failed();

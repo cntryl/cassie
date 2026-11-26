@@ -322,11 +322,13 @@ impl Cassie {
             .unwrap_or(dummy_password_hash);
         let verified = verify_password(hash, &candidate).unwrap_or(false);
         let passwordless_allowed = allow_passwordless
+            && !role.aws_iam_login
             && role.can_login
             && role.password_hash.is_none()
             && password.is_none_or(str::is_empty);
         if !passwordless_allowed
-            && (!role.can_login
+            && (role.aws_iam_login
+                || !role.can_login
                 || role.password_hash.is_none()
                 || supplied_password.is_none()
                 || !verified)

@@ -536,6 +536,7 @@ pub(super) async fn read_startup_frame(
 
 pub(super) async fn read_password_message(
     reader: &mut PgwireReader,
+    credential_limit: Option<usize>,
 ) -> Result<String, HandshakeError> {
     let mut header = [0u8; 5];
     reader.read_exact(&mut header).await.map_err(|error| {
@@ -565,6 +566,11 @@ pub(super) async fn read_password_message(
         ));
     }
     let payload_len = payload_len - 4;
+    if credential_limit.is_some_and(|limit| payload_len > limit.saturating_add(1)) {
+        return Err(HandshakeError::Invalid(
+            "credential exceeds supported bounds".into(),
+        ));
+    }
     let mut payload = vec![0u8; payload_len];
     reader.read_exact(&mut payload).await.map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {

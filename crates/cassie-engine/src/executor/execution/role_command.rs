@@ -15,15 +15,18 @@ pub(super) fn create_role(
         .and_then(CassieSession::current_database)
         .unwrap_or(cassie.default_database.as_str());
     let output = empty_command("CREATE ROLE", controls)?;
-    cassie
-        .create_role_in_database(
+    if statement.aws_iam_login {
+        cassie.create_aws_iam_role_in_database(&statement.name, statement.if_not_exists, database)
+    } else {
+        cassie.create_role_in_database(
             &statement.name,
             statement.login,
             statement.password.clone(),
             statement.if_not_exists,
             database,
         )
-        .map_err(QueryError::Cassie)?;
+    }
+    .map_err(QueryError::Cassie)?;
 
     Ok(output)
 }
@@ -34,9 +37,12 @@ pub(super) fn alter_role(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("ALTER ROLE", controls)?;
-    cassie
-        .alter_role(&statement.name, statement.login, statement.password.clone())
-        .map_err(QueryError::Cassie)?;
+    if let Some(binding) = statement.aws_iam_binding.as_ref() {
+        cassie.alter_aws_iam_role_binding(&statement.name, binding)
+    } else {
+        cassie.alter_role(&statement.name, statement.login, statement.password.clone())
+    }
+    .map_err(QueryError::Cassie)?;
 
     Ok(output)
 }

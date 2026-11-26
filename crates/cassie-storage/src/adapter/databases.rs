@@ -604,7 +604,7 @@ impl Midge {
         })
     }
 
-    fn with_schema_publication<T>(
+    pub(super) fn with_schema_publication<T>(
         &self,
         operation: impl FnOnce() -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {

@@ -91,6 +91,21 @@ async fn serve(
     crate::config::validate_pgwire_listener_transport(&config, listen_address)?;
     let require_tls =
         !config.allow_insecure_non_loopback_listen && !listen_address.ip().is_loopback();
+    let trust_path = config.pgwire_aws_iam_trust_file.as_deref();
+    cassie.validate_aws_iam_pgwire_selector(trust_path.is_some())?;
+    if trust_path.is_some() && (tls_config.is_none() || !cassie.authentication_enabled()) {
+        return Err(crate::app::CassieError::Execution(
+            "AWS IAM pgwire authentication requires TLS and a root password".into(),
+        ));
+    }
+    let iam = trust_path
+        .map(std::path::Path::new)
+        .map(super::iam::Verifier::from_path)
+        .transpose()
+        .map_err(|_| {
+            crate::app::CassieError::Execution("invalid AWS IAM pgwire trust file".into())
+        })?
+        .map(Arc::new);
     tracing::info!(target: "pgwire", address = %listen_address, "listening");
     let admission = Arc::new(Semaphore::new(config.limits.pgwire_max_connections.max(1)));
 
@@ -120,16 +135,18 @@ async fn serve(
                         let cassie = cassie.clone();
                         let config = config.clone();
                         let tls_config = tls_config.clone();
+                        let iam = iam.clone();
                         tokio::spawn(async move {
                             let () = crate::pgwire::connection::worker_lease::with_connection_lease(
                                 permit,
-                                Box::pin(crate::pgwire::connection::run_connection(
+                                Box::pin(crate::pgwire::connection::run_connection_with_iam(
                                     socket,
                                     cassie,
                                     config,
                                     tls_config,
                                     require_tls,
                                     peer.ip(),
+                                    iam,
                                 )),
                             ).await;
                         });

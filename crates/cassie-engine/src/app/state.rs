@@ -50,6 +50,7 @@ pub struct Cassie {
     pub(super) vector_search_result_cache: Arc<Mutex<VectorResultCache>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
+    pub(super) aws_iam_login_enabled: bool,
     pub(crate) bootstrap_password_hash: LazyPasswordHash,
     pub(crate) dummy_password_hash: LazyPasswordHash,
     pub(crate) auth_rate_limiter: Arc<AuthRateLimiter>,

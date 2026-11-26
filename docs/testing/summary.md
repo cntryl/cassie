@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1914 |
 | Rust files | 1871 |
-| Rust test declarations | 11775 |
+| Rust test declarations | 11786 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11800 |
+| Static Rust registration instances | 11811 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -30,7 +30,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 194 | 0 |
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 32 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 652 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 663 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 89 | 0 |
 | [compatibility](inventory/compatibility.md) | 530 | 0 |
 | [composite_types](inventory/composite_types.md) | 234 | 0 |

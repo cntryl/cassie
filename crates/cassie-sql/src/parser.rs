@@ -695,6 +695,10 @@ mod cte_materialization;
 mod statistical_window_tests;
 
 #[cfg(test)]
+#[path = "parser/benchmark_fixture_tests.rs"]
+mod benchmark_fixture_tests;
+
+#[cfg(test)]
 mod projection_diagnostic_tests {
     use super::parse_statement;
     use crate::sql::ast::SelectItem;

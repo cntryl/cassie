@@ -9,3 +9,6 @@ pub mod tokenizer;
 pub use analyzer::TokenizedText;
 pub use bm25::{bm25_score, render_snippet, snippet};
 pub use tokenizer::tokenize;
+
+#[cfg(test)]
+mod benchmark_fixture_tests;

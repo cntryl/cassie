@@ -1,9 +1,11 @@
-#[path = "support/subsystem.rs"]
-mod workloads;
+#[path = "support/subsystem_cache.rs"]
+mod cache;
 
 use std::time::Instant;
 
 use cassie_bench_support::{performance_benchmarks, stress};
+
+const LOOKUPS_PER_SAMPLE: usize = 8_192;
 
 fn main() {
     let mut runner = stress::runner(
@@ -19,7 +21,7 @@ fn main() {
     let enabled: [bool; 3] = std::array::from_fn(|index| runner.is_enabled(&cases[index]));
     if enabled.into_iter().any(|is_enabled| is_enabled) {
         let setup_started = Instant::now();
-        let fixture = workloads::CacheFixture::new(1_024, enabled[1]);
+        let fixture = cache::CacheFixture::new(1_024, enabled[1]);
         let setup_time_ns = setup_started.elapsed().as_nanos().max(1).to_string();
         if enabled[0] {
             let runtime = fixture.plan_runtime();
@@ -29,11 +31,9 @@ fn main() {
                     serde_json::to_value(runtime.snapshot()).expect("serialize plan cache snapshot")
                 })
                 .metadata("setup_time_ns", &setup_time_ns);
-            runner.measure_counted_batch(
-                with_setup(case, &setup_time_ns),
-                workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE,
-                || u64::try_from(fixture.plan_hit()).expect("plan hit count fits u64"),
-            );
+            runner.measure_counted_batch(case, LOOKUPS_PER_SAMPLE, || {
+                u64::try_from(fixture.plan_hit()).expect("plan hit count fits u64")
+            });
         }
         if enabled[1] {
             let runtime = fixture.result_runtime();
@@ -44,11 +44,9 @@ fn main() {
                         .expect("serialize result cache snapshot")
                 })
                 .metadata("setup_time_ns", &setup_time_ns);
-            runner.measure_counted_batch(
-                with_setup(case, &setup_time_ns),
-                workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE,
-                || u64::try_from(fixture.result_hit()).expect("result hit count fits u64"),
-            );
+            runner.measure_counted_batch(case, LOOKUPS_PER_SAMPLE, || {
+                u64::try_from(fixture.result_hit()).expect("result hit count fits u64")
+            });
         }
         if enabled[2] {
             let runtime = fixture.plan_runtime();
@@ -58,11 +56,9 @@ fn main() {
                     serde_json::to_value(runtime.snapshot()).expect("serialize plan cache snapshot")
                 })
                 .metadata("setup_time_ns", &setup_time_ns);
-            runner.measure_counted_batch(
-                with_setup(case, &setup_time_ns),
-                workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE,
-                || u64::try_from(fixture.plan_miss()).expect("plan miss count fits u64"),
-            );
+            runner.measure_counted_batch(case, LOOKUPS_PER_SAMPLE, || {
+                u64::try_from(fixture.plan_miss()).expect("plan miss count fits u64")
+            });
         }
     }
     runner.finish();
@@ -77,8 +73,4 @@ fn declared_case(workload: &str) -> stress::StressCase {
         ),
         stress::OperationUnit::Lookup,
     )
-}
-
-fn with_setup(case: stress::StressCase, setup_time_ns: &str) -> stress::StressCase {
-    case.metadata("setup_time_ns", setup_time_ns)
 }

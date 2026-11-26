@@ -4,10 +4,13 @@ use std::time::Instant;
 
 use cassie_engine::config::{CassieRuntimeLimits, ExecutionResultCacheEnabled};
 use cassie_engine::executor::QueryResult;
+use cassie_engine::planner::{logical, physical};
 use cassie_engine::runtime::{ExecutionMode, ExecutionResultCacheKey, PlanCacheKey, RuntimeState};
 use cassie_engine::types::Value;
 
-use super::{assert_tier2_fixture, usize_to_u64, PhysicalPlanningFixture};
+#[path = "subsystem_fixture.rs"]
+mod fixture;
+use fixture::{assert_tier2_fixture, bind_planning_statements, fixture_count};
 
 /// Direct production plan-cache and execution-result-cache operations.
 pub struct CacheFixture {
@@ -22,8 +25,12 @@ impl CacheFixture {
     #[must_use]
     pub fn new(entries: usize, include_result_cache: bool) -> Self {
         assert_tier2_fixture(entries);
-        let planning = PhysicalPlanningFixture::new(1);
-        let plan = Arc::new(planning.sample_physical_plan());
+        let statements = bind_planning_statements(1);
+        let statement = statements
+            .first()
+            .expect("planning fixture has one statement");
+        let logical_plan = logical::plan(statement).expect("benchmark SQL plans");
+        let plan = Arc::new(physical::build(logical_plan));
         let plan_limits = CassieRuntimeLimits {
             plan_cache_entries: entries,
             execution_result_cache_enabled: ExecutionResultCacheEnabled::disabled(),
@@ -31,12 +38,16 @@ impl CacheFixture {
         };
         let plan_runtime = Arc::new(RuntimeState::new(plan_limits));
         for fingerprint in 0..entries {
-            plan_runtime.plan_cache_store(plan_key(usize_to_u64(fingerprint)), plan.clone(), false);
+            plan_runtime.plan_cache_store(
+                plan_key(fixture_count(fingerprint)),
+                Arc::clone(&plan),
+                false,
+            );
         }
-        let plan_hit_key = plan_key(usize_to_u64(entries.saturating_sub(1)));
-        let plan_miss_key = plan_key(usize_to_u64(entries));
+        let plan_hit_key = plan_key(fixture_count(entries.saturating_sub(1)));
+        let plan_miss_key = plan_key(fixture_count(entries));
 
-        let result_hit_key = result_key(usize_to_u64(entries.saturating_sub(1)));
+        let result_hit_key = result_key(fixture_count(entries.saturating_sub(1)));
         let result_runtime = include_result_cache.then(|| {
             let result_limits = CassieRuntimeLimits {
                 execution_result_cache_enabled: ExecutionResultCacheEnabled::enabled(),
@@ -46,7 +57,7 @@ impl CacheFixture {
             };
             let runtime = Arc::new(RuntimeState::new(result_limits));
             for fingerprint in 0..entries {
-                let key = result_key(usize_to_u64(fingerprint));
+                let key = result_key(fixture_count(fingerprint));
                 runtime
                     .execution_result_cache_store(&key, sample_query_result(fingerprint, &runtime));
             }
@@ -95,15 +106,16 @@ impl CacheFixture {
 
     #[must_use]
     pub fn plan_runtime(&self) -> Arc<RuntimeState> {
-        self.plan_runtime.clone()
+        Arc::clone(&self.plan_runtime)
     }
 
     #[must_use]
     pub fn result_runtime(&self) -> Arc<RuntimeState> {
-        self.result_runtime
-            .as_ref()
-            .expect("result cache fixture should be enabled")
-            .clone()
+        Arc::clone(
+            self.result_runtime
+                .as_ref()
+                .expect("result cache fixture should be enabled"),
+        )
     }
 }
 

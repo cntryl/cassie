@@ -37,10 +37,45 @@ fn main() {
     }
 
     let setup_started = Instant::now();
+    let cassie = Arc::new(open_fixture());
+    let write_documents = projection_write_documents();
+
+    let fixture = Arc::new(Mutex::new(ReplayState {
+        batches: VecDeque::from([replay_batch(0)]),
+        next_sample: 1,
+    }));
+    let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
+    let replay_case = replay_case
+        .runtime_contract(
+            stress::FixtureDeclaration::new(
+                performance_benchmarks::FixtureClass::Subsystem,
+                ROWS,
+                "tier2_subsystem_ingest/2k",
+            ),
+            stress::OperationUnit::Event,
+        )
+        .metadata("setup_time_ns", &setup_time_ns);
+
+    if replay_enabled {
+        measure_replay(&mut runner, replay_case, &cassie, &fixture);
+    }
+    if write_enabled {
+        measure_write(
+            &mut runner,
+            write_case,
+            &cassie,
+            &write_documents,
+            &setup_time_ns,
+        );
+    }
+    cassie.shutdown();
+    runner.finish();
+}
+
+fn open_fixture() -> Cassie {
     let config = CassieRuntimeConfig::from_env().expect("projection replay config");
-    let cassie = Arc::new(
-        Cassie::new_in_memory_with_config(config).expect("projection replay memory fixture"),
-    );
+    let cassie =
+        Cassie::new_in_memory_with_config(config).expect("projection replay memory fixture");
     cassie.startup().expect("projection replay startup");
     let schema = Schema {
         fields: vec![
@@ -71,7 +106,11 @@ fn main() {
         .create_collection(WRITE_COLLECTION, schema.clone())
         .expect("create projection write collection");
     cassie.register_collection(WRITE_COLLECTION, schema);
-    let write_documents = (0..ROWS)
+    cassie
+}
+
+fn projection_write_documents() -> Vec<(Option<String>, serde_json::Value)> {
+    (0..ROWS)
         .map(|index| {
             let id = format!("tier2-write-{index}");
             (
@@ -83,87 +122,81 @@ fn main() {
                 }),
             )
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
 
-    let fixture = Arc::new(Mutex::new(ReplayState {
-        batches: VecDeque::from([replay_batch(0)]),
-        next_sample: 1,
-    }));
-    let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
-    let replay_case = replay_case
+fn measure_replay(
+    runner: &mut stress::CassieStressRunner,
+    replay_case: stress::StressCase,
+    cassie: &Arc<Cassie>,
+    fixture: &Arc<Mutex<ReplayState>>,
+) {
+    let evidence_cassie = Arc::clone(cassie);
+    runner.measure_counted(
+        replay_case.runtime_evidence(move || evidence_cassie.metrics()),
+        || {
+            let batch = fixture
+                .lock()
+                .expect("projection replay fixture")
+                .batches
+                .pop_front()
+                .expect("prepared replay batch available");
+            let applied = cassie
+                .replay_projection_batch(batch)
+                .expect("projection replay batch should apply");
+            assert_eq!(
+                applied.applied_event_count,
+                u64::try_from(ROWS).expect("rows fit u64")
+            );
+            assert_eq!(applied.skipped_duplicate_count, 0);
+            let next_fixture = Arc::clone(fixture);
+            ObservationBridge(
+                cassie_engine::benchmark::KernelObservation::new(
+                    u64::try_from(ROWS).expect("rows fit u64"),
+                    applied.applied_event_count,
+                )
+                .with_after_sample(move || {
+                    let mut state = next_fixture.lock().expect("projection replay fixture");
+                    let sample = state.next_sample;
+                    state.next_sample = state.next_sample.saturating_add(1);
+                    state.batches.push_back(replay_batch(sample));
+                }),
+            )
+        },
+    );
+}
+
+fn measure_write(
+    runner: &mut stress::CassieStressRunner,
+    write_case: stress::StressCase,
+    cassie: &Arc<Cassie>,
+    write_documents: &[(Option<String>, serde_json::Value)],
+    setup_time_ns: &str,
+) {
+    let evidence_cassie = Arc::clone(cassie);
+    let write_case = write_case
         .runtime_contract(
             stress::FixtureDeclaration::new(
                 performance_benchmarks::FixtureClass::Subsystem,
                 ROWS,
                 "tier2_subsystem_ingest/2k",
             ),
-            stress::OperationUnit::Event,
+            stress::OperationUnit::Document,
         )
-        .metadata("setup_time_ns", &setup_time_ns);
-
-    if replay_enabled {
-        let evidence_cassie = Arc::clone(&cassie);
-        runner.measure_counted(
-            replay_case.runtime_evidence(move || evidence_cassie.metrics()),
-            || {
-                let batch = fixture
-                    .lock()
-                    .expect("projection replay fixture")
-                    .batches
-                    .pop_front()
-                    .expect("prepared replay batch available");
-                let applied = cassie
-                    .replay_projection_batch(batch)
-                    .expect("projection replay batch should apply");
-                assert_eq!(
-                    applied.applied_event_count,
-                    u64::try_from(ROWS).expect("rows fit u64")
-                );
-                assert_eq!(applied.skipped_duplicate_count, 0);
-                let next_fixture = Arc::clone(&fixture);
-                ObservationBridge(
-                    cassie_engine::benchmark::KernelObservation::new(
-                        u64::try_from(ROWS).expect("rows fit u64"),
-                        applied.applied_event_count,
-                    )
-                    .with_after_sample(move || {
-                        let mut state = next_fixture.lock().expect("projection replay fixture");
-                        let sample = state.next_sample;
-                        state.next_sample = state.next_sample.saturating_add(1);
-                        state.batches.push_back(replay_batch(sample));
-                    }),
-                )
-            },
-        );
-    }
-    if write_enabled {
-        let evidence_cassie = Arc::clone(&cassie);
-        let write_case = write_case
-            .runtime_contract(
-                stress::FixtureDeclaration::new(
-                    performance_benchmarks::FixtureClass::Subsystem,
-                    ROWS,
-                    "tier2_subsystem_ingest/2k",
-                ),
-                stress::OperationUnit::Document,
-            )
-            .metadata("setup_time_ns", &setup_time_ns)
-            .runtime_evidence(move || evidence_cassie.metrics());
-        runner.measure_counted(write_case, || {
-            let written = cassie
-                .midge
-                .put_documents(WRITE_COLLECTION, write_documents.clone())
-                .expect("projection write batch should commit");
-            assert_eq!(written.len(), ROWS);
-            std::hint::black_box(written);
-            ObservationBridge(cassie_engine::benchmark::KernelObservation::new(
-                u64::try_from(ROWS).expect("rows fit u64"),
-                u64::try_from(ROWS).expect("rows fit u64"),
-            ))
-        });
-    }
-    cassie.shutdown();
-    runner.finish();
+        .metadata("setup_time_ns", setup_time_ns)
+        .runtime_evidence(move || evidence_cassie.metrics());
+    runner.measure_counted(write_case, || {
+        let written = cassie
+            .midge
+            .put_documents(WRITE_COLLECTION, write_documents.to_vec())
+            .expect("projection write batch should commit");
+        assert_eq!(written.len(), ROWS);
+        std::hint::black_box(written);
+        ObservationBridge(cassie_engine::benchmark::KernelObservation::new(
+            u64::try_from(ROWS).expect("rows fit u64"),
+            u64::try_from(ROWS).expect("rows fit u64"),
+        ))
+    });
 }
 
 fn replay_batch(sample: u64) -> ProjectionReplayBatch {

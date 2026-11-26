@@ -16,7 +16,7 @@ fn main() {
         ("physical_planning", stress::OperationUnit::Plan),
     ]
     .map(|(workload, unit)| declared_case(workload, unit));
-    let enabled = cases.map(|case| runner.is_enabled(&case));
+    let enabled = cases.each_ref().map(|case| runner.is_enabled(case));
     if enabled.into_iter().any(|is_enabled| is_enabled) {
         if enabled[0] {
             let started = Instant::now();

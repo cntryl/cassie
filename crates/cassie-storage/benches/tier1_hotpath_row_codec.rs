@@ -16,38 +16,7 @@ fn main() {
         performance_benchmarks::BenchmarkTier::Tier1,
         "tier1_hotpath_row_codec",
     );
-    let row_case = stress::StressCase::new("row_encode_decode", "micro").runtime_contract(
-        stress::FixtureDeclaration::new(
-            performance_benchmarks::FixtureClass::Kernel,
-            0,
-            "tier1_hotpath_row_codec/micro",
-        ),
-        stress::OperationUnit::Row,
-    );
-    let started = Instant::now();
-    let schema = row_schema();
-    let row = json!({"id": "doc-1", "title": "alpha", "score": 42});
-    let encoded_row = encode_row(&schema, &row).expect("encode Tier 1 row fixture");
-    assert_eq!(
-        decode_row(&schema, &encoded_row).expect("decode row fixture"),
-        row
-    );
-    let setup_time_ns = started.elapsed().as_nanos().max(1).to_string();
-    if runner.is_enabled(&row_case) {
-        runner.measure_micro_batch(
-            row_case.metadata("setup_time_ns", setup_time_ns),
-            ROWS_PER_SAMPLE,
-            || {
-                for _ in 0..ROWS_PER_SAMPLE {
-                    let bytes = encode_row(&schema, &row).expect("encode benchmark row");
-                    std::hint::black_box(
-                        decode_row(&schema, &bytes).expect("decode benchmark row"),
-                    );
-                }
-                ROWS_PER_SAMPLE
-            },
-        );
-    }
+    measure_rows(&mut runner);
 
     for (workload, logical_type, values) in [
         (
@@ -121,6 +90,46 @@ fn main() {
         }
     }
     runner.finish();
+}
+
+fn measure_rows(runner: &mut stress::CassieStressRunner) {
+    let row_case = stress::StressCase::new("row_encode_decode", "micro").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Kernel,
+            0,
+            "tier1_hotpath_row_codec/micro",
+        ),
+        stress::OperationUnit::Row,
+    );
+    let started = Instant::now();
+    let schema = row_schema();
+    let row = json!({"id": "doc-1", "title": "alpha", "score": 42});
+    let encoded_row = encode_row(&schema, &row).expect("encode Tier 1 row fixture");
+    assert_eq!(
+        decode_row(&schema, &encoded_row, decode_fixture_json).expect("decode row fixture"),
+        row
+    );
+    let setup_time_ns = started.elapsed().as_nanos().max(1).to_string();
+    if runner.is_enabled(&row_case) {
+        runner.measure_micro_batch(
+            row_case.metadata("setup_time_ns", setup_time_ns),
+            ROWS_PER_SAMPLE,
+            || {
+                for _ in 0..ROWS_PER_SAMPLE {
+                    let bytes = encode_row(&schema, &row).expect("encode benchmark row");
+                    std::hint::black_box(
+                        decode_row(&schema, &bytes, decode_fixture_json)
+                            .expect("decode benchmark row"),
+                    );
+                }
+                ROWS_PER_SAMPLE
+            },
+        );
+    }
+}
+
+fn decode_fixture_json(bytes: &[u8]) -> serde_json::Result<serde_json::Value> {
+    serde_json::from_slice(bytes)
 }
 
 fn row_schema() -> RowSchema {

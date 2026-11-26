@@ -1,14 +1,14 @@
+use std::time::Instant;
+
 #[path = "support/observation.rs"]
 mod observation;
-#[path = "support/subsystem.rs"]
-mod workloads;
 
 use cassie_bench_support::{performance_benchmarks, stress};
-use cassie_engine::benchmark::SubsystemExecutorKernel;
+use cassie_engine::benchmark::{KernelObservation, SubsystemExecutorKernel};
 use observation::ObservationBridge;
 
 const ROWS: usize = 2_048;
-const INVOCATIONS: usize = workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE;
+const INVOCATIONS: usize = 8;
 const SUITE: &str = "tier2_subsystem_executor";
 
 fn main() {
@@ -30,25 +30,13 @@ fn main() {
             }
             let case = cases[index]
                 .clone()
-                .metadata("setup_time_ns", setup_time_ns)
+                .metadata("setup_time_ns", &setup_time_ns)
                 .parameter("fixture_invocations_per_sample", INVOCATIONS.to_string());
             runner.measure_counted(case, || {
                 let observation = match index {
-                    0 => workloads::executor_batch(
-                        &fixture,
-                        INVOCATIONS,
-                        SubsystemExecutorKernel::filter,
-                    ),
-                    1 => workloads::executor_batch(
-                        &fixture,
-                        INVOCATIONS,
-                        SubsystemExecutorKernel::project,
-                    ),
-                    _ => workloads::executor_batch(
-                        &fixture,
-                        INVOCATIONS,
-                        SubsystemExecutorKernel::top_k,
-                    ),
+                    0 => executor_batch(&fixture, INVOCATIONS, SubsystemExecutorKernel::filter),
+                    1 => executor_batch(&fixture, INVOCATIONS, SubsystemExecutorKernel::project),
+                    _ => executor_batch(&fixture, INVOCATIONS, SubsystemExecutorKernel::top_k),
                 };
                 ObservationBridge(observation)
             });
@@ -67,4 +55,37 @@ fn declared_case(workload: &str, unit: stress::OperationUnit) -> stress::StressC
         unit,
     )
 }
-use std::time::Instant;
+
+fn executor_batch(
+    fixture: &SubsystemExecutorKernel,
+    invocations: usize,
+    mut operation: impl FnMut(&SubsystemExecutorKernel) -> KernelObservation,
+) -> KernelObservation {
+    assert!(invocations > 0, "executor batch must not be empty");
+    let mut completed = 0_u64;
+    let mut cardinality = 0_u64;
+    let mut candidates = 0_u64;
+    let mut saw_candidates = false;
+    for _ in 0..invocations {
+        let observation = operation(fixture);
+        completed = completed
+            .checked_add(observation.completed_operations())
+            .expect("executor batch operation count fits u64");
+        cardinality = cardinality
+            .checked_add(observation.result_cardinality())
+            .expect("executor batch result count fits u64");
+        if let Some(count) = observation.candidate_count() {
+            candidates = candidates
+                .checked_add(count)
+                .expect("executor batch candidate count fits u64");
+            saw_candidates = true;
+        }
+        observation.finish_sample();
+    }
+    let batch = KernelObservation::new(completed, cardinality);
+    if saw_candidates {
+        batch.with_candidate_count(candidates)
+    } else {
+        batch
+    }
+}

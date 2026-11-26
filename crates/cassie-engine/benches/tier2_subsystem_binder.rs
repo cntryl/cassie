@@ -4,6 +4,15 @@ mod workloads;
 use std::time::Instant;
 
 use cassie_bench_support::{performance_benchmarks, stress};
+use cassie_engine::{
+    catalog::Catalog,
+    config::CassieRuntimeLimits,
+    runtime::QueryExecutionControls,
+    sql::{self, ast::ParsedStatement},
+};
+
+const ADMISSION_INVOCATIONS_PER_SAMPLE: usize = 8_192;
+const PARAMETERS: usize = 128;
 
 fn main() {
     let mut runner = stress::runner(
@@ -12,12 +21,12 @@ fn main() {
     );
     let cases = [
         ("sql_binder", stress::OperationUnit::Statement),
-        ("parameter_binding", stress::OperationUnit::Parameter),
+        ("parameter_type_admission", stress::OperationUnit::Parameter),
         ("logical_planner", stress::OperationUnit::Plan),
         ("physical_planner", stress::OperationUnit::Plan),
     ]
     .map(|(workload, unit)| declared_case(workload, unit));
-    let enabled = cases.map(|case| runner.is_enabled(&case));
+    let enabled = cases.each_ref().map(|case| runner.is_enabled(case));
     if enabled.into_iter().any(|is_enabled| is_enabled) {
         if enabled[0] {
             let start = Instant::now();
@@ -30,11 +39,11 @@ fn main() {
         }
         if enabled[1] {
             let start = Instant::now();
-            let fixture = workloads::ParameterBindingFixture::new(128);
+            let fixture = ParameterAdmissionFixture::new();
             runner.measure_counted_batch(
                 with_setup(cases[1].clone(), start.elapsed().as_nanos()),
-                workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE,
-                || fixture.bind_parameters(),
+                ADMISSION_INVOCATIONS_PER_SAMPLE,
+                || fixture.admit(),
             );
         }
         if enabled[2] {
@@ -72,4 +81,56 @@ fn declared_case(workload: &str, unit: stress::OperationUnit) -> stress::StressC
         ),
         unit,
     )
+}
+
+struct ParameterAdmissionFixture {
+    statement: ParsedStatement,
+    declared_oids: Vec<i32>,
+    catalog: Catalog,
+    controls: QueryExecutionControls,
+}
+
+impl ParameterAdmissionFixture {
+    fn new() -> Self {
+        let types = [
+            ("INTEGER", 23),
+            ("TEXT", 25),
+            ("BOOLEAN", 16),
+            ("DOUBLE PRECISION", 701),
+        ];
+        let mut projections = Vec::with_capacity(PARAMETERS);
+        let mut declared_oids = Vec::with_capacity(PARAMETERS);
+        for index in 0..PARAMETERS {
+            let (name, oid) = types[index % types.len()];
+            projections.push(format!("${}::{name}", index + 1));
+            declared_oids.push(oid);
+        }
+        let statement = sql::parse_statement(&format!("SELECT {}", projections.join(", ")))
+            .expect("parameter admission benchmark SQL parses");
+        let limits = CassieRuntimeLimits {
+            query_timeout_ms: 0,
+            ..CassieRuntimeLimits::default()
+        };
+        Self {
+            statement,
+            declared_oids,
+            catalog: Catalog::new(),
+            controls: QueryExecutionControls::from_limits(&limits, Instant::now()),
+        }
+    }
+
+    fn admit(&self) -> u64 {
+        let admitted = sql::checked_wire_parse_parameter_types_in_scope(
+            &self.statement,
+            &self.declared_oids,
+            &self.catalog,
+            &self.controls,
+            None,
+        )
+        .and_then(sql::AdmittedParameterTypes::into_vec)
+        .expect("benchmark parameter types admit");
+        assert_eq!(admitted, self.declared_oids);
+        std::hint::black_box(admitted);
+        u64::try_from(self.declared_oids.len()).expect("parameter count fits u64")
+    }
 }

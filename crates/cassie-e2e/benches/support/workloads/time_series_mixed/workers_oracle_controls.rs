@@ -44,3 +44,18 @@ pub(super) fn should_include_the_acknowledged_checkpoint(
     }
     true
 }
+
+pub(super) fn should_bound_window_counters(
+    offered_in_window: u64,
+    acknowledged_in_window: u64,
+    offered_in_scenario: u64,
+    acknowledged_in_scenario: u64,
+) {
+    // Arrange: these counters describe the same fixture at two different scopes.
+
+    // Act: compare each measured-window delta to its total after drain.
+
+    // Assert: interval counters cannot include work outside the scenario.
+    assert!(offered_in_window <= offered_in_scenario);
+    assert!(acknowledged_in_window <= acknowledged_in_scenario);
+}

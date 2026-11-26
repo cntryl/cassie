@@ -186,9 +186,9 @@
     ],
     "files": 1915,
     "rust_files": 1872,
-    "rust_test_declarations": 11792,
+    "rust_test_declarations": 11794,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11819,
+    "registered_rust_instances": 11821,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -6490,6 +6490,37 @@
         {
           "suite": "bench_diagnostics",
           "name": "graph_topology::should_reject_invalid_topology_catalog_contracts_without_relabeling_other_scales"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "semantics",
+        "directory": "tests/bench_diagnostics/semantics",
+        "file": "tests/bench_diagnostics/semantics/graph_topology.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/graph_topology.rs::should_require_valid_weighted_route_measurements_for_the_target",
+      "name": "should_require_valid_weighted_route_measurements_for_the_target",
+      "current_file": "tests/bench_diagnostics/graph_topology.rs",
+      "line": 224,
+      "end_line": 246,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "graph_topology::should_require_valid_weighted_route_measurements_for_the_target"
         }
       ],
       "attributes": [
@@ -358723,6 +358754,37 @@
       }
     },
     {
+      "id": "tests/vector_embeddings/embeddings/embedding_workloads.rs::should_keep_product_vector_scratch_outside_published_output",
+      "name": "should_keep_product_vector_scratch_outside_published_output",
+      "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+      "line": 621,
+      "end_line": 654,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "vector_embeddings",
+          "name": "embedding_workloads::should_keep_product_vector_scratch_outside_published_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "vector_embeddings",
+        "category": "embeddings",
+        "directory": "tests/vector_embeddings/embeddings",
+        "file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/vector_embeddings/filtered/filtered_vector_contract.rs::should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
       "name": "should_fill_a_large_window_when_every_first_batch_candidate_is_foreign",
       "current_file": "tests/vector_embeddings/filtered/filtered_vector_contract.rs",
@@ -367206,9 +367268,9 @@
       "current_file": "tests/bench_diagnostics/graph_topology.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 218,
-      "sha256": "070a2e14ce8e38e691b8027b16e0a6e7f404c64fcc75c262824cb39d7779c4ac",
-      "test_declarations": 6,
+      "lines": 246,
+      "sha256": "75351fb70c1960e2e9a0ed4c2e24d483ab7cd97c812e33c36346ed0d740a3409",
+      "test_declarations": 7,
       "registered_suites": [
         "bench_diagnostics"
       ],
@@ -394506,9 +394568,9 @@
       "current_file": "tests/vector_embeddings/embeddings/embedding_workloads.rs",
       "role": "test_module",
       "action": "split_by_contract",
-      "lines": 615,
-      "sha256": "e37f2f7cda18a346d184f7e94903dae9a603f80d88ef98012f120ba8ff98e868",
-      "test_declarations": 28,
+      "lines": 654,
+      "sha256": "34ec76fee9a4d795900fd8292af3ad3f9f2550d262c8177f390f4b48929bc66b",
+      "test_declarations": 29,
       "registered_suites": [
         "vector_embeddings"
       ],

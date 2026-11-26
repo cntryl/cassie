@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use crate::app::CassieError;
-use crate::executor::retained_memory::{add, value_clone_bytes};
+use crate::executor::retained_memory::{add, mul, value_clone_bytes};
 use crate::runtime::owned_memory::{allocation_error, grow_vec, try_reserve_vec};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::{typed::TypedValue, Value};
@@ -20,12 +20,9 @@ struct QueryResultPayload {
     columns: Vec<ColumnMeta>,
     rows: Vec<Vec<Value>>,
     command: String,
-    /// The OIDs behind `reg*` columns, whose rows hold rendered names.
+    /// Binary metadata for results whose public rows contain rendered text.
     #[serde(skip)]
-    object_oids: Vec<(usize, Vec<Option<u32>>)>,
-    /// Binary REAL NaN bits that the public text representation cannot retain.
-    #[serde(skip)]
-    real_nan_bits: Vec<RealNan>,
+    binary_metadata: Vec<BinaryMetadata>,
     /// Columns whose direct text protocol output uses PostgreSQL array text.
     #[serde(skip)]
     postgres_array_text_columns: Vec<usize>,
@@ -33,6 +30,16 @@ struct QueryResultPayload {
     temporal: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
     #[serde(skip)]
     memory: QueryMemoryReservation,
+}
+
+#[derive(Debug)]
+enum BinaryMetadata {
+    ObjectOids {
+        column: usize,
+        oids: Vec<Option<u32>>,
+    },
+    // Ordered by row and column. When present this is the first entry.
+    RealNaNs(Vec<RealNan>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -84,17 +91,25 @@ impl QueryResult {
     #[must_use]
     pub fn object_oid(&self, row: usize, column: usize) -> Option<u32> {
         self.payload
-            .object_oids
+            .binary_metadata
             .iter()
-            .find(|(index, _)| *index == column)
-            .and_then(|(_, oids)| oids.get(row).copied().flatten())
+            .find_map(|entry| match entry {
+                BinaryMetadata::ObjectOids {
+                    column: index,
+                    oids,
+                } if *index == column => Some(oids),
+                _ => None,
+            })
+            .and_then(|oids| oids.get(row).copied().flatten())
     }
 
     /// The original binary payload for a REAL result rendered as NaN.
     #[doc(hidden)]
     #[must_use]
     pub fn real_nan_bits(&self, row: usize, column: usize) -> Option<u32> {
-        let bits = &self.payload.real_nan_bits;
+        let BinaryMetadata::RealNaNs(bits) = self.payload.binary_metadata.first()? else {
+            return None;
+        };
         bits.binary_search_by_key(&(row, column), |value| (value.row, value.column))
             .ok()
             .map(|index| bits[index].bits)
@@ -138,8 +153,7 @@ impl QueryResult {
             columns: Vec::new(),
             rows: Vec::new(),
             command: String::new(),
-            object_oids: Vec::new(),
-            real_nan_bits: Vec::new(),
+            binary_metadata: Vec::new(),
             postgres_array_text_columns: Vec::new(),
             memory,
             controls,
@@ -188,8 +202,7 @@ impl QueryResult {
             columns,
             self.rows(),
             self.command(),
-            &self.payload.object_oids,
-            &self.payload.real_nan_bits,
+            &self.payload.binary_metadata,
             &self.payload.postgres_array_text_columns,
         )
     }
@@ -206,7 +219,6 @@ impl QueryResult {
             self.columns(),
             rows,
             self.command(),
-            &[],
             &[],
             &self.payload.postgres_array_text_columns,
         )
@@ -227,8 +239,7 @@ impl QueryResult {
             self.columns(),
             self.rows(),
             command,
-            &self.payload.object_oids,
-            &self.payload.real_nan_bits,
+            &self.payload.binary_metadata,
             &self.payload.postgres_array_text_columns,
         )
     }
@@ -278,8 +289,7 @@ impl QueryResult {
         columns: &[ColumnMeta],
         rows: &[Vec<Value>],
         command: &str,
-        object_oids: &[(usize, Vec<Option<u32>>)],
-        real_nan_bits: &[RealNan],
+        binary_metadata: &[BinaryMetadata],
         postgres_array_text_columns: &[usize],
     ) -> Result<Self, CassieError> {
         let mut builder = Self::try_builder(controls)?;
@@ -289,14 +299,17 @@ impl QueryResult {
         for row in rows {
             builder.try_push_row(row)?;
         }
-        for (column, oids) in object_oids {
-            builder.try_set_object_oids(*column, oids.clone())?;
-        }
-        if !real_nan_bits.is_empty() {
-            let (mut retained, memory) = try_reserve_vec(real_nan_bits.len(), &builder.memory)?;
-            retained.extend_from_slice(real_nan_bits);
-            builder.real_nan_bits = retained;
-            builder.memory.absorb(memory);
+        for entry in binary_metadata {
+            match entry {
+                BinaryMetadata::ObjectOids { column, oids } => {
+                    let (mut retained, memory) = try_reserve_vec(oids.len(), &builder.memory)?;
+                    retained.extend_from_slice(oids);
+                    builder.push_object_oids(*column, retained, memory)?;
+                }
+                BinaryMetadata::RealNaNs(bits) => {
+                    builder.try_extend_real_nan_bits(bits.len(), bits.iter().copied())?;
+                }
+            }
         }
         builder.try_set_postgres_array_text_columns(postgres_array_text_columns)?;
         builder.try_set_command(command)?;
@@ -310,8 +323,7 @@ pub struct QueryResultBuilder<'a> {
     columns: Vec<ColumnMeta>,
     rows: Vec<Vec<Value>>,
     command: String,
-    object_oids: Vec<(usize, Vec<Option<u32>>)>,
-    real_nan_bits: Vec<RealNan>,
+    binary_metadata: Vec<BinaryMetadata>,
     postgres_array_text_columns: Vec<usize>,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
@@ -383,14 +395,13 @@ impl QueryResultBuilder<'_> {
         if actual_heap > pending.heap.bytes() {
             pending.heap.try_grow(actual_heap - pending.heap.bytes())?;
         }
-        if real_nans != 0 {
-            grow_vec(&mut self.real_nan_bits, real_nans, &mut self.memory)?;
-            let row = self.rows.len();
-            self.real_nan_bits
-                .extend(values.enumerate().filter_map(|(column, value)| {
-                    real_nan_bits(value).map(|bits| RealNan { row, column, bits })
-                }));
-        }
+        let row = self.rows.len();
+        self.try_extend_real_nan_bits(
+            real_nans,
+            values.enumerate().filter_map(|(column, value)| {
+                real_nan_bits(value).map(|bits| RealNan { row, column, bits })
+            }),
+        )?;
         self.rows.push(pending.values);
         self.memory.absorb(pending.slots);
         self.memory.absorb(pending.heap);
@@ -434,13 +445,53 @@ impl QueryResultBuilder<'_> {
         column: usize,
         oids: Vec<Option<u32>>,
     ) -> Result<(), CassieError> {
-        let bytes = add(
-            size_of::<(usize, Vec<Option<u32>>)>(),
-            oids.capacity().saturating_mul(size_of::<Option<u32>>()),
-        )?;
+        let bytes = mul(oids.capacity(), size_of::<Option<u32>>())?;
         let memory = self.memory.try_sibling(bytes)?;
-        self.object_oids.push((column, oids));
+        self.push_object_oids(column, oids, memory)
+    }
+
+    fn push_object_oids(
+        &mut self,
+        column: usize,
+        oids: Vec<Option<u32>>,
+        memory: QueryMemoryReservation,
+    ) -> Result<(), CassieError> {
+        self.reserve_binary_metadata_slot()?;
+        self.binary_metadata
+            .push(BinaryMetadata::ObjectOids { column, oids });
         self.memory.absorb(memory);
+        Ok(())
+    }
+
+    fn reserve_binary_metadata_slot(&mut self) -> Result<(), CassieError> {
+        if self.binary_metadata.capacity() == 0 {
+            let (metadata, memory) = try_reserve_vec(1, &self.memory)?;
+            self.binary_metadata = metadata;
+            self.memory.absorb(memory);
+            return Ok(());
+        }
+        grow_vec(&mut self.binary_metadata, 1, &mut self.memory)
+    }
+
+    fn try_extend_real_nan_bits(
+        &mut self,
+        count: usize,
+        bits: impl Iterator<Item = RealNan>,
+    ) -> Result<(), CassieError> {
+        if count == 0 {
+            return Ok(());
+        }
+        if let Some(BinaryMetadata::RealNaNs(retained)) = self.binary_metadata.first_mut() {
+            grow_vec(retained, count, &mut self.memory)?;
+            retained.extend(bits);
+        } else {
+            let (mut retained, memory) = try_reserve_vec(count, &self.memory)?;
+            self.reserve_binary_metadata_slot()?;
+            retained.extend(bits);
+            self.binary_metadata
+                .insert(0, BinaryMetadata::RealNaNs(retained));
+            self.memory.absorb(memory);
+        }
         Ok(())
     }
 
@@ -485,8 +536,7 @@ impl QueryResultBuilder<'_> {
                 columns: self.columns,
                 rows: self.rows,
                 command: self.command,
-                object_oids: self.object_oids,
-                real_nan_bits: self.real_nan_bits,
+                binary_metadata: self.binary_metadata,
                 postgres_array_text_columns: self.postgres_array_text_columns,
                 temporal,
                 memory: self.memory,

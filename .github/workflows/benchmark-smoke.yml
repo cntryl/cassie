@@ -1,0 +1,77 @@
+name: Benchmark smoke
+
+on:
+  pull_request:
+    paths:
+      - "crates/**"
+      - "tools/benchmark_workflows.py"
+      - "tools/test_benchmark_workflows.py"
+      - "docs/benchmarks.md"
+      - "docs/performance-contracts.md"
+      - ".github/workflows/benchmark-*.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark-smoke:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    env:
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      CASSIE_BENCH_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_HOST_OS: linux
+      CASSIE_BENCH_HOST_ARCH: aarch64
+      CASSIE_BENCH_HOST_HARDWARE_CLASS: github-hosted-ubuntu-24.04-arm
+      CASSIE_BENCH_SOAK_DURATION_SECONDS: "5"
+    steps:
+      - name: Check out exact pull request source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Confirm checked out source identity
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$CASSIE_BENCH_SOURCE_COMMIT"
+          echo "CASSIE_BENCH_SOURCE_COMMIT=$actual" >> "$GITHUB_ENV"
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt
+
+      - name: Check shared benchmark registry
+        run: cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- check
+
+      - name: Read registered owners
+        run: |
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+
+      - name: Compile every workspace benchmark target
+        run: cargo bench --locked --workspace --all-features --no-run
+
+      - name: Run registered Tier 1–6 and product smoke cases
+        run: |
+          for category in timed product; do
+            targets="$(python3 tools/benchmark_workflows.py list --registry target/benchmark-registry.json --tiers all --categories "$category")"
+            while IFS= read -r target; do
+              [[ -z "$target" ]] && continue
+              python3 tools/benchmark_workflows.py run "$target" --registry target/benchmark-registry.json --profile smoke --category "$category" --output-dir target/stress
+            done <<< "$targets"
+          done
+
+      - name: Upload benchmark smoke receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/stress/
+            Cargo.lock
+          if-no-files-found: error
+          retention-days: 30

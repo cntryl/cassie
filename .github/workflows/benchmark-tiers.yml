@@ -1,0 +1,173 @@
+name: Benchmark tiers
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: One tier or the complete Tier 1–6 suite
+        required: true
+        type: choice
+        default: all
+        options: [all, tier1, tier2, tier3, tier4, tier5, tier6]
+      profile:
+        description: Smoke results are diagnostic; full runs retain measured evidence
+        required: true
+        type: choice
+        default: full
+        options: [smoke, full]
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: "1.100.0"
+    outputs:
+      tier5: ${{ steps.targets.outputs.tier5 }}
+      tier6: ${{ steps.targets.outputs.tier6 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+      - name: Check registry and expose owner lists
+        id: targets
+        run: |
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- check
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+          tier5="$(python3 tools/benchmark_workflows.py list --registry target/benchmark-registry.json --tiers 5 --categories timed | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().splitlines()))')"
+          tier6="$(python3 tools/benchmark_workflows.py list --registry target/benchmark-registry.json --tiers 6 --categories timed | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().splitlines()))')"
+          echo "tier5=$tier5" >> "$GITHUB_OUTPUT"
+          echo "tier6=$tier6" >> "$GITHUB_OUTPUT"
+
+  tier1-4:
+    needs: registry
+    if: ${{ github.event_name == 'schedule' || inputs.tier == 'all' || inputs.tier == 'tier1' || inputs.tier == 'tier2' || inputs.tier == 'tier3' || inputs.tier == 'tier4' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      BENCH_PROFILE: ${{ github.event_name == 'schedule' && 'full' || inputs.profile }}
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_HOST_OS: linux
+      CASSIE_BENCH_HOST_ARCH: aarch64
+      CASSIE_BENCH_HOST_HARDWARE_CLASS: github-hosted-ubuntu-24.04-arm
+      CASSIE_BENCH_JOB_ID: tier1-4
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Confirm source and install Rust
+        run: |
+          echo "CASSIE_BENCH_SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+      - name: Run Tier 1–4 owners serially
+        env:
+          REQUESTED_TIER: ${{ inputs.tier || 'all' }}
+        run: |
+          selection=1,2,3,4
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$REQUESTED_TIER" != all ]]; then selection="${REQUESTED_TIER#tier}"; fi
+          for tier in ${selection//,/ }; do
+            owners="$(python3 tools/benchmark_workflows.py list --registry target/benchmark-registry.json --tiers "$tier" --categories timed)"
+            while IFS= read -r owner; do
+              [[ -z "$owner" ]] && continue
+              CASSIE_BENCH_JOB_ID="tier${tier}-${owner}" python3 tools/benchmark_workflows.py run "$owner" --registry target/benchmark-registry.json --profile "$BENCH_PROFILE" --output-dir target/stress
+            done <<< "$owners"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-tier1-4-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/stress/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90
+
+  tier5:
+    needs: registry
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.tier == 'all' || inputs.tier == 'tier5') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        owner: ${{ fromJSON(needs.registry.outputs.tier5) }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      BENCH_PROFILE: ${{ inputs.profile }}
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_HOST_OS: linux
+      CASSIE_BENCH_HOST_ARCH: aarch64
+      CASSIE_BENCH_HOST_HARDWARE_CLASS: github-hosted-ubuntu-24.04-arm
+      CASSIE_BENCH_JOB_ID: tier5-${{ matrix.owner }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust and run owner
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          echo "CASSIE_BENCH_SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+          python3 tools/benchmark_workflows.py run "${{ matrix.owner }}" --registry target/benchmark-registry.json --profile "$BENCH_PROFILE" --output-dir target/stress
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-${{ matrix.owner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/stress/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90
+
+  tier6:
+    needs: registry
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.tier == 'all' || inputs.tier == 'tier6') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        owner: ${{ fromJSON(needs.registry.outputs.tier6) }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      BENCH_PROFILE: ${{ inputs.profile }}
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.profile == 'smoke' && '5' || '3600' }}
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_HOST_OS: linux
+      CASSIE_BENCH_HOST_ARCH: aarch64
+      CASSIE_BENCH_HOST_HARDWARE_CLASS: github-hosted-ubuntu-24.04-arm
+      CASSIE_BENCH_JOB_ID: tier6-${{ matrix.owner }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust and run one soak
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          echo "CASSIE_BENCH_SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+          python3 tools/benchmark_workflows.py run "${{ matrix.owner }}" --registry target/benchmark-registry.json --profile "$BENCH_PROFILE" --output-dir target/stress
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-${{ matrix.owner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/stress/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90

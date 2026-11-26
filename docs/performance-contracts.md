@@ -976,87 +976,23 @@ Filtered and smoke runs are diagnostic artifacts and never overwrite a complete 
 
 ## Acceptance Commands
 
-Run final benchmark acceptance in this order:
+Run an owner locally with `python3 tools/benchmark_workflows.py run <target>`;
+use `--profile smoke` for a diagnostic smoke case. The launcher resolves owner
+names from the shared registry and retains raw `cntryl-stress` artifacts below
+`target/stress`. See [Benchmark navigation](benchmarks.md) for local and hosted
+run instructions.
 
-```sh
-cargo bench --locked --no-run --bench '*'
-
-STRESS_PROFILE=smoke \
-CASSIE_BENCH_SOAK_DURATION_SECONDS=5 \
-cargo bench --locked --bench '*'
-
-cargo bench --locked --bench 'tier[1-4]_*'
-
-CASSIE_BENCH_RUN_ID=<unique-run-id> \
-cargo bench --locked --bench '*'
-```
-
-Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
-
-> **Current operations constraint:** The GitHub Actions permission readback reports
-> `enabled: true` (2026-10-30), but `AGENTS.md` prohibits enabling or dispatching workflows
-> until the user explicitly changes that direction. Do not dispatch this archived workflow.
-> The topology below is historical and describes the prior evidence pipeline.
-
-The archived [Bench workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/bench.yml) records the CI topology below. Its scheduled lane exercises Tiers 1-4 and retains its
-stress artifacts using the shared Fitz workflow topology. A complete manual dispatch executes the
-ten unfiltered Tier 1-6 shards natively on each of `linux/amd64` and `linux/arm64` (20 shard jobs).
-Each architecture uses its registered disk-backed profile and distinct shard artifact names.
-Shards use one run ID, commit, toolchain channel, profile, and evidence contract; `fail-fast: false`
-lets every independent shard report its result when another shard fails, and each retains the
-established six-hour timeout ceiling so parallelism does not narrow the evidence envelope. A
-downstream validator job per architecture downloads only that profile's shard artifacts into one
-`target/stress` tree, checks the native machine architecture and every artifact's profile and
-source commit, applies the unchanged complete-suite validator, and retains profile-specific
-canonical `latest.json` owner artifacts only when its full manifest passes. The workflow fails if
-either native profile is incomplete. For that archived dispatch interface, use `deployment_profile=both-native-linux-disk` only on
-the commit being evidenced, with a unique run ID; a smoke duration remains diagnostic and cannot
-pass the complete-suite validator.
-
-Manual dispatch may instead select one canonical shard and one native profile when a feature issue
-owns evidence from that benchmark owner. The selected shard still runs its complete unfiltered
-release profile on the exact commit and retains its artifact for 90 days; unselected shards perform no checkout,
-toolchain, cache, compilation, or benchmark work. A targeted artifact can satisfy only the named
-feature's evidence requirement. It is not a complete-suite manifest, does not run the downstream
-complete-manifest validator, and cannot support repository-wide readiness claims.
-
-A targeted shard may additionally select one exact registered scenario ID. The release profile,
-sample counts, duration, exact commit, and deployment profile remain unchanged. The workflow
-accepts the result only when exactly one retained artifact contains that scenario and no other
-scenario; an unknown ID or a scenario assigned to another shard therefore fails closed.
-A workload-targeted artifact can satisfy only that exact registered scenario feature evidence requirement.
-It is not evidence for the rest of its shard, does not create a complete manifest,
-and cannot support shard-wide or repository-wide readiness claims.
-
-### Offline selected-shard artifact validation
-
-After downloading the selected shard JSON files, validate every file locally with the pinned
-`cntryl-stress` canonical validator and the Tier 2 column-shard acceptance checks:
-
-```sh
-cargo run --locked --example validate_benchmark_artifacts -- \
-  --expected-source-commit <full-commit-sha> \
-  --expected-run-id <dispatch-run-id> \
-  target/downloaded-shard-amd64/tier2_subsystem_column_scan/latest.json \
-  target/downloaded-shard-arm64/tier2_subsystem_column_scan/latest.json
-```
-
-The command exits nonzero if a file cannot be loaded, its run and raw samples disagree, its
-serialized summaries do not recompute from raw samples, its CPU identity is unknown, or its
-release provenance is incomplete or differs from the expected source commit and run ID. It accepts
-only the native Linux disk deployment profiles and checks each profile against the artifact's
-recorded Linux architecture. It prints the source commit, run ID, deployment profile, OS, CPU
-identity, and each recorded benchmark row's trust and quality. For `tier2_subsystem_column_scan`,
-it also requires exactly the eight registered scenario IDs, passing correctness, usable gate trust
-and quality, and all four declared paired p95 ratios. `GATE-CANDIDATE` identifies a row with usable
-row-level evidence; the selected-shard pass additionally requires those owner checks to pass.
-Diagnostic, exploratory, invalid, and unavailable rows remain distinct. Record unselected
-shards as `SKIPPED` from the selection manifest; a missing artifact for a selected shard is
-`UNAVAILABLE`, never an inferred skip. Use `--skipped-cell <id>` only when the selection manifest
-confirms that the cell was not selected; `--unavailable-cell <id>` records an expected selected
-cell without a downloaded artifact and fails the command. Keep downloaded inputs unchanged and
-retain the validator output with the evidence record. At least one selected artifact must be
-validated for the command to pass.
+GitHub Actions runs the suite on native Linux arm64. Benchmark smoke compiles
+all workspace bench targets and runs registered timed and product smoke owners.
+The nightly lane runs Tier 1–4 owners serially. Manual dispatch supports one
+tier or all six; Tier 5 is split by owner and each Tier 6 soak runs in its own
+job with a six-hour limit and at least 3,600 measured seconds in full mode.
+The separate product workflow runs non-vector metrics serially and permits one
+selected vector configuration and query range per dispatch. Full hosted vector
+runs need the configured private HTTPS corpus input; verify the recorded input
+hashes before treating a run as product evidence. Smoke runs and incomplete
+vector shards remain diagnostic. Uploads contain raw benchmark results, never
+the private corpus.
 
 ## Benchmark Scope Boundary
 

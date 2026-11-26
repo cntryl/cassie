@@ -34955,7 +34955,7 @@
       "name": "should_validate_text_copy_encoding_only_through_the_end_marker",
       "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
       "line": 283,
-      "end_line": 330,
+      "end_line": 338,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -369044,8 +369044,8 @@
       "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 330,
-      "sha256": "c11e8957aac240cd9730f1e3e6196ffbdbeb4d9395edb0b6e40451c16be13f60",
+      "lines": 338,
+      "sha256": "bd88a57de7f5cf4d5e8502b53e9c7e73102a38e57f85e7721fed4fc2c78f8820",
       "test_declarations": 7,
       "registered_suites": [
         "compatibility"

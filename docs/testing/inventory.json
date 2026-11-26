@@ -367375,7 +367375,7 @@
       "role": "cargo_target",
       "action": "keep_harness_and_extract_tests",
       "lines": 38,
-      "sha256": "e8c83926a3c6251f8d2b6dca3f1d673e0c745a6e6bc8875dfdc44e3fab90d745",
+      "sha256": "2bbee9e590c91682ac76597a8eb15706587e649620af619ec342ad6f9d0b4da4",
       "test_declarations": 1,
       "registered_suites": [
         "bench_diagnostics"
@@ -394600,7 +394600,7 @@
       "role": "test_module",
       "action": "split_by_contract",
       "lines": 667,
-      "sha256": "79774b14070bb44ea719daef35cd523e3f99cfa5674f16a27995c4cfa39783d5",
+      "sha256": "ce8809215be89fdf236ccfe972a5aa6ab6e8d5586b6aee17a305d45a54a56676",
       "test_declarations": 30,
       "registered_suites": [
         "vector_embeddings"

@@ -59,7 +59,7 @@ fn main() {
             "metric": "full_text_top10",
             "profile": profile.name,
             "measurement_valid": valid,
-            "target_met": (profile.name == "full").then_some(valid && p95 <= 20_000 && acknowledged_rate >= 2_000.0),
+            "target_met": (profile.name == "full" && valid).then_some(p95 <= 20_000 && acknowledged_rate >= 2_000.0),
             "measurements": {
                 "query_p95_us": p95,
                 "write_p95_us": percentile_us(&write_latency_us, 95),

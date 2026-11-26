@@ -210,7 +210,7 @@ fn write_product_receipts(raw_path: &Path, report: &ScenarioReport) {
             "metric": name.trim_end_matches(".json"),
             "profile": &profile,
             "measurement_valid": measurement_valid,
-            "target_met": full.then_some(measurement_valid && target_met),
+            "target_met": (full && measurement_valid).then_some(target_met),
             "measurements": measurements,
             "failures": if measurement_valid { Vec::<String>::new() } else { vec!["oracle, acknowledgement, rollup, or retention check failed".to_owned()] },
         });

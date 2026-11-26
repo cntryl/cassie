@@ -15,6 +15,6 @@ pub(super) fn measurement_status(
             .all(|row| row["matches_oracle"] == true && row["fallback"] == false);
     (
         valid,
-        (profile == "full").then_some(valid && p95_ms <= 100.0),
+        (profile == "full" && valid).then_some(p95_ms <= 100.0),
     )
 }

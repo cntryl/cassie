@@ -51,7 +51,7 @@ fn main() {
             "metric": "projection_lookup",
             "profile": profile.name,
             "measurement_valid": valid,
-            "target_met": (profile.name == "full").then_some(valid && p95 <= 5_000 && acknowledged_rate >= 1_000.0),
+            "target_met": (profile.name == "full" && valid).then_some(p95 <= 5_000 && acknowledged_rate >= 1_000.0),
             "measurements": {
                 "reader_p95_us": p95,
                 "writer_p95_us": percentile_us(&all_writes, 95),

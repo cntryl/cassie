@@ -237,7 +237,7 @@ fn should_require_valid_weighted_route_measurements_for_the_target() {
     assert_eq!(
         actual,
         [
-            (false, Some(false)),
+            (false, None),
             (true, Some(true)),
             (true, Some(false)),
             (true, None)

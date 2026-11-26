@@ -296,10 +296,17 @@ fn should_validate_text_copy_encoding_only_through_the_end_marker() {
             (b"good\n\\.\nignored\tfield\n", None, &["good"]),
         ];
 
-        for (payload, expected_error, expected_values) in cases {
+        let statements = [
+            "COPY copy_encoding_marker FROM STDIN",
+            "COPY copy_encoding_marker FROM STDIN WITH (FORMAT TEXT, ENCODING 'UTF8')",
+        ];
+
+        for (sql, (payload, expected_error, expected_values)) in statements
+            .into_iter()
+            .flat_map(|sql| cases.into_iter().map(move |case| (sql, case)))
+        {
             // Act
-            let (response_tag, _, error, command) =
-                copy_from_stdin(&server, "COPY copy_encoding_marker FROM STDIN", payload).await;
+            let (response_tag, _, error, command) = copy_from_stdin(&server, sql, payload).await;
             let values: Vec<String> = client
                 .query(
                     "SELECT payload FROM copy_encoding_marker ORDER BY payload",
@@ -312,13 +319,14 @@ fn should_validate_text_copy_encoding_only_through_the_end_marker() {
                 .collect();
 
             // Assert
-            assert_eq!(response_tag, b'G', "{payload:?}");
-            assert_eq!(error.as_deref(), expected_error, "{payload:?}");
+            assert_eq!(response_tag, b'G', "{sql}: {payload:?}");
+            assert_eq!(error.as_deref(), expected_error, "{sql}: {payload:?}");
             assert_eq!(
                 command.as_deref(),
-                expected_error.is_none().then_some("COPY 1")
+                expected_error.is_none().then_some("COPY 1"),
+                "{sql}: {payload:?}"
             );
-            assert_eq!(values, expected_values, "{payload:?}");
+            assert_eq!(values, expected_values, "{sql}: {payload:?}");
             client
                 .batch_execute("DELETE FROM copy_encoding_marker")
                 .await

@@ -157,6 +157,8 @@ fn jwks_endpoint(issuer: &str) -> Result<reqwest::Url, Rejected> {
 pub(super) struct Verifier {
     trust: TrustSet,
     client: reqwest::Client,
+    #[cfg(test)]
+    fixture_clock: Option<Arc<std::sync::atomic::AtomicU64>>,
 }
 
 impl Verifier {
@@ -174,18 +176,30 @@ impl Verifier {
             .timeout(FETCH_TIMEOUT)
             .build()
             .map_err(|_| Rejected)?;
-        Ok(Self { trust, client })
+        Ok(Self {
+            trust,
+            client,
+            #[cfg(test)]
+            fixture_clock: None,
+        })
     }
 
     pub(super) async fn verify(&self, credential: &str) -> Result<VerifiedIdentity, Rejected> {
         let token = Token::parse(credential)?;
         let account = self.trust.account_for(&token)?;
         let keys = self.keys_for(account, &token).await?;
-        let now = SystemTime::now()
+        token.verify(&self.trust, account, &keys, self.current_seconds()?)
+    }
+
+    fn current_seconds(&self) -> Result<u64, Rejected> {
+        #[cfg(test)]
+        if let Some(clock) = self.fixture_clock.as_ref() {
+            return Ok(clock.load(std::sync::atomic::Ordering::Relaxed));
+        }
+        SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|_| Rejected)?
-            .as_secs();
-        token.verify(&self.trust, account, &keys, now)
+            .map(|duration| duration.as_secs())
+            .map_err(|_| Rejected)
     }
 
     async fn keys_for(

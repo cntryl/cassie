@@ -1,15 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use super::{backlog_at_window_end, percentile, profile_from, scheduled_arrivals};
-    use std::time::Duration;
-
     #[test]
     fn should_choose_a_deterministic_product_smoke_profile() {
+        use std::time::Duration;
+
         // Arrange
         let profile = Some("smoke");
 
         // Act
-        let selected = profile_from(profile);
+        let selected = super::profile_from(profile);
 
         // Assert
         assert_eq!(selected.name, "smoke");
@@ -19,22 +18,19 @@ mod tests {
     #[test]
     fn should_calculate_percentile_from_individual_request_samples() {
         // Arrange
-        let samples = [
-            Duration::from_micros(1),
-            Duration::from_micros(2),
-            Duration::from_micros(3),
-            Duration::from_micros(4),
-        ];
+        let samples = [1_u64, 2, 3, 4];
 
         // Act
-        let p95 = percentile(&samples, 95);
+        let p95 = super::percentile(&samples, 95);
 
         // Assert
-        assert_eq!(p95, Duration::from_micros(4));
+        assert_eq!(p95, 4);
     }
 
     #[test]
     fn should_count_arrivals_in_a_fixed_rate_window() {
+        use std::time::Duration;
+
         // Arrange
         let cases = [
             (20, Duration::from_millis(100)),
@@ -42,7 +38,7 @@ mod tests {
         ];
 
         // Act
-        let scheduled = cases.map(|(rate, window)| scheduled_arrivals(rate, window));
+        let scheduled = cases.map(|(rate, window)| super::scheduled_arrivals(rate, window));
 
         // Assert
         assert_eq!(scheduled, [2, 120_000]);
@@ -54,8 +50,9 @@ mod tests {
         let cases = [(3, 2), (2, 3)];
 
         // Act
-        let backlog = cases
-            .map(|(arrivals, acknowledgements)| backlog_at_window_end(arrivals, acknowledgements));
+        let backlog = cases.map(|(arrivals, acknowledgements)| {
+            super::backlog_at_window_end(arrivals, acknowledgements)
+        });
 
         // Assert
         assert_eq!(backlog, [1, 0]);
@@ -77,12 +74,16 @@ use tokio_postgres::NoTls;
 
 pub struct PgwireFixture {
     pub port: u16,
-    pub cassie: Arc<Cassie>,
     shutdown: Arc<Notify>,
     server: tokio::task::JoinHandle<Result<(), CassieError>>,
 }
 
 impl PgwireFixture {
+    /// Starts a PostgreSQL listener for the supplied benchmark database.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the listener cannot bind or does not become ready.
     pub async fn start(cassie: Arc<Cassie>) -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -93,13 +94,12 @@ impl PgwireFixture {
         let config = CassieRuntimeConfig::from_env().expect("pgwire runtime configuration");
         let server = tokio::spawn(cassie::pgwire::server::run_with_listener_and_shutdown(
             listener,
-            Arc::clone(&cassie),
+            cassie,
             config,
             Arc::clone(&shutdown),
         ));
         let fixture = Self {
             port,
-            cassie,
             shutdown,
             server,
         };
@@ -120,8 +120,7 @@ impl PgwireFixture {
             if !config.password.is_empty() {
                 client.password(&config.password);
             }
-            if let Ok((_, connection)) = client.connect(NoTls).await {
-                connection.abort();
+            if client.connect(NoTls).await.is_ok() {
                 return;
             }
             assert!(
@@ -132,6 +131,11 @@ impl PgwireFixture {
         }
     }
 
+    /// Opens reader connections and prepares the supplied statement on each one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if configuration, connection, or statement preparation fails.
     pub async fn prepared_clients(
         &self,
         sql: &str,
@@ -168,6 +172,11 @@ impl PgwireFixture {
         clients
     }
 
+    /// Shuts down the listener and waits for the server task.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the server fails or does not stop within the timeout.
     pub async fn shutdown(self) {
         self.shutdown.notify_waiters();
         tokio::time::timeout(Duration::from_secs(2), self.server)
@@ -186,6 +195,12 @@ pub struct ProductProfile {
     pub seeded_rows: usize,
 }
 
+/// Selects the product benchmark profile from the environment.
+///
+/// # Panics
+///
+/// Panics when the profile is neither `smoke` nor `full`.
+#[must_use]
 pub fn profile() -> ProductProfile {
     profile_from(
         std::env::var("CASSIE_BENCH_PRODUCT_PROFILE")
@@ -212,6 +227,11 @@ fn profile_from(value: Option<&str>) -> ProductProfile {
     }
 }
 
+/// Creates the configured directory for product benchmark reports.
+///
+/// # Panics
+///
+/// Panics if the output directory is absent from the environment or cannot be created.
 pub fn output_dir() -> PathBuf {
     let path = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR")
         .map(PathBuf::from)
@@ -220,6 +240,11 @@ pub fn output_dir() -> PathBuf {
     path
 }
 
+/// Writes and atomically publishes a product benchmark report.
+///
+/// # Panics
+///
+/// Panics if the report cannot be serialized, written, or published.
 pub fn write_json(directory: &Path, name: &str, value: &impl Serialize) -> PathBuf {
     let path = directory.join(name);
     let temporary = path.with_extension("json.tmp");
@@ -243,6 +268,12 @@ pub struct FixedRateReport {
     pub raw_latency_us: Vec<u64>,
 }
 
+/// Runs and drains the scheduled writes while recording the measurement boundary.
+///
+/// # Panics
+///
+/// Panics if the rate is zero, a write fails, the producer stops unexpectedly,
+/// or a queued write is lost.
 pub fn run_fixed_rate(
     rate_per_second: u64,
     duration: Duration,
@@ -356,16 +387,19 @@ fn backlog_at_window_end(scheduled: u64, acknowledged: u64) -> u64 {
     scheduled.saturating_sub(acknowledged)
 }
 
-pub fn percentile(samples: &[Duration], percentile: usize) -> Duration {
-    if samples.is_empty() {
-        return Duration::ZERO;
-    }
+/// Returns the nearest-rank latency percentile in microseconds.
+#[must_use]
+pub fn percentile(samples: &[u64], percentile: usize) -> u64 {
     let mut sorted = samples.to_vec();
     sorted.sort_unstable();
-    sorted[(sorted
-        .len()
-        .saturating_mul(percentile)
-        .div_ceil(100)
-        .saturating_sub(1))
-    .min(sorted.len() - 1)]
+    sorted
+        .get(
+            sorted
+                .len()
+                .saturating_mul(percentile)
+                .div_ceil(100)
+                .saturating_sub(1),
+        )
+        .copied()
+        .unwrap_or_default()
 }

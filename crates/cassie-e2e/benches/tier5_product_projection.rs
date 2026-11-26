@@ -31,7 +31,7 @@ fn main() {
             && report.writer.offered == report.writer.acknowledged
             && report.consistent_checkpoints > 0;
     }
-    let p95 = percentile_us(&all_queries, 95);
+    let p95 = product::percentile(&all_queries, 95);
     let acknowledged_rate = window_reports
         .iter()
         .map(|report| report.writer.acknowledged_at_window_end)
@@ -54,7 +54,7 @@ fn main() {
             "target_met": (profile.name == "full" && valid).then_some(p95 <= 5_000 && acknowledged_rate >= 1_000.0),
             "measurements": {
                 "reader_p95_us": p95,
-                "writer_p95_us": percentile_us(&all_writes, 95),
+                "writer_p95_us": product::percentile(&all_writes, 95),
                 "acknowledged_updates_per_second": acknowledged_rate,
                 "reader_queries": all_queries.len(),
                 "windows": window_reports.iter().map(|report| serde_json::json!({
@@ -241,19 +241,4 @@ async fn run_readers(
         consistent += reader_consistent;
     }
     (samples, consistent)
-}
-
-fn percentile_us(samples: &[u64], percentile: usize) -> u64 {
-    let mut sorted = samples.to_vec();
-    sorted.sort_unstable();
-    sorted
-        .get(
-            sorted
-                .len()
-                .saturating_mul(percentile)
-                .div_ceil(100)
-                .saturating_sub(1),
-        )
-        .copied()
-        .unwrap_or_default()
 }

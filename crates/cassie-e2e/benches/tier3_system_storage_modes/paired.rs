@@ -246,6 +246,52 @@ fn run_optional_probes(
     }
 }
 
+fn record_product_report(
+    report: &mut Json,
+    profile: &Profile,
+    options: &Sampling,
+    results: &[Json],
+    failures: &[&str],
+) {
+    let Ok(product_profile) = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE") else {
+        return;
+    };
+    let aggregate = results
+        .iter()
+        .find(|result| result["name"] == "filtered_aggregate");
+    let speedup = aggregate
+        .and_then(|result| result["analysis"]["paired_ratio_heap_over_column"]["median"].as_f64());
+    let profile_valid = match product_profile.as_str() {
+        "smoke" => profile.fact_rows == 128 && !profile.local,
+        "full" => {
+            profile.fact_rows == 100_000
+                && profile.local
+                && profile.query_budget == 256 * 1024 * 1024
+                && options.measurement
+                && options.control
+        }
+        _ => false,
+    };
+    let measurement_valid = profile_valid
+        && failures.is_empty()
+        && aggregate.is_some_and(primary_has_qualified_path)
+        && !results.is_empty();
+    report["metric"] = json!("column_aggregate");
+    report["product_profile"] = json!(product_profile);
+    report["measurement_valid"] = json!(measurement_valid);
+    report["target_met"] = if product_profile == "full" && measurement_valid {
+        json!(
+            aggregate.is_some_and(|result| result["analysis"]["gate_pass"] == true)
+                && speedup.is_some_and(|ratio| ratio >= 2.0)
+        )
+    } else {
+        Json::Null
+    };
+    report["target"] = json!("filtered aggregate median heap/column ratio >= 2.0");
+    report["measurements"] = json!({"filtered_aggregate": aggregate});
+    report["failures"] = json!(failures);
+}
+
 pub fn run() -> ExitCode {
     let fixture = Fixture::from_env();
     let profile = Profile::from_env(fixture);
@@ -334,49 +380,7 @@ pub fn run() -> ExitCode {
         "complete"
     });
     report["advantage_status"] = json!(status);
-    if let Ok(product_profile) = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE") {
-        let aggregate = results
-            .iter()
-            .find(|result| result["name"] == "filtered_aggregate");
-        let speedup = aggregate.and_then(|result| {
-            result["analysis"]["paired_ratio_heap_over_column"]["median"].as_f64()
-        });
-        let profile_valid = match product_profile.as_str() {
-            "smoke" => profile.fact_rows == 128 && !profile.local,
-            "full" => {
-                profile.fact_rows == 100_000
-                    && profile.local
-                    && profile.query_budget == 256 * 1024 * 1024
-                    && options.measurement
-                    && options.control
-            }
-            _ => false,
-        };
-        let measurement_valid = profile_valid
-            && !query_failed
-            && aggregate.is_some_and(primary_has_qualified_path)
-            && !results.is_empty();
-        let full_profile = product_profile == "full"
-            && profile.local
-            && profile.fact_rows == 100_000
-            && profile.query_budget == 256 * 1024 * 1024
-            && options.measurement
-            && options.control;
-        report["metric"] = json!("column_aggregate");
-        report["product_profile"] = json!(product_profile);
-        report["measurement_valid"] = json!(measurement_valid);
-        report["target_met"] = if full_profile && measurement_valid {
-            json!(
-                aggregate.is_some_and(|result| result["analysis"]["gate_pass"] == true)
-                    && speedup.is_some_and(|ratio| ratio >= 2.0)
-            )
-        } else {
-            Json::Null
-        };
-        report["target"] = json!("filtered aggregate median heap/column ratio >= 2.0");
-        report["measurements"] = json!({"filtered_aggregate": aggregate});
-        report["failures"] = json!(failures);
-    }
+    record_product_report(&mut report, &profile, &options, &results, &failures);
     write_report(&options, &report);
     println!("storage_modes_gate={status} queries={lost:?}");
     if !query_failed && (!options.gate.strict || status == "pass") {

@@ -39,7 +39,7 @@ fn main() {
             && report.indexed_execution
             && report.ranked_oracle_preflight;
     }
-    let p95 = percentile_us(&query_latency_us, 95);
+    let p95 = product::percentile(&query_latency_us, 95);
     let acknowledged_rate = reports
         .iter()
         .map(|report| report.writer.acknowledged_at_window_end)
@@ -62,7 +62,7 @@ fn main() {
             "target_met": (profile.name == "full" && valid).then_some(p95 <= 20_000 && acknowledged_rate >= 2_000.0),
             "measurements": {
                 "query_p95_us": p95,
-                "write_p95_us": percentile_us(&write_latency_us, 95),
+                "write_p95_us": product::percentile(&write_latency_us, 95),
                 "acknowledged_documents_per_second": acknowledged_rate,
                 "queries": query_latency_us.len(),
                 "windows": reports.iter().map(|report| serde_json::json!({
@@ -165,11 +165,19 @@ fn run_window(profile: product::ProductProfile, window: usize) -> WindowReport {
             let row = usize::try_from(sequence % u64::try_from(rows).expect("row count fits u64"))
                 .expect("document id fits usize")
                 + 1;
-            cassie.midge.put_document(
-            &collection_for_writer,
-            Some(format!("doc-{row:08}")),
-            serde_json::json!({"id": row, "body": document_body(rows + usize::try_from(sequence).unwrap_or_default())}),
-        ).map_err(|error| error.to_string())
+            let document = serde_json::json!({
+                "id": row,
+                "body": document_body(rows + usize::try_from(sequence).unwrap_or_default()),
+            });
+            cassie
+                .midge
+                .put_document(
+                    &collection_for_writer,
+                    Some(format!("doc-{row:08}")),
+                    document,
+                )
+                .map(|_| ())
+                .map_err(|error| error.to_string())
         })
     });
     let (query_latency_us, ranked_queries) =
@@ -324,19 +332,4 @@ async fn run_readers(
         ranked += reader_ranked;
     }
     (samples, ranked)
-}
-
-fn percentile_us(samples: &[u64], percentile: usize) -> u64 {
-    let mut sorted = samples.to_vec();
-    sorted.sort_unstable();
-    sorted
-        .get(
-            sorted
-                .len()
-                .saturating_mul(percentile)
-                .div_ceil(100)
-                .saturating_sub(1),
-        )
-        .copied()
-        .unwrap_or_default()
 }

@@ -4,6 +4,8 @@ use std::ops::Range;
 
 use sha2::{Digest, Sha256};
 
+use super::vector_file::hex;
+
 pub const QUERY_SHARD_SIZE: usize = 250;
 pub const QUERY_SPLIT_SIZE: usize = 1_000;
 
@@ -94,5 +96,5 @@ pub fn truth_cache_key(queries: &[usize]) -> String {
     for query in queries {
         hasher.update(u64::try_from(*query).unwrap_or(u64::MAX).to_le_bytes());
     }
-    format!("{:x}", hasher.finalize())
+    hex(&hasher.finalize())
 }

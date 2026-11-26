@@ -4,13 +4,11 @@
 #[path = "../../../benches/support/embedding_workloads.rs"]
 mod workloads;
 
-#[path = "../../../benches/support/embedding_workloads/product_selection.rs"]
-mod product_selection;
-
 use workloads::ground_truth::{
     decode_truths, distance, encode_truths, exact_top_k, recall_at_k, Metric, Truth,
 };
 use workloads::manifest::{embeddings_dir, in_tenant, tenant_bucket, Manifest, README_HINT};
+use workloads::product_selection;
 use workloads::statistics::{mean, percentile};
 use workloads::vector_file::{
     decode_f32_rows, hex, read_f32_rows, read_lines, sha256_file, verify_checksum,
@@ -82,6 +80,21 @@ fn should_separate_cached_truth_for_equal_sized_query_shards() {
 
     // Assert
     assert_ne!(first_key, second_key);
+}
+
+#[test]
+fn should_encode_truth_cache_key_as_lowercase_sha256() {
+    // Arrange
+    let ordinals = [0, 1, 2, 3];
+
+    // Act
+    let key = product_selection::truth_cache_key(&ordinals);
+
+    // Assert
+    assert_eq!(
+        key,
+        "a1e03200f1f82ad2c1cec8795c271aaecf98f5aa2d151d2229ec5fa0c177cf77"
+    );
 }
 
 #[test]

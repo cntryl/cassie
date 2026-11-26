@@ -349,6 +349,11 @@ fn main() -> std::process::ExitCode {
 }
 
 /// Product entry point sharing the paired fixture, storage checks and independent query oracles.
+///
+/// # Panics
+///
+/// Panics when the output directory is absent or cannot be created, or when the
+/// product profile is unsupported.
 pub fn product_main() -> std::process::ExitCode {
     let profile =
         std::env::var("CASSIE_BENCH_PRODUCT_PROFILE").unwrap_or_else(|_| "full".to_owned());

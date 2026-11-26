@@ -112,34 +112,32 @@ fn run_inner(product: Option<(&str, &Path)>) {
             && counts.result_cache_hits == 0
     });
     if let Some((profile, output_dir)) = product {
-        measure_routes(
-            &fixture,
-            &social,
+        let reopened = ReopenedGraph {
             people,
             edges,
             cold,
             warm,
-            reopen_valid,
-            profile,
-            output_dir,
-        );
+            valid: reopen_valid,
+        };
+        measure_routes(&fixture, &social, &reopened, profile, output_dir);
     }
     fixture.cassie.shutdown();
     evidence.finish();
 }
 
-fn measure_routes(
-    fixture: &Fixture,
-    social: &graph_social::Social,
+struct ReopenedGraph {
     people: i64,
-    expected_edges: i64,
+    edges: i64,
     cold: graph_evidence::Counts,
     warm: graph_evidence::Counts,
-    reopen_valid: bool,
-    profile: &str,
-    output_dir: &Path,
-) {
-    let route = social.route(1, super::ROUTE_HOPS, super::ROUTE_PATHS);
+    valid: bool,
+}
+
+fn sample_routes(
+    fixture: &Fixture,
+    route: &graph_social::Route,
+    expected_edges: i64,
+) -> Vec<serde_json::Value> {
     let mut expected = (1..)
         .zip(&route.costs)
         .map(|(rank, cost): (i64, &i64)| vec![rank.to_string(), cost.to_string()])
@@ -190,6 +188,18 @@ fn measure_routes(
             "counters": counts.to_json(),
         }));
     }
+    outcomes
+}
+
+fn measure_routes(
+    fixture: &Fixture,
+    social: &graph_social::Social,
+    reopened: &ReopenedGraph,
+    profile: &str,
+    output_dir: &Path,
+) {
+    let route = social.route(1, super::ROUTE_HOPS, super::ROUTE_PATHS);
+    let outcomes = sample_routes(fixture, &route, reopened.edges);
     let mut samples = outcomes
         .iter()
         .map(|outcome| outcome["latency_ms"].as_f64().expect("latency"))
@@ -197,7 +207,7 @@ fn measure_routes(
     samples.sort_by(f64::total_cmp);
     let p95_ms = samples[(samples.len() * 95).div_ceil(100) - 1];
     let (measurement_valid, target_met) =
-        product_status::measurement_status(profile, p95_ms, reopen_valid, &outcomes);
+        product_status::measurement_status(profile, p95_ms, reopened.valid, &outcomes);
     let metric = serde_json::json!({
         "metric": "weighted_routes",
         "profile": profile,
@@ -207,9 +217,9 @@ fn measure_routes(
         "measurements": {
             "fixture": {
                 "scale": if profile == "full" { "100k" } else { "smoke" },
-                "mapped_rows": people + expected_edges,
-                "people": people,
-                "edges": expected_edges,
+                "mapped_rows": reopened.people + reopened.edges,
+                "people": reopened.people,
+                "edges": reopened.edges,
                 "storage_mode": "local",
                 "query_memory_budget_bytes": graph_evidence::BUDGET_BYTES,
                 "result_cache": "disabled",
@@ -222,16 +232,16 @@ fn measure_routes(
                 "path_limit": route.k,
                 "oracle_costs": route.costs,
             },
-            "edge_rows": expected_edges,
+            "edge_rows": reopened.edges,
             "warmups": 5,
             "queries": outcomes.len(),
-            "reopen_oracle_valid": reopen_valid,
-            "reopened_counters": {"cold": cold.to_json(), "warm": warm.to_json()},
+            "reopen_oracle_valid": reopened.valid,
+            "reopened_counters": {"cold": reopened.cold.to_json(), "warm": reopened.warm.to_json()},
             "p50_ms": samples[(samples.len() * 50).div_ceil(100) - 1],
             "p95_ms": p95_ms,
             "per_query": outcomes,
         },
-        "failures": if reopen_valid { vec![] } else { vec!["reopen counter oracle failed"] },
+        "failures": if reopened.valid { vec![] } else { vec!["reopen counter oracle failed"] },
     });
     std::fs::create_dir_all(output_dir).expect("create product output directory");
     let path = output_dir.join("weighted_routes.json");

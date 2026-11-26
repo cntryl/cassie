@@ -182,13 +182,11 @@ impl SharedMetrics {
         }
     }
 
-    fn record_offer(&self, mutations: &[Mutation]) {
-        self.offered_events.fetch_add(
-            u64::try_from(mutations.len()).expect("offered events fit u64"),
-            Ordering::Relaxed,
-        );
+    fn record_offer(&self, event_count: u64, correction_count: u64) {
+        self.offered_events
+            .fetch_add(event_count, Ordering::Relaxed);
         self.offered_correction_events
-            .fetch_add(correction_events(mutations), Ordering::Relaxed);
+            .fetch_add(correction_count, Ordering::Relaxed);
         self.observe_backlog();
     }
 
@@ -331,17 +329,18 @@ impl WriterService {
 impl WriterQueue {
     fn offer(&self, mutations: Vec<Mutation>, scheduled: bool) {
         assert!(!mutations.is_empty(), "writer batches cannot be empty");
+        let event_count = u64::try_from(mutations.len()).expect("offered events fit u64");
+        let correction_count = correction_events(&mutations);
         if scheduled {
-            self.shared.scheduled_events.fetch_add(
-                u64::try_from(mutations.len()).expect("scheduled events fit u64"),
-                Ordering::Release,
-            );
+            self.shared
+                .scheduled_events
+                .fetch_add(event_count, Ordering::Release);
             self.shared.observe_backlog();
         }
         self.sender
             .send(mutations)
             .expect("send offered projection batch to the writer");
-        self.shared.record_offer(&mutations);
+        self.shared.record_offer(event_count, correction_count);
     }
 }
 

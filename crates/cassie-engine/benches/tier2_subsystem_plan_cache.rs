@@ -17,7 +17,7 @@ fn main() {
         "execution_result_cache_hit",
         "plan_cache_miss",
     ]
-    .map(|workload| declared_case(workload));
+    .map(declared_case);
     let enabled: [bool; 3] = std::array::from_fn(|index| runner.is_enabled(&cases[index]));
     if enabled.into_iter().any(|is_enabled| is_enabled) {
         let setup_started = Instant::now();

@@ -130,7 +130,7 @@ impl Midge {
             })
             .collect::<Result<Vec<_>, _>>()?;
         for key in keys {
-            tx.delete(key).map_err(CassieError::from)?;
+            tx.delete(key.to_vec()).map_err(CassieError::from)?;
         }
         Ok(())
     }

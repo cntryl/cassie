@@ -13,36 +13,36 @@ workspace = true
 replay-benchmark-observation = ["cassie-engine/replay-benchmark-observation"]
 
 [dependencies]
-cassie-engine = { path = "../cassie-engine" }
+cassie-engine.workspace = true
 base64 = "0.22"
-bytes = "1.12"
-http-body-util = "0.1"
-hyper-util = { version = "0.1", features = ["tokio"] }
-tokio = { version = "1.54", features = ["full"] }
-tokio-rustls = "0.26"
-rustls = "0.23"
+bytes.workspace = true
+http-body-util.workspace = true
+hyper-util.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-rustls.workspace = true
+rustls.workspace = true
 ring = "0.17"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
-thiserror = "2.0"
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-hyper = { version = "1.12", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-sha2 = "0.11"
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
-sql-json-path = "0.2.0"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "arbitrary_precision"] }
+thiserror.workspace = true
+uuid.workspace = true
+hyper.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+sha2.workspace = true
+reqwest.workspace = true
+sql-json-path.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 aws-lc-rs = { version = "1.19", features = ["ring-io"] }
-tokio-postgres = "0.7"
-cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
+tokio-postgres.workspace = true
+cassie-engine = { workspace = true, features = ["transport-test-hooks"] }
 cassie-bench-support.workspace = true
-num-bigint = "0.5.1"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
+num-bigint.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json"] }
 cntryl-stress.workspace = true
-rcgen = "0.14"
+rcgen.workspace = true
 
 [[bench]]
 name = "tier1_hotpath_pgwire"

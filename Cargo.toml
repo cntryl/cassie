@@ -29,9 +29,50 @@ edition = "2021"
 publish = false
 
 [workspace.dependencies]
+argon2 = "0.6"
+bytes = "1.12"
 cassie-bench-support = { path = "crates/cassie-bench-support" }
+cassie-core = { path = "crates/cassie-core" }
+cassie-engine = { path = "crates/cassie-engine" }
+cassie-search = { path = "crates/cassie-search" }
+cassie-sql = { path = "crates/cassie-sql" }
+cassie-storage = { path = "crates/cassie-storage" }
+cassie-vector = { path = "crates/cassie-vector" }
+chrono = "0.4"
 cntryl-midge = "0.6.0"
 cntryl-stress = "0.5.1"
+cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
+getrandom = "0.4"
+http-body-util = "0.1"
+hyper = { version = "1.12", features = ["full"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
+jiff-tzdb = "1.0.0"
+md-5 = "0.11"
+num-bigint = "0.5.1"
+num-integer = "0.1.47"
+num-traits = "0.2.19"
+parking_lot = "0.13"
+rcgen = "0.14"
+regex-automata = "0.4.18"
+regex-syntax = "0.8.11"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+rust-stemmers = "1.2.0"
+rustls = "0.23"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.11"
+sql-json-path = "0.2.0"
+thiserror = "2.0"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+tokio = "1.54"
+tokio-postgres = "0.7"
+tokio-rustls = "0.26"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+url = "2.5"
+uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
 
 [workspace.lints.clippy]
 pedantic = "warn"

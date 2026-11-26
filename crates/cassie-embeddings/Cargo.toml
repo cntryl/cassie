@@ -5,14 +5,14 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-cassie-core = { path = "../cassie-core" }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
-sha2 = "0.11"
-thiserror = "2.0"
-tokio = { version = "1.54", features = ["full"] }
-tracing = "0.1"
+cassie-core.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "arbitrary_precision"] }
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
 
 [dev-dependencies]
 cassie-bench-support.workspace = true

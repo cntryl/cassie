@@ -220,7 +220,7 @@ impl SharedMetrics {
             .fetch_add(correction_events(mutations), Ordering::Relaxed);
         self.acknowledged_events.fetch_add(
             u64::try_from(mutations.len()).expect("acknowledged events fit u64"),
-            Ordering::Relaxed,
+            Ordering::Release,
         );
         self.observe_backlog();
     }
@@ -542,9 +542,12 @@ struct WindowCounters {
 
 impl WindowCounters {
     fn capture(shared: &SharedMetrics) -> Self {
+        // Read completions first. A concurrent offer can be pending at the
+        // boundary, but its acknowledgement cannot precede its offer.
+        let acknowledged = shared.acknowledged_events.load(Ordering::Acquire);
         Self {
             offered: shared.offered_events.load(Ordering::Acquire),
-            acknowledged: shared.acknowledged_events.load(Ordering::Acquire),
+            acknowledged,
             reader_samples: shared
                 .reader_latency_ns
                 .lock()

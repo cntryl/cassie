@@ -35,6 +35,7 @@ use candidate::scored_candidates_to_rows;
 use fulltext_read::execute_fulltext_filtered_read;
 use fulltext_topk::execute_fulltext_top_k;
 use hybrid::{hybrid_search_documents, select_hybrid_candidate_rows, BoundedHybridContext};
+pub(super) use memory::tokenized_text_upper_bound;
 use posting_candidates::{posting_list_candidate_ids_controlled, PostingListDocument};
 use search_arguments::{
     search_function_args_with_params, search_predicate_args_with_params, search_query_function_args,

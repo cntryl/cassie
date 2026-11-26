@@ -3,6 +3,8 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
+use super::filter::SearchContext;
+use super::plan_inspection::SearchFields;
 use super::{
     BatchRow, CteContext, Expr, JoinKind, LogicalPlan, QueryError, QuerySource, SourceExecutionEnv,
 };
@@ -32,6 +34,7 @@ struct QueryCursor<'a> {
     skipped: usize,
     emitted: usize,
     predicate: Option<Predicate>,
+    snippet: Option<Box<SearchContext>>,
     _memory: QueryMemoryReservation,
 }
 
@@ -209,7 +212,11 @@ impl<'a> Cursor<'a> {
             plan = resolved;
             memory.absorb(reservation);
         }
-        if ordinary(&plan) {
+        let search = SearchFields::for_plan(&plan, env.params);
+        if ordinary(&plan, &search) {
+            let snippet =
+                super::source_search_context::snippet_context(env.cassie, &plan, &search)?
+                    .map(Box::new);
             let outer = if *lateral { outer } else { None };
             if let Some(row) = outer {
                 memory.try_grow(crate::executor::retained_memory::add(
@@ -243,6 +250,7 @@ impl<'a> Cursor<'a> {
                 skipped: 0,
                 emitted: 0,
                 predicate: None,
+                snippet,
                 _memory: memory,
             })));
         }
@@ -317,11 +325,12 @@ impl<'a> QueryCursor<'a> {
                 row,
                 self.outer.as_ref(),
                 &mut self.predicate,
+                self.snippet.as_deref(),
             )?;
             if batches.iter().all(Vec::is_empty) {
                 continue;
             }
-            let batches = projected(env, &self.plan, ctes, batches)?;
+            let batches = projected(env, &self.plan, ctes, batches, self.snippet.as_deref())?;
             self.pending = batches.into_rows();
         }
         Ok(None)
@@ -335,6 +344,7 @@ fn filtered(
     row: BatchRow,
     outer: Option<&BatchRow>,
     state: &mut Option<Predicate>,
+    snippet: Option<&SearchContext>,
 ) -> Result<Vec<super::Batch>, QueryError> {
     let mut batches = vec![vec![row]];
     if let Some(outer) = outer {
@@ -382,7 +392,8 @@ fn filtered(
     let (batches, predicate) = match state.as_ref().expect("initialized source predicate") {
         Predicate::Ready { expression, .. } => (batches, expression.as_ref()),
         Predicate::Correlated => {
-            let (batches, _) = super::resolve_filter_or_correlate(env, plan, ctes, batches, None)?;
+            let (batches, _) =
+                super::resolve_filter_or_correlate(env, plan, ctes, batches, snippet)?;
             return Ok(batches);
         }
     };
@@ -390,7 +401,7 @@ fn filtered(
         batches,
         predicate,
         env.params,
-        None,
+        snippet,
         env.user_functions,
         env.session,
         env.controls,
@@ -402,19 +413,20 @@ fn projected(
     plan: &LogicalPlan,
     ctes: &mut CteContext,
     batches: Vec<super::Batch>,
+    snippet: Option<&SearchContext>,
 ) -> Result<super::projection::OwnedExpanded, QueryError> {
     if super::super::exists_projection::contains_routine_subquery(
         &plan.projection,
         env.user_functions,
     ) {
-        super::exists_projection_phase::apply(env, batches, plan, ctes, None)
+        super::exists_projection_phase::apply(env, batches, plan, ctes, snippet)
             .map(super::projection::OwnedExpanded::untracked)
     } else {
         super::apply_projection_phase(
             batches,
             plan,
             env.params,
-            None,
+            snippet,
             env.user_functions,
             env.session,
             env.controls,
@@ -532,7 +544,7 @@ pub(super) fn contains(source: &QuerySource) -> bool {
     }
 }
 
-fn ordinary(plan: &LogicalPlan) -> bool {
+fn ordinary(plan: &LogicalPlan, search: &SearchFields) -> bool {
     !super::plan_uses_aggregate(plan)
         && plan.having.is_none()
         && plan.group_by.is_empty()
@@ -544,7 +556,7 @@ fn ordinary(plan: &LogicalPlan) -> bool {
             .projection
             .iter()
             .any(|item| matches!(item, crate::sql::ast::SelectItem::WindowFunction { .. }))
-        && super::plan_inspection::fulltext_query_fields(plan).is_empty()
+        && (!search.needs_corpus() || (plan.limit_value() == Some(0) && search.scored.is_empty()))
 }
 
 pub(super) fn try_execute(
@@ -553,12 +565,17 @@ pub(super) fn try_execute(
     ctes: &mut CteContext,
     outer: Option<&BatchRow>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    if !contains(&plan.source) || !ordinary(plan) {
+    if !contains(&plan.source) {
+        return Ok(None);
+    }
+    let search = SearchFields::for_plan(plan, env.params);
+    if !ordinary(plan, &search) {
         return Ok(None);
     }
     if plan.limit_value() == Some(0) {
         return Ok(Some(Vec::new()));
     }
+    let snippet = super::source_search_context::snippet_context(env.cassie, plan, &search)?;
     let mut cursor = Cursor::open(
         env,
         &plan.source,
@@ -580,11 +597,19 @@ pub(super) fn try_execute(
         let Some(row) = cursor.next(env, ctes)? else {
             break;
         };
-        let batches = filtered(env, plan, ctes, row, outer, &mut predicate)?;
+        let batches = filtered(
+            env,
+            plan,
+            ctes,
+            row,
+            outer,
+            &mut predicate,
+            snippet.as_ref(),
+        )?;
         if batches.iter().all(Vec::is_empty) {
             continue;
         }
-        let batches = projected(env, plan, ctes, batches)?;
+        let batches = projected(env, plan, ctes, batches, snippet.as_ref())?;
         for row in batches.into_rows() {
             if skipped < offset {
                 skipped += 1;

@@ -46,6 +46,46 @@ fn should_stop_unnest_given_a_filtered_limit_when_two_rows_satisfy_the_consumer(
 }
 
 #[test]
+fn should_highlight_standalone_snippets_without_advancing_past_limit() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    let limits = crate::config::CassieRuntimeLimits {
+        query_memory_budget_bytes: 16 * 1024,
+        ..Default::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+
+    // Act
+    let (result, advances) = super::source_set_function::probe::run(None, || {
+        cassie.execute_sql_with_controls(
+            &session,
+            "SELECT snippet(t, 'cat') AS terms, snippet(t, $1, $2) AS exact FROM unnest(ARRAY['cat','dog','bat']) s(t) LIMIT 1",
+            vec![Value::String("cat".into()), Value::String("query".into())],
+            ExecutionMode::SimpleQuery,
+            &controls,
+        )
+    });
+
+    let zero = cassie.execute_sql(&session,
+        "SELECT snippet(t, 'ca*', 'query') FROM (VALUES ('cat')) v(t) CROSS JOIN LATERAL generate_series(1, 3, 0) s(n) LIMIT 0",
+        vec![],
+    );
+
+    // Assert
+    let marked = Value::String("<mark>cat</mark>".into());
+    assert_eq!(
+        result.expect("one highlighted row").rows(),
+        &[vec![marked.clone(), marked]]
+    );
+    assert_eq!(advances, 1);
+    assert_eq!(
+        zero.expect("LIMIT 0 never opens the series").rows(),
+        &[] as &[Vec<Value>],
+    );
+}
+
+#[test]
 fn should_cancel_unnest_at_advancement_without_retaining_partial_results() {
     // Arrange
     let cassie = fixture();

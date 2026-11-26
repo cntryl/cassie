@@ -28,6 +28,30 @@ const AGREEMENT_QUERIES: [&str; 14] = [
 ];
 
 #[test]
+fn should_expand_qualified_snippets_against_their_own_join_column() {
+    // Arrange
+    let cassie = support::new_in_memory_cassie().expect("create Cassie");
+    let queries = [
+        "SELECT snippet(a.body, 'ca* OR do*', 'query') AS lhs, snippet(b.body, 'ca* OR do*', 'query') AS rhs FROM (VALUES ('cat')) a(body) CROSS JOIN (VALUES ('dog')) b(body)",
+        "SELECT snippet(a.body, 'ca* OR do*', 'query') AS lhs, snippet(b.body, 'ca* OR do*', 'query') AS rhs FROM (VALUES ('dog')) b(body) CROSS JOIN (VALUES ('cat')) a(body)",
+    ];
+
+    // Act
+    let rows = queries.map(|sql| run(&cassie, sql, vec![]));
+
+    // Assert
+    for result in rows {
+        assert_eq!(
+            result,
+            [vec![
+                Value::String("<mark>cat</mark>".into()),
+                Value::String("<mark>dog</mark>".into())
+            ]]
+        );
+    }
+}
+
+#[test]
 fn should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution() {
     // Arrange
     let cassie = corpus_table();
@@ -228,6 +252,14 @@ fn should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execut
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
+        (
+            &indexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
+        (
+            &unindexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
     ]
     .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);
@@ -267,6 +299,14 @@ fn should_return_the_program_limit_error_for_an_excessive_typo_on_every_executio
         (&indexed_cassie, ROW_WISE_WIDE),
         (&unindexed_cassie, FILTERED_WIDE),
         (&unindexed_cassie, ROW_WISE_WIDE),
+        (
+            &indexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
+        (
+            &unindexed_cassie,
+            "SELECT snippet(body, $1, 'query') FROM wide",
+        ),
     ]
     .map(|(cassie, sql)| {
         let session = cassie.create_session("tester", None);

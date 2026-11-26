@@ -1,7 +1,9 @@
 use std::fmt::Write;
 
 use cassie::app::Cassie;
-use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
+use cassie::config::{
+    CassieRuntimeConfig, EmbeddingsRuntimeConfig, ExecutionResultCacheEnabled, LocalRuntimeConfig,
+};
 use cassie::types::{Value, Vector};
 
 fn run(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
@@ -457,4 +459,78 @@ fn should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates() {
                 assert!((actual_score - expected_score).abs() < 1e-12);
             }
         });
+}
+
+#[test]
+fn should_keep_decomposed_marks_inside_accent_folded_phrase_highlights() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::default();
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
+    run(&cassie, "CREATE TABLE phrases (id INTEGER, body TEXT)");
+    let decomposed = "Cafe\u{301} cafe\u{301} au lait";
+    let precomposed = "Caf\u{e9} au lait";
+    run_with(
+        &cassie,
+        "INSERT INTO phrases VALUES (1, $1), (2, $2)",
+        vec![
+            Value::String(decomposed.to_string()),
+            Value::String(precomposed.to_string()),
+        ],
+    );
+    let phrase = Value::String("\"cafe au lait\"".to_string());
+    let row_query =
+        "SELECT id, search(body, $1, 'query'), snippet(body, $1, 'query') FROM phrases ORDER BY id";
+    let no_fold = run_with(&cassie, row_query, vec![phrase.clone()]);
+
+    // Act
+    run(
+        &cassie,
+        "CREATE INDEX phrases_body ON phrases USING fulltext(body) WITH (accent_folding = 'true')",
+    );
+    let before = super::fulltext_query_support::metric(&cassie, "posting_reads_total");
+    let indexed = run_with(
+        &cassie,
+        "SELECT id, snippet(body, $1, 'query') AS excerpt, search_score(body, $1, 'query') AS score \
+         FROM phrases WHERE search(body, $1, 'query')",
+        vec![phrase.clone()],
+    );
+    let after = super::fulltext_query_support::metric(&cassie, "posting_reads_total");
+    let row_wise = run_with(&cassie, row_query, vec![phrase]);
+    let single_term = run(
+        &cassie,
+        "SELECT snippet(body, 'cafe') FROM phrases ORDER BY id",
+    );
+
+    // Assert
+    for (row, body) in no_fold.iter().zip([decomposed, precomposed]) {
+        assert_eq!(row[1], Value::Bool(false));
+        assert_eq!(row[2], Value::String(body.to_string()));
+    }
+    assert!(after > before, "indexed query must read phrase postings");
+    let expected = [
+        "Cafe\u{301} <mark>cafe\u{301}</mark> <mark>au</mark> <mark>lait</mark>",
+        "<mark>Caf\u{e9}</mark> <mark>au</mark> <mark>lait</mark>",
+    ];
+    assert_eq!(no_fold.len(), expected.len());
+    assert_eq!(row_wise.len(), expected.len());
+    assert_eq!(indexed.len(), expected.len());
+    for (row, snippet) in row_wise.iter().zip(expected) {
+        assert_eq!(row[1], Value::Bool(true));
+        assert_eq!(row[2], Value::String(snippet.to_string()));
+        let indexed_row = indexed
+            .iter()
+            .find(|item| item[0] == row[0])
+            .expect("indexed match");
+        assert_eq!(indexed_row[1], row[2]);
+    }
+    assert_eq!(
+        single_term,
+        [
+            vec![Value::String(
+                "<mark>Cafe\u{301}</mark> <mark>cafe\u{301}</mark> au lait".to_string()
+            )],
+            vec![Value::String("<mark>Caf\u{e9}</mark> au lait".to_string())],
+        ]
+    );
 }

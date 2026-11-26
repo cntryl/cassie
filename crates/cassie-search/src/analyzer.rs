@@ -120,12 +120,11 @@ impl AnalyzerConfig {
         } else {
             normalized
         };
-        let stop_words = crate::tokenizer::stop_words();
         let stemmer = self.stemmer();
         tokenize_with(&normalized, &self.tokenizer)
             .filter(|token| !token.is_empty())
             .enumerate()
-            .filter(|(_, token)| self.stop_words != "english" || !stop_words.contains(*token))
+            .filter(|(_, token)| !self.is_stop_word(token))
             .map(|(position, token)| {
                 (
                     u32::try_from(position).unwrap_or(u32::MAX),
@@ -153,6 +152,10 @@ impl AnalyzerConfig {
         let mut boundaries = TokenBoundaries::new(&self.tokenizer);
         word.chars()
             .any(|character| boundaries.is_boundary(character))
+    }
+
+    fn is_stop_word(&self, token: &str) -> bool {
+        self.stop_words == "english" && crate::tokenizer::stop_words().contains(token)
     }
 
     fn canonical_term(&self, token: String) -> String {
@@ -260,6 +263,10 @@ impl AnalyzerConfig {
                 let tail = fold_accents(&folded[before..]);
                 folded.truncate(before);
                 folded.push_str(&tail);
+                if let Some((_, source_end)) = origins.last_mut().filter(|_| tail.is_empty()) {
+                    // A removed combining mark still belongs to the source character it follows.
+                    *source_end = end;
+                }
             }
             origins.resize(folded.len(), (start, end));
         }
@@ -269,9 +276,9 @@ impl AnalyzerConfig {
 
     /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
     ///
-    /// Tokens are produced exactly as `analyze` produces them (case folding, accent
-    /// folding, tokenizer boundaries), then mapped back onto the original text so
-    /// callers can highlight the occurrences that made a search match.
+    /// Tokens follow the same analysis as `analyze`, including stop-word
+    /// removal before stemming. Ranges point to the original text so callers
+    /// can highlight the occurrences that made a search match.
     #[must_use]
     pub fn matching_spans(&self, input: &str, terms: &[String]) -> Vec<(usize, usize)> {
         if terms.is_empty() {
@@ -291,9 +298,12 @@ impl AnalyzerConfig {
                 (None, false) => token_start = Some(index),
                 (Some(start), true) => {
                     token_start = None;
-                    let token =
-                        self.canonical_term(stem_token(stemmer.as_ref(), &folded[start..index]));
-                    if terms.contains(&token) {
+                    let raw = &folded[start..index];
+                    if self.is_stop_word(raw) {
+                        continue;
+                    }
+                    let term = self.canonical_term(stem_token(stemmer.as_ref(), raw));
+                    if terms.contains(&term) {
                         let span = (origins[start].0, origins[index - 1].1);
                         if spans.last().is_none_or(|last| span.0 >= last.1) {
                             spans.push(span);
@@ -312,7 +322,6 @@ impl AnalyzerConfig {
     #[must_use]
     pub fn token_occurrences(&self, input: &str) -> Vec<TokenOccurrence> {
         let (folded, origins) = self.fold_with_origins(input);
-        let stop_words = crate::tokenizer::stop_words();
         let stemmer = self.stemmer();
         let mut occurrences = Vec::new();
         let mut position = 0u32;
@@ -328,7 +337,7 @@ impl AnalyzerConfig {
                 (Some(start), true) => {
                     token_start = None;
                     let raw = &folded[start..index];
-                    if self.stop_words != "english" || !stop_words.contains(raw) {
+                    if !self.is_stop_word(raw) {
                         occurrences.push(TokenOccurrence {
                             position,
                             term: self.canonical_term(stem_token(stemmer.as_ref(), raw)),

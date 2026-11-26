@@ -6,22 +6,12 @@ use crate::sql::ast::{
     SelectStatement,
 };
 use std::collections::HashSet;
+#[path = "fulltext_fields.rs"]
+mod fulltext_fields;
+pub(super) use fulltext_fields::SearchFields;
+
 pub(super) fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
-    let mut fields = HashSet::new();
-
-    if let Some(filter) = &plan.filter {
-        collect_fulltext_fields_from_expr(filter, &mut fields);
-    }
-
-    for order in &plan.order {
-        collect_fulltext_fields_from_expr(&order.expr, &mut fields);
-    }
-
-    for item in &plan.projection {
-        collect_fulltext_fields_from_select_item(item, &mut fields);
-    }
-
-    fields
+    SearchFields::for_plan(plan, &[]).scored
 }
 
 pub(crate) fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> bool {
@@ -732,90 +722,6 @@ fn function_uses_function(function: &crate::sql::ast::FunctionCall, function_nam
         || function
             .expressions()
             .any(|expr| expr_uses_function(expr, function_name))
-}
-
-fn collect_fulltext_fields_from_select_item(
-    item: &crate::sql::ast::SelectItem,
-    fields: &mut HashSet<String>,
-) {
-    match item {
-        SelectItem::Function { function, .. } => {
-            collect_fulltext_fields_from_function(function, fields);
-        }
-        SelectItem::WindowFunction { function, .. } => {
-            for expression in function
-                .args
-                .iter()
-                .chain(function.filter.as_deref())
-                .chain(&function.partition_by)
-                .chain(function.order_by.iter().map(|order| &order.expr))
-            {
-                collect_fulltext_fields_from_expr(expression, fields);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut HashSet<String>) {
-    match expr {
-        crate::sql::ast::Expr::RowCompare(comparison) => {
-            for field in comparison.left.iter().chain(&comparison.right) {
-                collect_fulltext_fields_from_expr(field, fields);
-            }
-        }
-        crate::sql::ast::Expr::Binary { left, right, .. } => {
-            collect_fulltext_fields_from_expr(left, fields);
-            collect_fulltext_fields_from_expr(right, fields);
-        }
-        crate::sql::ast::Expr::Function(function) => {
-            collect_fulltext_fields_from_function(function, fields);
-        }
-        crate::sql::ast::Expr::IsNull { expr, .. }
-        | crate::sql::ast::Expr::TruthTest { expr, .. }
-        | crate::sql::ast::Expr::Cast { expr, .. }
-        | crate::sql::ast::Expr::Collate { expr, .. }
-        | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
-        | crate::sql::ast::Expr::IntegerNegate { expr, .. } => {
-            collect_fulltext_fields_from_expr(expr, fields);
-        }
-        crate::sql::ast::Expr::InList { expr, values, .. } => {
-            collect_fulltext_fields_from_expr(expr, fields);
-            for value in values {
-                collect_fulltext_fields_from_expr(value, fields);
-            }
-        }
-        crate::sql::ast::Expr::Between {
-            expr, low, high, ..
-        }
-        | crate::sql::ast::Expr::Like {
-            expr,
-            pattern: low,
-            escape: high,
-            ..
-        } => {
-            collect_fulltext_fields_from_expr(expr, fields);
-            collect_fulltext_fields_from_expr(low, fields);
-            collect_fulltext_fields_from_expr(high, fields);
-        }
-        _ => {}
-    }
-}
-
-fn collect_fulltext_fields_from_function(
-    function: &crate::sql::ast::FunctionCall,
-    fields: &mut HashSet<String>,
-) {
-    let name = function.name.to_ascii_lowercase();
-    if matches!(name.as_str(), "search" | "search_score") {
-        if let Some(crate::sql::ast::Expr::Column(field)) = function.args.first() {
-            fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
-        }
-    }
-
-    for arg in function.expressions() {
-        collect_fulltext_fields_from_expr(arg, fields);
-    }
 }
 
 pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan {

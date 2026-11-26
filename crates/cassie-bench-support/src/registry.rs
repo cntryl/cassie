@@ -155,9 +155,7 @@ pub fn registered_targets() -> Vec<Target> {
 fn package_for_target(target: &str) -> &'static str {
     match target {
         "tier1_hotpath_request_controls" => "cassie-core",
-        "tier1_hotpath_local_embedding" | "tier2_subsystem_local_embeddings" => {
-            "cassie-embeddings"
-        }
+        "tier1_hotpath_local_embedding" | "tier2_subsystem_local_embeddings" => "cassie-embeddings",
         "tier1_hotpath_search_vector" | "tier1_hotpath_bm25" | "tier2_subsystem_search" => {
             "cassie-search"
         }

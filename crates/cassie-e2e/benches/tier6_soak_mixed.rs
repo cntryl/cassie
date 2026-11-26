@@ -66,9 +66,9 @@ fn main() {
             )
             .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
             .runtime_evidence({
-            let evidence_cassie = context.cassie.clone();
-            move || evidence_cassie.metrics()
-        });
+                let evidence_cassie = context.cassie.clone();
+                move || evidence_cassie.metrics()
+            });
         runner.measure_batch(case, 1, || {
             let current = nonce.get();
             nonce.set(current.wrapping_add(1));

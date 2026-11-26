@@ -1,4 +1,4 @@
-//! Opt-in embedding workload machinery for #1365 (workstation only, never CI).
+//! Embedding workload fixtures shared by local runs and the Linux arm64 product benchmark.
 //!
 //! The pure modules (manifest, vector files, ground truth, statistics) are shared
 //! with the network-free tests in `tests/vector_embeddings`. The Cassie runner and

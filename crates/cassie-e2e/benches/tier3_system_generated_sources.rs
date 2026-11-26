@@ -9,15 +9,14 @@ const ROWS: usize = 100_000;
 
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
-    let case = stress::StressCase::new("generated_source_filtered_limit", "100k")
-        .runtime_contract(
-            stress::FixtureDeclaration::new(
-                performance_benchmarks::FixtureClass::Representative,
-                ROWS,
-                "tier3_system_generated_sources/100k",
-            ),
-            stress::OperationUnit::Query,
-        );
+    let case = stress::StressCase::new("generated_source_filtered_limit", "100k").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Representative,
+            ROWS,
+            "tier3_system_generated_sources/100k",
+        ),
+        stress::OperationUnit::Query,
+    );
     if !runner.is_enabled(&case) {
         runner.finish();
         return;
@@ -25,8 +24,7 @@ fn main() {
 
     let setup_started = Instant::now();
     let mut config = CassieRuntimeConfig::from_env().expect("generated-source benchmark config");
-    config.limits.execution_result_cache_enabled =
-        ExecutionResultCacheEnabled::disabled();
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     let cassie = Cassie::new_in_memory_with_config(config)
         .expect("generated-source benchmark memory fixture");
     cassie
@@ -43,7 +41,11 @@ fn main() {
         .step_by(2)
         .map(|value| vec![Value::Int64(value)])
         .collect::<Vec<_>>();
-    assert_eq!(preflight.rows(), expected, "generated-source preflight rows");
+    assert_eq!(
+        preflight.rows(),
+        expected,
+        "generated-source preflight rows"
+    );
     let plan = cassie
         .execute_sql(&session, &format!("EXPLAIN {sql}"), vec![])
         .expect("generated-source EXPLAIN preflight");

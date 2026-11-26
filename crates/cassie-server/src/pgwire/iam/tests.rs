@@ -443,3 +443,6 @@ fn should_never_challenge_for_credentials_on_invalid_iam_transport_configuration
 
 #[path = "rotation_tests.rs"]
 mod rotation_tests;
+
+#[path = "portal_tests.rs"]
+mod portal_tests;

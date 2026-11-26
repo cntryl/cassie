@@ -16,13 +16,13 @@ use crate::pgwire::iam::{client_builder, FixtureClock, Verifier};
 
 const GUARD: Duration = Duration::from_secs(10);
 
-enum Reply {
+pub(super) enum Reply {
     Body(Vec<u8>),
     Hold,
 }
 
-struct IssuerFixture {
-    verifier: Verifier,
+pub(super) struct IssuerFixture {
+    pub(super) verifier: Arc<Verifier>,
     clock: Arc<FixtureClock>,
     requests: Arc<AtomicUsize>,
     server: tokio::task::JoinHandle<()>,
@@ -35,7 +35,7 @@ impl Drop for IssuerFixture {
 }
 
 impl IssuerFixture {
-    async fn start(responses: Vec<Reply>) -> Self {
+    pub(super) async fn start(responses: Vec<Reply>) -> Self {
         let host = ISSUER.strip_prefix("https://").unwrap();
         let identity = rcgen::generate_simple_self_signed(vec![host.to_owned()]).unwrap();
         let private = rustls::pki_types::PrivateKeyDer::Pkcs8(
@@ -96,23 +96,23 @@ impl IssuerFixture {
             .unwrap();
         let clock = Arc::new(FixtureClock::new(NOW));
         Self {
-            verifier: Verifier {
+            verifier: Arc::new(Verifier {
                 trust: trust(),
                 client,
                 fixture_clock: Some(Arc::clone(&clock)),
-            },
+            }),
             clock,
             requests,
             server,
         }
     }
 
-    fn requests(&self) -> usize {
+    pub(super) fn requests(&self) -> usize {
         self.requests.load(Ordering::SeqCst)
     }
 }
 
-fn response(keys: &[Value]) -> Reply {
+pub(super) fn response(keys: &[Value]) -> Reply {
     Reply::Body(serde_json::to_vec(&json!({"keys": keys})).unwrap())
 }
 

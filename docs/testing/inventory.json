@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11771,
+    "rust_test_declarations": 11775,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11796,
+    "registered_rust_instances": 11800,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -248022,8 +248022,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_highlight_accent_folded_matches_in_snippet",
       "name": "should_highlight_accent_folded_matches_in_snippet",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 113,
-      "end_line": 148,
+      "line": 115,
+      "end_line": 150,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248053,8 +248053,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_find_decomposed_accent_word_given_accent_folding",
       "name": "should_find_decomposed_accent_word_given_accent_folding",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 151,
-      "end_line": 180,
+      "line": 153,
+      "end_line": 182,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248084,8 +248084,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding",
       "name": "should_match_dotted_capital_i_in_simple_fulltext_index_without_accent_folding",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 183,
-      "end_line": 216,
+      "line": 185,
+      "end_line": 218,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248115,8 +248115,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
       "name": "should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 219,
-      "end_line": 252,
+      "line": 221,
+      "end_line": 254,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248146,8 +248146,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_not_highlight_case_mismatch_when_case_folding_is_disabled",
       "name": "should_not_highlight_case_mismatch_when_case_folding_is_disabled",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 255,
-      "end_line": 285,
+      "line": 257,
+      "end_line": 287,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248177,8 +248177,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_keep_fulltext_scores_stable_after_filtered_hybrid_query",
       "name": "should_keep_fulltext_scores_stable_after_filtered_hybrid_query",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 288,
-      "end_line": 315,
+      "line": 290,
+      "end_line": 317,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248208,8 +248208,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_score_hybrid_candidates_with_full_indexed_corpus_statistics",
       "name": "should_score_hybrid_candidates_with_full_indexed_corpus_statistics",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 318,
-      "end_line": 383,
+      "line": 320,
+      "end_line": 385,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248239,8 +248239,8 @@
       "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates",
       "name": "should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates",
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
-      "line": 386,
-      "end_line": 460,
+      "line": 388,
+      "end_line": 462,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -248249,6 +248249,37 @@
         {
           "suite": "search",
           "name": "fulltext_analyzer_consistency::should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_analyzer_consistency.rs::should_keep_decomposed_marks_inside_accent_folded_phrase_highlights",
+      "name": "should_keep_decomposed_marks_inside_accent_folded_phrase_highlights",
+      "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
+      "line": 465,
+      "end_line": 536,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_analyzer_consistency::should_keep_decomposed_marks_inside_accent_folded_phrase_highlights"
         }
       ],
       "attributes": [
@@ -249135,11 +249166,42 @@
       }
     },
     {
+      "id": "tests/search/retrieval/fulltext_query_paths.rs::should_expand_qualified_snippets_against_their_own_join_column",
+      "name": "should_expand_qualified_snippets_against_their_own_join_column",
+      "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
+      "line": 31,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_query_paths::should_expand_qualified_snippets_against_their_own_join_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_query_paths.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution",
       "name": "should_agree_across_punctuation_null_with_unicode_given_indexed_and_authoritative_execution",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 31,
-      "end_line": 75,
+      "line": 55,
+      "end_line": 99,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249169,8 +249231,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_agree_inside_an_open_transaction_using_the_index_again_after_it",
       "name": "should_agree_inside_an_open_transaction_using_the_index_again_after_it",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 78,
-      "end_line": 135,
+      "line": 102,
+      "end_line": 159,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249200,8 +249262,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_see_committed_updates_through_both_executions",
       "name": "should_see_committed_updates_through_both_executions",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 138,
-      "end_line": 157,
+      "line": 162,
+      "end_line": 181,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249231,8 +249293,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execution",
       "name": "should_return_the_program_limit_error_for_an_excessive_prefix_on_every_execution",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 217,
-      "end_line": 249,
+      "line": 241,
+      "end_line": 281,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249262,8 +249324,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_for_an_excessive_typo_on_every_execution",
       "name": "should_return_the_program_limit_error_for_an_excessive_typo_on_every_execution",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 252,
-      "end_line": 288,
+      "line": 284,
+      "end_line": 328,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249293,8 +249355,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_return_the_program_limit_error_when_the_query_expands_past_the_total_limit",
       "name": "should_return_the_program_limit_error_when_the_query_expands_past_the_total_limit",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 291,
-      "end_line": 323,
+      "line": 331,
+      "end_line": 363,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249324,8 +249386,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_distinguish_opposite_token_orders_after_reopening_a_disk_backed_store",
       "name": "should_distinguish_opposite_token_orders_after_reopening_a_disk_backed_store",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 326,
-      "end_line": 411,
+      "line": 366,
+      "end_line": 451,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -249355,8 +249417,8 @@
       "id": "tests/search/retrieval/fulltext_query_paths.rs::should_reject_a_query_error_without_breaking_the_session",
       "name": "should_reject_a_query_error_without_breaking_the_session",
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
-      "line": 414,
-      "end_line": 438,
+      "line": 454,
+      "end_line": 478,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -250037,8 +250099,8 @@
       "id": "tests/search/retrieval/fulltext_score_bounds.rs::should_return_finite_score_for_the_largest_k1",
       "name": "should_return_finite_score_for_the_largest_k1",
       "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
-      "line": 31,
-      "end_line": 44,
+      "line": 32,
+      "end_line": 45,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -250068,8 +250130,8 @@
       "id": "tests/search/retrieval/fulltext_score_bounds.rs::should_return_finite_score_for_the_largest_boost",
       "name": "should_return_finite_score_for_the_largest_boost",
       "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
-      "line": 47,
-      "end_line": 60,
+      "line": 48,
+      "end_line": 61,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -250078,6 +250140,37 @@
         {
           "suite": "search",
           "name": "fulltext_score_bounds::should_return_finite_score_for_the_largest_boost"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_score_bounds.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_score_bounds.rs::should_floor_sparse_corpus_bm25_normalization_until_average_exceeds_one",
+      "name": "should_floor_sparse_corpus_bm25_normalization_until_average_exceeds_one",
+      "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
+      "line": 64,
+      "end_line": 135,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_score_bounds::should_floor_sparse_corpus_bm25_normalization_until_average_exceeds_one"
         }
       ],
       "attributes": [
@@ -250419,6 +250512,37 @@
         {
           "suite": "search",
           "name": "fulltext_stop_word_defaults::should_restore_analyzer_default_stop_words_after_reset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "search",
+        "category": "retrieval",
+        "directory": "tests/search/retrieval",
+        "file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/search/retrieval/fulltext_stop_word_defaults.rs::should_filter_stop_words_before_stemming_snippet_tokens",
+      "name": "should_filter_stop_words_before_stemming_snippet_tokens",
+      "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
+      "line": 125,
+      "end_line": 151,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "search",
+          "name": "fulltext_stop_word_defaults::should_filter_stop_words_before_stemming_snippet_tokens"
         }
       ],
       "attributes": [
@@ -385625,9 +385749,9 @@
       "current_file": "tests/search/retrieval/fulltext_analyzer_consistency.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 460,
-      "sha256": "d3549ef0f64fb6fc51473d5bed630fd41db354094155c4557fb084f1e475c79e",
-      "test_declarations": 8,
+      "lines": 536,
+      "sha256": "29f87168098ade73470d0aab1d590e6c338e5f5e8127aecc5dea38412d7ba239",
+      "test_declarations": 9,
       "registered_suites": [
         "search"
       ],
@@ -385700,9 +385824,9 @@
       "current_file": "tests/search/retrieval/fulltext_query_paths.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 438,
-      "sha256": "78f80b6152693ad498f57699fb181914f1f7685bb616c7ba6f716b5aa66d6853",
-      "test_declarations": 8,
+      "lines": 478,
+      "sha256": "8776536880946998527faa147921125995889f5e5302a08c8238387944bbd1c3",
+      "test_declarations": 9,
       "registered_suites": [
         "search"
       ],
@@ -385760,9 +385884,9 @@
       "current_file": "tests/search/retrieval/fulltext_score_bounds.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 60,
-      "sha256": "011f0bbb9bfb592ddd181a5650d22d3a307f9077014c962fef86e65f0c8a8f1a",
-      "test_declarations": 2,
+      "lines": 135,
+      "sha256": "579eea62965c3426e96c57da2ec21e29f7aabf787f0edc00107148a1917d20ac",
+      "test_declarations": 3,
       "registered_suites": [
         "search"
       ],
@@ -385790,9 +385914,9 @@
       "current_file": "tests/search/retrieval/fulltext_stop_word_defaults.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 122,
-      "sha256": "00a1a7bea310927a28cfcdaaf66a935123cf37102d528879d2dcc2eb991cc04d",
-      "test_declarations": 5,
+      "lines": 151,
+      "sha256": "18eadf9bf9846e3463c27aee064ca9e2df2a9175fedae79dd10a54cea7b5ccd0",
+      "test_declarations": 6,
       "registered_suites": [
         "search"
       ],

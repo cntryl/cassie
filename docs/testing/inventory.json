@@ -367269,7 +367269,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 246,
-      "sha256": "75351fb70c1960e2e9a0ed4c2e24d483ab7cd97c812e33c36346ed0d740a3409",
+      "sha256": "1bd4668d7dd15ebf9339e94b5657a52c489f61f47e0b735aaa2184a05b1f030e",
       "test_declarations": 7,
       "registered_suites": [
         "bench_diagnostics"

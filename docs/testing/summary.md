@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1914 |
 | Rust files | 1871 |
-| Rust test declarations | 11763 |
+| Rust test declarations | 11766 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 11788 |
+| Static Rust registration instances | 11791 |
 | Cargo test targets | 44 |
 | Reconciled backfill names | 117 |
 | Unregistered Rust declarations | 0 |
@@ -32,7 +32,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 652 | 0 |
 | [columnar_surface](inventory/columnar_surface.md) | 89 | 0 |
-| [compatibility](inventory/compatibility.md) | 528 | 0 |
+| [compatibility](inventory/compatibility.md) | 530 | 0 |
 | [composite_types](inventory/composite_types.md) | 234 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 19 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
@@ -54,7 +54,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
 | [pgwire_extended](inventory/pgwire_extended.md) | 996 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1241 | 8 |
-| [pgwire_types](inventory/pgwire_types.md) | 1250 | 0 |
+| [pgwire_types](inventory/pgwire_types.md) | 1251 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 143 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 56 | 3 |
 | [relational_qualification](inventory/relational_qualification.md) | 77 | 0 |

@@ -182,9 +182,9 @@
     ],
     "files": 1914,
     "rust_files": 1871,
-    "rust_test_declarations": 11763,
+    "rust_test_declarations": 11766,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11788,
+    "registered_rust_instances": 11791,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -34902,6 +34902,68 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::copy_forms::text_format::should_import_escaped_tab_row_before_end_marker"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/copy",
+        "directory": "tests/compatibility/lifecycle/copy",
+        "file": "tests/compatibility/lifecycle/copy/text_format.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/copy/text_format.rs::should_reject_mixed_text_copy_record_endings_before_applying_rows",
+      "name": "should_reject_mixed_text_copy_record_endings_before_applying_rows",
+      "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
+      "line": 232,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::copy_forms::text_format::should_reject_mixed_text_copy_record_endings_before_applying_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/copy",
+        "directory": "tests/compatibility/lifecycle/copy",
+        "file": "tests/compatibility/lifecycle/copy/text_format.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/copy/text_format.rs::should_validate_text_copy_encoding_only_through_the_end_marker",
+      "name": "should_validate_text_copy_encoding_only_through_the_end_marker",
+      "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
+      "line": 283,
+      "end_line": 330,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::copy_forms::text_format::should_validate_text_copy_encoding_only_through_the_end_marker"
         }
       ],
       "attributes": [
@@ -232271,6 +232333,37 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/real/real_wire.rs::should_preserve_nonfinite_real_parameter_bits_in_binary_results",
+      "name": "should_preserve_nonfinite_real_parameter_bits_in_binary_results",
+      "current_file": "tests/pgwire_extended/types/real/real_wire.rs",
+      "line": 33,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_types",
+          "name": "pgwire_type_real_wire::should_preserve_nonfinite_real_parameter_bits_in_binary_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_types",
+        "category": "types/real",
+        "directory": "tests/pgwire_extended/types/real",
+        "file": "tests/pgwire_extended/types/real/real_wire.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/review_diagnostics.rs::should_emit_base64_hint_given_truncated_stored_text_when_execute_fails_and_sync_recovers",
       "name": "should_emit_base64_hint_given_truncated_stored_text_when_execute_fails_and_sync_recovers",
       "current_file": "tests/pgwire_extended/types/review_diagnostics.rs",
@@ -368951,9 +369044,9 @@
       "current_file": "tests/compatibility/lifecycle/copy/text_format.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 229,
-      "sha256": "8a20ba4da983067697e67b911ed5ef2bda626b163223e66a2af50b0ebfacd061",
-      "test_declarations": 5,
+      "lines": 330,
+      "sha256": "c11e8957aac240cd9730f1e3e6196ffbdbeb4d9395edb0b6e40451c16be13f60",
+      "test_declarations": 7,
       "registered_suites": [
         "compatibility"
       ],
@@ -383773,9 +383866,9 @@
       "current_file": "tests/pgwire_extended/types/real/real_wire.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 30,
-      "sha256": "26d7d4fcf71d2c1b19f295c88e25833a6f6e9a7b37aee40498813fac41b4a1fd",
-      "test_declarations": 1,
+      "lines": 66,
+      "sha256": "fe526dbade4f229eeda25dd2cf18da7c9a801431956816a7b55c4350bff5a0c5",
+      "test_declarations": 2,
       "registered_suites": [
         "pgwire_types"
       ],

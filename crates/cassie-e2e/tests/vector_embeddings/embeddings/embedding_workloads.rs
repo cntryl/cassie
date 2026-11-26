@@ -22,7 +22,7 @@ fn should_select_exactly_one_product_vector_configuration() {
     let selectors = ["exact", "hnsw-1", "hnsw-2", "ivfflat-1", "ivfflat-2"];
 
     // Act
-    let selected = selectors.map(|value| product_selection::configuration(value));
+    let selected = selectors.map(product_selection::configuration);
 
     // Assert
     assert_eq!(

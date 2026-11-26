@@ -3,6 +3,7 @@ mod product;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+use std::cmp::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -128,8 +129,7 @@ fn run_window(profile: product::ProductProfile, window: usize) -> WindowReport {
         .cassie
         .catalog
         .get_schema(TABLE)
-        .map(|schema| schema.collection)
-        .unwrap_or_else(|| TABLE.to_owned());
+        .map_or_else(|| TABLE.to_owned(), |schema| schema.collection);
     seed_documents(&context, &collection, profile.seeded_rows);
 
     let fixture = runtime.block_on(PgwireFixture::start(Arc::clone(&context.cassie)));
@@ -307,11 +307,12 @@ async fn run_readers(
                 for row in &rows {
                     let id: i32 = row.get(0);
                     let score: f64 = row.get(1);
+                    let order = score.partial_cmp(&previous_score);
                     assert!(
-                        score <= previous_score,
+                        matches!(order, Some(Ordering::Less | Ordering::Equal)),
                         "full-text result scores are descending"
                     );
-                    if score == previous_score {
+                    if order == Some(Ordering::Equal) {
                         assert!(id >= previous_id, "ties are ordered by id");
                     }
                     previous_score = score;

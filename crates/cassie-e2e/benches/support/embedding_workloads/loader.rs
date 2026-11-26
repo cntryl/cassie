@@ -179,7 +179,6 @@ impl Workload {
     }
 
     /// Query indexes of a split, capped at `limit` when given.
-    #[must_use]
     pub fn split_queries(
         &self,
         split: &str,

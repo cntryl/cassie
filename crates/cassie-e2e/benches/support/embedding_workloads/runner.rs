@@ -664,6 +664,93 @@ fn run_configuration(
     Ok(rows)
 }
 
+fn run_metric(
+    manifest: &Manifest,
+    workload: &Workload,
+    options: &RunOptions,
+    base: &Path,
+    metric: Metric,
+    query_sets: &[(String, Vec<usize>)],
+) -> Result<(Vec<Json>, f64), String> {
+    let k = manifest.ground_truth.k;
+    let started = Instant::now();
+    let mut truths = TruthMap::new();
+    for (filter, selectivity) in FILTERS {
+        let subset = selectivity.map(|s| workload.tenant_subset(s));
+        for (split, queries) in query_sets {
+            truths.insert(
+                format!("{filter}:{split}"),
+                workload.truths(
+                    metric,
+                    &format!("{filter}-{split}"),
+                    subset.as_deref(),
+                    queries,
+                    k,
+                )?,
+            );
+        }
+    }
+    let truth_seconds = started.elapsed().as_secs_f64();
+    let mut rows = Vec::new();
+    let plans = index_plans(
+        workload.document_ids.len(),
+        options.tuning_points,
+        &manifest.index_tuning,
+        options.sweep,
+    );
+    if !options.recall_only
+        && match options.product_configuration {
+            Some(Configuration::Exact) => true,
+            Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_)) => false,
+            None => options.algorithms.iter().any(|name| name == "exact"),
+        }
+    {
+        rows.extend(run_configuration(
+            workload, options, base, metric, None, &truths, query_sets,
+        )?);
+    }
+    let selected_plans: Vec<IndexPlan> = match options.product_configuration {
+        Some(Configuration::Exact) => Vec::new(),
+        Some(Configuration::Hnsw(point)) => plans
+            .iter()
+            .filter(|plan| plan.algorithm == "hnsw")
+            .nth(point)
+            .cloned()
+            .into_iter()
+            .collect(),
+        Some(Configuration::Ivfflat(point)) => plans
+            .iter()
+            .filter(|plan| plan.algorithm == "ivfflat")
+            .nth(point)
+            .cloned()
+            .into_iter()
+            .collect(),
+        None => plans
+            .into_iter()
+            .filter(|plan| options.algorithms.iter().any(|name| name == plan.algorithm))
+            .collect(),
+    };
+    if matches!(
+        options.product_configuration,
+        Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_))
+    ) && selected_plans.is_empty()
+    {
+        return Err("selected product vector tuning point is absent from the manifest".to_string());
+    }
+    for plan in &selected_plans {
+        rows.extend(run_configuration(
+            workload,
+            options,
+            base,
+            metric,
+            Some(plan),
+            &truths,
+            query_sets,
+        )?);
+    }
+    Ok((rows, truth_seconds))
+}
+
 /// Runs every configuration for one verified workload and returns the result document.
 ///
 /// # Errors
@@ -675,7 +762,6 @@ pub fn run_workload(
     options: &RunOptions,
 ) -> Result<Json, String> {
     std::fs::create_dir_all(&options.work_dir).map_err(|error| error.to_string())?;
-    let k = manifest.ground_truth.k;
     let query_sets: Vec<(String, Vec<usize>)> = SPLITS
         .iter()
         .filter(|split| options.splits.iter().any(|chosen| chosen == *split))
@@ -699,88 +785,10 @@ pub fn run_workload(
         } else {
             Metric::L2
         };
-        let started = Instant::now();
-        let mut truths = TruthMap::new();
-        for (filter, selectivity) in FILTERS {
-            let subset = selectivity.map(|s| workload.tenant_subset(s));
-            for (split, queries) in &query_sets {
-                truths.insert(
-                    format!("{filter}:{split}"),
-                    workload.truths(
-                        metric,
-                        &format!("{filter}-{split}"),
-                        subset.as_deref(),
-                        queries,
-                        k,
-                    )?,
-                );
-            }
-        }
-        truth_seconds += started.elapsed().as_secs_f64();
-        let plans = index_plans(
-            workload.document_ids.len(),
-            options.tuning_points,
-            &manifest.index_tuning,
-            options.sweep,
-        );
-        if !options.recall_only
-            && match options.product_configuration {
-                Some(Configuration::Exact) => true,
-                Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_)) => false,
-                None => options.algorithms.iter().any(|name| name == "exact"),
-            }
-        {
-            rows.extend(run_configuration(
-                workload,
-                options,
-                &base,
-                metric,
-                None,
-                &truths,
-                &query_sets,
-            )?);
-        }
-        let selected_plans: Vec<IndexPlan> = match options.product_configuration {
-            Some(Configuration::Exact) => Vec::new(),
-            Some(Configuration::Hnsw(point)) => plans
-                .iter()
-                .filter(|plan| plan.algorithm == "hnsw")
-                .nth(point)
-                .cloned()
-                .into_iter()
-                .collect(),
-            Some(Configuration::Ivfflat(point)) => plans
-                .iter()
-                .filter(|plan| plan.algorithm == "ivfflat")
-                .nth(point)
-                .cloned()
-                .into_iter()
-                .collect(),
-            None => plans
-                .into_iter()
-                .filter(|plan| options.algorithms.iter().any(|name| name == plan.algorithm))
-                .collect(),
-        };
-        if matches!(
-            options.product_configuration,
-            Some(Configuration::Hnsw(_) | Configuration::Ivfflat(_))
-        ) && selected_plans.is_empty()
-        {
-            return Err(
-                "selected product vector tuning point is absent from the manifest".to_string(),
-            );
-        }
-        for plan in &selected_plans {
-            rows.extend(run_configuration(
-                workload,
-                options,
-                &base,
-                metric,
-                Some(plan),
-                &truths,
-                &query_sets,
-            )?);
-        }
+        let (metric_rows, metric_truth_seconds) =
+            run_metric(manifest, workload, options, &base, metric, &query_sets)?;
+        truth_seconds += metric_truth_seconds;
+        rows.extend(metric_rows);
     }
     let _ = std::fs::remove_dir_all(&base);
     Ok(json!({

@@ -115,9 +115,10 @@ pub fn write_report(
     kind: RunKind,
     report: &ScenarioReport,
 ) -> PathBuf {
-    let directory = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("target/time-series-mixed-1350"));
+    let directory = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR").map_or_else(
+        || PathBuf::from("target/time-series-mixed-1350"),
+        PathBuf::from,
+    );
     std::fs::create_dir_all(&directory).expect("create raw mixed-workload evidence directory");
     let id = uuid::Uuid::new_v4();
     let path = directory.join(format!(

@@ -578,6 +578,16 @@ struct MeasuredWindow {
     after: WindowCounters,
 }
 
+impl MeasuredWindow {
+    fn checked_writer_counts(&self, offered: u64, acknowledged: u64) -> (u64, u64, u64) {
+        let window_scheduled = self.after.scheduled - self.before.scheduled;
+        let window_offered = self.after.offered - self.before.offered;
+        let window_acknowledged = self.after.acknowledged - self.before.acknowledged;
+        should_bound_window_counters(window_offered, window_acknowledged, offered, acknowledged);
+        (window_scheduled, window_offered, window_acknowledged)
+    }
+}
+
 #[derive(Default)]
 struct ScenarioOutcome {
     measured_elapsed: Duration,
@@ -815,15 +825,8 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
     let acknowledged_events = shared.acknowledged_events.load(Ordering::Acquire);
     let scheduled_events = shared.scheduled_events.load(Ordering::Acquire);
     let window = &outcome.window;
-    let window_scheduled_events = window.after.scheduled - window.before.scheduled;
-    let window_offered_events = window.after.offered - window.before.offered;
-    let window_acknowledged_events = window.after.acknowledged - window.before.acknowledged;
-    should_bound_window_counters(
-        window_offered_events,
-        window_acknowledged_events,
-        offered_events,
-        acknowledged_events,
-    );
+    let (window_scheduled_events, window_offered_events, window_acknowledged_events) =
+        window.checked_writer_counts(offered_events, acknowledged_events);
     let samples = shared.samples.lock().expect("sample vector mutex").clone();
     let latencies = capture_window_latencies(shared, window);
     let backlog_stable = backlog_is_stable(kind, backlog_events_at_window_end, &samples);

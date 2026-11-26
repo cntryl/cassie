@@ -279,7 +279,6 @@ pub fn run_fixed_rate(
     duration: Duration,
     mut write: impl FnMut(u64) -> Result<(), String>,
 ) -> FixedRateReport {
-    assert!(rate_per_second > 0, "fixed rate must be positive");
     enum Message {
         Work(u64),
         Boundary {
@@ -288,6 +287,7 @@ pub fn run_fixed_rate(
             acknowledged: u64,
         },
     }
+    assert!(rate_per_second > 0, "fixed rate must be positive");
     let (sender, receiver) = mpsc::channel();
     let acknowledged = Arc::new(AtomicU64::new(0));
     let producer_acknowledged = Arc::clone(&acknowledged);

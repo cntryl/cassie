@@ -46,16 +46,6 @@ impl Target {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TargetSelection {
-    #[serde(default)]
-    pub tiers: Vec<BenchmarkTier>,
-    #[serde(default)]
-    pub categories: Vec<RunCategory>,
-    #[serde(default)]
-    pub targets: Vec<String>,
-}
-
 #[derive(Debug, Deserialize)]
 struct CargoMetadata {
     packages: Vec<CargoPackage>,
@@ -145,19 +135,6 @@ fn category_for_target(target: &str) -> RunCategory {
         }
         _ => RunCategory::Timed,
     }
-}
-
-#[must_use]
-pub fn select_targets<'a>(targets: &'a [Target], selection: &TargetSelection) -> Vec<&'a Target> {
-    targets
-        .iter()
-        .filter(|target| {
-            (selection.tiers.is_empty() || selection.tiers.contains(&target.tier))
-                && (selection.categories.is_empty()
-                    || selection.categories.contains(&target.category))
-                && (selection.targets.is_empty() || selection.targets.contains(&target.target))
-        })
-        .collect()
 }
 
 /// Checks exact package, target-kind, and feature placement against `cargo metadata --no-deps`.
@@ -266,3 +243,7 @@ pub fn validate_scenario_registry(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "registry_tests.rs"]
+mod tests;

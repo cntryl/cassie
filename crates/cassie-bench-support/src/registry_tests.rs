@@ -1,52 +1,7 @@
-use cassie_bench_support::performance_benchmarks::benchmark_scenarios;
-use cassie_bench_support::registry::{
-    select_targets, validate_scenario_registry, BenchmarkTier, RunCategory, Target, TargetSelection,
+use super::{
+    validate_cargo_metadata, validate_scenario_registry, BenchmarkTier, RunCategory, Target,
 };
-
-#[test]
-fn should_select_only_registry_targets_in_the_requested_scope() {
-    // Arrange
-    let targets = [
-        Target::new(
-            "cassie-core",
-            "tier1_memory",
-            BenchmarkTier::Tier1,
-            RunCategory::Timed,
-            &[],
-        ),
-        Target::new(
-            "cassie-e2e",
-            "tier5_query",
-            BenchmarkTier::Tier5,
-            RunCategory::Timed,
-            &[],
-        ),
-        Target::new(
-            "cassie-e2e",
-            "relevance",
-            BenchmarkTier::Tier3,
-            RunCategory::Diagnostic,
-            &[],
-        ),
-    ];
-    let selection = TargetSelection {
-        tiers: vec![BenchmarkTier::Tier1, BenchmarkTier::Tier5],
-        categories: vec![RunCategory::Timed],
-        targets: vec!["tier5_query".to_owned()],
-    };
-
-    // Act
-    let selected = select_targets(&targets, &selection);
-
-    // Assert
-    assert_eq!(
-        selected
-            .iter()
-            .map(|target| target.target)
-            .collect::<Vec<_>>(),
-        ["tier5_query"]
-    );
-}
+use crate::performance_benchmarks::benchmark_scenarios;
 
 #[test]
 fn should_reject_wrong_tier_target_ownership() {
@@ -108,7 +63,7 @@ fn should_reject_target_registration_with_missing_cargo_target() {
     let metadata = r#"{"packages":[{"name":"cassie-core","targets":[]}]}"#;
 
     // Act
-    let result = cassie_bench_support::registry::validate_cargo_metadata(&targets, metadata);
+    let result = validate_cargo_metadata(&targets, metadata);
 
     // Assert
     assert!(result.unwrap_err().contains("missing"));
@@ -127,7 +82,7 @@ fn should_reject_cargo_feature_placement_mismatch() {
     let metadata = r#"{"packages":[{"name":"cassie-core","targets":[{"name":"tier1_memory","kind":["bench"],"required-features":[]}]}]}"#;
 
     // Act
-    let result = cassie_bench_support::registry::validate_cargo_metadata(&targets, metadata);
+    let result = validate_cargo_metadata(&targets, metadata);
 
     // Assert
     assert!(result.unwrap_err().contains("required features mismatch"));

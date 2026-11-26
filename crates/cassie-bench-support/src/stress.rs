@@ -227,20 +227,6 @@ impl CassieStressRunner {
             || resolved.tier_filter.is_some()
             || resolved.config.profile == RunProfile::Smoke;
         let mut runner = StressRunner::with_config(suite, resolved.config.clone());
-        for (environment_key, metadata_key) in [
-            ("CASSIE_BENCH_SOURCE_COMMIT", "source_commit"),
-            ("CASSIE_BENCH_TOOLCHAIN", "toolchain"),
-            ("CASSIE_BENCH_HOST_HARDWARE_CLASS", "host_hardware_class"),
-            ("CASSIE_BENCH_HOST_OS", "host_os"),
-            ("CASSIE_BENCH_HOST_ARCH", "host_architecture"),
-            ("CASSIE_BENCH_JOB_ID", "job_id"),
-        ] {
-            if let Ok(value) = std::env::var(environment_key) {
-                if !value.is_empty() {
-                    runner.metadata(metadata_key, value);
-                }
-            }
-        }
         runner.metadata("filtered_run", filtered_run);
         runner.metadata("owner_suite_complete", !filtered_run);
         runner.metadata("declared_tier", tier.number());

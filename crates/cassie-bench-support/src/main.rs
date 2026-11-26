@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-use cassie_bench_support::artifacts::validate_run_manifest_file;
+use cassie_bench_support::performance_benchmarks::validate_complete_benchmark_suite;
 use cassie_bench_support::registry::{registered_targets, validate_cargo_metadata};
 use serde_json::json;
 
@@ -21,7 +21,7 @@ fn run() -> Result<(), String> {
                 return Err(usage());
             }
             let output = Command::new("cargo")
-                .args(["metadata", "--no-deps", "--format-version", "1"])
+                .args(["metadata", "--locked", "--no-deps", "--format-version", "1"])
                 .output()
                 .map_err(|error| format!("cannot run cargo metadata: {error}"))?;
             if !output.status.success() {
@@ -42,11 +42,8 @@ fn run() -> Result<(), String> {
             if args.next().is_some() {
                 return Err(usage());
             }
-            let summary = validate_run_manifest_file(Path::new(&path))?;
-            println!(
-                "{}",
-                serde_json::to_string(&summary).map_err(|error| error.to_string())?
-            );
+            validate_complete_benchmark_suite(Path::new(&path))?;
+            println!("{}", json!({"ok": true}));
         }
         _ => return Err(usage()),
     }
@@ -54,7 +51,7 @@ fn run() -> Result<(), String> {
 }
 
 fn usage() -> String {
-    "usage: cassie-bench registry | check | validate <suite-run-manifest.json>".to_owned()
+    "usage: cassie-bench registry | check | validate <stress-output-directory>".to_owned()
 }
 
 fn main() -> ExitCode {

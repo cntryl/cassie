@@ -200,3 +200,101 @@ fn rows(batch: &TypedBatch) -> Vec<Vec<Value>> {
         })
         .collect()
 }
+
+#[test]
+fn should_retain_the_original_logical_selection_for_a_full_slice() {
+    // Arrange
+    let controls = super::controls();
+    let schema = [("n".to_owned(), DataType::BigInt)];
+    let values = [vec![Value::Int64(10), Value::Null, Value::Int64(30)]];
+    let positions = [2, 0, 2, 1];
+    let batch = TypedBatch::from_columns(&controls, &schema, &values, 3, Some(&positions))
+        .expect("nonmonotone selection with a repeated position");
+    let admitted = controls.current_query_memory_bytes();
+
+    // Act
+    let full = batch.slice(&controls, 0, batch.len()).expect("full slice");
+    let shared_bytes = controls.current_query_memory_bytes();
+    drop(batch);
+    let retained_bytes = controls.current_query_memory_bytes();
+    let selected_positions: [usize; 4] =
+        std::array::from_fn(|lane| full.position(lane).expect("logical lane"));
+    let selected_rows = rows(&full);
+    let selected_schema = full.schema().to_vec();
+    drop(full);
+
+    // Assert
+    assert!(admitted > 0);
+    assert_eq!(shared_bytes, admitted);
+    assert_eq!(retained_bytes, admitted);
+    assert_eq!(selected_schema, schema);
+    assert_eq!(selected_positions, positions);
+    assert_eq!(
+        selected_rows,
+        [
+            vec![Value::Int64(30)],
+            vec![Value::Int64(10)],
+            vec![Value::Int64(30)],
+            vec![Value::Null],
+        ],
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_slice_a_full_plain_batch_without_additional_admission() {
+    // Arrange
+    let controls = super::controls();
+    let schema = [("n".to_owned(), DataType::BigInt)];
+    let values = [vec![Value::Int64(10), Value::Null]];
+    let batch =
+        TypedBatch::from_columns(&controls, &schema, &values, 2, None).expect("plain batch");
+    let admitted = controls.current_query_memory_bytes();
+    let headroom = controls
+        .reserve_query_memory(controls.query_memory_budget_bytes - admitted)
+        .expect("reserve the remaining query budget");
+
+    // Act
+    let full = batch.slice(&controls, 0, batch.len());
+    drop(headroom);
+
+    // Assert
+    let full = full.expect("no additional budget needed for a full slice");
+    assert_eq!(rows(&full), [vec![Value::Int64(10)], vec![Value::Null]]);
+    assert_eq!(controls.current_query_memory_bytes(), admitted);
+}
+
+#[test]
+fn should_check_full_slice_cancellation_after_validating_bounds() {
+    // Arrange
+    use crate::app::CassieError;
+    use crate::config::CassieRuntimeLimits;
+    use crate::executor::QueryError;
+    use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+        cancellation.clone(),
+    );
+    let schema = [("n".to_owned(), DataType::BigInt)];
+    let batch = TypedBatch::from_columns(&controls, &schema, &[vec![Value::Null]], 1, None)
+        .expect("plain batch");
+
+    // Act
+    cancellation.cancel();
+    let valid_range = batch.slice(&controls, 0, batch.len());
+    let invalid_range = batch.slice(&controls, 1, batch.len());
+
+    // Assert
+    assert!(matches!(
+        valid_range,
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
+    ));
+    assert!(matches!(
+        invalid_range,
+        Err(QueryError::General(message))
+            if message == "invalid typed batch: batch slice is outside logical domain"
+    ));
+}

@@ -117,6 +117,10 @@ impl TypedBatch {
         if start.checked_add(len).is_none_or(|end| end > self.len()) {
             return Err(invalid("batch slice is outside logical domain"));
         }
+        if start == 0 && len == self.len() {
+            check_controls(controls)?;
+            return Ok(self.clone());
+        }
         if let Some(selection) = &self.selection {
             return Self::from_views(
                 controls,

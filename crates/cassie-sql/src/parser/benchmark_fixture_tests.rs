@@ -1,6 +1,7 @@
 use super::parse_statement;
 
-const PLANNING_SQL: &str = "SELECT id, title FROM bench_documents WHERE score >= $1 AND status = 'approved' ORDER BY id LIMIT 20";
+const PLANNING_SQL: &str =
+    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY id LIMIT 20";
 
 #[test]
 fn should_parse_the_declared_128_statement_fixture() {

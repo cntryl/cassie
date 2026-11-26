@@ -96,7 +96,7 @@ impl VectorFixture {
                 let component = f32::from(u16::try_from(index).expect("fixture index fits u16"))
                     / f32::from(u16::try_from(rows).expect("row count fits u16"));
                 NormalizedVectorRecord {
-                    collection: "bench".to_owned(),
+                    collection: "bench_documents".to_owned(),
                     field: "embedding".to_owned(),
                     id: format!("doc-{index}"),
                     built_generation: 0,

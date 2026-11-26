@@ -4,7 +4,8 @@ use cassie_bench_support::{performance_benchmarks, stress};
 use cassie_sql::parser::parse_statement;
 
 const PARSER_INVOCATIONS_PER_SAMPLE: usize = 8;
-const PLANNING_SQL: &str = "SELECT id, title FROM bench_documents WHERE score >= $1 AND status = 'approved' ORDER BY id LIMIT 20";
+const PLANNING_SQL: &str =
+    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY id LIMIT 20";
 
 fn main() {
     let mut runner = stress::runner(

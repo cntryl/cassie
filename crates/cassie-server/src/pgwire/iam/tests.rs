@@ -243,41 +243,39 @@ fn driver_config() -> tokio_postgres::Config {
     client
         .user(crate::config::AWS_IAM_PGWIRE_SELECTOR)
         .dbname("postgres")
-        // The caller has already negotiated and verified the TLS transport.
-        .ssl_mode(tokio_postgres::config::SslMode::Disable);
+        .ssl_mode(tokio_postgres::config::SslMode::Require);
     client
 }
 
-async fn connect_and_read_role(
+async fn connect_driver(
     address: std::net::SocketAddr,
     connector: &tokio_rustls::TlsConnector,
     credential: &str,
-) -> Result<String, tokio_postgres::Error> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
-    socket
-        .write_all(&[0, 0, 0, 8, 4, 210, 22, 47])
-        .await
-        .unwrap();
-    assert_eq!(socket.read_u8().await.unwrap(), b'S');
-    let socket = connector
-        .connect(
-            rustls::pki_types::ServerName::try_from("localhost").unwrap(),
-            socket,
-        )
-        .await
-        .expect("verify TLS server certificate and hostname");
+) -> Result<
+    (
+        tokio_postgres::Client,
+        tokio::task::JoinHandle<Result<(), tokio_postgres::Error>>,
+    ),
+    tokio_postgres::Error,
+> {
     let mut client = driver_config();
-    client.password(credential);
-    let (client, connection) = client.connect_raw(socket, tokio_postgres::NoTls).await?;
-    let connection = tokio::spawn(connection);
-    let result = client
+    client
+        .host("localhost")
+        .hostaddr(address.ip())
+        .port(address.port())
+        .password(credential);
+    let (client, connection) = client
+        .connect(driver_tls::DriverTls(connector.clone()))
+        .await?;
+    Ok((client, tokio::spawn(connection)))
+}
+
+async fn read_role(client: &tokio_postgres::Client) -> String {
+    client
         .query_one("SELECT current_user::text AS role_name", &[])
         .await
-        .map(|row| row.get("role_name"));
-    drop(client);
-    connection.await.unwrap().unwrap();
-    result
+        .unwrap()
+        .get("role_name")
 }
 
 async fn signed_driver_connections() {
@@ -304,15 +302,21 @@ async fn signed_driver_connections() {
         .unwrap();
     let (server_tls, client_tls) = tls_identities();
     let signing_key = signing_key();
-    let trust = trust();
-    let clock = Arc::new(super::FixtureClock::new(NOW));
-    trust.accounts.get(ISSUER).unwrap().cache.lock().await.keys =
-        Some((clock.instant(), Arc::new(keys(&jwk(&signing_key)))));
-    let verifier = Arc::new(super::Verifier {
-        trust,
-        client: reqwest::Client::new(),
-        fixture_clock: Some(Arc::clone(&clock)),
-    });
+    cassie
+        .execute_sql(&admin, "CREATE TABLE driver_visible (value INT)", vec![])
+        .unwrap();
+    cassie
+        .execute_sql(
+            &admin,
+            "GRANT SELECT ON TABLE driver_visible TO service",
+            vec![],
+        )
+        .unwrap();
+    let issuer =
+        rotation_tests::IssuerFixture::start(vec![rotation_tests::response(&[jwk(&signing_key)])])
+            .await;
+    let verifier = Arc::clone(&issuer.verifier);
+    let database = Arc::clone(&cassie);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -320,7 +324,7 @@ async fn signed_driver_connections() {
             let (socket, peer) = listener.accept().await.unwrap();
             crate::pgwire::connection::run_connection_with_iam(
                 socket,
-                Arc::clone(&cassie),
+                Arc::clone(&database),
                 config.clone(),
                 Some(Arc::clone(&server_tls)),
                 false,
@@ -333,6 +337,7 @@ async fn signed_driver_connections() {
 
     // Act
     let plaintext = driver_config()
+        .ssl_mode(tokio_postgres::config::SslMode::Disable)
         .connect_raw(
             tokio::net::TcpStream::connect(address).await.unwrap(),
             tokio_postgres::NoTls,
@@ -341,15 +346,41 @@ async fn signed_driver_connections() {
         .err()
         .expect("the plaintext selector was rejected");
     let original_token = sign(&signing_key, "fixture", &claims());
-    let original = connect_and_read_role(address, &client_tls, &original_token).await;
+    let (original, original_connection) = connect_driver(address, &client_tls, &original_token)
+        .await
+        .unwrap();
+    let original_role = read_role(&original).await;
+    let permitted = original
+        .simple_query("SELECT value FROM driver_visible")
+        .await;
+    cassie
+        .execute_sql(
+            &admin,
+            "REVOKE SELECT ON TABLE driver_visible FROM service",
+            vec![],
+        )
+        .unwrap();
+    let denied = original
+        .simple_query("SELECT value FROM driver_visible")
+        .await;
+    drop(original);
+    original_connection.await.unwrap().unwrap();
     let later = NOW + 200;
-    clock.set(later);
-    let expired = connect_and_read_role(address, &client_tls, &original_token).await;
+    issuer.clock.set(later);
+    let expired = connect_driver(address, &client_tls, &original_token)
+        .await
+        .err()
+        .expect("expired token denied");
     let mut refreshed_claims = claims();
     refreshed_claims["iat"] = json!(later);
     refreshed_claims["exp"] = json!(later + 200);
     let refreshed_token = sign(&signing_key, "fixture", &refreshed_claims);
-    let refreshed = connect_and_read_role(address, &client_tls, &refreshed_token).await;
+    let (refreshed, refreshed_connection) = connect_driver(address, &client_tls, &refreshed_token)
+        .await
+        .unwrap();
+    let refreshed_role = read_role(&refreshed).await;
+    drop(refreshed);
+    refreshed_connection.await.unwrap().unwrap();
 
     // Assert
     let auth_failed = Some(&tokio_postgres::error::SqlState::INVALID_AUTHORIZATION_SPECIFICATION);
@@ -358,9 +389,15 @@ async fn signed_driver_connections() {
         auth_failed,
         "plaintext rejected before password prompt"
     );
-    assert_eq!(original.unwrap(), "service");
-    assert_eq!(expired.unwrap_err().code(), auth_failed);
-    assert_eq!(refreshed.unwrap(), "service");
+    assert_eq!(original_role, "service");
+    assert!(permitted.is_ok());
+    assert_eq!(
+        denied.unwrap_err().code(),
+        Some(&tokio_postgres::error::SqlState::INSUFFICIENT_PRIVILEGE)
+    );
+    assert_eq!(expired.code(), auth_failed);
+    assert_eq!(refreshed_role, "service");
+    assert_eq!(issuer.requests(), 1);
     server.await.unwrap();
 }
 
@@ -446,3 +483,6 @@ mod rotation_tests;
 
 #[path = "portal_tests.rs"]
 mod portal_tests;
+
+#[path = "driver_tls.rs"]
+mod driver_tls;

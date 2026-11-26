@@ -23,7 +23,7 @@ pub(super) enum Reply {
 
 pub(super) struct IssuerFixture {
     pub(super) verifier: Arc<Verifier>,
-    clock: Arc<FixtureClock>,
+    pub(super) clock: Arc<FixtureClock>,
     requests: Arc<AtomicUsize>,
     server: tokio::task::JoinHandle<()>,
 }

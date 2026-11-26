@@ -1870,7 +1870,7 @@ Every file under `tests/`, including support, fixtures, Python harness tests and
 | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` | test_module | 207 | 4 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_response_limits.rs` |
 | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` | test_module | 586 | 13 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_self_hosted.rs` |
 | `tests/vector_embeddings/embeddings/embedding_validation.rs` | test_module | 417 | 5 | vector_embeddings | keep | `tests/vector_embeddings/embeddings/embedding_validation.rs` |
-| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 654 | 29 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
+| `tests/vector_embeddings/embeddings/embedding_workloads.rs` | test_module | 667 | 30 | vector_embeddings | split_by_contract | `tests/vector_embeddings/aggregates/ordered_set/embedding_workloads.rs`; `tests/vector_embeddings/embeddings/embedding_workloads.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_contract.rs` | test_module | 182 | 6 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_selectivity.rs` | test_module | 166 | 8 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_selectivity.rs` |
 | `tests/vector_embeddings/filtered/filtered_vector_snapshots.rs` | test_module | 186 | 3 | vector_embeddings | move_with_module_alias | `tests/vector_embeddings/vectors/filtered_vector_snapshots.rs` |

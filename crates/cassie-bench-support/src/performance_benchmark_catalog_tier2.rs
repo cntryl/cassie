@@ -406,6 +406,22 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
+        "perf.protocol.bind_parameter_decode.512",
+        "protocol",
+        "bind_parameter_decode",
+        "tier2_subsystem_protocol_handlers",
+        "bind_parameter_decode",
+        "512",
+        512,
+        Tier2,
+        Counted,
+        Subsystem,
+        "parameter",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
         "perf.executor.filter.2k",
         "core_read",
         "filter",

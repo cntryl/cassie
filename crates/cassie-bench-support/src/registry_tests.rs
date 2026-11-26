@@ -4,7 +4,7 @@ use super::{
     registered_targets, validate_cargo_metadata, validate_scenario_registry, BenchmarkTier,
     RunCategory, Target,
 };
-use crate::performance_benchmarks::benchmark_scenarios;
+use crate::performance_benchmarks::{benchmark_for_benchmark, benchmark_scenarios};
 
 #[test]
 fn should_reject_wrong_tier_target_ownership() {
@@ -107,4 +107,24 @@ fn should_match_workspace_cargo_benchmark_targets() {
 
     // Assert
     assert_eq!(result, Ok(()));
+}
+
+#[test]
+fn should_register_each_server_protocol_case() {
+    // Arrange
+    let cases = [
+        ("pgwire_codec", "message"),
+        ("prepared_statement_loop", "message"),
+        ("json_serialization", "row"),
+        ("bind_parameter_decode", "parameter"),
+    ];
+
+    // Act
+    let registered = cases.map(|(workload, _)| {
+        benchmark_for_benchmark("tier2_subsystem_protocol_handlers", workload, "512")
+            .map(|scenario| scenario.operation_unit)
+    });
+
+    // Assert
+    assert_eq!(registered, cases.map(|(_, unit)| Some(unit)));
 }

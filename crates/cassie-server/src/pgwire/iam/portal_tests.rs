@@ -43,6 +43,7 @@ async fn portal_fixture(sql: &str) {
         format!("ALTER ROLE service BIND AWS IAM ROLE '{ROLE}' ISSUER '{ISSUER}'"),
         "CREATE TABLE observed (value INT)".to_owned(),
         "INSERT INTO observed VALUES (1), (2)".to_owned(),
+        "GRANT USAGE ON SCHEMA public TO service".to_owned(),
         "GRANT SELECT ON TABLE observed TO service".to_owned(),
     ] {
         cassie.execute_sql(&admin, &sql, vec![]).unwrap();

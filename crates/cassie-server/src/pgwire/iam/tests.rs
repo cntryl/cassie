@@ -335,6 +335,9 @@ async fn signed_driver_connections() {
         .execute_sql(&admin, "CREATE TABLE driver_visible (value INT)", vec![])
         .unwrap();
     cassie
+        .execute_sql(&admin, "GRANT USAGE ON SCHEMA public TO service", vec![])
+        .unwrap();
+    cassie
         .execute_sql(
             &admin,
             "GRANT SELECT ON TABLE driver_visible TO service",

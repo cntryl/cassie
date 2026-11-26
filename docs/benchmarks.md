@@ -29,8 +29,8 @@ python3 tools/benchmark_workflows.py run tier3_system_query --profile smoke
 ```
 
 GitHub Actions uses `ubuntu-24.04-arm` and the repository-pinned Rust 1.100.0.
-Benchmark smoke compiles workspace bench targets and runs registered timed and
-product smoke owners on relevant pull requests. Nightly runs Tiers 1–4
+Benchmark smoke compiles workspace bench targets on relevant pull requests;
+manual dispatch also runs registered timed and product smoke owners. Nightly runs Tiers 1–4
 serially. Manual tier dispatch selects one tier or all six; Tier 5 runs one
 owner per job, and every Tier 6 soak has a separate job with a six-hour job
 limit and a minimum 3,600-second full measurement. Raw owner artifacts upload

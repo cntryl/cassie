@@ -1,5 +1,6 @@
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
+use cassie::types::Value;
 use cassie_bench_support::{performance_benchmarks, stress};
 use std::time::Instant;
 
@@ -38,18 +39,29 @@ fn main() {
     let preflight = cassie
         .execute_sql(&session, &sql, vec![])
         .expect("generated-source preflight");
-    assert_eq!(preflight.rows().len(), 16);
+    let expected = (2_i64..=32)
+        .step_by(2)
+        .map(|value| vec![Value::Int64(value)])
+        .collect::<Vec<_>>();
+    assert_eq!(preflight.rows(), expected, "generated-source preflight rows");
+    let plan = cassie
+        .execute_sql(&session, &format!("EXPLAIN {sql}"), vec![])
+        .expect("generated-source EXPLAIN preflight");
+    let plan = format!("{:?}", plan.rows());
+    assert!(plan.contains("access_path=table-function"), "{plan}");
     let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
     let evidence_cassie = cassie.clone();
     runner.measure_batch(
         case.metadata("setup_time_ns", setup_time_ns)
+            .metadata("result_cardinality", "16")
+            .preflight_evidence("table-function", "none")
             .runtime_evidence(move || evidence_cassie.metrics()),
         1,
         || {
             let result = cassie
                 .execute_sql(&session, &sql, vec![])
                 .expect("generated-source query");
-            assert_eq!(result.rows().len(), 16);
+            assert_eq!(result.rows(), expected, "timed generated-source rows");
             std::hint::black_box(result.rows().len())
         },
     );

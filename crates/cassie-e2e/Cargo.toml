@@ -2,8 +2,8 @@
 name = "cassie-e2e"
 # Keep aligned with Cassie for the existing version-contract assertions.
 version = "0.1.0"
-edition = "2021"
-publish = false
+edition.workspace = true
+publish.workspace = true
 autotests = false
 
 [lints]
@@ -38,7 +38,7 @@ serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] 
 parking_lot = "0.13"
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.6.0"
+cntryl-midge.workspace = true
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.12", features = ["full"] }
 tracing = "0.1"
@@ -61,11 +61,11 @@ rust-stemmers = "1.2.0"
 rustix = { version = "1.1.6", features = ["process"] }
 
 [dev-dependencies]
-cntryl-midge = { version = "0.6.0", features = ["failpoints"] }
+cntryl-midge = { workspace = true, features = ["failpoints"] }
 fail = "0.5.1"
 cassie-core = { path = "../cassie-core" }
-cassie-bench-support = { path = "../cassie-bench-support" }
-cntryl-stress = "0.5.1"
+cassie-bench-support.workspace = true
+cntryl-stress.workspace = true
 jiff-tzdb = "1.0.0"
 rcgen = "0.14"
 tokio-postgres = "0.7"
@@ -249,11 +249,6 @@ name = "vector_embeddings"
 path = "tests/vector_embeddings.rs"
 
 [[bench]]
-name = "tier2_subsystem_sql_planning"
-harness = false
-path = "benches/tier2_subsystem_sql_planning.rs"
-
-[[bench]]
 name = "tier3_replay_durability"
 harness = false
 path = "benches/tier3_replay_durability.rs"
@@ -283,6 +278,21 @@ path = "benches/tier3_product_graph.rs"
 name = "tier3_product_column"
 harness = false
 path = "benches/tier3_product_column.rs"
+
+[[bench]]
+name = "tier5_product_projection"
+harness = false
+path = "benches/tier5_product_projection.rs"
+
+[[bench]]
+name = "tier5_product_fulltext"
+harness = false
+path = "benches/tier5_product_fulltext.rs"
+
+[[bench]]
+name = "tier5_product_time_series"
+harness = false
+path = "benches/tier5_product_time_series.rs"
 
 [[bench]]
 name = "tier3_system_storage_modes"

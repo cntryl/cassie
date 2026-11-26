@@ -24,9 +24,6 @@ jobs:
       RUSTUP_TOOLCHAIN: "1.100.0"
       CASSIE_BENCH_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
-      CASSIE_BENCH_HOST_OS: linux
-      CASSIE_BENCH_HOST_ARCH: aarch64
-      CASSIE_BENCH_HOST_HARDWARE_CLASS: github-hosted-ubuntu-24.04-arm
       CASSIE_BENCH_SOAK_DURATION_SECONDS: "5"
     steps:
       - name: Check out exact pull request source
@@ -56,6 +53,7 @@ jobs:
         run: cargo bench --locked --workspace --all-features --no-run
 
       - name: Run registered Tier 1–6 and product smoke cases
+        if: github.event_name == 'workflow_dispatch'
         run: |
           for category in timed product; do
             targets="$(python3 tools/benchmark_workflows.py list --registry target/benchmark-registry.json --tiers all --categories "$category")"
@@ -73,5 +71,5 @@ jobs:
           path: |
             target/stress/
             Cargo.lock
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30

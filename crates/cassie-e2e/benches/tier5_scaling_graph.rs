@@ -241,7 +241,10 @@ fn main() {
                 .metadata("graph_expected_rows", tree.leaves.to_string())
                 .metadata("graph_explain", plan)
                 .preflight_evidence("graph_table_indexed_read", "none")
-                .runtime_evidence(cassie.clone());
+                .runtime_evidence({
+                    let evidence_cassie = cassie.clone();
+                    move || evidence_cassie.metrics()
+                });
             runner.measure_batch(case, 1, || {
                 let result = cassie
                     .execute_sql(&session, &sql, vec![])

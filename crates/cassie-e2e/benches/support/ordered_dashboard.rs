@@ -56,7 +56,10 @@ fn measure(runner: &mut CassieStressRunner, case: StressCase, indexed: bool) {
         .metadata("unrelated_orders", NOISE_ORDERS.to_string())
         .metadata("storage_mode", store)
         .preflight_evidence(path, fallback)
-        .runtime_evidence(Arc::clone(&cassie));
+        .runtime_evidence({
+            let evidence_cassie = Arc::clone(&cassie);
+            move || evidence_cassie.metrics()
+        });
     runner.measure_batch(case, 1, || {
         let result = cassie
             .execute_sql(&session, QUERY, Vec::new())

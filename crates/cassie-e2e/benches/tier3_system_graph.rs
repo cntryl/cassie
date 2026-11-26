@@ -160,7 +160,10 @@ fn evidenced(
         .metadata("graph_mapped_rows", mapped_rows.to_string())
         .metadata("graph_access_path_source", source)
         .preflight_evidence(path, "none")
-        .runtime_evidence(fixture.cassie.clone())
+        .runtime_evidence({
+            let evidence_cassie = fixture.cassie.clone();
+            move || evidence_cassie.metrics()
+        })
 }
 
 /// Runs the query `QUERIES_PER_BATCH` times and checks the oracle cardinality of every result.

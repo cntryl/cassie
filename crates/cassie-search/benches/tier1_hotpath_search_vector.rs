@@ -53,6 +53,5 @@ fn tokenization_batch() -> u64 {
             .len(),
         );
     }
-    std::hint::black_box(observed_tokens);
-    TOKENIZATION_BATCH_SIZE
+    u64::try_from(std::hint::black_box(observed_tokens)).expect("token total fits u64")
 }

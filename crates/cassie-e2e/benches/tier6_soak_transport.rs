@@ -82,7 +82,10 @@ fn main() {
         )
         .metadata("result_cardinality", "43")
         .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
-        .runtime_evidence(context.cassie.clone());
+        .runtime_evidence({
+            let evidence_cassie = context.cassie.clone();
+            move || evidence_cassie.metrics()
+        });
 
     runner.record_external(case, |sample_duration| {
         run_transport_sample(&runtime, &context, &pgwire, &http, sample_duration)

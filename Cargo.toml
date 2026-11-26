@@ -24,6 +24,15 @@ default-members = [
 ]
 resolver = "2"
 
+[workspace.package]
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+cassie-bench-support = { path = "crates/cassie-bench-support" }
+cntryl-midge = "0.6.0"
+cntryl-stress = "0.5.1"
+
 [workspace.lints.clippy]
 pedantic = "warn"
 

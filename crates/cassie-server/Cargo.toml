@@ -1,8 +1,8 @@
 [package]
 name = "cassie"
 version = "0.1.0"
-edition = "2021"
-publish = false
+edition.workspace = true
+publish.workspace = true
 autotests = false
 license-file = "../../LICENSE"
 
@@ -38,10 +38,10 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 aws-lc-rs = { version = "1.19", features = ["ring-io"] }
 tokio-postgres = "0.7"
 cassie-engine = { path = "../cassie-engine", features = ["transport-test-hooks"] }
-cassie-bench-support = { path = "../cassie-bench-support" }
+cassie-bench-support.workspace = true
 num-bigint = "0.5.1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-cntryl-stress = "0.5.1"
+cntryl-stress.workspace = true
 rcgen = "0.14"
 
 [[bench]]

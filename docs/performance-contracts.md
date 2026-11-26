@@ -15,12 +15,14 @@ Every performance-sensitive query family must prove:
 
 Missing access-path evidence is a failed contract, not permission to infer the intended path from latency.
 
-The selected #808 source consumer has a counted Tier2 owner,
-`tier2_subsystem_generated_sources`, with 2k and 100k logical generator
-cardinalities. Both scenarios consume the same filtered LIMIT16 query under
-disabled result caching and explicit Midge memory mode. They compare source
-domain growth without seeding expanded input rows; artifacts remain pending
-until the substantial source bundle's ordered gate and benchmark batch run.
+The selected #808 source consumer has a Tier 2 engine owner,
+`tier2_subsystem_generated_sources`, for 2k logical generator cardinality and a
+Tier 3 e2e owner, `tier3_system_generated_sources`, for 100k cardinality. Both
+use the same filtered LIMIT 16 query under disabled result caching and Midge
+memory mode. They compare source-domain growth without seeding expanded input
+rows. The 100k scenario keeps its existing ID while moving to the Tier 3
+representative contract; the duplicate 128-statement parser timing is retained
+only by `cassie-sql` as `perf.sql.parser.128`.
 
 ## Query Memory and Results
 

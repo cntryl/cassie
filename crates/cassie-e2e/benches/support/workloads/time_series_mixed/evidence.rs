@@ -32,12 +32,14 @@ impl HostProfile {
         } else {
             command_output("uname", &["-m"])
         };
-        let memory = if std::env::consts::OS == "macos" {
+        let memory_bytes = if std::env::consts::OS == "macos" {
             command_output("sysctl", &["-n", "hw.memsize"])
+                .trim()
+                .parse::<u64>()
+                .expect("parse macOS physical memory bytes")
         } else {
-            command_output("awk", &["/MemTotal/ {print $2 * 1024}", "/proc/meminfo"])
+            linux_total_memory_bytes()
         };
-        let memory_bytes = memory.trim().parse::<u64>().unwrap_or_default();
 
         let filesystem_report = command_output("df", &["-Pk", "/tmp"]);
         let data_volume_free_bytes = available_bytes(&filesystem_report);
@@ -58,6 +60,19 @@ impl HostProfile {
             data_volume_free_bytes,
         }
     }
+}
+
+fn linux_total_memory_bytes() -> u64 {
+    let memory_kib = std::fs::read_to_string("/proc/meminfo")
+        .expect("read Linux memory information")
+        .lines()
+        .find_map(|line| line.strip_prefix("MemTotal:"))
+        .and_then(|value| value.split_whitespace().next())
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("parse Linux MemTotal in kibibytes");
+    memory_kib
+        .checked_mul(1024)
+        .expect("Linux total memory bytes fit u64")
 }
 
 #[derive(Serialize)]

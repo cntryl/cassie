@@ -124,6 +124,21 @@ pub fn registered_targets() -> Vec<Target> {
             RunCategory::Product,
         ),
         (
+            "tier5_product_projection",
+            BenchmarkTier::Tier5,
+            RunCategory::Product,
+        ),
+        (
+            "tier5_product_fulltext",
+            BenchmarkTier::Tier5,
+            RunCategory::Product,
+        ),
+        (
+            "tier5_product_time_series",
+            BenchmarkTier::Tier5,
+            RunCategory::Product,
+        ),
+        (
             "relevance_cranfield",
             BenchmarkTier::Tier3,
             RunCategory::Diagnostic,
@@ -164,7 +179,7 @@ fn package_for_target(target: &str) -> &'static str {
         | "tier2_subsystem_ingest"
         | "tier2_subsystem_plan_cache"
         | "tier2_subsystem_sql_planning" => "cassie-engine",
-        "tier1_hotpath_pgwire" | "tier2_subsystem_protocol_handlers" => "cassie-server",
+        "tier1_hotpath_pgwire" | "tier2_subsystem_protocol_handlers" => "cassie",
         _ => "cassie-e2e",
     }
 }

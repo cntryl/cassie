@@ -278,7 +278,10 @@ fn run_queries(
             .metadata("setup_time_ns", setup_time)
             .metadata("result_cardinality", expected.len().to_string())
             .preflight_evidence(access, fallback)
-            .runtime_evidence(Arc::clone(&db.cassie));
+            .runtime_evidence({
+                let evidence_cassie = Arc::clone(&db.cassie);
+                move || evidence_cassie.metrics()
+            });
         runner.measure_batch(case, 1, || {
             let rows = db.exec(&sql);
             assert_eq!(rows.len(), expected.len(), "timed result cardinality");

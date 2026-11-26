@@ -48,5 +48,5 @@ sql-json-path = "0.2.0"
 [dev-dependencies]
 cassie-core = { path = "../cassie-core", features = ["numeric-test-hooks"] }
 cassie-storage = { path = "../cassie-storage", features = ["storage-test-hooks"] }
-cntryl-midge = "0.5.3"
+cntryl-midge = "0.6.0"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

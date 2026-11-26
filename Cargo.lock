@@ -519,9 +519,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32be5a029183a4f3fcb76dc47289d3abb416b750383980c9cae2ad0025b6ffcf"
+checksum = "4f9f323be5a15d5f035c544ddc2170ae2174625dcbd656834f37e3eb80fffd66"
 dependencies = [
  "arc-swap",
  "base64 0.23.1",

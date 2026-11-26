@@ -38,7 +38,7 @@ serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] 
 parking_lot = "0.13"
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.5.3"
+cntryl-midge = "0.6.0"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.12", features = ["full"] }
 tracing = "0.1"
@@ -61,7 +61,7 @@ rust-stemmers = "1.2.0"
 rustix = { version = "1.1.6", features = ["process"] }
 
 [dev-dependencies]
-cntryl-midge = { version = "0.5.3", features = ["failpoints"] }
+cntryl-midge = { version = "0.6.0", features = ["failpoints"] }
 fail = "0.5.1"
 cassie-core = { path = "../cassie-core" }
 cntryl-stress = "0.5.1"

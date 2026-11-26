@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::rotation_tests::{response, IssuerFixture};
-use super::{claims, jwk, sign, signing_key, tls_identities, ISSUER, ROLE};
+use super::{claims, jwk, sign, signing_key, start_fixture_pgwire, tls_identities, ISSUER, ROLE};
 
 fn run_portal_fixture(sql: &'static str) {
     tokio::runtime::Builder::new_current_thread()
@@ -51,23 +51,8 @@ async fn portal_fixture(sql: &str) {
     let issuer = IssuerFixture::start(vec![response(&[jwk(&key)])]).await;
     let token = sign(&key, "fixture", &claims());
     let (server_tls, client_tls) = tls_identities();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    let verifier = Arc::clone(&issuer.verifier);
-    let database = Arc::clone(&cassie);
-    let server = tokio::spawn(async move {
-        let (socket, peer) = listener.accept().await.unwrap();
-        crate::pgwire::connection::run_connection_with_iam(
-            socket,
-            database,
-            config,
-            Some(server_tls),
-            false,
-            peer.ip(),
-            Some(verifier),
-        )
-        .await;
-    });
+    let (address, server) =
+        start_fixture_pgwire(Arc::clone(&cassie), config, server_tls, &issuer, 1).await;
     let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
     socket
         .write_all(&[0, 0, 0, 8, 4, 210, 22, 47])

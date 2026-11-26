@@ -278,6 +278,35 @@ async fn read_role(client: &tokio_postgres::Client) -> String {
         .get("role_name")
 }
 
+async fn start_fixture_pgwire(
+    cassie: std::sync::Arc<crate::Cassie>,
+    config: crate::config::CassieRuntimeConfig,
+    tls: std::sync::Arc<rustls::ServerConfig>,
+    issuer: &rotation_tests::IssuerFixture,
+    connection_count: usize,
+) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
+    use std::sync::Arc;
+    let verifier = Arc::clone(&issuer.verifier);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for _ in 0..connection_count {
+            let (socket, peer) = listener.accept().await.unwrap();
+            crate::pgwire::connection::run_connection_with_iam(
+                socket,
+                Arc::clone(&cassie),
+                config.clone(),
+                Some(Arc::clone(&tls)),
+                false,
+                peer.ip(),
+                Some(Arc::clone(&verifier)),
+            )
+            .await;
+        }
+    });
+    (address, server)
+}
+
 async fn signed_driver_connections() {
     use std::sync::Arc;
 
@@ -315,25 +344,8 @@ async fn signed_driver_connections() {
     let issuer =
         rotation_tests::IssuerFixture::start(vec![rotation_tests::response(&[jwk(&signing_key)])])
             .await;
-    let verifier = Arc::clone(&issuer.verifier);
-    let database = Arc::clone(&cassie);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        for _ in 0..4 {
-            let (socket, peer) = listener.accept().await.unwrap();
-            crate::pgwire::connection::run_connection_with_iam(
-                socket,
-                Arc::clone(&database),
-                config.clone(),
-                Some(Arc::clone(&server_tls)),
-                false,
-                peer.ip(),
-                Some(Arc::clone(&verifier)),
-            )
-            .await;
-        }
-    });
+    let (address, server) =
+        start_fixture_pgwire(Arc::clone(&cassie), config, server_tls, &issuer, 4).await;
 
     // Act
     let plaintext = driver_config()

@@ -28,6 +28,11 @@ python3 tools/benchmark_workflows.py run tier3_system_query --profile full
 python3 tools/benchmark_workflows.py run tier3_system_query --profile smoke
 ```
 
+The engine's `perf.sql.parameter_type_admission.128` scenario measures type
+admission during binding, while the historical `perf.sql.parameter_binding.128`
+measured wire value decoding, now covered by `bind_parameter_decode` in the
+server's `tier2_subsystem_protocol_handlers` benchmark.
+
 GitHub Actions uses `ubuntu-24.04-arm` and the repository-pinned Rust 1.100.0.
 Benchmark smoke compiles workspace bench targets on relevant pull requests;
 manual dispatch also runs registered timed and product smoke owners. Nightly runs Tiers 1–4

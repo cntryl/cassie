@@ -182,11 +182,11 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
-        "perf.sql.parameter_binding.128",
+        "perf.sql.parameter_type_admission.128",
         "core_read",
-        "parameter_binding",
+        "parameter_type_admission",
         "tier2_subsystem_binder",
-        "parameter_binding",
+        "parameter_type_admission",
         "128",
         128,
         Tier2,

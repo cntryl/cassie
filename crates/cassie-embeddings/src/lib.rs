@@ -18,3 +18,6 @@ pub use types::Embedding;
 
 pub const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 pub const DEFAULT_MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
+#[cfg(test)]
+mod benchmark_fixture_tests;

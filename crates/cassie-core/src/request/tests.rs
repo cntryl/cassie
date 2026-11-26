@@ -103,6 +103,36 @@ fn should_report_an_expired_absolute_deadline() {
 }
 
 #[test]
+fn should_release_each_reservation_after_repeated_request_control_samples() {
+    // Arrange
+    let memory = RequestMemory::new(128);
+
+    // Act
+    for _ in 0..256 {
+        let reservation = memory.reserve(128).expect("reservation fits budget");
+        drop(reservation);
+    }
+
+    // Assert
+    assert_eq!(memory.current_bytes(), 0);
+    assert_eq!(memory.peak_bytes(), 128);
+}
+
+#[test]
+fn should_check_cancellation_through_the_request_interruption_control() {
+    // Arrange
+    let cancellation = RequestCancellation::new();
+    let interruption = Interruption::new(None, &cancellation);
+
+    // Act
+    cancellation.cancel();
+    let result = interruption.check();
+
+    // Assert
+    assert_eq!(result, Err(InterruptionError::Canceled));
+}
+
+#[test]
 fn should_keep_the_existing_lease_when_an_accounted_vector_builder_fails() {
     // Arrange
     use super::accounted::{AccountedVec, AccountingError};

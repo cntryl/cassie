@@ -75,3 +75,6 @@ pub fn finite_f32_vector(values: &[f32]) -> Option<Vec<f32>> {
         .all(|component| component.is_finite())
         .then(|| values.to_vec())
 }
+
+#[cfg(test)]
+mod benchmark_fixture_tests;

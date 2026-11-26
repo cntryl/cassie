@@ -16,6 +16,10 @@ pub use adapter::error::StorageError;
 mod catalog;
 pub(crate) use cassie_vector::{self as vector, types as embeddings};
 
+#[cfg(test)]
+#[path = "benchmark_tests.rs"]
+mod benchmark_tests;
+
 mod scalar_index;
 pub use scalar_index::{
     evaluate_expression_index_values, ScalarExpressionEvaluationError, ScalarExpressionEvaluator,

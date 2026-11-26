@@ -1,6 +1,10 @@
 pub mod app;
 #[doc(hidden)]
 pub mod benchmark;
+
+#[cfg(test)]
+#[path = "benchmark_tests.rs"]
+mod benchmark_tests;
 pub mod catalog;
 pub mod config;
 pub mod embeddings;

@@ -14,7 +14,7 @@ pub const TABLE: &str = "bench_mixed_time_series_events";
 pub const DAILY_ROLLUP: &str = "bench_mixed_time_series_daily";
 pub const RETENTION_POLICY: &str = "bench_mixed_time_series_retention";
 pub const QUERY_MEMORY_BUDGET_BYTES: usize = 8 * 1024 * 1024 * 1024;
-pub const FIXTURE_ROOT: &str = "/private/tmp";
+pub const FIXTURE_ROOT: &str = "/tmp";
 
 pub struct Fixture {
     pub cassie: Arc<Cassie>,

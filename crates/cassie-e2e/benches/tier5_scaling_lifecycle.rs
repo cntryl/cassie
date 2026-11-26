@@ -417,7 +417,7 @@ fn evidenced(
     setup_time_ns: &str,
     runtime_evidence: Arc<Cassie>,
 ) -> stress::StressCase {
-    base_evidence(case, setup_time_ns).runtime_evidence(runtime_evidence)
+    base_evidence(case, setup_time_ns).runtime_evidence(move || runtime_evidence.metrics())
 }
 
 fn base_evidence(case: stress::StressCase, setup_time_ns: &str) -> stress::StressCase {

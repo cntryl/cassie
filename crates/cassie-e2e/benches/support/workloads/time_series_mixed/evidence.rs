@@ -8,9 +8,7 @@ use super::fixture::{Fixture, QUERY_MEMORY_BUDGET_BYTES};
 use super::workers::ScenarioReport;
 use super::RunKind;
 
-const PROFILE_ID: &str = "workstation-apple-m5-arm64-apfs";
-const MINIMUM_FREE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
-const SMOKE_MINIMUM_FREE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+const MINIMUM_FREE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HostProfile {
@@ -26,58 +24,30 @@ pub struct HostProfile {
 
 impl HostProfile {
     pub fn capture_and_require() -> Self {
-        let profile_id = std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
-            .expect("set CASSIE_BENCH_DEPLOYMENT_PROFILE_ID for native-disk qualification");
-        assert_eq!(
-            profile_id, PROFILE_ID,
-            "this campaign requires the Apple M5/APFS profile"
-        );
-        assert_eq!(std::env::consts::OS, "macos", "the campaign requires macOS");
-        assert_eq!(
-            std::env::consts::ARCH,
-            "aarch64",
-            "the campaign requires arm64"
-        );
-
-        let cpu = command_output("sysctl", &["-n", "machdep.cpu.brand_string"]);
-        let memory = command_output("sysctl", &["-n", "hw.memsize"]);
-        let memory_bytes = memory
-            .trim()
-            .parse::<u64>()
-            .expect("sysctl hw.memsize should return bytes");
-        assert!(
-            cpu.contains("M5"),
-            "the declared Apple M5 profile requires an M5 host"
-        );
-        assert!(
-            memory_bytes >= 24 * 1024 * 1024 * 1024,
-            "host memory is below the observed 24 GiB profile"
-        );
-
-        let filesystem_report = command_output("df", &["-Pk", "/private/tmp"]);
-        let data_volume_free_bytes = available_bytes(&filesystem_report);
-        // A harness smoke run uses a small seed and needs far less space; the
-        // qualification run never sets the smoke variable.
-        let minimum_free_bytes = if std::env::var_os("CASSIE_BENCH_TS_MIXED_SMOKE_EVENTS").is_some()
-        {
-            SMOKE_MINIMUM_FREE_BYTES
+        let profile_id = std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID").unwrap_or_else(|_| {
+            format!("native-{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+        });
+        let cpu = if std::env::consts::OS == "macos" {
+            command_output("sysctl", &["-n", "machdep.cpu.brand_string"])
         } else {
-            MINIMUM_FREE_BYTES
+            command_output("uname", &["-m"])
         };
+        let memory_bytes = if std::env::consts::OS == "macos" {
+            command_output("sysctl", &["-n", "hw.memsize"])
+                .trim()
+                .parse::<u64>()
+                .expect("parse macOS physical memory bytes")
+        } else {
+            linux_total_memory_bytes()
+        };
+
+        let filesystem_report = command_output("df", &["-Pk", "/tmp"]);
+        let data_volume_free_bytes = available_bytes(&filesystem_report);
         assert!(
-            data_volume_free_bytes >= minimum_free_bytes,
-            "the campaign needs at least {minimum_free_bytes} bytes free on /private/tmp; found {data_volume_free_bytes} bytes"
+            data_volume_free_bytes >= MINIMUM_FREE_BYTES,
+            "the campaign needs at least {MINIMUM_FREE_BYTES} bytes free on /tmp; found {data_volume_free_bytes} bytes"
         );
-        let data_volume_device = filesystem_report
-            .lines()
-            .nth(1)
-            .and_then(|line| line.split_whitespace().next())
-            .expect("df -Pk should name the data volume device");
-        let data_volume_report = command_output("diskutil", &["info", data_volume_device]);
-        assert!(
-            data_volume_report.to_ascii_uppercase().contains("APFS"),
-            "the campaign requires /private/tmp on APFS"
-        );
+        let data_volume_report = filesystem_report.trim().to_owned();
 
         Self {
             profile_id,
@@ -90,6 +60,19 @@ impl HostProfile {
             data_volume_free_bytes,
         }
     }
+}
+
+fn linux_total_memory_bytes() -> u64 {
+    let memory_kib = std::fs::read_to_string("/proc/meminfo")
+        .expect("read Linux memory information")
+        .lines()
+        .find_map(|line| line.strip_prefix("MemTotal:"))
+        .and_then(|value| value.split_whitespace().next())
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("parse Linux MemTotal in kibibytes");
+    memory_kib
+        .checked_mul(1024)
+        .expect("Linux total memory bytes fit u64")
 }
 
 #[derive(Serialize)]
@@ -132,8 +115,11 @@ pub fn write_report(
     kind: RunKind,
     report: &ScenarioReport,
 ) -> PathBuf {
-    let directory = Path::new("target/time-series-mixed-1350");
-    std::fs::create_dir_all(directory).expect("create raw mixed-workload evidence directory");
+    let directory = std::env::var_os("CASSIE_BENCH_PRODUCT_OUTPUT_DIR").map_or_else(
+        || PathBuf::from("target/time-series-mixed-1350"),
+        PathBuf::from,
+    );
+    std::fs::create_dir_all(&directory).expect("create raw mixed-workload evidence directory");
     let id = uuid::Uuid::new_v4();
     let path = directory.join(format!(
         "{}-{}-{}devices-{id}.json",
@@ -188,7 +174,56 @@ pub fn write_report(
     let bytes =
         serde_json::to_vec_pretty(&campaign).expect("serialize raw mixed campaign evidence");
     std::fs::write(&path, bytes).expect("write raw mixed campaign evidence");
+    if matches!(kind, RunKind::Mixed) {
+        write_product_receipts(&path, report);
+    }
     path
+}
+
+fn write_product_receipts(raw_path: &Path, report: &ScenarioReport) {
+    let directory = raw_path.parent().expect("raw artifact parent");
+    let profile = std::env::var("CASSIE_BENCH_PRODUCT_PROFILE").expect("product profile");
+    let measurement_valid = report.oracle_mismatches == 0
+        && report.acknowledged_events == report.offered_events
+        && report.window_scheduled_events == report.window_offered_events
+        && report.correction_events_expected == report.correction_events_acknowledged
+        && report.reopened_page_checks > 0
+        && report.maintenance.rollup_refresh_completed
+        && !report.maintenance.pending_retention;
+    let full = profile == "full";
+    let raw_artifact = raw_path
+        .file_name()
+        .expect("raw artifact name")
+        .to_string_lossy();
+    for (name, target_met, measurements) in [
+        (
+            "time_series_dashboard.json",
+            report.reader_p95_us <= 100_000.0,
+            serde_json::json!({"reader_p50_us": report.reader_p50_us, "reader_p95_us": report.reader_p95_us, "raw_artifact": raw_artifact}),
+        ),
+        (
+            "time_series_ingest.json",
+            report.writer_rate >= 1_000 && report.backlog_growth_events <= 0,
+            serde_json::json!({"scheduled_events": report.window_scheduled_events, "offered_events": report.window_offered_events, "acknowledged_events": report.window_acknowledged_events, "acknowledged_after_window": report.acknowledged_events.saturating_sub(report.window_acknowledged_events), "events_per_second": report.writer_rate, "backlog_growth_events": report.backlog_growth_events, "backlog_events_at_window_end": report.backlog_events_at_window_end, "raw_artifact": raw_artifact}),
+        ),
+    ] {
+        let receipt = serde_json::json!({
+            "metric": name.trim_end_matches(".json"),
+            "profile": &profile,
+            "measurement_valid": measurement_valid,
+            "target_met": (full && measurement_valid).then_some(target_met),
+            "measurements": measurements,
+            "failures": if measurement_valid { Vec::<String>::new() } else { vec!["oracle, acknowledgement, rollup, or retention check failed".to_owned()] },
+        });
+        let path = directory.join(name);
+        let temporary = path.with_extension("json.tmp");
+        std::fs::write(
+            &temporary,
+            serde_json::to_vec_pretty(&receipt).expect("serialize product receipt"),
+        )
+        .expect("write product receipt");
+        std::fs::rename(temporary, path).expect("publish product receipt");
+    }
 }
 
 pub fn process_rss_bytes() -> u64 {

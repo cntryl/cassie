@@ -609,7 +609,10 @@ fn evidenced(
         .metadata("execution_result_cache_hits", "0")
         .metadata("failed_operations", "0")
         .metadata("result_cardinality", result_cardinality.to_string())
-        .runtime_evidence(context.cassie.clone());
+        .runtime_evidence({
+            let evidence_cassie = context.cassie.clone();
+            move || evidence_cassie.metrics()
+        });
     if let Some(preflight) = preflight {
         case.preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
     } else {

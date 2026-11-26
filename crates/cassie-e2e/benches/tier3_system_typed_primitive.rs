@@ -88,7 +88,10 @@ fn benchmark() {
                 native.transaction_pool.to_string(),
             )
             .preflight_evidence(access, fallback)
-            .runtime_evidence(Arc::clone(&db.cassie));
+            .runtime_evidence({
+                let evidence_cassie = Arc::clone(&db.cassie);
+                move || evidence_cassie.metrics()
+            });
         tracing::subscriber::with_default(tracing::subscriber::NoSubscriber::default(), || {
             runner.measure_batch(declaration, 1, || {
                 db.checked(&sql, &expected);

@@ -633,7 +633,10 @@ fn evidenced(
 ) -> stress::StressCase {
     case.metadata("setup_time_ns", setup_time.as_nanos().to_string())
         .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
-        .runtime_evidence(context.cassie.clone())
+        .runtime_evidence({
+            let evidence_cassie = context.cassie.clone();
+            move || evidence_cassie.metrics()
+        })
 }
 
 fn execute_ddl(context: &workloads::BenchContext, sql: &str) {

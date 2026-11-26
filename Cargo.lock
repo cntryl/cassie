@@ -249,6 +249,7 @@ dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
  "bytes",
+ "cassie-bench-support",
  "cassie-engine",
  "cntryl-stress",
  "http-body-util",
@@ -274,9 +275,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "cassie-core"
-version = "0.2.0"
+name = "cassie-bench-support"
+version = "0.1.0"
 dependencies = [
+ "cntryl-stress",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cassie-core"
+version = "0.1.0"
+dependencies = [
+ "cassie-bench-support",
  "jiff",
  "jiff-tzdb",
  "num-bigint 0.5.1",
@@ -297,6 +308,7 @@ dependencies = [
  "argon2",
  "bytes",
  "cassie",
+ "cassie-bench-support",
  "cassie-core",
  "chrono",
  "cntryl-lexkey",
@@ -342,6 +354,7 @@ dependencies = [
 name = "cassie-embeddings"
 version = "0.1.0"
 dependencies = [
+ "cassie-bench-support",
  "cassie-core",
  "reqwest",
  "serde",
@@ -358,6 +371,7 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "bytes",
+ "cassie-bench-support",
  "cassie-core",
  "cassie-embeddings",
  "cassie-search",
@@ -394,8 +408,9 @@ dependencies = [
 
 [[package]]
 name = "cassie-search"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
+ "cassie-bench-support",
  "rust-stemmers",
  "serde",
  "serde_json",
@@ -405,6 +420,7 @@ dependencies = [
 name = "cassie-sql"
 version = "0.1.0"
 dependencies = [
+ "cassie-bench-support",
  "cassie-core",
  "serde",
  "serde_json",
@@ -415,6 +431,7 @@ name = "cassie-storage"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "cassie-bench-support",
  "cassie-core",
  "cassie-search",
  "cassie-sql",
@@ -436,8 +453,9 @@ dependencies = [
 
 [[package]]
 name = "cassie-vector"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
+ "cassie-bench-support",
  "cassie-core",
  "serde",
 ]
@@ -519,9 +537,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32be5a029183a4f3fcb76dc47289d3abb416b750383980c9cae2ad0025b6ffcf"
+checksum = "4f9f323be5a15d5f035c544ddc2170ae2174625dcbd656834f37e3eb80fffd66"
 dependencies = [
  "arc-swap",
  "base64 0.23.1",

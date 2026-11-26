@@ -52,8 +52,10 @@ pub struct ScenarioReport {
     pub elapsed: Duration,
     pub completed_operations: u64,
     pub writer_rate: u64,
+    pub scheduled_events: u64,
     pub offered_events: u64,
     pub acknowledged_events: u64,
+    pub window_scheduled_events: u64,
     pub window_offered_events: u64,
     pub window_acknowledged_events: u64,
     pub peak_backlog_events: u64,
@@ -139,6 +141,7 @@ pub struct MaintenanceAction {
 
 #[derive(Default)]
 struct SharedMetrics {
+    scheduled_events: AtomicU64,
     offered_events: AtomicU64,
     acknowledged_events: AtomicU64,
     /// Correction-burst events offered and acknowledged. The burst lands as one
@@ -179,28 +182,24 @@ impl SharedMetrics {
         }
     }
 
-    fn record_offer(&self, mutations: &[Mutation]) {
-        self.offered_events.fetch_add(
-            u64::try_from(mutations.len()).expect("offered events fit u64"),
-            Ordering::Relaxed,
-        );
+    fn record_offer(&self, event_count: u64, correction_count: u64) {
+        self.offered_events
+            .fetch_add(event_count, Ordering::Relaxed);
         self.offered_correction_events
-            .fetch_add(correction_events(mutations), Ordering::Relaxed);
+            .fetch_add(correction_count, Ordering::Relaxed);
         self.observe_backlog();
     }
 
     /// Steady-ingest backlog: offered minus acknowledged events, excluding the
     /// correction burst, which is verified by exact drain accounting instead.
     fn steady_backlog(&self) -> u64 {
-        let offered = self
-            .offered_events
-            .load(Ordering::Acquire)
-            .saturating_sub(self.offered_correction_events.load(Ordering::Acquire));
         let acknowledged = self
             .acknowledged_events
             .load(Ordering::Acquire)
             .saturating_sub(self.acknowledged_correction_events.load(Ordering::Acquire));
-        offered.saturating_sub(acknowledged)
+        self.scheduled_events
+            .load(Ordering::Acquire)
+            .saturating_sub(acknowledged)
     }
 
     fn record_commit(&self, mutations: &[Mutation], latency: Duration) {
@@ -313,8 +312,8 @@ impl WriterService {
         }
     }
 
-    fn offer(&self, mutations: Vec<Mutation>) {
-        self.queue.offer(mutations);
+    fn offer(&self, mutations: Vec<Mutation>, scheduled: bool) {
+        self.queue.offer(mutations, scheduled);
     }
 
     fn close(mut self) {
@@ -328,12 +327,20 @@ impl WriterService {
 }
 
 impl WriterQueue {
-    fn offer(&self, mutations: Vec<Mutation>) {
+    fn offer(&self, mutations: Vec<Mutation>, scheduled: bool) {
         assert!(!mutations.is_empty(), "writer batches cannot be empty");
-        self.shared.record_offer(&mutations);
+        let event_count = u64::try_from(mutations.len()).expect("offered events fit u64");
+        let correction_count = correction_events(&mutations);
+        if scheduled {
+            self.shared
+                .scheduled_events
+                .fetch_add(event_count, Ordering::Release);
+            self.shared.observe_backlog();
+        }
         self.sender
             .send(mutations)
             .expect("send offered projection batch to the writer");
+        self.shared.record_offer(event_count, correction_count);
     }
 }
 
@@ -533,6 +540,7 @@ pub fn run_scenario(
 /// Counters captured while opening or closing the measured window.
 #[derive(Default)]
 struct WindowCounters {
+    scheduled: u64,
     offered: u64,
     acknowledged: u64,
     reader_samples: usize,
@@ -546,6 +554,7 @@ impl WindowCounters {
         // boundary, but its acknowledgement cannot precede its offer.
         let acknowledged = shared.acknowledged_events.load(Ordering::Acquire);
         Self {
+            scheduled: shared.scheduled_events.load(Ordering::Acquire),
             offered: shared.offered_events.load(Ordering::Acquire),
             acknowledged,
             reader_samples: shared
@@ -567,6 +576,16 @@ impl WindowCounters {
 struct MeasuredWindow {
     before: WindowCounters,
     after: WindowCounters,
+}
+
+impl MeasuredWindow {
+    fn checked_writer_counts(&self, offered: u64, acknowledged: u64) -> (u64, u64, u64) {
+        let window_scheduled = self.after.scheduled - self.before.scheduled;
+        let window_offered = self.after.offered - self.before.offered;
+        let window_acknowledged = self.after.acknowledged - self.before.acknowledged;
+        should_bound_window_counters(window_offered, window_acknowledged, offered, acknowledged);
+        (window_scheduled, window_offered, window_acknowledged)
+    }
 }
 
 #[derive(Default)]
@@ -804,15 +823,10 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
     } = input;
     let offered_events = shared.offered_events.load(Ordering::Acquire);
     let acknowledged_events = shared.acknowledged_events.load(Ordering::Acquire);
+    let scheduled_events = shared.scheduled_events.load(Ordering::Acquire);
     let window = &outcome.window;
-    let window_offered_events = window.after.offered - window.before.offered;
-    let window_acknowledged_events = window.after.acknowledged - window.before.acknowledged;
-    should_bound_window_counters(
-        window_offered_events,
-        window_acknowledged_events,
-        offered_events,
-        acknowledged_events,
-    );
+    let (window_scheduled_events, window_offered_events, window_acknowledged_events) =
+        window.checked_writer_counts(offered_events, acknowledged_events);
     let samples = shared.samples.lock().expect("sample vector mutex").clone();
     let latencies = capture_window_latencies(shared, window);
     let backlog_stable = backlog_is_stable(kind, backlog_events_at_window_end, &samples);
@@ -844,8 +858,10 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         elapsed,
         completed_operations,
         writer_rate,
+        scheduled_events,
         offered_events,
         acknowledged_events,
+        window_scheduled_events,
         window_offered_events,
         window_acknowledged_events,
         peak_backlog_events,

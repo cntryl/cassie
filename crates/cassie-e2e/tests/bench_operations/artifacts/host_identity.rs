@@ -1,4 +1,4 @@
-#[path = "../../../benches/support/host_identity.rs"]
+#[path = "../../../../cassie-bench-support/src/host_identity.rs"]
 mod host_identity;
 
 use cntryl_stress::artifact::{

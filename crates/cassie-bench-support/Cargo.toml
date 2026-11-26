@@ -1,0 +1,17 @@
+[package]
+name = "cassie-bench-support"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+cntryl-stress.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "cassie-bench"
+path = "src/main.rs"

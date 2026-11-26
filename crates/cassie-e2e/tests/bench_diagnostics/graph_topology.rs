@@ -1,9 +1,9 @@
 //! The narrow topology exception used within Tier 5's Batch validation.
 
-use crate::performance_benchmarks::performance_graph_topology as topology;
+use cassie_bench_support::stress::FixtureIdentityTracker;
 
-#[path = "../../benches/support/stress_fixture_identity.rs"]
-mod fixture_identity;
+#[path = "../../../cassie-bench-support/src/performance_graph_topology.rs"]
+mod topology;
 
 #[test]
 fn should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity() {
@@ -11,7 +11,7 @@ fn should_register_all_topology_fixtures_without_reusing_an_owner_scale_identity
     let scenarios = crate::performance_benchmarks::benchmark_scenarios()
         .filter(|scenario| scenario.benchmark == "tier5_scaling_graph")
         .collect::<Vec<_>>();
-    let mut identities = fixture_identity::FixtureIdentityTracker::default();
+    let mut identities = FixtureIdentityTracker::default();
 
     // Act
     let outcomes = scenarios
@@ -215,4 +215,32 @@ fn should_reject_invalid_topology_catalog_contracts_without_relabeling_other_sca
             "local-dev-graph-topology-memory-64m"
         );
     }
+}
+
+#[path = "../../benches/support/weighted_graph_product_status.rs"]
+mod weighted_graph_product_status;
+
+#[test]
+fn should_require_valid_weighted_route_measurements_for_the_target() {
+    // Arrange
+    let outcomes = vec![serde_json::json!({"matches_oracle": true, "fallback": false}); 100];
+
+    // Act
+    let actual = [
+        weighted_graph_product_status::measurement_status("full", 50.0, false, &outcomes),
+        weighted_graph_product_status::measurement_status("full", 50.0, true, &outcomes),
+        weighted_graph_product_status::measurement_status("full", 101.0, true, &outcomes),
+        weighted_graph_product_status::measurement_status("smoke", 50.0, true, &outcomes),
+    ];
+
+    // Assert
+    assert_eq!(
+        actual,
+        [
+            (false, None),
+            (true, Some(true)),
+            (true, Some(false)),
+            (true, None)
+        ]
+    );
 }

@@ -289,7 +289,10 @@ fn evidenced(
 ) -> stress::StressCase {
     case.metadata("setup_time_ns", setup_time_ns)
         .metadata("result_cardinality", result_cardinality.to_string())
-        .runtime_evidence(fixture.cassie.clone())
+        .runtime_evidence({
+            let evidence_cassie = fixture.cassie.clone();
+            move || evidence_cassie.metrics()
+        })
 }
 
 fn query_evidenced(

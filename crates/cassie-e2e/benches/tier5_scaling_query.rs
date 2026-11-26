@@ -409,7 +409,10 @@ fn measure_primary_cases(
             .metadata("setup_time_ns", column_setup.as_nanos().to_string())
             .metadata("execution_result_cache_hits", "0")
             .preflight_evidence("column_batch_incremental_maintenance", "none")
-            .runtime_evidence(column_context.cassie.clone());
+            .runtime_evidence({
+                let evidence_cassie = column_context.cassie.clone();
+                move || evidence_cassie.metrics()
+            });
         runner.measure_batch(case, 1, || {
             let current = nonce.get();
             nonce.set(current.wrapping_add(1));
@@ -840,5 +843,8 @@ fn evidenced(
     case.metadata("setup_time_ns", setup_time.as_nanos().to_string())
         .metadata("execution_result_cache_hits", "0")
         .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
-        .runtime_evidence(context.cassie.clone())
+        .runtime_evidence({
+            let evidence_cassie = context.cassie.clone();
+            move || evidence_cassie.metrics()
+        })
 }

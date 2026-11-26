@@ -1,12 +1,25 @@
 [package]
 name = "cassie-vector"
-version = "0.2.0"
-edition = "2021"
-publish = false
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
-cassie-core = { path = "../cassie-core" }
-serde = { version = "1.0", features = ["derive"] }
+cassie-core.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+cassie-bench-support.workspace = true
+
+[[bench]]
+name = "tier1_hotpath_vector_distance"
+harness = false
+path = "benches/tier1_hotpath_vector_distance.rs"
+
+[[bench]]
+name = "tier2_subsystem_vector"
+harness = false
+path = "benches/tier2_subsystem_vector.rs"
 
 [lints]
 workspace = true

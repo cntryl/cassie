@@ -176,6 +176,11 @@ pub fn oracle_pages(
 /// `CASSIE_BENCH_TS_MIXED_TIME_SCALE_PERCENT` exists only for harness smoke runs
 /// and is recorded in every raw evidence file.
 pub fn time_scale_percent() -> u64 {
+    if std::env::var("STRESS_PROFILE").is_ok_and(|profile| profile == "smoke")
+        || std::env::var("CASSIE_BENCH_PRODUCT_PROFILE").is_ok_and(|profile| profile == "smoke")
+    {
+        return 1;
+    }
     std::env::var("CASSIE_BENCH_TS_MIXED_TIME_SCALE_PERCENT")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())

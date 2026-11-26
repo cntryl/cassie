@@ -2,8 +2,8 @@
 name = "cassie-e2e"
 # Keep aligned with Cassie for the existing version-contract assertions.
 version = "0.1.0"
-edition = "2021"
-publish = false
+edition.workspace = true
+publish.workspace = true
 autotests = false
 
 [lints]
@@ -23,51 +23,52 @@ path = "tests/support/pgwire_helpers/lib.rs"
 
 [dependencies]
 cassie = { path = "../cassie-server" }
-num-traits = "0.2.19"
-num-bigint = "0.5.1"
-num-integer = "0.1.47"
-bytes = "1.12"
-chrono = "0.4"
-http-body-util = "0.1"
-hyper-util = { version = "0.1", features = ["tokio"] }
-tokio = { version = "1.54", features = ["full"] }
-tokio-rustls = "0.26"
-rustls = "0.23"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
-parking_lot = "0.13"
-thiserror = "2.0"
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl-midge = "0.5.3"
-cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
-hyper = { version = "1.12", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-argon2 = "0.6"
-getrandom = "0.4"
-sha2 = "0.11"
-md-5 = "0.11"
-time = { version = "0.3", features = ["formatting", "parsing"] }
-jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
-url = "2.5"
-regex-automata = "0.4.18"
-regex-syntax = "0.8.11"
-fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
-sql-json-path = "0.2.0"
-rust-stemmers = "1.2.0"
+num-traits.workspace = true
+num-bigint.workspace = true
+num-integer.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+http-body-util.workspace = true
+hyper-util.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-rustls.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "arbitrary_precision"] }
+parking_lot.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+cntryl-midge.workspace = true
+cntryl_lexkey.workspace = true
+hyper.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json"] }
+argon2.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+time.workspace = true
+jiff.workspace = true
+url.workspace = true
+regex-automata.workspace = true
+regex-syntax.workspace = true
+fancy-regex.workspace = true
+sql-json-path.workspace = true
+rust-stemmers.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1.6", features = ["process"] }
 
 [dev-dependencies]
-cntryl-midge = { version = "0.5.3", features = ["failpoints"] }
+cntryl-midge = { workspace = true, features = ["failpoints"] }
 fail = "0.5.1"
-cassie-core = { path = "../cassie-core" }
-cntryl-stress = "0.5.1"
-jiff-tzdb = "1.0.0"
-rcgen = "0.14"
-tokio-postgres = "0.7"
+cassie-core.workspace = true
+cassie-bench-support.workspace = true
+cntryl-stress.workspace = true
+jiff-tzdb.workspace = true
+rcgen.workspace = true
+tokio-postgres.workspace = true
 # A second real PostgreSQL driver for the graph type round trips (plaintext local connection).
 sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio"] }
 
@@ -248,121 +249,6 @@ name = "vector_embeddings"
 path = "tests/vector_embeddings.rs"
 
 [[bench]]
-name = "tier1_hotpath_row_codec"
-harness = false
-path = "benches/tier1_hotpath_row_codec.rs"
-
-[[bench]]
-name = "tier1_hotpath_keys"
-harness = false
-path = "benches/tier1_hotpath_keys.rs"
-
-[[bench]]
-name = "tier1_hotpath_filter_projection"
-harness = false
-path = "benches/tier1_hotpath_filter_projection.rs"
-
-[[bench]]
-name = "tier1_hotpath_search_vector"
-harness = false
-path = "benches/tier1_hotpath_search_vector.rs"
-
-[[bench]]
-name = "tier1_hotpath_pgwire"
-harness = false
-path = "benches/tier1_hotpath_pgwire.rs"
-
-[[bench]]
-name = "tier1_hotpath_predicates"
-harness = false
-path = "benches/tier1_hotpath_predicates.rs"
-
-[[bench]]
-name = "tier1_hotpath_topk"
-harness = false
-path = "benches/tier1_hotpath_topk.rs"
-
-[[bench]]
-name = "tier1_hotpath_vector_distance"
-harness = false
-path = "benches/tier1_hotpath_vector_distance.rs"
-
-[[bench]]
-name = "tier1_hotpath_bm25"
-harness = false
-path = "benches/tier1_hotpath_bm25.rs"
-
-[[bench]]
-name = "tier1_hotpath_graph_paths"
-harness = false
-path = "benches/tier1_hotpath_graph_paths.rs"
-
-[[bench]]
-name = "tier2_subsystem_sql_planning"
-harness = false
-path = "benches/tier2_subsystem_sql_planning.rs"
-
-[[bench]]
-name = "tier2_subsystem_parser"
-harness = false
-path = "benches/tier2_subsystem_parser.rs"
-
-[[bench]]
-name = "tier2_subsystem_binder"
-harness = false
-path = "benches/tier2_subsystem_binder.rs"
-
-[[bench]]
-name = "tier2_subsystem_plan_cache"
-harness = false
-path = "benches/tier2_subsystem_plan_cache.rs"
-
-[[bench]]
-name = "tier2_subsystem_search"
-harness = false
-path = "benches/tier2_subsystem_search.rs"
-
-[[bench]]
-name = "tier2_subsystem_vector"
-harness = false
-path = "benches/tier2_subsystem_vector.rs"
-
-[[bench]]
-name = "tier2_subsystem_hybrid"
-harness = false
-path = "benches/tier2_subsystem_hybrid.rs"
-
-[[bench]]
-name = "tier2_subsystem_protocol_handlers"
-harness = false
-path = "benches/tier2_subsystem_protocol_handlers.rs"
-
-[[bench]]
-name = "tier2_subsystem_executor"
-harness = false
-path = "benches/tier2_subsystem_executor.rs"
-
-[[bench]]
-name = "tier2_subsystem_generated_sources"
-harness = false
-path = "benches/tier2_subsystem_generated_sources.rs"
-
-[[bench]]
-name = "tier2_subsystem_column_scan"
-harness = false
-path = "benches/tier2_subsystem_column_scan.rs"
-
-[[bench]]
-name = "tier2_subsystem_ingest"
-harness = false
-path = "benches/tier2_subsystem_ingest.rs"
-
-[[bench]]
-name = "tier2_subsystem_graph"
-harness = false
-path = "benches/tier2_subsystem_graph.rs"
-
-[[bench]]
 name = "tier3_replay_durability"
 harness = false
 path = "benches/tier3_replay_durability.rs"
@@ -374,9 +260,39 @@ harness = false
 path = "benches/tier3_system_query.rs"
 
 [[bench]]
+name = "tier3_system_generated_sources"
+harness = false
+path = "benches/tier3_system_generated_sources.rs"
+
+[[bench]]
 name = "tier3_system_graph"
 harness = false
 path = "benches/tier3_system_graph.rs"
+
+[[bench]]
+name = "tier3_product_graph"
+harness = false
+path = "benches/tier3_product_graph.rs"
+
+[[bench]]
+name = "tier3_product_column"
+harness = false
+path = "benches/tier3_product_column.rs"
+
+[[bench]]
+name = "tier5_product_projection"
+harness = false
+path = "benches/tier5_product_projection.rs"
+
+[[bench]]
+name = "tier5_product_fulltext"
+harness = false
+path = "benches/tier5_product_fulltext.rs"
+
+[[bench]]
+name = "tier5_product_time_series"
+harness = false
+path = "benches/tier5_product_time_series.rs"
 
 [[bench]]
 name = "tier3_system_storage_modes"

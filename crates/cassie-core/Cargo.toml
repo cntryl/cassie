@@ -1,24 +1,32 @@
 [package]
 name = "cassie-core"
-version = "0.2.0"
-edition = "2021"
-publish = false
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
 
 [features]
 numeric-test-hooks = []
 
 [dependencies]
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-num-bigint = "0.5.1"
-num-integer = "0.1.47"
-num-traits = "0.2.19"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "2.0"
-tokio = { version = "1.54", features = ["sync"] }
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-time = { version = "0.3", features = ["formatting", "parsing"] }
-jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
-jiff-tzdb = "1.0.0"
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
+num-bigint.workspace = true
+num-integer.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+uuid.workspace = true
+time.workspace = true
+jiff.workspace = true
+jiff-tzdb.workspace = true
+
+[dev-dependencies]
+cassie-bench-support.workspace = true
+
+[[bench]]
+name = "tier1_hotpath_request_controls"
+harness = false
+path = "benches/tier1_hotpath_request_controls.rs"
 
 [lints]
 workspace = true

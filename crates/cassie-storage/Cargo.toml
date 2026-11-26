@@ -1,32 +1,50 @@
 [package]
 name = "cassie-storage"
 version = "0.1.0"
-edition = "2021"
-publish = false
+edition.workspace = true
+publish.workspace = true
 
 [features]
 replay-benchmark-observation = []
 storage-test-hooks = []
 
 [dependencies]
-cassie-core = { path = "../cassie-core" }
-cassie-search = { path = "../cassie-search" }
-cassie-sql = { path = "../cassie-sql" }
-cassie-vector = { path = "../cassie-vector" }
-bytes = "1.12"
-cntryl-midge = "0.5.3"
+cassie-core.workspace = true
+cassie-search.workspace = true
+cassie-sql.workspace = true
+cassie-vector.workspace = true
+bytes.workspace = true
+cntryl-midge.workspace = true
 cntryl-lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 lz4_flex = "0.14"
-parking_lot = { version = "0.13", features = ["arc_lock"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["arbitrary_precision", "raw_value"] }
-sha2 = "0.11"
-thiserror = "2.0"
-time = { version = "0.3", features = ["formatting", "parsing"] }
-tokio = { version = "1.54", features = ["sync"] }
-tracing = "0.1"
-url = "2.5"
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
+parking_lot = { workspace = true, features = ["arc_lock"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["arbitrary_precision", "raw_value"] }
+sha2.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+cassie-bench-support.workspace = true
+
+[[bench]]
+name = "tier1_hotpath_row_codec"
+harness = false
+path = "benches/tier1_hotpath_row_codec.rs"
+
+[[bench]]
+name = "tier1_hotpath_keys"
+harness = false
+path = "benches/tier1_hotpath_keys.rs"
+
+[[bench]]
+name = "tier2_subsystem_storage"
+harness = false
+path = "benches/tier2_subsystem_storage.rs"

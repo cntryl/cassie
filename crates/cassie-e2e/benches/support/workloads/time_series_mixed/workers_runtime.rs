@@ -57,17 +57,16 @@ pub(super) fn producer_loop(
                 let mutations = cursor.correction_burst(seed_events);
                 let offered = u64::try_from(mutations.len()).expect("correction count fits u64");
                 for batch in mutations.chunks(model::WRITER_BATCH_EVENTS) {
-                    queue.offer(batch.to_vec());
+                    queue.offer(batch.to_vec(), false);
                 }
                 response
                     .send(offered)
                     .expect("correction requester receives offered count");
-                next_batch = Instant::now() + interval;
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if Instant::now() >= next_batch {
-                    queue.offer(cursor.steady_batch());
-                    next_batch = Instant::now() + interval;
+                    queue.offer(cursor.steady_batch(), true);
+                    next_batch += interval;
                 }
             }
         }
@@ -340,11 +339,14 @@ pub(super) fn run_paced_window(
 ) -> Duration {
     let started = Instant::now();
     let interval = batch_interval(target_rate);
+    let end = started + duration;
     let mut next_batch = started;
-    while started.elapsed() < duration {
+    while next_batch < end {
         if Instant::now() >= next_batch {
-            writer.offer(cursor.steady_batch());
-            next_batch = Instant::now() + interval;
+            if Instant::now() < end {
+                writer.offer(cursor.steady_batch(), true);
+            }
+            next_batch += interval;
         } else {
             thread::sleep(
                 next_batch

@@ -60,7 +60,10 @@ fn main() {
             setup_started.elapsed().as_nanos().to_string(),
         )
         .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
-        .runtime_evidence(context.cassie.clone());
+        .runtime_evidence({
+            let evidence_cassie = context.cassie.clone();
+            move || evidence_cassie.metrics()
+        });
 
     let mut nonce = 0_u64;
     runner.measure_batch(case, 1, || {

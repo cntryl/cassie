@@ -8,12 +8,108 @@ use workloads::ground_truth::{
     decode_truths, distance, encode_truths, exact_top_k, recall_at_k, Metric, Truth,
 };
 use workloads::manifest::{embeddings_dir, in_tenant, tenant_bucket, Manifest, README_HINT};
+use workloads::product_selection;
 use workloads::statistics::{mean, percentile};
 use workloads::vector_file::{
     decode_f32_rows, hex, read_f32_rows, read_lines, sha256_file, verify_checksum,
 };
 
 use crate::support_temp_dirs::IsolatedDataDir;
+
+#[test]
+fn should_select_exactly_one_product_vector_configuration() {
+    // Arrange
+    let selectors = ["exact", "hnsw-1", "hnsw-2", "ivfflat-1", "ivfflat-2"];
+
+    // Act
+    let selected = selectors.map(product_selection::configuration);
+
+    // Assert
+    assert_eq!(
+        selected,
+        [
+            Ok(product_selection::Configuration::Exact),
+            Ok(product_selection::Configuration::Hnsw(0)),
+            Ok(product_selection::Configuration::Hnsw(1)),
+            Ok(product_selection::Configuration::Ivfflat(0)),
+            Ok(product_selection::Configuration::Ivfflat(1)),
+        ]
+    );
+    assert!(product_selection::configuration("all").is_err());
+    assert!(product_selection::configuration("hnsw-3").is_err());
+    assert!(product_selection::configuration("ivfflat-0").is_err());
+}
+
+#[test]
+fn should_accept_only_one_quarter_query_shards_within_a_split() {
+    // Arrange
+    let ranges = ["0..250", "250..500", "500..750", "750..1000"];
+
+    // Act
+    let parsed = ranges.map(product_selection::query_range);
+
+    // Assert
+    assert_eq!(
+        parsed,
+        [Ok(0..250), Ok(250..500), Ok(500..750), Ok(750..1000)]
+    );
+    for invalid in [
+        "0..1000",
+        "1..251",
+        "750..1001",
+        "250..250",
+        "1..2",
+        "x..250",
+    ] {
+        assert!(
+            product_selection::query_range(invalid).is_err(),
+            "accepted invalid shard {invalid}"
+        );
+    }
+}
+
+#[test]
+fn should_separate_cached_truth_for_equal_sized_query_shards() {
+    // Arrange
+    let first = [0, 1, 2, 3];
+    let second = [4, 5, 6, 7];
+
+    // Act
+    let first_key = product_selection::truth_cache_key(&first);
+    let second_key = product_selection::truth_cache_key(&second);
+
+    // Assert
+    assert_ne!(first_key, second_key);
+}
+
+#[test]
+fn should_encode_truth_cache_key_as_lowercase_sha256() {
+    // Arrange
+    let ordinals = [0, 1, 2, 3];
+
+    // Act
+    let key = product_selection::truth_cache_key(&ordinals);
+
+    // Assert
+    assert_eq!(
+        key,
+        "a1e03200f1f82ad2c1cec8795c271aaecf98f5aa2d151d2229ec5fa0c177cf77"
+    );
+}
+
+#[test]
+fn should_apply_each_query_shard_relative_to_its_own_split() {
+    // Arrange
+    let shard = 250..500;
+
+    // Act
+    let tuning = product_selection::absolute_query_range(0, 1_000, &shard);
+    let held_out = product_selection::absolute_query_range(1_000, 1_000, &shard);
+
+    // Assert
+    assert_eq!(tuning, Ok(250..500));
+    assert_eq!(held_out, Ok(1_250..1_500));
+}
 
 const MANIFEST_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -529,4 +625,43 @@ fn should_require_at_least_two_tuning_points_per_index() {
 
     // Assert
     assert!(error.contains("two tuning points"), "{error}");
+}
+
+#[path = "../../../benches/support/embedding_workloads/product_scratch.rs"]
+mod product_scratch;
+
+#[test]
+fn should_keep_product_vector_scratch_outside_published_output() {
+    // Arrange
+    let fixture = fixture_dir("vector-product-scratch");
+    let artifact_output = fixture.path().join("published");
+    let shard_output = artifact_output.join("vector");
+
+    // Act
+    let (work, cache) = {
+        let scratch = product_scratch::ProductScratch::create(
+            fixture.path(),
+            &shard_output,
+            Some(&artifact_output),
+        )
+        .expect("scratch");
+        let work = scratch.work_dir();
+        let cache = scratch.truth_cache_dir();
+        std::fs::create_dir(&work).expect("stage an ingested fixture");
+        std::fs::create_dir(&cache).expect("stage a truth cache");
+        (work, cache)
+    };
+
+    // Assert
+    let artifact_output = artifact_output.canonicalize().expect("canonical output");
+    assert!(!work.starts_with(&artifact_output));
+    assert!(!cache.starts_with(&artifact_output));
+    assert!(!work.exists());
+    assert!(!cache.exists());
+    assert!(product_scratch::ProductScratch::create(
+        &artifact_output,
+        &shard_output,
+        Some(&artifact_output),
+    )
+    .is_err());
 }

@@ -1,8 +1,8 @@
 [package]
 name = "cassie-engine"
 version = "0.1.0"
-edition = "2021"
-publish = false
+edition.workspace = true
+publish.workspace = true
 
 [lints]
 workspace = true
@@ -12,41 +12,107 @@ replay-benchmark-observation = ["cassie-storage/replay-benchmark-observation"]
 transport-test-hooks = ["cassie-storage/storage-test-hooks"]
 
 [dependencies]
-cassie-core = { path = "../cassie-core" }
-cassie-search = { path = "../cassie-search" }
-cassie-vector = { path = "../cassie-vector" }
+cassie-core.workspace = true
+cassie-search.workspace = true
+cassie-vector.workspace = true
 cassie-embeddings = { path = "../cassie-embeddings" }
-cassie-sql = { path = "../cassie-sql" }
-cassie-storage = { path = "../cassie-storage" }
-num-traits = "0.2.19"
-num-bigint = "0.5.1"
-num-integer = "0.1.47"
-bytes = "1.12"
-chrono = "0.4"
-tokio = { version = "1.54", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
-parking_lot = { version = "0.13", features = ["arc_lock"] }
-thiserror = "2.0"
-uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
-cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
-tracing = "0.1"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-argon2 = "0.6"
-getrandom = "0.4"
-sha2 = "0.11"
-md-5 = "0.11"
-time = { version = "0.3", features = ["formatting", "parsing"] }
-jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
-jiff-tzdb = "1.0.0"
-url = "2.5"
-regex-automata = "0.4.18"
-regex-syntax = "0.8.11"
-fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
-sql-json-path = "0.2.0"
+cassie-sql.workspace = true
+cassie-storage.workspace = true
+num-traits.workspace = true
+num-bigint.workspace = true
+num-integer.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "arbitrary_precision"] }
+parking_lot = { workspace = true, features = ["arc_lock"] }
+thiserror.workspace = true
+uuid.workspace = true
+cntryl_lexkey.workspace = true
+tracing.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json"] }
+argon2.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+time.workspace = true
+jiff.workspace = true
+jiff-tzdb.workspace = true
+url.workspace = true
+regex-automata.workspace = true
+regex-syntax.workspace = true
+fancy-regex.workspace = true
+sql-json-path.workspace = true
 
 [dev-dependencies]
-cassie-core = { path = "../cassie-core", features = ["numeric-test-hooks"] }
-cassie-storage = { path = "../cassie-storage", features = ["storage-test-hooks"] }
-cntryl-midge = "0.5.3"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+cassie-bench-support.workspace = true
+cassie-core = { workspace = true, features = ["numeric-test-hooks"] }
+cassie-storage = { workspace = true, features = ["storage-test-hooks"] }
+cntryl-midge.workspace = true
+tracing-subscriber.workspace = true
+
+[[bench]]
+name = "tier1_hotpath_filter_projection"
+harness = false
+path = "benches/tier1_hotpath_filter_projection.rs"
+
+[[bench]]
+name = "tier1_hotpath_predicates"
+harness = false
+path = "benches/tier1_hotpath_predicates.rs"
+
+[[bench]]
+name = "tier1_hotpath_topk"
+harness = false
+path = "benches/tier1_hotpath_topk.rs"
+
+[[bench]]
+name = "tier1_hotpath_graph_paths"
+harness = false
+path = "benches/tier1_hotpath_graph_paths.rs"
+
+[[bench]]
+name = "tier2_subsystem_binder"
+harness = false
+path = "benches/tier2_subsystem_binder.rs"
+
+[[bench]]
+name = "tier2_subsystem_sql_planning"
+harness = false
+path = "benches/tier2_subsystem_sql_planning.rs"
+
+[[bench]]
+name = "tier2_subsystem_plan_cache"
+harness = false
+path = "benches/tier2_subsystem_plan_cache.rs"
+
+[[bench]]
+name = "tier2_subsystem_executor"
+harness = false
+path = "benches/tier2_subsystem_executor.rs"
+
+[[bench]]
+name = "tier2_subsystem_column_scan"
+harness = false
+path = "benches/tier2_subsystem_column_scan.rs"
+
+[[bench]]
+name = "tier2_subsystem_hybrid"
+harness = false
+path = "benches/tier2_subsystem_hybrid.rs"
+
+[[bench]]
+name = "tier2_subsystem_graph"
+harness = false
+path = "benches/tier2_subsystem_graph.rs"
+
+[[bench]]
+name = "tier2_subsystem_generated_sources"
+harness = false
+path = "benches/tier2_subsystem_generated_sources.rs"
+
+[[bench]]
+name = "tier2_subsystem_ingest"
+harness = false
+path = "benches/tier2_subsystem_ingest.rs"

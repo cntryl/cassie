@@ -65,7 +65,10 @@ fn main() {
                 workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES.to_string(),
             )
             .preflight_evidence(preflight.selected_access_path, preflight.fallback_reason)
-            .runtime_evidence(context.cassie.clone());
+            .runtime_evidence({
+                let evidence_cassie = context.cassie.clone();
+                move || evidence_cassie.metrics()
+            });
         runner.measure_batch(case, 1, || {
             let current = nonce.get();
             nonce.set(current.wrapping_add(1));

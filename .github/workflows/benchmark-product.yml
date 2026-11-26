@@ -1,0 +1,123 @@
+name: Benchmark product
+
+on:
+  workflow_dispatch:
+    inputs:
+      metric:
+        description: Run all product owners, only the five non-vector owners, or one vector shard
+        required: true
+        type: choice
+        default: all
+        options: [all, non-vector, vector]
+      profile:
+        description: Smoke uses deterministic small fixtures; full uses pinned inputs
+        required: true
+        type: choice
+        default: full
+        options: [smoke, full]
+      vector_configuration:
+        description: One registered vector configuration for this vector shard
+        required: true
+        type: choice
+        default: exact
+        options: [exact, hnsw-1, hnsw-2, ivfflat-1, ivfflat-2]
+      vector_query_range:
+        description: Half-open range within each 1,000-ID split, such as 0..250
+        required: true
+        default: "0..250"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  product-non-vector:
+    if: ${{ github.ref == 'refs/heads/main' && (inputs.metric == 'all' || inputs.metric == 'non-vector') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_SOURCE_COMMIT: ${{ github.sha }}
+      CASSIE_BENCH_JOB_ID: product-non-vector
+      CASSIE_BENCH_PRODUCT_PROFILE: ${{ inputs.profile }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify main source and install Rust
+        run: |
+          test "$(git rev-parse HEAD)" = "$CASSIE_BENCH_SOURCE_COMMIT"
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+      - name: Run non-vector metrics serially
+        run: |
+          for owner in tier5_product_projection tier5_product_fulltext tier5_product_time_series tier3_product_column tier3_product_graph; do
+            python3 tools/benchmark_workflows.py run "$owner" --registry target/benchmark-registry.json --category product --profile "$CASSIE_BENCH_PRODUCT_PROFILE" --output-dir target/product
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-product-non-vector-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/product/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90
+
+  product-vector:
+    if: ${{ github.ref == 'refs/heads/main' && (inputs.metric == 'all' || inputs.metric == 'vector') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      RUSTUP_TOOLCHAIN: "1.100.0"
+      CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+      CASSIE_BENCH_SOURCE_COMMIT: ${{ github.sha }}
+      CASSIE_BENCH_JOB_ID: product-vector
+      CASSIE_BENCH_PRODUCT_PROFILE: ${{ inputs.profile }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify main source and install Rust
+        run: |
+          test "$(git rev-parse HEAD)" = "$CASSIE_BENCH_SOURCE_COMMIT"
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          mkdir -p target
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- registry > target/benchmark-registry.json
+      - name: Fetch configured private pinned vector input
+        if: (inputs.metric == 'all' || inputs.metric == 'vector') && inputs.profile == 'full'
+        env:
+          VECTOR_INPUT_URL: ${{ secrets.CASSIE_BENCH_VECTOR_INPUT_URL }}
+        run: |
+          if [[ -z "$VECTOR_INPUT_URL" || "$VECTOR_INPUT_URL" != https://* ]]; then
+            echo "Configure CASSIE_BENCH_VECTOR_INPUT_URL with the private HTTPS archive containing the pinned corpus inputs." >&2
+            exit 1
+          fi
+          mkdir -p target/embeddings
+          curl --fail --location --silent --show-error "$VECTOR_INPUT_URL" --output target/vector-input.zip
+          unzip -q target/vector-input.zip -d target/embeddings
+          echo "CASSIE_BENCH_EMBEDDINGS_DIR=$PWD/target/embeddings" >> "$GITHUB_ENV"
+      - name: Run one selected vector configuration and query range
+        if: inputs.metric == 'all' || inputs.metric == 'vector'
+        env:
+          VECTOR_CONFIGURATION: ${{ inputs.vector_configuration }}
+          VECTOR_QUERY_RANGE: ${{ inputs.vector_query_range }}
+        run: |
+          python3 tools/benchmark_workflows.py validate-vector "$VECTOR_CONFIGURATION" "$VECTOR_QUERY_RANGE"
+          export CASSIE_BENCH_PRODUCT_VECTOR_CONFIGURATION="$VECTOR_CONFIGURATION"
+          export CASSIE_BENCH_PRODUCT_VECTOR_QUERY_RANGE="$VECTOR_QUERY_RANGE"
+          export CASSIE_BENCH_PRODUCT_OUTPUT_DIR="$PWD/target/product/vector"
+          python3 tools/benchmark_workflows.py run tier5_embedding_workloads --registry target/benchmark-registry.json --category product --profile "$CASSIE_BENCH_PRODUCT_PROFILE" --output-dir target/product
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: benchmark-product-${{ inputs.metric }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/product/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90

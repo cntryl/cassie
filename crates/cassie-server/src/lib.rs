@@ -1,5 +1,9 @@
 #[doc(hidden)]
 pub mod benchmark;
+
+#[cfg(test)]
+#[path = "benchmark_tests.rs"]
+mod benchmark_tests;
 pub mod pgwire;
 pub mod rest;
 pub(crate) mod transport;

@@ -126,7 +126,7 @@ pub async fn run_connection(
     let Ok(iam) = super::iam::configure(&cassie, &config, tls_config.is_some()) else {
         return;
     };
-    run_connection_with_iam(
+    Box::pin(run_connection_with_iam(
         socket,
         cassie,
         config,
@@ -134,7 +134,7 @@ pub async fn run_connection(
         require_tls,
         peer_ip,
         iam,
-    )
+    ))
     .await;
 }
 

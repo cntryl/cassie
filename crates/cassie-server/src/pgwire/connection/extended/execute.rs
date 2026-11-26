@@ -30,28 +30,9 @@ pub(super) async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = suspended.filter(|_| !quarantined) {
-        super::super::transactions::capture_and_validate_protocol_owner(session)
-            .await
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
-        if session.uses_aws_iam() {
-            let authenticated = session.clone();
-            if let Err(error) =
-                run_pgwire_blocking(Arc::clone(&cassie), "pgwire_auth", move |cassie| {
-                    cassie.ensure_session_database_access(&authenticated)
-                })
-                .await
-            {
-                if let Some(cancellation) = suspended.cancellation.as_ref() {
-                    state.clear_query_cancellation(cancellation);
-                }
-                if state.remove_portal(&portal_name).is_some() {
-                    runtime.record_pgwire_portal_delta(-1);
-                }
-                return Err(ExtendedQueryError::cassie(&error));
-            }
-        }
-        return resume_suspended_portal(
+        return resume_admitted_portal(
             cassie,
+            runtime,
             write_half,
             SuspendedPortalRequest {
                 state,
@@ -133,6 +114,34 @@ pub(super) async fn handle_execute(
     .await;
     super::super::transactions::clear_owned_idle_portals(runtime, state, session);
     result
+}
+
+async fn resume_admitted_portal(
+    cassie: Arc<Cassie>,
+    runtime: &RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    request: SuspendedPortalRequest<'_>,
+) -> Result<(), ExtendedQueryError> {
+    super::super::transactions::capture_and_validate_protocol_owner(request.session)
+        .await
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    if request.session.uses_aws_iam() {
+        let authenticated = request.session.clone();
+        if let Err(error) = run_pgwire_blocking(Arc::clone(&cassie), "pgwire_auth", move |cassie| {
+            cassie.ensure_session_database_access(&authenticated)
+        })
+        .await
+        {
+            if let Some(cancellation) = request.suspended.cancellation.as_ref() {
+                request.state.clear_query_cancellation(cancellation);
+            }
+            if request.state.remove_portal(request.portal_name).is_some() {
+                runtime.record_pgwire_portal_delta(-1);
+            }
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
+    resume_suspended_portal(cassie, write_half, request).await
 }
 
 async fn refresh_prepared_descriptor(

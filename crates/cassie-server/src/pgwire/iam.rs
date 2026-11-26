@@ -211,6 +211,13 @@ impl FixtureClock {
     }
 }
 
+fn system_seconds() -> Result<u64, Rejected> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|_| Rejected)
+}
+
 pub(super) struct Verifier {
     trust: TrustSet,
     client: reqwest::Client,
@@ -239,26 +246,15 @@ impl Verifier {
         let token = Token::parse(credential)?;
         let account = self.trust.account_for(&token)?;
         let keys = self.keys_for(account, &token).await?;
-        token.verify(&self.trust, account, &keys, self.current_seconds()?)
-    }
-
-    fn current_seconds(&self) -> Result<u64, Rejected> {
+        #[cfg(not(test))]
+        let current_seconds = system_seconds;
         #[cfg(test)]
-        if let Some(clock) = self.fixture_clock.as_ref() {
-            return Ok(clock.seconds());
-        }
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .map_err(|_| Rejected)
-    }
-
-    fn current_instant(&self) -> Instant {
-        #[cfg(test)]
-        if let Some(clock) = self.fixture_clock.as_ref() {
-            return clock.instant();
-        }
-        Instant::now()
+        let current_seconds = || {
+            self.fixture_clock
+                .as_ref()
+                .map_or_else(system_seconds, |clock| Ok(clock.seconds()))
+        };
+        token.verify(&self.trust, account, &keys, current_seconds()?)
     }
 
     async fn keys_for(
@@ -267,7 +263,15 @@ impl Verifier {
         token: &Token<'_>,
     ) -> Result<Arc<IssuerKeys>, Rejected> {
         let mut cache = account.cache.lock().await;
-        let now = self.current_instant();
+        #[cfg(not(test))]
+        let current_instant = Instant::now;
+        #[cfg(test)]
+        let current_instant = || {
+            self.fixture_clock
+                .as_ref()
+                .map_or_else(Instant::now, |clock| clock.instant())
+        };
+        let now = current_instant();
         if let Some((loaded, keys)) = cache.keys.as_ref() {
             if now.saturating_duration_since(*loaded) < KEY_LIFETIME
                 && keys.has_key(token.kid(), token.algorithm())
@@ -303,7 +307,7 @@ impl Verifier {
             contents.extend_from_slice(&chunk);
         }
         let keys = Arc::new(IssuerKeys::from_json(&contents)?);
-        cache.keys = Some((self.current_instant(), Arc::clone(&keys)));
+        cache.keys = Some((current_instant(), Arc::clone(&keys)));
         Ok(keys)
     }
 }

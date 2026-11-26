@@ -292,7 +292,7 @@ async fn start_fixture_pgwire(
     let server = tokio::spawn(async move {
         for _ in 0..connection_count {
             let (socket, peer) = listener.accept().await.unwrap();
-            crate::pgwire::connection::run_connection_with_iam(
+            Box::pin(crate::pgwire::connection::run_connection_with_iam(
                 socket,
                 Arc::clone(&cassie),
                 config.clone(),
@@ -300,7 +300,7 @@ async fn start_fixture_pgwire(
                 false,
                 peer.ip(),
                 Some(Arc::clone(&verifier)),
-            )
+            ))
             .await;
         }
     });
@@ -374,8 +374,7 @@ async fn signed_driver_connections() {
     issuer.clock.set(later);
     let expired = connect_driver(address, &client_tls, &original_token)
         .await
-        .err()
-        .expect("expired token denied");
+        .expect_err("expired token denied");
     let mut refreshed_claims = claims();
     refreshed_claims["iat"] = json!(later);
     refreshed_claims["exp"] = json!(later + 200);
@@ -450,14 +449,14 @@ fn should_never_challenge_for_credentials_on_invalid_iam_transport_configuration
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (socket, peer) = listener.accept().await.unwrap();
-            crate::pgwire::connection::run_connection(
+            Box::pin(crate::pgwire::connection::run_connection(
                 socket,
                 cassie,
                 config,
                 None,
                 false,
                 peer.ip(),
-            )
+            ))
             .await;
         });
         let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();

@@ -128,3 +128,67 @@ fn should_reject_reserved_selector_password_fallback_disabled_role_and_name_reus
         "explicit binding authorizes the new role identity"
     );
 }
+
+#[test]
+fn should_resolve_object_grants_against_the_iam_session_original_role_id() {
+    // Arrange
+    let cassie = cassie();
+    let admin = cassie.create_session("root", None);
+    let bind = bind_sql("service", "BIND");
+    for sql in [
+        "CREATE ROLE service EXTERNAL LOGIN",
+        &bind,
+        "CREATE TABLE private_rows (secret INTEGER)",
+    ] {
+        cassie.execute_sql(&admin, sql, vec![]).expect(sql);
+    }
+    let stale = cassie
+        .complete_aws_iam_login(
+            cassie
+                .begin_aws_iam_login(std::net::Ipv4Addr::LOCALHOST.into())
+                .unwrap(),
+            ISSUER,
+            ROLE,
+            None,
+        )
+        .expect("open original role session");
+    for sql in [
+        "DROP ROLE service",
+        "CREATE ROLE service EXTERNAL LOGIN",
+        "GRANT USAGE ON SCHEMA public TO service",
+        "GRANT SELECT ON TABLE private_rows TO service",
+        &bind,
+    ] {
+        cassie.execute_sql(&admin, sql, vec![]).expect(sql);
+    }
+    let replacement = cassie
+        .complete_aws_iam_login(
+            cassie
+                .begin_aws_iam_login(std::net::Ipv4Addr::LOCALHOST.into())
+                .unwrap(),
+            ISSUER,
+            ROLE,
+            None,
+        )
+        .expect("open replacement role session");
+
+    // Act
+    let read = |session| {
+        let context = cassie.binding_context_for_session(Some(session));
+        super::super::access::require_table_read(
+            &cassie.catalog,
+            session,
+            &context,
+            "postgres.public.private_rows",
+        )
+    };
+    let stale_read = read(&stale);
+    let replacement_read = read(&replacement);
+
+    // Assert
+    assert!(matches!(
+        stale_read,
+        Err(CassieError::InsufficientPrivilege)
+    ));
+    replacement_read.expect("the explicitly bound replacement can use its own grants");
+}

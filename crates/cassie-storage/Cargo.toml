@@ -15,7 +15,7 @@ cassie-sql.workspace = true
 cassie-vector.workspace = true
 bytes.workspace = true
 cntryl-midge.workspace = true
-cntryl-lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+cntryl-lexkey = { package = "cntryl-lexkey", version = "0.1.1" }
 lz4_flex = "0.14"
 parking_lot = { workspace = true, features = ["arc_lock"] }
 serde.workspace = true

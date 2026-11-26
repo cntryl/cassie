@@ -41,13 +41,13 @@ cassie-vector = { path = "crates/cassie-vector" }
 chrono = "0.4"
 cntryl-midge = "0.6.0"
 cntryl-stress = "0.5.1"
-cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.1" }
 fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }
 getrandom = "0.4"
 http-body-util = "0.1"
-hyper = { version = "1.12", features = ["full"] }
+hyper = { version = "1.13", features = ["full"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
-jiff = { version = "1.0.1", default-features = false, features = ["std", "tzdb-bundle-always"] }
+jiff = { version = "1.0.3", default-features = false, features = ["std", "tzdb-bundle-always"] }
 jiff-tzdb = "1.0.0"
 md-5 = "0.11"
 num-bigint = "0.5.1"
@@ -55,8 +55,8 @@ num-integer = "0.1.47"
 num-traits = "0.2.19"
 parking_lot = "0.13"
 rcgen = "0.14"
-regex-automata = "0.4.18"
-regex-syntax = "0.8.11"
+regex-automata = "0.4.19"
+regex-syntax = "0.8.12"
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 rust-stemmers = "1.2.0"
 rustls = "0.23"

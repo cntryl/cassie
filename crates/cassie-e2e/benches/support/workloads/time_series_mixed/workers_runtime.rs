@@ -2,9 +2,9 @@ use super::{
     enforce_retention, model, mpsc, probe_devices, range_page_sql, read_checkpoint,
     read_relation_pages, result_event_rows, retention_accounting, thread, verify_snapshot, Arc,
     BTreeMap, Cassie, CassieSession, Duration, EventCursor, EventRow, Fixture, Instant, JoinHandle,
-    MaintenanceAction, MaintenanceCommand, MaintenanceResult, MaintenanceWorker, Mutation,
-    Ordering, PreparedReaderProbe, ProducerCommand, RateAttempt, ReaderCommand, ReaderPool,
-    Receiver, RunKind, SecondSample, SharedMetrics, TryRecvError, Value, WriterQueue,
+    MaintenanceAction, MaintenanceCommand, MaintenanceResult, MaintenanceWorker, MeasuredWindow,
+    Mutation, Ordering, PreparedReaderProbe, ProducerCommand, RateAttempt, ReaderCommand,
+    ReaderPool, Receiver, RunKind, SecondSample, SharedMetrics, TryRecvError, Value, WriterQueue,
     WriterService, BRACKET_FIRST_RATE, BRACKET_MAX_RATE, BRACKET_REFINEMENTS, BRACKET_WINDOW,
     DAILY_ROLLUP, PAGE_ROWS, READER_COUNT, TABLE, WRITER_DRAIN_TIMEOUT,
 };
@@ -356,7 +356,7 @@ pub(super) fn run_paced_window(
     started.elapsed()
 }
 
-fn wait_for_writer_drain(shared: &SharedMetrics, timeout: Duration) -> bool {
+pub(super) fn wait_for_writer_drain(shared: &SharedMetrics, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         let backlog = shared
@@ -548,7 +548,7 @@ pub(super) struct MixedWindowResult {
     pub(super) correction_events_expected: u64,
     pub(super) correction_events_acknowledged: u64,
     pub(super) retention_applied: bool,
-    pub(super) backlog_events_at_window_end: u64,
+    pub(super) window: MeasuredWindow,
 }
 
 pub(super) fn current_fallback_scans(cassie: &Cassie) -> u64 {

@@ -86,6 +86,11 @@ result.
 ## Evidence
 
 Raw JSON for each scenario is written under `target/time-series-mixed-1350/`.
+The report keeps scenario-wide offered and acknowledged totals for drain
+accounting. The measured window has separate event deltas and reader and
+writer latency samples captured at its start and end. Bracket attempts and
+post-window drain are excluded from those measurements. The sampler retains
+scenario-wide samples, including backlog and peak RSS.
 
 Clean smoke run (20,000 seed events, 16 devices, 5% time scale, loaded machine, so
 all rates are not-quiet and decide nothing): `correctness verdict: PASS`. The run

@@ -9,14 +9,16 @@
 
 use super::runtime::{MixedWindow, MixedWindowResult};
 use super::{
-    model, thread, Duration, Instant, MaintenanceAction, MaintenanceResult, Ordering, ProbeResult,
-    ProbeScope, Producer, Receiver, SharedMetrics, TryRecvError,
+    model, thread, Duration, Instant, MaintenanceAction, MaintenanceResult, MeasuredWindow,
+    Ordering, ProbeResult, ProbeScope, Producer, Receiver, SharedMetrics, TryRecvError,
+    WindowCounters,
 };
 
 /// Aborts a wedged run. It is a hang guard, never a pass or fail condition.
 const PHASE_HANG_GUARD: Duration = Duration::from_hours(4);
 
 pub(super) fn run_mixed_window(mut window: MixedWindow<'_>) -> MixedWindowResult {
+    let before = WindowCounters::capture(window.shared);
     let producer = Producer::start(
         window.writer.queue.clone(),
         window.cursor.take().expect("mixed event cursor"),
@@ -32,11 +34,11 @@ pub(super) fn run_mixed_window(mut window: MixedWindow<'_>) -> MixedWindowResult
 
     let measured_elapsed = window.start.elapsed();
     window.shared.readers_active.store(false, Ordering::Release);
-    let backlog_events_at_window_end = window.shared.steady_backlog();
+    let after = WindowCounters::capture(window.shared);
     let result = progress.finish(
         &window,
         &producer,
-        backlog_events_at_window_end,
+        MeasuredWindow { before, after },
         measured_elapsed,
     );
     producer.stop();
@@ -240,7 +242,7 @@ impl MixedProgress {
         mut self,
         window: &MixedWindow<'_>,
         producer: &Producer,
-        backlog_events_at_window_end: u64,
+        measured_work: MeasuredWindow,
         measured_elapsed: Duration,
     ) -> MixedWindowResult {
         let hang_guard = Instant::now() + PHASE_HANG_GUARD;
@@ -275,7 +277,7 @@ impl MixedProgress {
             correction_events_expected: self.correction_events_expected,
             correction_events_acknowledged: self.correction_events_acknowledged,
             retention_applied: self.retention == Phase::Done,
-            backlog_events_at_window_end,
+            window: measured_work,
         }
     }
 

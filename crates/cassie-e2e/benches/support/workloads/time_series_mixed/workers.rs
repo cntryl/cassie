@@ -21,6 +21,7 @@ use probe::{
 };
 #[path = "workers_oracle_controls.rs"]
 mod oracle_controls;
+use oracle_controls::should_bound_window_counters;
 #[path = "workers_retention.rs"]
 mod retention;
 #[path = "workers_runtime.rs"]
@@ -30,7 +31,7 @@ use runtime::{
     backlog_growth, backlog_is_stable, bracket_ingest_rate, current_fallback_scans,
     infer_limiting_resource, percentile_us, producer_loop, run_paced_window, start_maintenance,
     start_readers, start_sampler, value_text, verify_final_mixed_state, wait_for_duration,
-    writer_loop, FinalStateEvidence, MixedWindow,
+    wait_for_writer_drain, writer_loop, FinalStateEvidence, MixedWindow,
 };
 #[path = "workers_mixed.rs"]
 mod mixed;
@@ -53,6 +54,8 @@ pub struct ScenarioReport {
     pub writer_rate: u64,
     pub offered_events: u64,
     pub acknowledged_events: u64,
+    pub window_offered_events: u64,
+    pub window_acknowledged_events: u64,
     pub peak_backlog_events: u64,
     pub backlog_events_at_window_end: u64,
     pub backlog_growth_events: i64,
@@ -527,6 +530,42 @@ pub fn run_scenario(
     (reopened, report)
 }
 
+/// Counters captured while opening or closing the measured window.
+#[derive(Default)]
+struct WindowCounters {
+    offered: u64,
+    acknowledged: u64,
+    reader_samples: usize,
+    writer_samples: usize,
+    backlog: u64,
+}
+
+impl WindowCounters {
+    fn capture(shared: &SharedMetrics) -> Self {
+        Self {
+            offered: shared.offered_events.load(Ordering::Acquire),
+            acknowledged: shared.acknowledged_events.load(Ordering::Acquire),
+            reader_samples: shared
+                .reader_latency_ns
+                .lock()
+                .expect("reader latency mutex")
+                .len(),
+            writer_samples: shared
+                .writer_latency_ns
+                .lock()
+                .expect("writer latency mutex")
+                .len(),
+            backlog: shared.steady_backlog(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct MeasuredWindow {
+    before: WindowCounters,
+    after: WindowCounters,
+}
+
 #[derive(Default)]
 struct ScenarioOutcome {
     measured_elapsed: Duration,
@@ -540,7 +579,7 @@ struct ScenarioOutcome {
     correction_events_expected: u64,
     correction_events_acknowledged: u64,
     retention_applied: bool,
-    backlog_events_at_window_end: Option<u64>,
+    window: MeasuredWindow,
 }
 
 struct ScenarioRun {
@@ -594,12 +633,17 @@ impl ScenarioRun {
         match kind {
             RunKind::IngestOnly => self.execute_ingest(duration),
             RunKind::ReaderOnly => {
+                let before = WindowCounters::capture(&self.shared);
                 let started = Instant::now();
                 self.shared.readers_active.store(true, Ordering::Release);
                 wait_for_duration(duration, started);
                 self.shared.readers_active.store(false, Ordering::Release);
                 ScenarioOutcome {
                     measured_elapsed: started.elapsed(),
+                    window: MeasuredWindow {
+                        before,
+                        after: WindowCounters::capture(&self.shared),
+                    },
                     ..ScenarioOutcome::default()
                 }
             }
@@ -617,8 +661,15 @@ impl ScenarioRun {
                 ..ScenarioOutcome::default()
             };
         }
+        assert!(
+            wait_for_writer_drain(&self.shared, WRITER_DRAIN_TIMEOUT),
+            "ingest bracket must drain before opening the measurement window"
+        );
+        let before = WindowCounters::capture(&self.shared);
         let measured_elapsed = run_paced_window(writer, cursor, sustainable_rate.max(1), duration);
+        let after = WindowCounters::capture(&self.shared);
         ScenarioOutcome {
+            window: MeasuredWindow { before, after },
             measured_elapsed,
             sustainable_rate,
             target_writer_rate: sustainable_rate,
@@ -657,7 +708,7 @@ impl ScenarioRun {
             correction_events_expected: result.correction_events_expected,
             correction_events_acknowledged: result.correction_events_acknowledged,
             retention_applied: result.retention_applied,
-            backlog_events_at_window_end: Some(result.backlog_events_at_window_end),
+            window: result.window,
             ..ScenarioOutcome::default()
         }
     }
@@ -687,9 +738,7 @@ impl ScenarioRun {
         outcome: ScenarioOutcome,
         fallback_scans: u64,
     ) -> ScenarioReport {
-        let backlog_at_window_end = outcome
-            .backlog_events_at_window_end
-            .unwrap_or_else(|| self.shared.steady_backlog());
+        let backlog_at_window_end = outcome.window.after.backlog;
         let final_state = verify_final_mixed_state(
             fixture,
             &self.shared,
@@ -752,22 +801,31 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
     } = input;
     let offered_events = shared.offered_events.load(Ordering::Acquire);
     let acknowledged_events = shared.acknowledged_events.load(Ordering::Acquire);
-    let reader_queries = shared.reader_queries.load(Ordering::Acquire);
+    let window = &outcome.window;
+    let window_offered_events = window.after.offered - window.before.offered;
+    let window_acknowledged_events = window.after.acknowledged - window.before.acknowledged;
+    should_bound_window_counters(
+        window_offered_events,
+        window_acknowledged_events,
+        offered_events,
+        acknowledged_events,
+    );
     let samples = shared.samples.lock().expect("sample vector mutex").clone();
     let reader_latency_ns = shared
         .reader_latency_ns
         .lock()
-        .expect("reader latency mutex")
-        .clone();
+        .expect("reader latency mutex")[window.before.reader_samples..window.after.reader_samples]
+        .to_vec();
+    let reader_queries = u64::try_from(reader_latency_ns.len()).expect("reader count fits u64");
     let writer_latency_ns = shared
         .writer_latency_ns
         .lock()
-        .expect("writer latency mutex")
-        .clone();
+        .expect("writer latency mutex")[window.before.writer_samples..window.after.writer_samples]
+        .to_vec();
     let reader_p50_us = percentile_us(&reader_latency_ns, 5_000);
     let reader_p95_us = percentile_us(&reader_latency_ns, 9_500);
     let backlog_stable = backlog_is_stable(kind, backlog_events_at_window_end, &samples);
-    let writer_rate = writer_rate(kind, outcome.sustainable_rate, acknowledged_events, elapsed);
+    let writer_rate = writer_rate(window_acknowledged_events, elapsed);
     let peak_backlog_events = shared.peak_backlog_events.load(Ordering::Acquire);
     let sampled_peak_rss_bytes = sampled_peak_rss_bytes(&samples);
     let first_limiting_resource = infer_limiting_resource(
@@ -786,7 +844,7 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         .map(|attempt| attempt.target_events_per_second);
     let correction_events_expected = outcome.correction_events_expected;
     let correction_events_acknowledged = outcome.correction_events_acknowledged;
-    let completed_operations = acknowledged_events.saturating_add(reader_queries).max(1);
+    let completed_operations = window_acknowledged_events.saturating_add(reader_queries);
     let oracle_mismatches = final_state.oracle_mismatches.saturating_add(
         usize::try_from(shared.oracle_mismatches.load(Ordering::Acquire)).unwrap_or(usize::MAX),
     );
@@ -797,6 +855,8 @@ fn build_report(shared: &SharedMetrics, input: ReportInput) -> ScenarioReport {
         writer_rate,
         offered_events,
         acknowledged_events,
+        window_offered_events,
+        window_acknowledged_events,
         peak_backlog_events,
         backlog_events_at_window_end,
         backlog_growth_events: backlog_growth(&samples),
@@ -852,15 +912,11 @@ fn sampled_peak_rss_bytes(samples: &[SecondSample]) -> u64 {
         .max(super::evidence::process_rss_bytes())
 }
 
-fn writer_rate(kind: RunKind, sustainable_rate: u64, acknowledged: u64, elapsed: Duration) -> u64 {
-    match kind {
-        RunKind::IngestOnly => sustainable_rate,
-        RunKind::ReaderOnly => 0,
-        RunKind::Mixed => u128::from(acknowledged)
-            .saturating_mul(1_000_000_000)
-            .checked_div(elapsed.as_nanos())
-            .map_or(0, |rate| u64::try_from(rate).unwrap_or(u64::MAX)),
-    }
+fn writer_rate(acknowledged: u64, elapsed: Duration) -> u64 {
+    u128::from(acknowledged)
+        .saturating_mul(1_000_000_000)
+        .checked_div(elapsed.as_nanos())
+        .map_or(0, |rate| u64::try_from(rate).unwrap_or(u64::MAX))
 }
 
 fn latency_samples_us(latencies_ns: &[u128]) -> Vec<u64> {

@@ -385,3 +385,6 @@ fn should_route_verified_tls_connections_and_require_a_fresh_token_after_expiry(
     // Assert
     result.expect("fixture completed within its hang guard");
 }
+
+#[path = "rotation_tests.rs"]
+mod rotation_tests;

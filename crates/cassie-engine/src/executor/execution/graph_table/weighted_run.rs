@@ -2,10 +2,12 @@
 //! resolved: choose the read path, locate the endpoints, validate every graph-visible edge
 //! weight, then search (#1258, #1268).
 //!
-//! The lazy indexed store is the default. Its validation is one streaming scan of the
-//! selected edge mappings (`weighted_validate`) and its search fetches the neighbourhoods of
+//! The lazy indexed store is the default. Its validation streams the rows requiring
+//! examination (`weighted_validate`) and its search fetches the neighbourhoods of
 //! the vertices it visits. When exact reads are forced the whole selected mappings are read
 //! first, as before, and validation is the weight check of every loaded edge.
+
+use std::time::Instant;
 
 use uuid::Uuid;
 
@@ -94,8 +96,14 @@ fn validate_lazy(
         .lazy
         .as_deref()
         .ok_or_else(|| super::failure("the lazy store is unavailable"))?;
+    let start = Instant::now();
     let counts =
         weighted_validate::validate(env, &resolved.graph, &lazy.access, &resolved.columns)?;
+    env.cassie.runtime.record_graph_weight_validation(
+        start.elapsed(),
+        counts.index_probes,
+        counts.full_scans,
+    );
     env.cassie.runtime.record_graph_reads(GraphReadCounts {
         index_entries: counts.reads.index_entries,
         row_fetches: counts.reads.row_fetches,
@@ -188,8 +196,12 @@ pub(super) fn run(
         database_id: request.source.database_id,
         graph_id: request.source.graph_id,
     };
+    let search_start = Instant::now();
     let found = Search::new(env, &mut store, &query, memory)?.run()?;
     if store.lazy.is_some() {
+        env.cassie
+            .runtime
+            .record_graph_weight_search(search_start.elapsed());
         store.record_reads(env, 0);
     }
     Ok(found)

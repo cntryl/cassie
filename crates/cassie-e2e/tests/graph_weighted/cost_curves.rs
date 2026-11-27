@@ -1,6 +1,5 @@
 //! Deterministic cost curves of `graph_weighted_paths` (#1355). The validation scan is
-//! O(selected edges) by contract and is counted on its own; the search is O(visited
-//! neighbourhood). Each test fixes the queried neighbourhood and grows only what the
+//! counted separately from the search. Each test fixes the queried neighbourhood and grows only what the
 //! contract says may grow. Every value is a counter, never a timing.
 
 use crate::world::{fast, started, vertex, Fixture, Link, Variant, VariantGuard, Wg};
@@ -249,12 +248,14 @@ fn should_skip_nonnegative_disconnected_rows_given_a_complete_invalid_weight_ind
     // Act
     let indexed = [&small, &large].map(|fixture| fixture.rows(&query));
     let counts = [&small, &large].map(validation_counts);
-    small.cassie.set_graph_exact_reads(true);
-    let exact = small.rows(&query);
+    let exact = [&small, &large].map(|fixture| {
+        fixture.cassie.set_graph_exact_reads(true);
+        fixture.rows(&query)
+    });
 
     // Assert
-    assert_eq!(exact.len(), 1);
-    assert_eq!(indexed, [exact.clone(), exact]);
+    assert_eq!(exact.each_ref().map(Vec::len), [1, 1]);
+    assert_eq!(indexed, exact);
     assert_eq!(counts, [(0, 1, 0), (0, 1, 0)]);
 }
 

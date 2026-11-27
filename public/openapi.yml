@@ -1198,6 +1198,13 @@ components:
       type: object
       description: Arbitrary JSON document payload stored under a collection resource.
       additionalProperties: true
+    AuthMethods:
+      type: object
+      required: [oidc]
+      properties:
+        oidc:
+          type: boolean
+          description: Whether browser sign-in uses the configured OpenID Connect provider.
     Session:
       type: object
       required: [user]
@@ -1321,6 +1328,20 @@ paths:
                 additionalProperties: true
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/auth/methods:
+    get:
+      tags: [Auth]
+      summary: Get the browser sign-in method
+      operationId: getRestAuthMethods
+      security: []
+      responses:
+        '200':
+          description: Browser sign-in configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMethods'
 
   /api/v1/auth/login:
     post:

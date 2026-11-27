@@ -1,3 +1,7 @@
+export type AuthMethods = {
+  "oidc": boolean;
+};
+
 export type CollectionCreateRequest = {
   "name": string;
   "description"?: string;

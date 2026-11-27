@@ -5,6 +5,17 @@ import { ensureResponseOk, unwrapResponse } from "@/shared/errors/api";
 
 const authMutations = queryScope("auth-mutations");
 
+export async function discoverAuthMethods(signal: AbortSignal) {
+  const methods = unwrapResponse(
+    await apiv1.getRestAuthMethods({ signal }),
+    "Could not determine how to sign in",
+  );
+  if (typeof methods?.oidc !== "boolean") {
+    throw new Error("Invalid sign-in methods response");
+  }
+  return methods;
+}
+
 export function createLoginMutation() {
   return createMutation<{ username: string; password: string }, Session>({
     key: authMutations.key("login"),

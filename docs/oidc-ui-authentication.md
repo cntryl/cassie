@@ -39,3 +39,52 @@ cannot silently change the external session's authority.
 The browser flow uses the Cassie cookie on UI REST requests. The configured
 issuer is selected by server configuration. OIDC sessions and outstanding
 login challenges are process-local and are cleared by a Cassie restart.
+
+## First use with Auth0
+
+1. Create a first-party **Regular Web Application** in Auth0. Register the exact
+   public Cassie callback URL in **Allowed Callback URLs**, for example
+   `https://cassie.example.com/api/v1/auth/oidc/callback`. Enable the
+   Authorization Code grant, select **Client Secret (Post)** for client
+   authentication, and use RS256 for ID token signing. Keep the client
+   secret in the Cassie server's secret configuration.
+   [Auth0 application settings](https://auth0.com/docs/get-started/applications/application-settings)
+2. Register an Auth0 API with an identifier such as
+   `https://cassie.example.com`. Choose RS256 and enable **RBAC** and
+   **Add Permissions in the Access Token**. If the API restricts application
+   access, authorize the Cassie application for user access to that API.
+   [Auth0 API settings](https://auth0.com/docs/get-started/apis/api-settings) ·
+   [Auth0 RBAC settings](https://auth0.com/docs/get-started/apis/enable-role-based-access-control-for-apis) ·
+   [Auth0 API access policies](https://auth0.com/docs/get-started/apis/api-access-policies-for-applications)
+3. Define an API permission such as `db:analytics`, attach it to an Auth0
+   role, and assign that role to the users who should access the database.
+   Use `db:*` only for users who should see every current and future database.
+   [Auth0 role permissions](https://auth0.com/docs/manage-users/access-control/configure-core-rbac/roles/add-permissions-to-roles)
+4. Connect as Cassie `root` over pgwire to the `analytics` database. Create
+   an ordinary SQL role and grant the objects its OIDC users need. This
+   example assumes `public.reports` exists.
+
+   ```sql
+   CREATE ROLE oidc_reader;
+   GRANT USAGE ON SCHEMA public TO oidc_reader;
+   GRANT SELECT ON TABLE public.reports TO oidc_reader;
+   ```
+
+5. Set the Cassie server configuration and restart. Supply
+   `CASSIE_OIDC_CLIENT_SECRET` through the deployment's secret store. Keep the
+   usual root password and enable HTTPS on Cassie or its trusted TLS edge.
+   [Cassie environment settings](environment-variables.md#ui-sign-in-with-openid-connect)
+
+   ```sh
+   export CASSIE_OIDC_ISSUER=https://example.us.auth0.com/
+   export CASSIE_OIDC_CLIENT_ID=your-auth0-client-id
+   export CASSIE_OIDC_API_AUDIENCE=https://cassie.example.com
+   export CASSIE_OIDC_REDIRECT_URI=https://cassie.example.com/api/v1/auth/oidc/callback
+   export CASSIE_OIDC_ROLE=oidc_reader
+   ```
+
+Open the Cassie UI in a fresh browser session. It sends you to Auth0 and then
+returns to Cassie. An account with `db:analytics` should see **analytics** in
+the database picker and be able to read `public.reports` while the SQL grant is
+present. Signing out revokes the Cassie session and offers a deliberate
+sign-in action. The provider may still have an active session.

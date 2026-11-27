@@ -1,4 +1,4 @@
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { AuthMethods, CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
 
 export type ListAdminCatalogQuery = {
   "database": string;
@@ -368,6 +368,8 @@ export type LogoutRestSessionError_401 = Error;
 export type LogoutRestSessionError_408 = Error;
 
 export type LogoutRestSessionError_503 = Error;
+
+export type GetRestAuthMethodsResponse200 = AuthMethods;
 
 export type GetRestSessionResponse200 = Session;
 

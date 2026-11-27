@@ -49,7 +49,7 @@ login challenges are process-local and are cleared by a Cassie restart.
    authentication, and use RS256 for ID token signing. Keep the client
    secret in the Cassie server's secret configuration.
    [Auth0 application settings](https://auth0.com/docs/get-started/applications/application-settings)
-2. Register an Auth0 API with an identifier such as
+2. Register a dedicated Auth0 API with an identifier such as
    `https://cassie.example.com`. Choose RS256 and enable **RBAC** and
    **Add Permissions in the Access Token**. If the API restricts application
    access, authorize the Cassie application for user access to that API.
@@ -82,6 +82,13 @@ login challenges are process-local and are cleared by a Cassie restart.
    export CASSIE_OIDC_REDIRECT_URI=https://cassie.example.com/api/v1/auth/oidc/callback
    export CASSIE_OIDC_ROLE=oidc_reader
    ```
+
+If your provider requires explicit API scope requests, set
+`CASSIE_OIDC_SCOPES` to the additional scopes. Cassie always requests
+`openid` and reads database grants from the verified access-token
+permissions array. Auth0 can include the user's assigned API permissions
+in that array even when the token's `scope` claim contains fewer values.
+[Auth0 access-token claims](https://auth0.com/docs/get-started/apis/enable-role-based-access-control-for-apis)
 
 Open the Cassie UI in a fresh browser session. It sends you to Auth0 and then
 returns to Cassie. An account with `db:analytics` should see **analytics** in

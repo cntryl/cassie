@@ -163,6 +163,61 @@ fn signed_query() -> String {
     Wg::select(&format!("'wg', {}, {}, 'weight', 1", vertex(1), vertex(2)))
 }
 
+#[test]
+fn should_stop_integer_search_at_the_target_given_more_hops() {
+    // Arrange
+    let fixture = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 2, 3, 0), (3, 2, 4, 1), (4, 3, 4, 1)",
+    );
+    let bounded = Wg::select(&format!("'wg', {}, {}, 'weight', 4", vertex(1), vertex(2)));
+    let expected = fixture.rows(&signed_query());
+    let neighborhoods = || {
+        fixture.cassie.metrics()["read_paths"]["graph_neighborhoods_expanded"]
+            .as_u64()
+            .expect("expansion counter")
+    };
+    let before = neighborhoods();
+
+    // Act
+    let actual = fixture.rows(&bounded);
+    let expansions = neighborhoods() - before;
+
+    // Assert
+    assert_eq!(actual.len(), 1);
+    assert_eq!(actual, expected);
+    assert_eq!(expansions, 1);
+}
+
+#[test]
+fn should_reject_an_invalid_integer_weight_beyond_the_target() {
+    // Arrange
+    let fixture = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 2, 3, -1)",
+    );
+
+    // Act
+    let result = fixture.execute(&signed_query());
+
+    // Assert
+    assert_eq!(result.err().map(|error| error.sql_state()), Some("22023"));
+}
+
+#[test]
+fn should_preserve_numeric_overflow_beyond_the_target() {
+    // Arrange
+    let world = Wg::new(3, &[fast(1, 1, 2, 1), fast(2, 2, 3, 1)]);
+    world.run("UPDATE fast SET weight = 9 * (10::numeric ^ 131071)");
+    let sql = Wg::select(&format!("'wg', {}, {}, 'weight', 2", vertex(1), vertex(2)));
+
+    // Act
+    let result = world.fixture.execute(&sql);
+
+    // Assert
+    assert_eq!(result.err().map(|error| error.sql_state()), Some("22003"));
+}
+
 fn validation_counts(fixture: &Fixture) -> (u64, u64, u64) {
     let metrics = fixture.cassie.metrics();
     let read = |name: &str| metrics["read_paths"][name].as_u64().expect("counter");

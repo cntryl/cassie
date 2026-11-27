@@ -187,6 +187,7 @@ pub(super) fn run(
         max_hops: request.max_hops,
         max_cost: request.max_cost.as_ref(),
         k: request.k,
+        stop_at_target: resolved.all_integer_weights,
         columns: &columns,
         graph,
         selection: &selection,

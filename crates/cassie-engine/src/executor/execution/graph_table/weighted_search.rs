@@ -5,11 +5,12 @@
 //! reads only the neighbourhoods of vertices it visits. Over the exact full read every edge
 //! and weight is known at the start. The weights were validated before the search.
 //!
-//! A depth-first walk with an explicit stack visits every simple path of at most `max_hops`
-//! edges from the source. Nothing is pruned: a candidate that cannot enter the retained
-//! `k` is only not kept, so the answer is the first `k` of all qualifying paths in
-//! `(cost, path order)` order. A SIMPLE path repeats no vertex, except that it may end on
-//! its own start, and such a closing path is never extended. The stack, the retained
+//! A depth-first walk with an explicit stack visits simple paths of at most `max_hops`
+//! edges from the source and retains the first `k` qualifying paths in `(cost, path order)`
+//! order. A SIMPLE path repeats no vertex, except that it may end on its own start.
+//! Such a closing path is never extended. Integer paths also end at a distinct target:
+//! no continuation can reach that target again, and their cost cannot overflow NUMERIC.
+//! The stack, the retained
 //! candidates and the per-edge state are accounted against the query budget, and
 //! cancellation is checked on every step.
 
@@ -104,6 +105,9 @@ pub(super) struct Query<'a> {
     pub(super) max_hops: usize,
     pub(super) max_cost: Option<&'a Numeric>,
     pub(super) k: usize,
+    /// All selected weights are signed integers. Even `i32::MAX` edges at `i64::MAX`
+    /// have a representable NUMERIC sum.
+    pub(super) stop_at_target: bool,
     /// The weight column of each edge mapping, by mapping index; `None` when not selected.
     pub(super) columns: &'a [Option<String>],
     pub(super) graph: &'a PropertyGraphMeta,
@@ -425,6 +429,9 @@ impl<'a, 'e> Search<'a, 'e> {
             let cost = self.add_cost(hop.edge)?;
             if hop.to == self.query.target {
                 self.offer(&cost, Some(&hop))?;
+                if self.query.stop_at_target {
+                    continue;
+                }
             }
             if closing {
                 continue;

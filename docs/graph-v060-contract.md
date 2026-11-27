@@ -717,6 +717,14 @@ valid for k paths or hop-bounded alternatives. For the zero-cost cycle
 return both the zero-hop path and SIMPLE closing cycle, zero-hop first under the
 prefix tie rule. This is an oracle requirement, not current implementation.
 
+When all selected weights have signed integer types, a distinct target is a
+terminal search vertex. Each permissible sum fits in NUMERIC because every
+edge is at most `i64::MAX` and the path has at most `i32::MAX` edges. Leaving
+the target could only reach it again by repeating a vertex. Graph-wide weight
+validation still precedes search, including weights beyond the target.
+Mappings with exact NUMERIC weights retain exhaustive exploration and its
+intermediate overflow behavior.
+
 ## Access, recovery and resources
 
 The source tables remain authoritative. Graph reads are exact reads of them in the

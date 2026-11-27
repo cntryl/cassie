@@ -111,7 +111,7 @@ fn weight_columns(
     selected: &[usize],
     labels: Option<&[String]>,
     name: &str,
-) -> Result<Vec<(usize, String)>, QueryError> {
+) -> Result<(Vec<(usize, String)>, bool), QueryError> {
     let mut found = Vec::new();
     for &index in selected {
         let Some(property) = property_of(&graph.edges[index], labels, name) else {
@@ -122,24 +122,26 @@ fn weight_columns(
         };
         found.push((index, property));
     }
+    let mut all_integer = true;
     for (_, property) in &found {
-        if !matches!(
-            property.data_type.flattened(),
-            DataType::SmallInt
-                | DataType::Int
-                | DataType::BigInt
-                | DataType::Extended(ExtendedType::Numeric(_))
-        ) {
-            return Err(diagnostic(
-                "42804",
-                format!("weight property \"{name}\" must be an integer or numeric type"),
-            ));
+        match property.data_type.flattened() {
+            DataType::SmallInt | DataType::Int | DataType::BigInt => {}
+            DataType::Extended(ExtendedType::Numeric(_)) => all_integer = false,
+            _ => {
+                return Err(diagnostic(
+                    "42804",
+                    format!("weight property \"{name}\" must be an integer or numeric type"),
+                ));
+            }
         }
     }
-    Ok(found
-        .into_iter()
-        .map(|(index, property)| (index, property.column.clone()))
-        .collect())
+    Ok((
+        found
+            .into_iter()
+            .map(|(index, property)| (index, property.column.clone()))
+            .collect(),
+        all_integer,
+    ))
 }
 
 pub(super) fn stored_key(key: &[KeyPart]) -> Vec<StoredKey> {
@@ -166,6 +168,7 @@ pub(super) struct Resolved {
     pub(super) edge_list: Vec<usize>,
     /// `(edge mapping index, weight column)` of each selected edge mapping.
     pub(super) columns: Vec<(usize, String)>,
+    pub(super) all_integer_weights: bool,
 }
 
 /// Graph, references, labels, read authority and weight property, in that order.
@@ -224,7 +227,8 @@ fn resolve(env: &SourceExecutionEnv<'_>, request: &Request) -> Result<Resolved, 
         crate::app::require_table_read(&catalog, session, &binding, table)
             .map_err(QueryError::Cassie)?;
     }
-    let columns = weight_columns(&graph, &edge_list, labels, &request.property)?;
+    let (columns, all_integer_weights) =
+        weight_columns(&graph, &edge_list, labels, &request.property)?;
     Ok(Resolved {
         graph,
         source_mapping,
@@ -232,6 +236,7 @@ fn resolve(env: &SourceExecutionEnv<'_>, request: &Request) -> Result<Resolved, 
         vertex_list,
         edge_list,
         columns,
+        all_integer_weights,
     })
 }
 

@@ -21,6 +21,7 @@ impl InvalidWeights {
         env: &SourceExecutionEnv<'_>,
         table: &str,
         column: &str,
+        fields: &[String],
     ) -> Result<Option<Self>, QueryError> {
         let midge = &env.cassie.midge;
         if env.session.is_some_and(|session| {
@@ -38,7 +39,14 @@ impl InvalidWeights {
         let Ok(weight) = ColumnIdentifierPath::parse(column) else {
             return Ok(None);
         };
-        if weight.is_qualified() || weight.final_name() != column {
+        // Point-read projection uses its field labels as row keys. Leave mappings
+        // whose storage representation needs quoted labels to the existing scan.
+        if weight.is_qualified()
+            || weight.final_name() != column
+            || fields
+                .iter()
+                .any(|name| ColumnIdentifierPath::stored_field_key(name) != *name)
+        {
             return Ok(None);
         }
 
@@ -82,10 +90,6 @@ impl InvalidWeights {
             .cassie
             .catalog
             .clone_schema_with_controls(table, env.controls)?;
-        let fields = fields
-            .iter()
-            .map(|name| ColumnIdentifierPath::stored_field_key(name))
-            .collect::<Vec<_>>();
         let projection = fields.iter().cloned().collect();
         let controls = env.controls.storage_request();
         let mut reads = Reads::default();
@@ -106,9 +110,9 @@ impl InvalidWeights {
                     let document = source.document();
                     let _memory = env.controls.reserve_query_memory(retained_memory::add(
                         64,
-                        scan::projected_row_bytes(document, &fields, schema.as_ref())?,
+                        scan::projected_row_bytes(document, fields, schema.as_ref())?,
                     )?)?;
-                    let row = scan::projected_document_to_row(document, &fields, schema.as_ref());
+                    let row = scan::projected_document_to_row(document, fields, schema.as_ref());
                     visit(&row)?;
                 }
                 Ok::<_, QueryError>(true)

@@ -227,7 +227,7 @@ pub(super) fn validate(
             Ok(())
         };
         let fields = validation_fields(meta, column);
-        if let Some(index) = InvalidWeights::for_mapping(env, &meta.table, column)? {
+        if let Some(index) = InvalidWeights::for_mapping(env, &meta.table, column, &fields)? {
             counts.index_probes += 1;
             let reads = index.visit(env, &meta.table, &fields, validate_row)?;
             counts.reads.index_entries += reads.index_entries;

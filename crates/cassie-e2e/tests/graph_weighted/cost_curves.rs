@@ -3,7 +3,8 @@
 //! neighbourhood). Each test fixes the queried neighbourhood and grows only what the
 //! contract says may grow. Every value is a counter, never a timing.
 
-use crate::world::{fast, Link, Variant, VariantGuard, Wg};
+use crate::world::{fast, started, vertex, Link, Variant, VariantGuard, Wg};
+use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 
 const INDEXED: Variant = Variant {
     exact: false,
@@ -126,4 +127,53 @@ fn should_reject_an_invalid_weight_outside_the_visited_neighbourhood() {
 
     // Assert
     assert_eq!(outcome.err().as_deref(), Some("22023"));
+}
+
+#[test]
+fn should_reject_a_missing_not_null_weight_written_by_projection_replay() {
+    // Arrange
+    let fixture = started(
+        None,
+        &[
+            "CREATE TABLE v (id BIGINT PRIMARY KEY)",
+            "CREATE TABLE e (id BIGINT PRIMARY KEY, a BIGINT NOT NULL, b BIGINT NOT NULL, \
+             weight INTEGER NOT NULL)",
+            "CREATE INDEX e_weight ON e (weight)",
+            "INSERT INTO v VALUES (1), (2), (3)",
+            "INSERT INTO e VALUES (1, 1, 2, 1)",
+            "CREATE PROPERTY GRAPH wg \
+             VERTEX TABLES (v AS n KEY (id) LABEL node PROPERTIES (id)) \
+             EDGE TABLES (e AS s KEY (id) SOURCE KEY (a) REFERENCES n (id) \
+               DESTINATION KEY (b) REFERENCES n (id) LABEL slow PROPERTIES (weight))",
+        ],
+    );
+    let replay = fixture
+        .cassie
+        .replay_projection_batch(ProjectionReplayBatch {
+            projection: fixture.cassie.midge.canonical_collection_name("e"),
+            source_identity: "edges".to_owned(),
+            batch_id: "missing-weight".to_owned(),
+            lag: 0,
+            events: vec![ProjectionReplayEvent {
+                event_id: "edge-2".to_owned(),
+                checkpoint: "2".to_owned(),
+                position: None,
+                document_id: "edge-2".to_owned(),
+                payload: Some(serde_json::json!({"id": 2, "a": 3, "b": 3})),
+            }],
+        });
+    assert_eq!(
+        replay.expect("replay writes the edge").applied_event_count,
+        1
+    );
+
+    // Act
+    let outcome = fixture.execute(&Wg::select(&format!(
+        "'wg', {}, {}, 'weight', 1",
+        vertex(1),
+        vertex(2)
+    )));
+
+    // Assert
+    assert_eq!(outcome.err().map(|error| error.sql_state()), Some("22023"));
 }

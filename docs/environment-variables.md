@@ -69,6 +69,7 @@ TLS-terminating edge, set `CASSIE_REST_EXTERNAL_HTTPS=true`. See the
 | `CASSIE_OIDC_ROLE` | Existing non-admin Cassie role | Unset | Local role for schema and table grants. |
 | `CASSIE_OIDC_PERMISSIONS_CLAIM` | JWT claim name | `permissions` | Access-token claim containing a JSON string array with grants such as `db:analytics` and `db:*`. |
 | `CASSIE_OIDC_AUDIENCE_PARAMETER` | `audience`, `resource`, or `none` | `audience` | Selects the provider parameter for requesting the API's access token. Use `resource` for RFC 8707 or `none` if the provider selects the API through its own configuration. Cassie always verifies the configured API audience in the token. |
+| `CASSIE_OIDC_CLIENT_AUTH_METHOD` | `client_secret_post` or `client_secret_basic` | Provider discovery | Overrides client authentication at the token endpoint. Cassie prefers advertised `client_secret_post` and falls back to advertised `client_secret_basic`. An override must match the provider's metadata and application registration. |
 
 ## Storage
 

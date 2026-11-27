@@ -528,7 +528,7 @@ impl CassieSession {
     }
 
     /// Allows read optimizations to decline explicit transaction views while
-    /// preserving ordinary PgWire reads under implicit transaction ownership.
+    /// preserving ordinary PostgreSQL wire reads under implicit transaction ownership.
     pub(crate) fn read_transaction_is_explicit(&self) -> bool {
         CURRENT_OVERLAY.with(|current| {
             current

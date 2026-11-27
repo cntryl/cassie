@@ -26,6 +26,7 @@ mod weighted_args;
 mod weighted_run;
 mod weighted_search;
 mod weighted_validate;
+mod weighted_validation_index;
 mod weighted_weight;
 
 pub(super) use weighted::execute as execute_weighted;

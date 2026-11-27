@@ -39,9 +39,21 @@ impl Plan {
     /// Creates the tables, writes the rows in storage batches and defines the graph. Rows go
     /// through the document write path in batches, as the other Tier 3 fixtures do.
     pub fn apply(self, cassie: &Cassie, session: &CassieSession) {
+        self.create_tables(cassie, session);
+        let _ = self.load_rows(cassie);
+        self.define_graph(cassie, session);
+    }
+
+    pub fn create_tables(&self, cassie: &Cassie, session: &CassieSession) {
         for statement in &self.tables {
             run(cassie, session, statement);
         }
+    }
+
+    /// Loads the planned rows and reports acknowledged document and batch counts.
+    pub fn load_rows(&self, cassie: &Cassie) -> (usize, usize) {
+        let mut acknowledged_documents = 0;
+        let mut successful_batches = 0;
         for load in &self.loads {
             let mut first = 1;
             while first <= load.rows {
@@ -49,7 +61,8 @@ impl Plan {
                 let documents = (first..=last)
                     .map(|key| (Some(key.to_string()), (load.row)(key)))
                     .collect::<Vec<_>>();
-                cassie
+                let batch_size = documents.len();
+                let acknowledged = cassie
                     .midge
                     .put_documents(load.table, documents)
                     .unwrap_or_else(|error| {
@@ -59,9 +72,20 @@ impl Plan {
                             CassieError::from(error).sql_state()
                         )
                     });
+                assert_eq!(
+                    acknowledged.len(),
+                    batch_size,
+                    "complete graph fixture batch"
+                );
+                acknowledged_documents += acknowledged.len();
+                successful_batches += 1;
                 first = last + 1;
             }
         }
+        (acknowledged_documents, successful_batches)
+    }
+
+    pub fn define_graph(&self, cassie: &Cassie, session: &CassieSession) {
         run(cassie, session, &self.graph);
     }
 }
@@ -86,8 +110,13 @@ impl Route {
     /// The `graph_weighted_paths` statement of this route, with named optional arguments.
     #[must_use]
     pub fn sql(&self) -> String {
+        self.sql_with_projection("w.path_rank, w.cost")
+    }
+
+    #[must_use]
+    pub fn sql_with_projection(&self, projection: &str) -> String {
         format!(
-            "SELECT w.path_rank, w.cost FROM graph_weighted_paths(graph => '{GRAPH}', \
+            "SELECT {projection} FROM graph_weighted_paths(graph => '{GRAPH}', \
              source => {}, target => {}, weight_property => 'weight', max_hops => {}, \
              k => {}) AS w",
             vertex_ref(self.source),

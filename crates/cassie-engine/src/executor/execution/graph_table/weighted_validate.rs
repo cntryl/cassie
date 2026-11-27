@@ -1,8 +1,8 @@
 //! The weight validation scan of `graph_weighted_paths` over the lazy indexed store (#1258,
 //! #1268).
 //!
-//! Every row of each selected edge mapping is streamed once through the statement's own
-//! read path and dropped after it is judged, so nothing but a counter is retained. A weight
+//! Eligible integer mappings use the sparse scalar index of invalid weights. Other
+//! mappings stream every row through the statement's own read path. A weight
 //! that is missing, negative, non-finite or not an exact number is an error only when its
 //! edge is graph-visible: its edge key is not NULL and both endpoint vertices exist with no
 //! NULL endpoint component. Endpoint existence is asked only for such an invalid row,
@@ -18,6 +18,7 @@ use super::access::Access;
 use super::keys::{key_is_valid, key_of, KeyPart};
 use super::lazy::lookup_rows;
 use super::store::{key_types, read_rows, Reads};
+use super::weighted_validation_index::InvalidWeights;
 use super::weighted_weight::check_weight;
 use super::{BatchRow, QueryError, SourceExecutionEnv};
 use crate::catalog::{GraphEdgeMeta, PropertyGraphMeta};
@@ -29,6 +30,8 @@ use crate::runtime::QueryMemoryReservation;
 pub(super) struct Counts {
     /// Edge rows streamed whose edge key is not NULL.
     pub(super) rows: u64,
+    pub(super) index_probes: u64,
+    pub(super) full_scans: u64,
     /// Endpoint existence reads made for invalid weights.
     pub(super) reads: Reads,
 }
@@ -182,7 +185,7 @@ fn validation_fields(meta: &GraphEdgeMeta, weight: &str) -> Vec<String> {
     fields
 }
 
-/// Streams every selected edge mapping once and fails with `22023` on the first
+/// Validates each selected edge mapping and fails with `22023` on the first
 /// graph-visible edge whose weight is invalid. `columns` holds `(edge mapping, weight
 /// column)` pairs and `access` the statement's lazy access paths.
 ///
@@ -203,25 +206,43 @@ pub(super) fn validate(
         memory: env.controls.reserve_query_memory(0)?,
         scanned: HashMap::new(),
     };
-    let mut rows = 0_u64;
+    let mut counts = Counts {
+        rows: 0,
+        index_probes: 0,
+        full_scans: 0,
+        reads: Reads::default(),
+    };
     for (mapping, column) in columns {
         let meta = &graph.edges[*mapping];
         let (edge_columns, edge_types) = key_types(&meta.key);
-        let mut source = Rows::open(env, &meta.table, &validation_fields(meta, column))?;
-        while let Some(row) = source.next(env)? {
-            if !key_is_valid(|name| row.get(name), &edge_columns, &edge_types) {
-                continue;
-            }
-            rows += 1;
-            if let Err(invalid) = check_weight(row.get(column)) {
-                if endpoints.visible(env, meta, &row)? {
-                    return Err(invalid);
+        let mut validate_row = |row: &BatchRow| -> Result<(), QueryError> {
+            if key_is_valid(|name| row.get(name), &edge_columns, &edge_types) {
+                counts.rows += 1;
+                if let Err(invalid) = check_weight(row.get(column)) {
+                    if endpoints.visible(env, meta, row)? {
+                        return Err(invalid);
+                    }
                 }
+            }
+            Ok(())
+        };
+        let fields = validation_fields(meta, column);
+        if let Some(index) = InvalidWeights::for_mapping(env, &meta.table, column, &fields)? {
+            counts.index_probes += 1;
+            let reads = index.visit(env, &meta.table, &fields, validate_row)?;
+            counts.reads.index_entries += reads.index_entries;
+            counts.reads.row_fetches += reads.row_fetches;
+        } else {
+            counts.full_scans += 1;
+            let mut source = Rows::open(env, &meta.table, &fields)?;
+            while let Some(row) = source.next(env)? {
+                validate_row(&row)?;
             }
         }
     }
-    Ok(Counts {
-        rows,
-        reads: endpoints.reads,
-    })
+    counts.reads.index_entries += endpoints.reads.index_entries;
+    counts.reads.row_fetches += endpoints.reads.row_fetches;
+    counts.reads.full_rows += endpoints.reads.full_rows;
+    counts.reads.overlay_changes += endpoints.reads.overlay_changes;
+    Ok(counts)
 }

@@ -386,21 +386,22 @@ indexes consulted are the ones every indexed SQL query already trusts.
   setting) forces every mapping onto the exact full read of the previous implementation. It
   exists so tests compare both paths on the same data and is the escape hatch for
   operators.
-- **`graph_weighted_paths`** (#1258, #1268). The function must validate every graph-visible
-  edge weight of the selected mappings before any result, and it does so with one streaming
-  scan: each row of each selected edge mapping is read once through the statement's own read
-  path (session overlay, savepoints and snapshot included), judged and dropped, so nothing
-  but a counter is retained. The exception is a statement whose read path cannot stream
-  (`parallel_scan_workers` above 1): the mapping is then read in full through the
-  statement's controlled read, so the scan materializes the whole edge mapping (accounted,
-  O(E) memory, and able to fail with `54000`) before judging its rows. The scan is counted under `graph_validation_rows` (rows whose
-  edge key is not NULL), separately from traversal reads, and its cost is O(selected edges)
-  by contract. An edge is graph-visible only when both endpoint vertices exist and no
-  endpoint component is NULL; that is decided only for an edge whose weight is invalid (a
-  valid weight is never an error), by one key lookup per endpoint on the vertex key index,
-  or from the keys of one full read of the vertex mapping when it has none, so the vertex
-  tables are never materialized. Validation (`22023`) completes before the search starts and
-  after the endpoint references are located (`42704`), as before. The search then expands
+- **`graph_weighted_paths`** (#1258, #1268, #1355). Validation must reject an invalid weight
+  on any graph-visible edge of a selected mapping before search. For a row-authoritative
+  mapping with a signed integer weight, an index of the form
+  `CREATE INDEX name ON edge_table ((1)) WHERE weight IS NULL OR weight < 0`
+  supplies only invalid committed candidates in the statement's snapshot. The constant key
+  covers a missing or NULL weight. Point reads recheck each candidate's edge key, weight and
+  endpoints in the statement view. Committed indexed validation work is bounded by the
+  index seek and candidates. Explicit transactions, pending changes on the edge relation,
+  validation fields requiring quoted storage labels and other mappings without proven
+  coverage, including exact `NUMERIC` weights, use the controlled fallback scan. The fallback decodes only edge keys, endpoints and weights
+  and costs O(selected edges). A statement whose read path cannot stream
+  (`parallel_scan_workers` above 1) materializes the mapping through the controlled read
+  with accounted O(E) memory and can fail with `54000`. Endpoints of invalid candidates
+  resolve through vertex-key indexes or the keys of a full read when a vertex mapping has
+  no index. Endpoint-reference errors (`42704`) retain precedence over validation (`22023`).
+  The search then expands
   only the vertices it visits over the lazy indexed store: the incident edges of a visited
   vertex are fetched through the endpoint index (or the per-statement full read of an
   unindexed edge mapping, recorded by `graph_full_rows`), and each edge's weight is read from
@@ -412,9 +413,10 @@ indexes consulted are the ones every indexed SQL query already trusts.
   `Cassie::set_graph_exact_reads(true)` the previous load-validate-search over the fully read
   mappings is used unchanged, so tests compare both paths. Counted-read, own-write and
   oracle-equivalence tests for both paths are authored in
-  [`lazy_reads.rs`](../tests/graph_weighted/lazy_reads.rs),
-  [`transactions.rs`](../tests/graph_weighted/transactions.rs) and
-  [`variants.rs`](../tests/graph_weighted/variants.rs); they passed in the assembler run of the `graph_weighted` suite (116 tests) on the integrated head; no timing is recorded.
+  [`lazy_reads.rs`](../crates/cassie-e2e/tests/graph_weighted/lazy_reads.rs),
+  [`transactions.rs`](../crates/cassie-e2e/tests/graph_weighted/transactions.rs),
+  [`variants.rs`](../crates/cassie-e2e/tests/graph_weighted/variants.rs) and
+  [`cost_curves.rs`](../crates/cassie-e2e/tests/graph_weighted/cost_curves.rs).
 
 ### Integrity model
 
@@ -454,11 +456,12 @@ version it names was committed in the same snapshot.
 Reads are counted, never timed. Counters: `graph_index_entries` (scalar index entries
 returned), `graph_row_fetches` (point row reads), `graph_full_rows` (rows of a full mapping
 read), `graph_overlay_changes` (pending session changes examined), `graph_cache_hits`,
-`graph_validation_rows` (weighted-path validation scan), `graph_edges_admitted` (distinct
-edges that entered a traversal, far endpoint existing), `graph_neighborhoods_expanded`
+`graph_validation_rows` (weighted validation rows examined), `graph_edges_admitted`
+(distinct edges that entered a traversal, far endpoint existing), `graph_neighborhoods_expanded`
 (vertex-side neighborhood expansions of the lazy store) and the per-statement
-`graph_frontier_peak`. The weighted validation scan decodes only the edge key, endpoint and
-weight columns of each row (projected stream); the `cassie_graph` reference constructors use
+`graph_frontier_peak`. The weighted validation counters distinguish sparse index probes and
+full scans. The fallback scan decodes only edge keys, endpoints and weights. The
+`cassie_graph` reference constructors use
 the unique key index of the mapped table and fall back to a table scan only without one.
 The cost-curve fixtures (degree, depth, hub skew, ten-fold disconnected growth, weighted
 validation against a fixed search neighbourhood) assert these counters in
@@ -556,18 +559,24 @@ from the `EXPLAIN` graph node and records `graph_table_indexed_read` with
 `graph_access_path_source=reported`. Without endpoint indexes the same queries read the mapped
 tables in full and exceeded the 64 MiB budget (`54000`) from about 30,000 mapped rows.
 
-**Weighted routes at 100k.** `graph_weighted_paths` validates every selected edge weight with a
-streaming scan that retains no rows and searches the lazy indexed store (see
-[Graph Reads](#graph-reads-v060-fast-reads-1253-1254-1259)), so the route scenario shares the
-social graph of the friends-of-friends scenario at 100,000 mapped rows and the 64 MiB profile,
-and no separate smaller instance remains. The function has no graph plan node, so the owner
-classifies its read path from one counted preflight execution (`graph_access_path_source=counted`):
-the path is `indexed` when the call moved `graph_index_entries` and left `graph_full_rows`
-unchanged. The actual five-sample 100k run passed route cardinality and
-resource checks with indexed search and no fallback under the 64 MiB query
-budget. Its timing was noisy and the owner failed timing quality; the
-[qualification record](graph-v060-qualification.md#benchmarks-and-measured-limits-1260)
-retains exact observations without promoting them to a trustworthy baseline.
+**Weighted routes at 100k.** The registered Tier 3 scenario shares the friends-of-friends
+fixture at 100,000 mapped rows and uses a 64 MiB query budget. It retains the full validation
+scan as a sentinel and uses indexed neighbourhood search. The owner classifies expansion
+from counted index entries and full rows (`graph_access_path_source=counted`). Earlier noisy
+timing is retained in the [qualification record](graph-v060-qualification.md#benchmarks-and-measured-limits-1260).
+
+The product runner also offers an opt-in disk comparison for [#1355](https://github.com/cntryl/cassie/issues/1355).
+Both arms load and reopen the same 30,000 vertices and 70,000 edges. The sparse
+invalid-weight index is present during the indexed arm's load so the fixture pays its
+maintenance predicate cost. All fixture weights are valid. The runner retains the original rank-and-cost SQL and checks
+complete ranked paths and per-edge costs once outside the timed queries. After five warmups,
+the runner records 100 alternating query pairs with result caching disabled, the validation
+and search phases, the observed load time and acknowledged document counts, and whether
+indexed p95 is at most 100 ms. Set
+`CASSIE_BENCH_GRAPH_DISK_VARIANT=paired_weight_validation`, `CASSIE_STORAGE_MODE=local`,
+`CASSIE_BENCH_PRODUCT_PROFILE=full` and `CASSIE_BENCH_PRODUCT_OUTPUT_DIR` to run
+`tier3_product_graph` and write `weighted_validation_pair.json`. The standard product
+invocation continues to run the full-scan sentinel.
 
 Run one owner with, for example,
 `cargo bench --locked --bench tier2_subsystem_graph -- --profile smoke`; a smoke run is

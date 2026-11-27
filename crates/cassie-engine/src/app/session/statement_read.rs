@@ -280,6 +280,7 @@ pub(crate) struct StatementOverlay {
     writes: Option<SharedTransactionWrites>,
     checkpoint_storage: Option<Arc<crate::midge::adapter::CheckpointStorageSnapshot>>,
     active_transaction: bool,
+    implicit_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
     generation: u64,
     memory: QueryMemoryReservation,
@@ -438,6 +439,7 @@ impl CassieSession {
         self.capture_overlay_from_writes(
             (!transaction.writes.is_empty()).then_some(&transaction.writes),
             transaction.status != SessionTransactionStatus::Idle,
+            transaction.implicit,
             transaction.generation,
             checkpoint_storage,
             controls,
@@ -455,6 +457,7 @@ impl CassieSession {
         let overlay = self.capture_overlay_from_writes(
             original.writes.as_ref(),
             original.active_transaction,
+            original.implicit_transaction,
             self.transaction_generation(),
             original.checkpoint_storage.clone(),
             controls,
@@ -466,6 +469,7 @@ impl CassieSession {
         &self,
         writes: Option<&SharedTransactionWrites>,
         active_transaction: bool,
+        implicit_transaction: bool,
         generation: u64,
         checkpoint_storage: Option<Arc<crate::midge::adapter::CheckpointStorageSnapshot>>,
         controls: &QueryExecutionControls,
@@ -503,6 +507,7 @@ impl CassieSession {
             writes: writes.cloned(),
             checkpoint_storage,
             active_transaction,
+            implicit_transaction,
             identity: Arc::downgrade(&self.transaction),
             generation,
             memory,
@@ -518,6 +523,25 @@ impl CassieSession {
                 .map_or_else(
                     || self.transaction_status() != "idle",
                     |owner| owner.active_transaction,
+                )
+        })
+    }
+
+    /// Allows read optimizations to decline explicit transaction views while
+    /// preserving ordinary PostgreSQL wire reads under implicit transaction ownership.
+    pub(crate) fn read_transaction_is_explicit(&self) -> bool {
+        CURRENT_OVERLAY.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .filter(|owner| owner.matches_session(self))
+                .map_or_else(
+                    || {
+                        let transaction = self.transaction.lock();
+                        transaction.status != SessionTransactionStatus::Idle
+                            && !transaction.implicit
+                    },
+                    |owner| owner.active_transaction && !owner.implicit_transaction,
                 )
         })
     }

@@ -16,6 +16,84 @@ pub use accounted_page::{AccountedDocument, AccountedDocumentPage};
 
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
 
+impl Midge {
+    /// The row-authoritative descriptor of a relation in the installed statement
+    /// snapshot, when both use the same published storage identity.
+    ///
+    /// # Errors
+    /// Returns an error if persisted relation metadata cannot be read.
+    pub fn statement_row_store_schema(
+        &self,
+        collection: &str,
+    ) -> Result<Option<crate::row_blob::RowSchema>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let database = self.relation_database(&collection);
+        let Some(tx) = self.statement_data_read(&database) else {
+            return Ok(None);
+        };
+        if tx.uses_current_descriptors() {
+            return Ok(None);
+        }
+        let Some(relation) = Self::load_collection_metadata_from_tx(&tx, &collection)? else {
+            return Ok(None);
+        };
+        if !relation.has_supported_storage_version()
+            || relation.storage_mode.uses_column_store_storage()
+            || relation.storage_id == 0
+        {
+            return Ok(None);
+        }
+        Ok(Self::load_row_schema_from_tx(&tx, &collection)?
+            .filter(|schema| schema.relation_id == relation.storage_id))
+    }
+
+    /// Fetch selected fields of a candidate by the same row key and snapshot as
+    /// the streaming row scan. The descriptor comes from the statement view.
+    ///
+    /// # Errors
+    /// Returns an error if the statement view is absent or the row cannot be
+    /// read, decoded or admitted.
+    pub fn get_statement_projected_row(
+        &self,
+        collection: &str,
+        row_schema: &crate::row_blob::RowSchema,
+        projection: &HashSet<String>,
+        id: &str,
+        controls: &StorageRequestContext<'_>,
+    ) -> Result<Option<AccountedDocument>, CassieError> {
+        check_controls(controls)?;
+        let database = self.relation_database(collection);
+        let tx = self.statement_data_read(&database).ok_or_else(|| {
+            CassieError::Execution("projected point read lost its statement view".to_owned())
+        })?;
+        let key = Self::row_key(row_schema.relation_id, id);
+        let raw = tx.get(&key).map_err(CassieError::from)?;
+        self.record_query_scan_entry();
+        if super::query_scan_control::should_cancel_controlled_query_scan(controls) {
+            return Err(CassieError::QueryCanceled);
+        }
+        check_controls(controls)?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+        let bytes =
+            provisional_document_bytes(row_schema, Some(projection), false, key.len(), raw.len())?;
+        AccountedDocument::try_build_fresh_decode_optional(controls, bytes, || {
+            let payload = super::decode_projected_row_with_hooks(
+                row_schema,
+                &raw,
+                projection,
+                tx.value_hooks(),
+            )?;
+            check_controls(controls)?;
+            Ok(Some(DocumentRef {
+                id: id.to_owned(),
+                payload,
+            }))
+        })
+    }
+}
+
 /// Whether the caller consumes the complete source or may stop at visited rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowTraversal {

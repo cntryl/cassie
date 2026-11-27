@@ -926,8 +926,13 @@ anywhere fails the call with `22023`, even when the cheapest path would not touc
 `FLOAT` and `DOUBLE PRECISION` weights are rejected at binding with `42804`, because rounding
 would make costs unreliable; use `NUMERIC` or an integer type. Costs add up as `NUMERIC`
 without rounding, and an unrepresentable total returns `22003` with no partial result.
-Because it validates all weights, the call reads every row of the selected edge tables once,
-decoding only each row's key, endpoint and weight columns.
+For a row-authoritative edge mapping with a signed integer weight, validation can use an
+ordinary partial index of the form `CREATE INDEX name ON edge_table ((1)) WHERE weight IS NULL OR weight < 0`.
+The index must cover the exact selected column in the statement's view. The constant key
+also represents missing or NULL weights. Explicit transactions and mappings whose validation
+fields require quoted storage labels use the controlled scan of edge keys, endpoints and
+weights. Invalid weights outside the visited neighbourhood still fail the call when those
+edges are visible.
 
 The worked example in [section 6.4](#64-weighted-routes) shows a call and the error.
 
@@ -1878,11 +1883,11 @@ Other limits to keep in mind:
   - **Without an endpoint index, or with a start that is not fixed by key**, the mapping is
     read in full once per statement: O(rows of that table), and a query over a very large
     table can exceed the query memory budget (`54000`). `EXPLAIN` names the reason.
-  - **Weights.** `graph_weighted_paths` first checks the weight of every graph-visible edge
-    of the selected edge mappings (see [the weight rule](#the-weight-rule)), by streaming
-    each row once and decoding only its key, endpoint and weight columns. That check is
-    O(selected edge rows) on every call by contract, even when the search itself touches
-    three edges; the search then reads only the neighbourhoods it visits.
+  - **Weights.** `graph_weighted_paths` validates all graph-visible edges before it searches.
+    A supported sparse integer weight index limits committed validation reads to invalid
+    candidates, with pending changes accounted for in the same statement view. The controlled
+    fallback visits every selected edge row once. The search reads the neighbourhoods it visits. See
+    [the weight rule](#the-weight-rule) and [Graph Reads](performance-contracts.md#graph-reads-v060-fast-reads-1253-1254-1259).
   - **References.** `cassie_graph.vertex_ref` and `edge_ref` read the one index entry and row
     their key names through the unique index that backs the mapped key, not the mapped table.
   - `EXPLAIN ANALYZE` reports `graph_reads=` with `index_entries`, `row_fetches`,

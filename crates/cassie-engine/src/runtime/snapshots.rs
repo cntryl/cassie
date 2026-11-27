@@ -408,8 +408,16 @@ pub struct ReadPathSnapshot {
     pub graph_overlay_changes: u64,
     /// Neighborhoods, vertices and mappings served from the statement cache.
     pub graph_cache_hits: u64,
-    /// Rows of the `graph_weighted_paths` validation scan.
+    /// Edge rows examined during `graph_weighted_paths` validation.
     pub graph_validation_rows: u64,
+    /// Time spent validating edge weights before lazy weighted search.
+    pub graph_weight_validation_ns: u64,
+    /// Time spent in lazy weighted search after complete validation.
+    pub graph_weight_search_ns: u64,
+    /// Selected mappings validated through a sparse scalar index.
+    pub graph_weight_validation_index_probes: u64,
+    /// Selected mappings validated by a full controlled read before lazy search.
+    pub graph_weight_validation_full_scans: u64,
     /// Distinct edges admitted into graph adjacency (far endpoint existing).
     pub graph_edges_admitted: u64,
     /// Vertex-side neighborhood expansions of lazy graph reads.

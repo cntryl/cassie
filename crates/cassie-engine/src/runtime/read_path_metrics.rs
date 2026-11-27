@@ -162,6 +162,29 @@ impl RuntimeState {
         paths.graph_neighborhoods_expanded += counts.neighborhoods;
     }
 
+    pub(crate) fn record_graph_weight_validation(
+        &self,
+        elapsed: std::time::Duration,
+        index_probes: u64,
+        full_scans: u64,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        let paths = &mut metrics.read_paths;
+        paths.graph_weight_validation_ns = paths
+            .graph_weight_validation_ns
+            .saturating_add(u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX));
+        paths.graph_weight_validation_index_probes += index_probes;
+        paths.graph_weight_validation_full_scans += full_scans;
+    }
+
+    pub(crate) fn record_graph_weight_search(&self, elapsed: std::time::Duration) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        let paths = &mut metrics.read_paths;
+        paths.graph_weight_search_ns = paths
+            .graph_weight_search_ns
+            .saturating_add(u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX));
+    }
+
     /// Records, for the latest joined `GRAPH_TABLE`, each pattern's edge hops and
     /// selected paths in pattern order.
     ///

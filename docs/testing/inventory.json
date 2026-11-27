@@ -186,9 +186,9 @@
     ],
     "files": 1915,
     "rust_files": 1872,
-    "rust_test_declarations": 11795,
+    "rust_test_declarations": 11804,
     "python_test_declarations": 22,
-    "registered_rust_instances": 11822,
+    "registered_rust_instances": 11831,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -81024,8 +81024,8 @@
       "id": "tests/graph_types/driver.rs::should_describe_the_graph_types_as_composites_through_the_driver",
       "name": "should_describe_the_graph_types_as_composites_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 171,
-      "end_line": 198,
+      "line": 183,
+      "end_line": 210,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81055,8 +81055,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_key_parts_of_every_shape_through_the_driver",
       "name": "should_round_trip_key_parts_of_every_shape_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 201,
-      "end_line": 237,
+      "line": 213,
+      "end_line": 249,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81086,8 +81086,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
       "name": "should_round_trip_a_key_part_array_with_a_null_element_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 240,
-      "end_line": 265,
+      "line": 252,
+      "end_line": 277,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81117,8 +81117,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
       "name": "should_round_trip_a_heterogeneous_composite_key_reference_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 268,
-      "end_line": 306,
+      "line": 280,
+      "end_line": 318,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81148,8 +81148,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_zero_hop_path_through_the_driver",
       "name": "should_round_trip_a_zero_hop_path_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 322,
-      "end_line": 339,
+      "line": 334,
+      "end_line": 351,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81179,8 +81179,8 @@
       "id": "tests/graph_types/driver.rs::should_round_trip_a_one_hop_path_through_the_driver",
       "name": "should_round_trip_a_one_hop_path_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 342,
-      "end_line": 359,
+      "line": 354,
+      "end_line": 371,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81210,8 +81210,8 @@
       "id": "tests/graph_types/driver.rs::should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
       "name": "should_return_equal_paths_from_a_graph_table_read_plus_a_weighted_search_through_the_driver",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 362,
-      "end_line": 381,
+      "line": 374,
+      "end_line": 393,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81241,8 +81241,8 @@
       "id": "tests/graph_types/driver.rs::should_report_the_driver_parameter_type_of_a_path_function_argument",
       "name": "should_report_the_driver_parameter_type_of_a_path_function_argument",
       "current_file": "tests/graph_types/driver.rs",
-      "line": 384,
-      "end_line": 402,
+      "line": 396,
+      "end_line": 414,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -81251,6 +81251,37 @@
         {
           "suite": "graph_types",
           "name": "driver::should_report_the_driver_parameter_type_of_a_path_function_argument"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_types",
+        "category": "semantics",
+        "directory": "tests/graph_types/semantics",
+        "file": "tests/graph_types/semantics/driver.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_types/driver.rs::should_probe_the_sparse_weight_index_in_ordinary_pgwire_queries",
+      "name": "should_probe_the_sparse_weight_index_in_ordinary_pgwire_queries",
+      "current_file": "tests/graph_types/driver.rs",
+      "line": 417,
+      "end_line": 471,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_types",
+          "name": "driver::should_probe_the_sparse_weight_index_in_ordinary_pgwire_queries"
         }
       ],
       "attributes": [
@@ -85746,6 +85777,254 @@
         {
           "suite": "graph_weighted",
           "name": "cost_curves::should_reject_an_invalid_weight_outside_the_visited_neighbourhood"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_reject_a_missing_not_null_weight_written_by_projection_replay",
+      "name": "should_reject_a_missing_not_null_weight_written_by_projection_replay",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 199,
+      "end_line": 214,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_reject_a_missing_not_null_weight_written_by_projection_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_reject_an_explicit_null_weight_written_by_projection_replay",
+      "name": "should_reject_an_explicit_null_weight_written_by_projection_replay",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 217,
+      "end_line": 233,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_reject_an_explicit_null_weight_written_by_projection_replay"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_skip_nonnegative_disconnected_rows_given_a_complete_invalid_weight_index",
+      "name": "should_skip_nonnegative_disconnected_rows_given_a_complete_invalid_weight_index",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 236,
+      "end_line": 260,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_skip_nonnegative_disconnected_rows_given_a_complete_invalid_weight_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_reject_a_disconnected_edge_after_its_weight_enters_the_index",
+      "name": "should_reject_a_disconnected_edge_after_its_weight_enters_the_index",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 263,
+      "end_line": 280,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_reject_a_disconnected_edge_after_its_weight_enters_the_index"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_read_pending_weights_when_the_committed_index_has_no_candidate",
+      "name": "should_read_pending_weights_when_the_committed_index_has_no_candidate",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 283,
+      "end_line": 303,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_read_pending_weights_when_the_committed_index_has_no_candidate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_fall_back_after_the_invalid_weight_index_is_replaced_by_an_incomplete_one",
+      "name": "should_fall_back_after_the_invalid_weight_index_is_replaced_by_an_incomplete_one",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 306,
+      "end_line": 325,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_fall_back_after_the_invalid_weight_index_is_replaced_by_an_incomplete_one"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_property",
+      "name": "should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_property",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 328,
+      "end_line": 359,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_property"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "graph_weighted",
+        "category": "semantics",
+        "directory": "tests/graph_weighted/semantics",
+        "file": "tests/graph_weighted/semantics/cost_curves.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/graph_weighted/cost_curves.rs::should_reject_disconnected_negative_weight_given_a_quoted_source_column",
+      "name": "should_reject_disconnected_negative_weight_given_a_quoted_source_column",
+      "current_file": "tests/graph_weighted/cost_curves.rs",
+      "line": 362,
+      "end_line": 393,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "graph_weighted",
+          "name": "cost_curves::should_reject_disconnected_negative_weight_given_a_quoted_source_column"
         }
       ],
       "attributes": [
@@ -374392,9 +374671,9 @@
       "current_file": "tests/graph_types/driver.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 402,
-      "sha256": "290dff8e6eeba2f6f91394f06da3842078f431c42e462a5fc8f574b1c7cdf892",
-      "test_declarations": 8,
+      "lines": 471,
+      "sha256": "542253dc30adac5ce20436b09666cf047e3f35ce9d069e6a4c256a5a91cf2cf8",
+      "test_declarations": 9,
       "registered_suites": [
         "graph_types"
       ],
@@ -374737,9 +375016,9 @@
       "current_file": "tests/graph_weighted/cost_curves.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 129,
-      "sha256": "00a8ece3ec4440795702b404da65ce47d1162f0c4156d7a2709a2caff83983ab",
-      "test_declarations": 4,
+      "lines": 393,
+      "sha256": "9dbeb83083c7f240cd07464815c1c4c962176c6f7e2769d83885c3f9bef4f7c4",
+      "test_declarations": 12,
       "registered_suites": [
         "graph_weighted"
       ],

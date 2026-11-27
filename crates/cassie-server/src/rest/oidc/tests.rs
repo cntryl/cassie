@@ -124,7 +124,7 @@ fn should_reject_a_signed_api_token_given_a_different_requesting_client() {
 }
 
 #[test]
-fn should_reject_scope_settings_outside_the_oauth_token_grammar_and_limits() {
+fn should_reject_invalid_oauth_scope_settings() {
     // Arrange
     let too_long = "x".repeat(129);
     let too_many = (0..33)
@@ -216,6 +216,7 @@ fn should_replace_off_origin_return_locations_with_the_local_default() {
 mod issuer {
     use std::collections::HashMap;
     use std::convert::Infallible;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, OnceLock};
 
     use http_body_util::{BodyExt, Full};
@@ -230,7 +231,7 @@ mod issuer {
     use super::{authorization_scope, json, jwks, sign, URL_SAFE_NO_PAD};
     use crate::app::Cassie;
     use crate::config::CassieRuntimeConfig;
-    use crate::rest::oidc::{now, provider, Oidc, Settings};
+    use crate::rest::oidc::{now, provider, Oidc, Settings, MAX_CHALLENGES};
     use base64::Engine as _;
 
     struct BrowserRequest {
@@ -243,22 +244,26 @@ mod issuer {
         public_keys: Vec<u8>,
         signing: aws_lc_rs::signature::RsaKeyPair,
         browser: OnceLock<BrowserRequest>,
+        discoveries: AtomicUsize,
     }
 
     impl Issuer {
         async fn reply(&self, request: Request<Incoming>) -> Response<Full<bytes::Bytes>> {
             match request.uri().path() {
-                "/.well-known/openid-configuration" => Response::new(Full::new(
-                    json!({
-                        "issuer": self.base,
-                        "authorization_endpoint": format!("{}authorize", self.base),
-                        "token_endpoint": format!("{}token", self.base),
-                        "jwks_uri": format!("{}jwks", self.base),
-                        "token_endpoint_auth_methods_supported": ["client_secret_post"]
-                    })
-                    .to_string()
-                    .into(),
-                )),
+                "/.well-known/openid-configuration" => {
+                    self.discoveries.fetch_add(1, Ordering::Relaxed);
+                    Response::new(Full::new(
+                        json!({
+                            "issuer": self.base,
+                            "authorization_endpoint": format!("{}authorize", self.base),
+                            "token_endpoint": format!("{}token", self.base),
+                            "jwks_uri": format!("{}jwks", self.base),
+                            "token_endpoint_auth_methods_supported": ["client_secret_post"]
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                }
                 "/jwks" => Response::new(Full::new(self.public_keys.clone().into())),
                 "/token" => self.exchange(request).await,
                 _ => Response::builder()
@@ -344,6 +349,7 @@ mod issuer {
             public_keys: jwks(&signing),
             signing,
             browser: OnceLock::new(),
+            discoveries: AtomicUsize::new(0),
         });
         let mut settings = Settings::new(
             base,
@@ -500,9 +506,38 @@ mod issuer {
     }
 
     #[test]
-    fn should_finish_browser_login_and_enforce_database_scope_through_rest() {
+    fn should_skip_discovery_when_pending_browser_sign_ins_fill_capacity() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let (rejected, discoveries) = runtime.block_on(async {
+            let (oidc, issuer, provider_task) = start().await;
+            {
+                let mut store = oidc.store.lock().expect("challenge store");
+                let now = now().expect("unix time");
+                for _ in 0..MAX_CHALLENGES {
+                    store.begin("/", now).expect("pending sign-in");
+                }
+            }
+            let outcome = oidc.start("/").await;
+            provider_task.abort();
+            (outcome.is_err(), issuer.discoveries.load(Ordering::Relaxed))
+        });
+
+        // Assert
+        assert!(rejected);
+        assert_eq!(discoveries, 0);
+    }
+
+    #[test]
+    fn should_enforce_database_scope_through_rest_given_a_browser_login() {
         // Arrange
         let cassie = cassie_fixture();
+        let observer = cassie.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -607,5 +642,9 @@ mod issuer {
         assert_eq!(denied, StatusCode::FORBIDDEN);
         assert_eq!(logout, StatusCode::OK);
         assert_eq!(after_logout, StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            observer.metrics()["rest"]["blocking_completed_total"]["rest_oidc_role"],
+            1
+        );
     }
 }

@@ -5,8 +5,7 @@ use std::io::{BufWriter, Write as _};
 use std::path::Path;
 use std::time::Instant;
 
-use cassie::types::graph::{path_to_json, Path as GraphPath};
-use cassie::types::{TypedValue, Value};
+use cassie::types::Value;
 use serde::Serialize;
 use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
@@ -176,7 +175,9 @@ fn observe(fixture: &Fixture, sql: &str, expected: &[Vec<String>], indexed: bool
 }
 
 fn ranked_path_identity(fixture: &Fixture, route: &graph_social::Route) -> Json {
-    let sql = route.sql_with_projection("w.path_rank, w.cost, w.path, w.edge_costs");
+    let sql = route.sql_with_projection(
+        "w.path_rank, w.cost, cassie_graph.path_to_jsonb(w.path)::text, w.edge_costs",
+    );
     let result = fixture
         .cassie
         .execute_sql(&fixture.session, &sql, Vec::new())
@@ -185,13 +186,10 @@ fn ranked_path_identity(fixture: &Fixture, route: &graph_social::Route) -> Json 
         .rows()
         .iter()
         .map(|row| {
-            let [Value::Int64(rank), cost, Value::Typed(TypedValue::Record(record)), edge_costs] =
-                row.as_slice()
-            else {
-                panic!("expected rank, cost, native path and edge costs");
+            let [Value::Int64(rank), cost, Value::String(path), edge_costs] = row.as_slice() else {
+                panic!("expected rank, cost, native path JSON and edge costs");
             };
-            let path = GraphPath::from_record(record).expect("valid native path");
-            let mut path = path_to_json(&path);
+            let mut path: Json = serde_json::from_str(path).expect("decode native path JSON");
             // Each independently loaded fixture has exactly one vertex mapping and one edge
             // mapping. Their database, graph and mapping UUIDs differ between the fixtures.
             for group in ["vertices", "edges"] {

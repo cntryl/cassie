@@ -433,8 +433,8 @@ fn should_probe_the_sparse_weight_index_in_ordinary_pgwire_queries() {
 
     // Act
     let (costs, validation) = run(async {
-        let (served, cassie) = serve_with(&setup, config).await;
-        let server = connect(served).await;
+        let (endpoint, cassie) = serve_with(&setup, config).await;
+        let server = connect(endpoint).await;
         let client = &server.client;
         let counts = || {
             let metrics = cassie.metrics();

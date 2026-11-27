@@ -419,7 +419,7 @@ mod issuer {
             .to_owned()
     }
 
-    async fn browser_login(client: &reqwest::Client, issuer: &Issuer, base: &str) -> String {
+    async fn begin_browser_login(client: &reqwest::Client, base: &str) -> (url::Url, String) {
         let response = client
             .get(format!("{base}/api/v1/auth/oidc/start?next=%2Fquery"))
             .send()
@@ -430,7 +430,30 @@ mod issuer {
         let location = response.headers()["location"]
             .to_str()
             .expect("redirect location");
-        let authorization = url::Url::parse(location).expect("authorization URL");
+        (
+            url::Url::parse(location).expect("authorization URL"),
+            browser,
+        )
+    }
+
+    async fn browser_login(client: &reqwest::Client, issuer: &Issuer, base: &str) -> String {
+        let (older_authorization, _) = begin_browser_login(client, base).await;
+        let older_state = older_authorization
+            .query_pairs()
+            .find(|(name, _)| name == "state")
+            .expect("older state")
+            .1;
+        let (authorization, browser) = begin_browser_login(client, base).await;
+        let rejected = client
+            .get(format!(
+                "{base}/api/v1/auth/oidc/callback?code=obsolete&state={older_state}"
+            ))
+            .header("cookie", &browser)
+            .send()
+            .await
+            .expect("reject older callback");
+        assert_eq!(rejected.headers()["location"], "/login?oidc_error=1");
+        assert!(!rejected.headers().contains_key("set-cookie"));
         let params = authorization.query_pairs().collect::<HashMap<_, _>>();
         let param = |name| {
             params
@@ -461,6 +484,10 @@ mod issuer {
         assert_eq!(completed.status(), StatusCode::SEE_OTHER);
         assert_eq!(completed.headers()["location"], "/query");
         let session = response_cookie(&completed, "cassie_session");
+        assert_eq!(
+            response_cookie(&completed, "__Host-cassie_oidc"),
+            "__Host-cassie_oidc="
+        );
         let replay = client
             .get(callback)
             .header("cookie", browser)
@@ -468,7 +495,7 @@ mod issuer {
             .await
             .expect("replay callback");
         assert_eq!(replay.headers()["location"], "/login?oidc_error=1");
-        assert_eq!(replay.headers().get_all("set-cookie").iter().count(), 1);
+        assert!(!replay.headers().contains_key("set-cookie"));
         session
     }
 

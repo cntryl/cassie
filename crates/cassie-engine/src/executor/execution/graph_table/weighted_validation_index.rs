@@ -180,7 +180,7 @@ mod tests {
         let cancellation = QueryCancellationHandle::new();
         cancellation.cancel();
         let controls = QueryExecutionControls::with_cancellation(
-            cassie.runtime.limits(),
+            &cassie.runtime.limits(),
             Instant::now(),
             cancellation,
         );

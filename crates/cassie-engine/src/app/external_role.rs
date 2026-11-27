@@ -64,7 +64,7 @@ impl Cassie {
             .filter(|name| {
                 !name.is_empty()
                     && *name != "*"
-                    && !name.chars().any(|character| character.is_control())
+                    && !name.chars().any(char::is_control)
                     && name.trim() == *name
             })
             .map(str::to_owned)

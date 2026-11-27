@@ -66,6 +66,8 @@ afterEach(() => {
 
 beforeEach(() => {
   signOut();
+  mockJsonResponse("/api/v1/auth/session", { error: "unauthorized" }, { status: 401 });
+  mockJsonResponse("/api/v1/auth/methods", { oidc: false });
 });
 
 describe("route-level auth guard", () => {

@@ -19,13 +19,12 @@ import { getSessionStatus, setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError } from "@/shared/errors/api";
 
 function resolveNextTarget(next: string | null) {
-  if (
-    !next?.startsWith("/") ||
-    next.startsWith("//") ||
-    next.includes("\\") ||
-    [...next].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
-  ) {
+  if (!next?.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
     return "/";
+  }
+  for (const character of next) {
+    const code = character.charCodeAt(0);
+    if (code < 32 || code === 127) return "/";
   }
 
   const target = new URL(next, window.location.origin);
@@ -158,7 +157,7 @@ export default function LoginPage() {
   const [mode, setMode] = state<LoginMode>("loading");
 
   watch(
-    [attempt, () => nextTarget, () => callbackFailed || signedOut],
+    [attempt, () => nextTarget, () => callbackFailed || signedOut] as const,
     async ([, next, stopped], { signal }) => {
       setMode("loading");
       try {

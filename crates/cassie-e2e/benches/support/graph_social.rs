@@ -39,9 +39,18 @@ impl Plan {
     /// Creates the tables, writes the rows in storage batches and defines the graph. Rows go
     /// through the document write path in batches, as the other Tier 3 fixtures do.
     pub fn apply(self, cassie: &Cassie, session: &CassieSession) {
+        self.create_tables(cassie, session);
+        self.load_rows(cassie);
+        self.define_graph(cassie, session);
+    }
+
+    pub fn create_tables(&self, cassie: &Cassie, session: &CassieSession) {
         for statement in &self.tables {
             run(cassie, session, statement);
         }
+    }
+
+    pub fn load_rows(&self, cassie: &Cassie) {
         for load in &self.loads {
             let mut first = 1;
             while first <= load.rows {
@@ -62,6 +71,9 @@ impl Plan {
                 first = last + 1;
             }
         }
+    }
+
+    pub fn define_graph(&self, cassie: &Cassie, session: &CassieSession) {
         run(cassie, session, &self.graph);
     }
 }
@@ -86,8 +98,13 @@ impl Route {
     /// The `graph_weighted_paths` statement of this route, with named optional arguments.
     #[must_use]
     pub fn sql(&self) -> String {
+        self.sql_with_projection("w.path_rank, w.cost")
+    }
+
+    #[must_use]
+    pub fn sql_with_projection(&self, projection: &str) -> String {
         format!(
-            "SELECT w.path_rank, w.cost FROM graph_weighted_paths(graph => '{GRAPH}', \
+            "SELECT {projection} FROM graph_weighted_paths(graph => '{GRAPH}', \
              source => {}, target => {}, weight_property => 'weight', max_hops => {}, \
              k => {}) AS w",
             vertex_ref(self.source),

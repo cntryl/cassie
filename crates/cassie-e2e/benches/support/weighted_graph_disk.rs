@@ -15,6 +15,9 @@ use super::{
 #[path = "weighted_graph_disk_checks.rs"]
 mod checks;
 
+#[path = "weighted_graph_disk_pair.rs"]
+mod pair;
+
 #[path = "weighted_graph_product_status.rs"]
 mod product_status;
 
@@ -59,7 +62,17 @@ pub(super) fn run() {
 }
 
 pub(super) fn run_product(profile: &str, output_dir: &Path) {
-    run_inner(Some((profile, output_dir)));
+    match std::env::var("CASSIE_BENCH_GRAPH_DISK_VARIANT") {
+        Err(std::env::VarError::NotPresent) => run_inner(Some((profile, output_dir))),
+        Ok(variant) if variant == "paired_weight_validation" => {
+            assert_eq!(
+                profile, "full",
+                "weight validation pair uses the full fixture"
+            );
+            pair::run(output_dir);
+        }
+        other => panic!("unsupported graph disk variant {other:?}"),
+    }
 }
 
 fn run_inner(product: Option<(&str, &Path)>) {

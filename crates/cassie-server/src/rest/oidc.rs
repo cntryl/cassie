@@ -16,7 +16,6 @@ use tokio::sync::Semaphore;
 use url::Url;
 
 use crate::app::{Cassie, CassieError, ExternalRoleAuthority};
-use crate::midge::adapter::PublicationControlScope;
 use crate::rest::router::{RestRequestExecution, REST_REQUEST_TIMEOUT};
 
 pub(super) const CALLBACK_PATH: &str = "/api/v1/auth/oidc/callback";
@@ -322,11 +321,7 @@ impl Oidc {
         let role = self.settings.role.clone();
         let authority = RestRequestExecution::new(REST_REQUEST_TIMEOUT)
             .run_blocking(Arc::clone(cassie), "rest_oidc_role", move |cassie, _| {
-                PublicationControlScope::check_current()?;
-                let authority =
-                    cassie.capture_external_role(&role, &verified.permissions, expires_at)?;
-                PublicationControlScope::check_current()?;
-                Ok(authority)
+                cassie.capture_external_role(&role, &verified.permissions, expires_at)
             })
             .await
             .map_err(|_| Rejected)?;

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{Cassie, CassieError, CassieSession, NetworkPrincipal, NetworkRole, RoleMeta};
+use crate::midge::adapter::PublicationControlScope;
 
 /// Authority recorded after the transport validates a browser login.
 #[doc(hidden)]
@@ -52,6 +53,7 @@ impl Cassie {
         permissions: &[String],
         expires_at: u64,
     ) -> Result<Arc<ExternalRoleAuthority>, CassieError> {
+        PublicationControlScope::check_current()?;
         let stored = self.lookup_role(role)?.ok_or(CassieError::Unauthorized)?;
         if stored.is_admin || stored.object_id == 0 || stored.name == self.auth_user {
             return Err(CassieError::Unauthorized);
@@ -81,6 +83,7 @@ impl Cassie {
         if !authority.matches_role(&stored) {
             return Err(CassieError::Unauthorized);
         }
+        PublicationControlScope::check_current()?;
         Ok(Arc::new(authority))
     }
 

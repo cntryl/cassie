@@ -392,10 +392,10 @@ indexes consulted are the ones every indexed SQL query already trusts.
   `CREATE INDEX name ON edge_table ((1)) WHERE weight IS NULL OR weight < 0`
   supplies only invalid committed candidates in the statement's snapshot. The constant key
   covers a missing or NULL weight. Point reads recheck each candidate's edge key, weight and
-  endpoints in the statement view. The statement's pending changes must be covered in that
-  view. Committed indexed validation work is bounded by the index seek and candidates.
-  A mapping without proven coverage, including exact `NUMERIC` weights, uses
-  the controlled fallback scan. The fallback decodes only edge keys, endpoints and weights
+  endpoints in the statement view. Committed indexed validation work is bounded by the
+  index seek and candidates. Explicit transactions, pending changes on the edge relation,
+  validation fields requiring quoted storage labels and other mappings without proven
+  coverage, including exact `NUMERIC` weights, use the controlled fallback scan. The fallback decodes only edge keys, endpoints and weights
   and costs O(selected edges). A statement whose read path cannot stream
   (`parallel_scan_workers` above 1) materializes the mapping through the controlled read
   with accounted O(E) memory and can fail with `54000`. Endpoints of invalid candidates
@@ -413,9 +413,10 @@ indexes consulted are the ones every indexed SQL query already trusts.
   `Cassie::set_graph_exact_reads(true)` the previous load-validate-search over the fully read
   mappings is used unchanged, so tests compare both paths. Counted-read, own-write and
   oracle-equivalence tests for both paths are authored in
-  [`lazy_reads.rs`](../tests/graph_weighted/lazy_reads.rs),
-  [`transactions.rs`](../tests/graph_weighted/transactions.rs) and
-  [`variants.rs`](../tests/graph_weighted/variants.rs); they passed in the assembler run of the `graph_weighted` suite (116 tests) on the integrated head; no timing is recorded.
+  [`lazy_reads.rs`](../crates/cassie-e2e/tests/graph_weighted/lazy_reads.rs),
+  [`transactions.rs`](../crates/cassie-e2e/tests/graph_weighted/transactions.rs),
+  [`variants.rs`](../crates/cassie-e2e/tests/graph_weighted/variants.rs) and
+  [`cost_curves.rs`](../crates/cassie-e2e/tests/graph_weighted/cost_curves.rs).
 
 ### Integrity model
 

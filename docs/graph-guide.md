@@ -929,9 +929,10 @@ without rounding, and an unrepresentable total returns `22003` with no partial r
 For a row-authoritative edge mapping with a signed integer weight, validation can use an
 ordinary partial index of the form `CREATE INDEX name ON edge_table ((1)) WHERE weight IS NULL OR weight < 0`.
 The index must cover the exact selected column in the statement's view. The constant key
-also represents missing or NULL weights. When the index cannot cover the statement, Cassie
-uses a controlled scan of edge keys, endpoints and weights. Invalid weights outside the
-visited neighbourhood still fail the call when those edges are visible.
+also represents missing or NULL weights. Explicit transactions and mappings whose validation
+fields require quoted storage labels use the controlled scan of edge keys, endpoints and
+weights. Invalid weights outside the visited neighbourhood still fail the call when those
+edges are visible.
 
 The worked example in [section 6.4](#64-weighted-routes) shows a call and the error.
 

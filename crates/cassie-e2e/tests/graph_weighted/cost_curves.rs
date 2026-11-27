@@ -354,3 +354,37 @@ fn should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_pro
     assert_eq!(indexed, scanned);
     assert_eq!(counts, (1, 1, 0));
 }
+
+#[test]
+fn should_reject_disconnected_negative_weight_given_a_quoted_source_column() {
+    // Arrange
+    let mut config = cassie::config::CassieRuntimeConfig::default();
+    config.limits.parallel_scan_workers = 2;
+    let fixture = started(
+        Some(config),
+        &[
+            "CREATE TABLE v (id BIGINT PRIMARY KEY)",
+            r#"CREATE TABLE e (id BIGINT PRIMARY KEY, "Src" BIGINT NOT NULL, b BIGINT NOT NULL,
+               weight BIGINT NOT NULL)"#,
+            INVALID_WEIGHTS,
+            "INSERT INTO v VALUES (1), (2), (3), (4)",
+            "INSERT INTO e VALUES (1, 1, 2, 0), (2, 3, 4, -1)",
+            r#"CREATE PROPERTY GRAPH wg
+               VERTEX TABLES (v AS n KEY (id) LABEL node PROPERTIES (id))
+               EDGE TABLES (e AS s KEY (id) SOURCE KEY ("Src") REFERENCES n (id)
+                 DESTINATION KEY (b) REFERENCES n (id) LABEL slow PROPERTIES (weight))"#,
+        ],
+    );
+    let query = signed_query();
+
+    // Act
+    let indexed = fixture.execute(&query);
+    fixture
+        .execute("DROP INDEX e_weight")
+        .expect("use full validation");
+    let scanned = fixture.execute(&query);
+
+    // Assert
+    assert_eq!(scanned.err().map(|error| error.sql_state()), Some("22023"));
+    assert_eq!(indexed.err().map(|error| error.sql_state()), Some("22023"));
+}

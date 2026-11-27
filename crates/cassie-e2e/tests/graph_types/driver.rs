@@ -6,7 +6,7 @@
 
 use crate::record_codec::Node;
 use cassie::app::Cassie;
-use cassie::config::CassieRuntimeConfig;
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use std::sync::Arc;
 use tokio_postgres::types::Kind;
 use tokio_postgres::{Client, NoTls, SimpleQueryMessage};
@@ -42,15 +42,23 @@ pub(crate) struct Served {
     pub(crate) accept_loop: tokio::task::JoinHandle<()>,
 }
 
+fn driver_config() -> CassieRuntimeConfig {
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
+    config
+}
+
 /// Starts an in-memory instance, defines the setup graph and serves PostgreSQL wire
 /// connections from an owned, bound listener.
 pub(crate) async fn serve() -> Served {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    crate::support_sql::test_root_password().clone_into(&mut config.password);
+    serve_with(&SETUP, driver_config()).await.0
+}
+
+async fn serve_with(setup: &[&str], config: CassieRuntimeConfig) -> (Served, Arc<Cassie>) {
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("create Cassie");
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
-    for sql in SETUP {
+    for sql in setup {
         if let Err(error) = cassie.execute_sql(&session, sql, vec![]) {
             panic!("setup failed with SQLSTATE {}", error.sql_state());
         }
@@ -60,14 +68,18 @@ pub(crate) async fn serve() -> Served {
         .expect("bind listener");
     let port = listener.local_addr().expect("listener address").port();
     let shared = Arc::new(cassie);
+    let served = Arc::clone(&shared);
     let accept_loop = tokio::spawn(async move {
-        let _ = cassie::pgwire::server::run_with_listener(listener, shared, config).await;
+        let _ = cassie::pgwire::server::run_with_listener(listener, served, config).await;
     });
-    Served { port, accept_loop }
+    (Served { port, accept_loop }, shared)
 }
 
 async fn start() -> Server {
-    let Served { port, accept_loop } = serve().await;
+    connect(serve().await).await
+}
+
+async fn connect(Served { port, accept_loop }: Served) -> Server {
     let mut client_config = tokio_postgres::Config::new();
     client_config.host("127.0.0.1");
     client_config.port(port);
@@ -399,4 +411,61 @@ fn should_report_the_driver_parameter_type_of_a_path_function_argument() {
 
     // Assert
     assert_eq!(name.expect("prepare succeeds"), "graph_path");
+}
+
+#[test]
+fn should_probe_the_sparse_weight_index_in_ordinary_pgwire_queries() {
+    // Arrange
+    let mut config = driver_config();
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+    let setup = [
+        SETUP[0],
+        "CREATE TABLE door (id UUID PRIMARY KEY, a_tenant TEXT NOT NULL, a_seq INT NOT NULL,
+         b_tenant TEXT NOT NULL, b_seq INT NOT NULL, weight BIGINT)",
+        SETUP[2],
+        "INSERT INTO door VALUES ('00000000-0000-0000-0000-0000000000aa', 't1', 1, 't1', 2, 2)",
+        "CREATE INDEX door_invalid ON door ((1)) WHERE weight IS NULL OR weight < 0",
+        SETUP[4],
+    ];
+    let sql = format!(
+        "SELECT p.cost::text FROM graph_weighted_paths('rooms', {ROOM_1}, {ROOM_2}, 'weight', 1) AS p"
+    );
+
+    // Act
+    let (costs, validation) = run(async {
+        let (served, cassie) = serve_with(&setup, config).await;
+        let server = connect(served).await;
+        let client = &server.client;
+        let counts = || {
+            let metrics = cassie.metrics();
+            let read = |name: &str| metrics["read_paths"][name].as_u64().expect("counter");
+            (
+                read("graph_weight_validation_index_probes"),
+                read("graph_weight_validation_full_scans"),
+            )
+        };
+        let initial = counts();
+        let simple = text(client, &sql).await;
+        let after_simple = counts();
+        let statement = client.prepare(&sql).await.expect("prepare weighted path");
+        let extended = client
+            .query_one(&statement, &[])
+            .await
+            .expect("execute weighted path")
+            .get::<_, String>(0);
+        let after_extended = counts();
+        client.batch_execute("BEGIN").await.expect("begin");
+        let explicit = text(client, &sql).await;
+        client.batch_execute("ROLLBACK").await.expect("rollback");
+        let after_explicit = counts();
+        server.stop().await;
+        (
+            [simple, extended, explicit],
+            [initial, after_simple, after_extended, after_explicit],
+        )
+    });
+
+    // Assert
+    assert_eq!(costs.each_ref().map(String::as_str), ["2", "2", "2"]);
+    assert_eq!(validation, [(0, 0), (1, 0), (2, 0), (2, 1)]);
 }

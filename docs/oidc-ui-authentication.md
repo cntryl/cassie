@@ -18,7 +18,8 @@ server completes login.
   audience, expiration and nonce. A signed JWT access token for the configured
   Cassie API audience supplies database permissions. Cassie verifies its
   issuer, audience, signature, lifetime and association with the authenticated
-  subject. The configured permissions claim is a JSON string array.
+  subject. Cassie accepts tokens with an issued lifetime of up to 24 hours.
+  The configured permissions claim is a JSON string array.
 - Cassie retains only the local authorization and bounded opaque session state.
   OIDC sessions expire by the earlier applicable provider-token expiration
   or the local session limit. OIDC cookies are secure and HTTP-only. Existing

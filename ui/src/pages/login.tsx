@@ -15,7 +15,7 @@ import {
 import { AuthBrand } from "@/components/auth/auth-brand";
 import { AuthPage } from "@/components/auth/auth-page";
 import { createLoginMutation, discoverAuthMethods } from "@/features/auth-actions";
-import { setSession, signOut } from "@/shared/auth";
+import { getSessionStatus, setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError } from "@/shared/errors/api";
 
 function resolveNextTarget(next: string | null) {
@@ -141,7 +141,13 @@ function PasswordLogin({ nextTarget }: { nextTarget: string }) {
   );
 }
 
-type LoginMode = "loading" | "password" | "oidc" | "redirecting" | "unavailable";
+type LoginMode =
+  | "loading"
+  | "password"
+  | "oidc"
+  | "redirecting"
+  | "methods-unavailable"
+  | "session-unavailable";
 
 export default function LoginPage() {
   const { query } = currentRoute();
@@ -168,24 +174,28 @@ export default function LoginPage() {
           return;
         }
 
+        if (getSessionStatus() !== "anonymous") {
+          setMode("session-unavailable");
+          return;
+        }
+
         setMode("redirecting");
         window.location.replace(oidcStartUrl(next));
       } catch {
-        if (!signal.aborted) setMode("unavailable");
+        if (!signal.aborted) setMode("methods-unavailable");
       }
     },
   );
 
   const loginMode = mode();
   const redirecting = loginMode === "redirecting";
-  const title =
-    loginMode === "unavailable"
-      ? "Could not determine how to sign in"
-      : loginMode === "oidc" && callbackFailed
-        ? "Sign in failed"
-        : loginMode === "oidc" && signedOut
-          ? "Signed out"
-          : "Sign in to Cassie Admin";
+  const title = {
+    "methods-unavailable": "Could not determine how to sign in",
+    "session-unavailable": "Could not verify your session",
+    loading: "Sign in to Cassie Admin",
+    redirecting: "Sign in to Cassie Admin",
+    oidc: callbackFailed ? "Sign in failed" : signedOut ? "Signed out" : "Sign in to Cassie Admin",
+  };
 
   return (
     <AuthPage>
@@ -195,15 +205,20 @@ export default function LoginPage() {
         <Block direction="column" gap="xl">
           <Block direction="column" gap="md">
             <AuthBrand />
-            <PageHeader title={title} />
+            <PageHeader title={title[loginMode]} />
           </Block>
           {loginMode === "loading" || redirecting ? (
             <Spinner
               label={redirecting ? "Opening the sign-in provider" : "Checking sign-in options"}
             />
           ) : null}
-          {loginMode === "unavailable" ? (
+          {loginMode === "methods-unavailable" ? (
             <Button variant="primary" width="full" onPress={() => setAttempt((value) => value + 1)}>
+              Retry
+            </Button>
+          ) : null}
+          {loginMode === "session-unavailable" ? (
+            <Button variant="primary" width="full" onPress={() => window.location.reload()}>
               Retry
             </Button>
           ) : null}

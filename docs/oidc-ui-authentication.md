@@ -104,10 +104,12 @@ assign to users. Cassie authorizes each database using the access token's
    ```
 
 If your provider requires explicit API scope requests, set
-`CASSIE_OIDC_SCOPES` to the additional scopes. Cassie always requests
-`openid` and reads database grants from the verified access-token
-permissions array. Auth0 can include the user's assigned API permissions
-in that array even when the token's `scope` claim contains fewer values.
+`CASSIE_OIDC_SCOPES` to the additional scopes. With Auth0 per-application
+API access, request the required API scopes explicitly, for example
+`CASSIE_OIDC_SCOPES=db:analytics`. Cassie always requests `openid` and reads
+database grants from the verified access-token permissions array. Auth0 can
+include the user's assigned API permissions in that array even when the token's
+`scope` claim contains fewer values.
 [Auth0 access-token claims](https://auth0.com/docs/get-started/apis/enable-role-based-access-control-for-apis)
 
 Open the Cassie UI in a fresh browser session. It sends you to Auth0 and then

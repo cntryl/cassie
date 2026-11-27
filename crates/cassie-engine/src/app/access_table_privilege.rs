@@ -45,6 +45,9 @@ fn resolved_table_privilege(
     let database = crate::catalog::relation_database_name(&resolved)
         .or_else(|| session.current_database().map(str::to_owned))
         .unwrap_or_else(|| default_database.to_owned());
+    if session.external_database_access(&database) == Some(false) {
+        return Err(CassieError::InsufficientPrivilege);
+    }
     let Some(database_meta) = catalog.get_database(&database) else {
         return Err(CassieError::InsufficientPrivilege);
     };

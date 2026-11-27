@@ -552,6 +552,11 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
   return async (req, res, next) => {
     const path = requestPath(req);
 
+    if (req.method === "GET" && path === "/api/v1/auth/methods") {
+      sendJson(res, 200, { oidc: false });
+      return;
+    }
+
     if (req.method === "POST" && path === "/api/v1/auth/login") {
       let credentials: Record<string, unknown>;
       try {

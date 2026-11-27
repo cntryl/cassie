@@ -1,6 +1,6 @@
 import { defineApi, createClient, del, get, json, post } from "@askrjs/fetch";
 import type { ClientOptions } from "@askrjs/fetch";
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { AuthMethods, CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
 import type { CancelAdminQueryOperationPath, CreateDocumentPath, CreateIndexPath, CreateProjectionVerificationManifestPath, DeleteDocumentPath, ExportProjectionManifestPath, GetAdminQuerySchemaQuery, GetDocumentPath, ListAdminCatalogQuery, VectorSearchPath } from "./operations";
 
 export const api = defineApi({
@@ -94,6 +94,9 @@ export const api = defineApi({
     .returns(json<LogoutResponse>())
     .errors({ "401": json<Error>(), "408": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
+  getRestAuthMethods: get("/api/v1/auth/methods")
+    .returns(json<AuthMethods>())
+    .security([]),
   getRestSession: get("/api/v1/auth/session")
     .returns(json<Session>())
     .errors({ "401": json<Error>(), "408": json<Error>(), "503": json<Error>() })

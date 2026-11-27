@@ -91,6 +91,7 @@ describe("logout page", () => {
     // Assert
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(window.location.pathname).toBe("/login");
+    expect(window.location.search).toBe("?signed_out=1");
     expect(isSignedIn()).toBe(false);
   });
 
@@ -132,6 +133,7 @@ describe("logout page", () => {
 
     // Assert
     expect(window.location.pathname).toBe("/login");
+    expect(window.location.search).toBe("?signed_out=1");
     expect(isSignedIn()).toBe(false);
   });
 });

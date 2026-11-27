@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { createDataRuntime } from "@askrjs/askr/data";
 
@@ -17,6 +17,15 @@ function mockLoginUnauthorized() {
     { error: "Invalid username or password." },
     { method: "POST", status: 401 },
   );
+}
+
+function passwordLoginRequest() {
+  return fetchMock.mock.calls
+    .map(([request]) => request)
+    .find(
+      (request) =>
+        request.method === "POST" && new URL(request.url).pathname === "/api/v1/auth/login",
+    );
 }
 
 async function flushUi() {
@@ -62,6 +71,10 @@ async function mountLogin() {
   return root;
 }
 
+beforeEach(() => {
+  mockJsonResponse("/api/v1/auth/methods", { oidc: false });
+});
+
 afterEach(() => {
   vi.clearAllMocks();
   cleanupApp("app");
@@ -99,9 +112,7 @@ describe("login page", () => {
     await flushUi();
     await flushUi();
 
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const request = fetchMock.mock.calls[0]?.[0];
-    expect(await request?.json()).toEqual({ username: "root", password: "pwd123" });
+    expect(await passwordLoginRequest()?.json()).toEqual({ username: "root", password: "pwd123" });
     expect(window.location.pathname).toBe("/");
     expect(isSignedIn()).toBe(true);
   });
@@ -141,9 +152,29 @@ describe("login page", () => {
     typeInto(root.querySelector("#login-password") as HTMLInputElement, "pwd123");
     (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
     await flushUi();
-    expect(await fetchMock.mock.calls[0]?.[0].json()).toEqual({
+    expect(await passwordLoginRequest()?.json()).toEqual({
       username: "root",
       password: "pwd123",
     });
+  });
+
+  it("should_retry_auth_method_discovery_after_a_failed_request", async () => {
+    // Arrange
+    mockJsonResponse("/api/v1/auth/methods", { error: "unavailable" }, { status: 503 });
+    const root = await mountLogin();
+    await waitForText(root, "Could not determine how to sign in");
+    expect(root.querySelector("#login-password")).toBeNull();
+    mockJsonResponse("/api/v1/auth/methods", { oidc: false });
+
+    // Act
+    const retry = Array.from(root.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Retry",
+    );
+    expect(retry).toBeDefined();
+    retry?.click();
+    await waitForText(root, "Sign in as root");
+
+    // Assert
+    expect(root.querySelector("#login-password")).not.toBeNull();
   });
 });

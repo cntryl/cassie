@@ -38,6 +38,7 @@ pub struct NetworkRole {
     pub name: String,
     is_admin: bool,
     database_grants: Option<BTreeSet<String>>,
+    external_role: Option<Arc<super::ExternalRoleAuthority>>,
 }
 
 impl std::fmt::Debug for NetworkRole {
@@ -62,12 +63,26 @@ impl NetworkRole {
     #[must_use]
     #[doc(hidden)]
     pub fn can_access_database(&self, database: &str) -> bool {
+        if let Some(authority) = self.external_role.as_ref() {
+            return authority.allows_database(database);
+        }
         self.is_admin
             || self.database_grants.as_ref().is_some_and(|grants| {
                 grants
                     .iter()
                     .any(|grant| grant.eq_ignore_ascii_case(database))
             })
+    }
+}
+
+impl NetworkRole {
+    pub(super) fn external(name: String, authority: Arc<super::ExternalRoleAuthority>) -> Self {
+        Self {
+            name,
+            is_admin: false,
+            database_grants: None,
+            external_role: Some(authority),
+        }
     }
 }
 
@@ -79,6 +94,7 @@ impl From<AuthenticatedPrincipal> for NetworkPrincipal {
                 name: principal.role.name,
                 is_admin: principal.role.is_admin,
                 database_grants: principal.role.database_grants,
+                external_role: None,
             },
         }
     }

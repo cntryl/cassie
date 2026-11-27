@@ -317,6 +317,7 @@ mod tests {
                 session,
                 role: None,
                 token: None,
+                external_user: None,
             },
         )
     }

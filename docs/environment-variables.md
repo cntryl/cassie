@@ -52,6 +52,26 @@ network listeners reject an empty root password before accepting connections.
 | `CASSIE_AUTH_IP_ATTEMPTS_PER_MINUTE` | Integer, minimum `1` | `60` | Process-local login token-bucket capacity per peer IP. |
 | `CASSIE_AUTH_RATE_LIMIT_MAX_ENTRIES` | Integer, minimum `1` | `4096` | Maximum tracked user/IP rate-limit entries before bounded overflow buckets are used. |
 
+## UI sign-in with OpenID Connect
+
+Set the six required `CASSIE_OIDC_*` settings together to enable browser sign-in.
+Serve the UI and its REST endpoints on the same HTTPS origin. For a trusted
+TLS-terminating edge, set `CASSIE_REST_EXTERNAL_HTTPS=true`. See the
+[Auth0 setup walkthrough](oidc-ui-authentication.md#first-use-with-auth0).
+
+| Variable | Allowed value | Default | Purpose |
+| --- | --- | --- | --- |
+| `CASSIE_OIDC_ISSUER` | HTTPS issuer URL | Unset | Exact issuer identifier in the provider's discovery document and tokens, including any trailing slash. |
+| `CASSIE_OIDC_CLIENT_ID` | Non-empty string | Unset | Confidential web application client ID. |
+| `CASSIE_OIDC_CLIENT_SECRET` | Non-empty secret | Unset | Client secret used by the server in the code exchange. |
+| `CASSIE_OIDC_API_AUDIENCE` | Non-empty audience identifier | Unset | API audience of the access token carrying database grants. |
+| `CASSIE_OIDC_REDIRECT_URI` | HTTPS callback URL | Unset | Exact public Cassie origin and path `/api/v1/auth/oidc/callback`, registered with the provider. |
+| `CASSIE_OIDC_ROLE` | Existing non-admin Cassie role | Unset | Local role for schema and table grants. |
+| `CASSIE_OIDC_PERMISSIONS_CLAIM` | JWT claim name | `permissions` | Access-token claim containing a JSON string array with grants such as `db:analytics` and `db:*`. |
+| `CASSIE_OIDC_AUDIENCE_PARAMETER` | `audience`, `resource`, or `none` | `audience` | Selects the provider parameter for requesting the API's access token. Use `resource` for RFC 8707 or `none` if the provider selects the API through its own configuration. Cassie always verifies the configured API audience in the token. |
+| `CASSIE_OIDC_CLIENT_AUTH_METHOD` | `client_secret_post` or `client_secret_basic` | Provider discovery | Overrides client authentication at the token endpoint. Cassie prefers advertised `client_secret_post` and falls back to advertised `client_secret_basic`. An override must match the provider's metadata and application registration. |
+| `CASSIE_OIDC_SCOPES` | Space-separated OAuth scope tokens | Unset | Additional scopes to request along with `openid`. Up to 1,024 input bytes and 32 distinct extra scopes of at most 128 bytes each. Database grants come from the verified permissions claim. |
+
 ## Storage
 
 Cassie and Fitz use the same storage-mode and provider vocabulary. Provider

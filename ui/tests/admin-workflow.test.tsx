@@ -53,6 +53,9 @@ function installWorkflowApi() {
     if (key === "GET /api/v1/auth/session") {
       return json({ error: "unauthorized" }, 401);
     }
+    if (key === "GET /api/v1/auth/methods") {
+      return json({ oidc: false });
+    }
     if (key === "POST /api/v1/auth/login") {
       return json({ user: "root", role: "admin" });
     }
@@ -122,6 +125,7 @@ describe("admin UI workflow", () => {
     window.localStorage.clear();
     const requests = installWorkflowApi();
     const root = await mountWorkflow();
+    await waitFor(root, () => root.querySelector("#login-username") !== null, "password login");
     const username = root.querySelector("#login-username") as HTMLInputElement;
     const password = root.querySelector("#login-password") as HTMLInputElement;
 
@@ -179,11 +183,16 @@ describe("admin UI workflow", () => {
       throw new Error("Missing logout link");
     }
     logoutLink.click();
-    await waitFor(root, () => window.location.pathname === "/login", "login page");
+    await waitFor(
+      root,
+      () => window.location.pathname === "/login" && root.querySelector("#login-username") !== null,
+      "password login page",
+    );
 
     // Assert
     expect(isSignedIn()).toBe(false);
     expect(root.querySelector("#login-username")).toBeTruthy();
+    expect(requests).toContain("GET /api/v1/auth/methods");
     expect(requests).toContain("POST /api/v1/auth/login");
     expect(requests).toContain("GET /api/v1/admin/catalog");
     expect(requests).toContain("POST /api/v1/admin/query-executions");

@@ -1,16 +1,45 @@
 import { state } from "@askrjs/askr";
+import { watch } from "@askrjs/askr/resources";
 import { currentRoute, navigate } from "@askrjs/askr/router";
-import { Alert, Block, Button, Field, Input, Label, PageHeader } from "@askrjs/themes/components";
+import {
+  Alert,
+  Block,
+  Button,
+  Field,
+  Input,
+  Label,
+  PageHeader,
+  Spinner,
+} from "@askrjs/themes/components";
 
 import { AuthBrand } from "@/components/auth/auth-brand";
 import { AuthPage } from "@/components/auth/auth-page";
-import { createLoginMutation } from "@/features/auth-actions";
-import { setSession, signOut } from "@/shared/auth";
+import { createLoginMutation, discoverAuthMethods } from "@/features/auth-actions";
+import { getSessionStatus, setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError } from "@/shared/errors/api";
 
-function resolveNextTarget() {
-  const next = currentRoute().query.get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+function resolveNextTarget(next: string | null) {
+  if (!next?.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
+    return "/";
+  }
+  for (const character of next) {
+    const code = character.charCodeAt(0);
+    if (code < 32 || code === 127) return "/";
+  }
+
+  const target = new URL(next, window.location.origin);
+  if (
+    target.pathname.startsWith("//") ||
+    target.pathname === "/login" ||
+    target.pathname === "/logout"
+  ) {
+    return "/";
+  }
+  return `${target.pathname}${target.search}${target.hash}`;
+}
+
+function oidcStartUrl(next: string) {
+  return `/api/v1/auth/oidc/start?${new URLSearchParams({ next })}`;
 }
 
 function loginErrorMessage(cause: unknown) {
@@ -22,12 +51,11 @@ function loginErrorMessage(cause: unknown) {
   return apiErrorMessage(cause);
 }
 
-export default function LoginPage() {
+function PasswordLogin({ nextTarget }: { nextTarget: string }) {
   const loginMutation = createLoginMutation();
   const [username, setUsername] = state("root");
   const [password, setPassword] = state("");
   const [error, setError] = state("");
-  const nextTarget = resolveNextTarget();
 
   async function handleSignIn(event?: { preventDefault?: () => void }) {
     event?.preventDefault?.();
@@ -53,65 +81,157 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthPage>
-      <Block direction="column" gap="xl">
-        <Block direction="column" gap="md">
-          <AuthBrand />
-          <PageHeader
-            title="Sign in to Cassie Admin"
-            description="Sign in as root with the configured root password."
-          />
-        </Block>
-
-        <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
-          <Field>
-            <Label for="login-username">Username</Label>
-            <Input
-              id="login-username"
-              name="username"
-              autocomplete="username"
-              placeholder="root"
-              required
-              disabled={loginMutation.pending}
-              value={username()}
-              onInput={(event: Event) => {
-                setUsername((event.target as HTMLInputElement).value);
-              }}
-            />
-          </Field>
-          <Field>
-            <Label for="login-password">Password</Label>
-            <Input
-              id="login-password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Enter your password"
-              required
-              disabled={loginMutation.pending}
-              value={password()}
-              onInput={(event: Event) => {
-                setPassword((event.target as HTMLInputElement).value);
-              }}
-            />
-          </Field>
-          <Button
-            type="submit"
-            variant="primary"
-            width="full"
-            aria-busy={loginMutation.pending}
-            disabled={loginMutation.pending}
-          >
-            {loginMutation.pending ? "Signing in..." : "Sign in"}
-          </Button>
-
-          <div class="cassie-auth-status-shell" aria-live="assertive" aria-atomic="true">
-            {error() ? (
-              <Alert variant="danger" title="Sign in failed" description={error()} />
-            ) : null}
-          </div>
-        </Block>
+    <Block direction="column" gap="xl">
+      <Block direction="column" gap="md">
+        <AuthBrand />
+        <PageHeader
+          title="Sign in to Cassie Admin"
+          description="Sign in as root with the configured root password."
+        />
       </Block>
+
+      <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
+        <Field>
+          <Label for="login-username">Username</Label>
+          <Input
+            id="login-username"
+            name="username"
+            autocomplete="username"
+            placeholder="root"
+            required
+            disabled={loginMutation.pending}
+            value={username()}
+            onInput={(event: Event) => {
+              setUsername((event.target as HTMLInputElement).value);
+            }}
+          />
+        </Field>
+        <Field>
+          <Label for="login-password">Password</Label>
+          <Input
+            id="login-password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
+            disabled={loginMutation.pending}
+            value={password()}
+            onInput={(event: Event) => {
+              setPassword((event.target as HTMLInputElement).value);
+            }}
+          />
+        </Field>
+        <Button
+          type="submit"
+          variant="primary"
+          width="full"
+          aria-busy={loginMutation.pending}
+          disabled={loginMutation.pending}
+        >
+          {loginMutation.pending ? "Signing in..." : "Sign in"}
+        </Button>
+
+        <div class="cassie-auth-status-shell" aria-live="assertive" aria-atomic="true">
+          {error() ? <Alert variant="danger" title="Sign in failed" description={error()} /> : null}
+        </div>
+      </Block>
+    </Block>
+  );
+}
+
+type LoginMode =
+  | "loading"
+  | "password"
+  | "oidc"
+  | "redirecting"
+  | "methods-unavailable"
+  | "session-unavailable";
+
+export default function LoginPage() {
+  const { query } = currentRoute();
+  const nextTarget = resolveNextTarget(query.get("next"));
+  const callbackFailed = query.get("oidc_error") === "1";
+  const signedOut = query.get("signed_out") === "1";
+  const [attempt, setAttempt] = state(0);
+  const [mode, setMode] = state<LoginMode>("loading");
+
+  watch(
+    [attempt, () => nextTarget, () => callbackFailed || signedOut] as const,
+    async ([, next, stopped], { signal }) => {
+      setMode("loading");
+      try {
+        const methods = await discoverAuthMethods(signal);
+        if (signal.aborted) return;
+        if (!methods.oidc) {
+          setMode("password");
+          return;
+        }
+
+        if (stopped) {
+          setMode("oidc");
+          return;
+        }
+
+        if (getSessionStatus() !== "anonymous") {
+          setMode("session-unavailable");
+          return;
+        }
+
+        setMode("redirecting");
+        window.location.replace(oidcStartUrl(next));
+      } catch {
+        if (!signal.aborted) setMode("methods-unavailable");
+      }
+    },
+  );
+
+  const loginMode = mode();
+  const redirecting = loginMode === "redirecting";
+  const title = {
+    "methods-unavailable": "Could not determine how to sign in",
+    "session-unavailable": "Could not verify your session",
+    loading: "Sign in to Cassie Admin",
+    redirecting: "Sign in to Cassie Admin",
+    oidc: callbackFailed ? "Sign in failed" : signedOut ? "Signed out" : "Sign in to Cassie Admin",
+  };
+
+  return (
+    <AuthPage>
+      {loginMode === "password" ? (
+        <PasswordLogin nextTarget={nextTarget} />
+      ) : (
+        <Block direction="column" gap="xl">
+          <Block direction="column" gap="md">
+            <AuthBrand />
+            <PageHeader title={title[loginMode]} />
+          </Block>
+          {loginMode === "loading" || redirecting ? (
+            <Spinner
+              label={redirecting ? "Opening the sign-in provider" : "Checking sign-in options"}
+            />
+          ) : null}
+          {loginMode === "methods-unavailable" ? (
+            <Button variant="primary" width="full" onPress={() => setAttempt((value) => value + 1)}>
+              Retry
+            </Button>
+          ) : null}
+          {loginMode === "session-unavailable" ? (
+            <Button variant="primary" width="full" onPress={() => window.location.reload()}>
+              Retry
+            </Button>
+          ) : null}
+          {loginMode === "oidc" ? (
+            <Button
+              variant="primary"
+              width="full"
+              onPress={() => window.location.replace(oidcStartUrl(nextTarget))}
+            >
+              {callbackFailed ? "Try again" : "Sign in"}
+            </Button>
+          ) : null}
+        </Block>
+      )}
     </AuthPage>
   );
 }

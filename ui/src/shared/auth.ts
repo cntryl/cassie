@@ -1,17 +1,25 @@
 import type { AuthContext } from "@askrjs/auth";
 
 import { apiv1 } from "@/adapters";
-import { unwrapResponse } from "@/shared/errors/api";
+import { AppApiError, unwrapResponse } from "@/shared/errors/api";
 
 export interface AuthSession {
   user: string;
   role?: string;
 }
 
-let memorySession: AuthSession | null = null;
+type SessionState =
+  | { status: "unknown" | "anonymous" | "unavailable" }
+  | { status: "authenticated"; session: AuthSession };
+
+let memorySession: SessionState = { status: "unknown" };
 
 export function getSession(): AuthSession | null {
-  return memorySession;
+  return memorySession.status === "authenticated" ? memorySession.session : null;
+}
+
+export function getSessionStatus(): SessionState["status"] {
+  return memorySession.status;
 }
 
 // Compatibility-shaped alias; credentials and bearer tokens are never stored.
@@ -20,11 +28,11 @@ export function getCredential(): AuthSession | null {
 }
 
 export function isSignedIn(): boolean {
-  return memorySession !== null;
+  return memorySession.status === "authenticated";
 }
 
 export function setSession(session: AuthSession): void {
-  memorySession = session;
+  memorySession = { status: "authenticated", session };
 }
 
 // Test/router compatibility helper. Production login uses the REST endpoint.
@@ -33,7 +41,7 @@ export function signIn(username: string, _password: string): void {
 }
 
 export function signOut(): void {
-  memorySession = null;
+  memorySession = { status: "anonymous" };
 }
 
 function routeAuthContext(session: AuthSession | null): AuthContext {
@@ -62,16 +70,19 @@ function routeAuthContext(session: AuthSession | null): AuthContext {
 }
 
 export async function resolveRouteAuth(): Promise<AuthContext> {
-  if (memorySession !== null) {
-    return routeAuthContext(memorySession);
+  const currentSession = getSession();
+  if (currentSession !== null) {
+    return routeAuthContext(currentSession);
   }
 
   try {
     const session = unwrapResponse(await apiv1.getRestSession(), "Unable to restore session");
-    memorySession = session;
+    setSession(session);
     return routeAuthContext(session);
-  } catch {
-    memorySession = null;
+  } catch (cause) {
+    memorySession = {
+      status: cause instanceof AppApiError && cause.status === 401 ? "anonymous" : "unavailable",
+    };
     return routeAuthContext(null);
   }
 }

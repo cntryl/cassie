@@ -81,6 +81,8 @@ pub struct CassieSession {
     #[serde(skip)]
     pub(super) aws_iam_authority: Option<Arc<super::iam_roles::AwsIamAuthority>>,
     #[serde(skip)]
+    pub(super) external_role: Option<Arc<super::ExternalRoleAuthority>>,
+    #[serde(skip)]
     pub(super) schema_context: Arc<super::session_schema::OwnedSessionSchemaContext>,
     #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
@@ -345,6 +347,7 @@ impl CassieSession {
             database,
             access,
             aws_iam_authority: None,
+            external_role: None,
             schema_context: Arc::new(super::session_schema::OwnedSessionSchemaContext::empty()),
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             settings: Arc::new(Mutex::new(SessionSettings::default())),

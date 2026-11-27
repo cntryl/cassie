@@ -33,7 +33,7 @@ export default function LogoutPage() {
       }
 
       signOut();
-      navigate("/login", { history: "replace" });
+      navigate("/login?signed_out=1", { history: "replace" });
     } catch (caught) {
       setError(apiErrorMessage(caught));
       setPhase("error");

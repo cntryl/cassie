@@ -45,6 +45,6 @@ test("should_present_logout_as_the_login_pages_companion", async ({ page }) => {
   await expect(page.locator("header, footer")).toHaveCount(0);
 
   releaseLogout();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL("/login?signed_out=1");
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });

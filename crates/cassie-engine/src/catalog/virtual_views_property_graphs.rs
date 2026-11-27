@@ -162,6 +162,9 @@ fn may_read(catalog: &Catalog, session: Option<&CassieSession>, table: &str) -> 
         return true;
     }
     let database = database_of(table, session.current_database());
+    if session.external_database_access(&database) == Some(false) {
+        return false;
+    }
     let schema = crate::catalog::canonical_schema_name(&database, &relation_schema_name(table));
     let (Some(database), Some(schema), Some(collection)) = (
         catalog.get_database(&database),

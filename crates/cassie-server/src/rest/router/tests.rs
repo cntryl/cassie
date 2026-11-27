@@ -696,6 +696,7 @@ fn should_create_rest_collection_in_the_request_session_database() {
         session: CassieSession::new("root".to_string(), Some("analytics".to_string())),
         role: None,
         token: None,
+        external_user: None,
     };
     let method = Method::POST;
     let segments = ["api", "v1", "collections"];
@@ -744,6 +745,7 @@ fn should_wait_for_worker_exit_before_acknowledging_a_dropped_query_handler() {
         session: cassie.create_session("root", None),
         role: None,
         token: None,
+        external_user: None,
     };
     let execute_context = RouteDispatchContext {
         method: &Method::POST,
@@ -755,6 +757,7 @@ fn should_wait_for_worker_exit_before_acknowledging_a_dropped_query_handler() {
         secure_transport: false,
         peer_ip: "127.0.0.1".parse().expect("loopback"),
         admitted_error_response: false,
+        oidc: None,
     };
     let id = uuid::Uuid::new_v4();
     let id_text = id.to_string();

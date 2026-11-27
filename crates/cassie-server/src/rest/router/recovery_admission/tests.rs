@@ -50,6 +50,7 @@ async fn request(
                 ))),
                 false,
                 IpAddr::V4(Ipv4Addr::LOCALHOST),
+                None,
             )
         });
         let _ = hyper::server::conn::http1::Builder::new()
@@ -160,6 +161,7 @@ fn should_recheck_storage_recovery_before_dispatch_after_a_request_body_wait() {
         session: cassie.create_session("root", None),
         role: None,
         token: None,
+        external_user: None,
     };
     let context = RouteDispatchContext {
         method: &method,
@@ -170,6 +172,7 @@ fn should_recheck_storage_recovery_before_dispatch_after_a_request_body_wait() {
         request_context: &request_context,
         secure_transport: false,
         admitted_error_response: false,
+        oidc: None,
         peer_ip: IpAddr::V4(Ipv4Addr::LOCALHOST),
     };
 

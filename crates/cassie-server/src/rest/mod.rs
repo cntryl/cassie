@@ -5,6 +5,7 @@ pub(crate) mod databases;
 pub mod documents;
 pub mod health;
 pub mod indexes;
+mod oidc;
 pub mod query;
 pub(crate) mod query_operations;
 #[doc(hidden)]

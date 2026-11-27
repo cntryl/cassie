@@ -31,6 +31,9 @@ impl CassieSession {
 
     pub(crate) fn catalog_role(&self, catalog: &crate::catalog::Catalog) -> Option<RoleMeta> {
         catalog.get_role(&self.user).filter(|role| {
+            if let Some(authority) = self.external_role.as_deref() {
+                return authority.matches_role(role);
+            }
             self.aws_iam_authority.as_deref().is_none_or(|authority| {
                 role.object_id == authority.role_id && role.aws_iam_login && !role.is_admin
             })

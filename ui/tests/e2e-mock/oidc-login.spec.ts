@@ -79,3 +79,34 @@ test("should_restore_an_oidc_query_session_without_restarting_sign_in", async ({
   await expect(page.getByLabel("Password")).toHaveCount(0);
   expect(starts).toBe(0);
 });
+
+test("should_retry_session_lookup_without_restarting_oidc_when_it_is_unavailable", async ({
+  page,
+}) => {
+  // Arrange
+  let unavailable = true;
+  let starts = 0;
+  await page.route(methodsPath, (route) => route.fulfill({ json: { oidc: true } }));
+  await page.route(startPath, (route) => {
+    starts += 1;
+    return route.abort();
+  });
+  await page.route("**/api/v1/auth/session", (route) =>
+    unavailable
+      ? route.fulfill({ status: 503, json: { error: "session lookup unavailable" } })
+      : route.fulfill({ json: { user: "oidc:test-subject", role: "oidc_reader" } }),
+  );
+  await page.route("**/api/v1/admin/databases", (route) =>
+    route.fulfill({ json: [{ name: "analytics" }] }),
+  );
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Could not verify your session" })).toBeVisible();
+  unavailable = false;
+
+  // Act
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+
+  // Assert
+  await expect(page.getByText("Choose a database to open a query workspace.")).toBeVisible();
+  expect(starts).toBe(0);
+});

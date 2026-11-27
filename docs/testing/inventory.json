@@ -374672,7 +374672,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 471,
-      "sha256": "6284ba3cf18dc75b20395af3518a6b16c644546cfc7c68e54a0345e976fe999a",
+      "sha256": "542253dc30adac5ce20436b09666cf047e3f35ce9d069e6a4c256a5a91cf2cf8",
       "test_declarations": 9,
       "registered_suites": [
         "graph_types"

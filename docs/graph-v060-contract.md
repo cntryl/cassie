@@ -743,14 +743,18 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
   merged. Arbitrary storage corruption of an index is out of the model, exactly as for
   indexed SQL queries; graph reads claim no stronger detection.
 - `graph_weighted_paths` validates every graph-visible edge in the selected mappings before
-  searching (#1355). A row-authoritative mapping with a selected, plain integer `NOT NULL`
-  weight column can use a snapshot-visible, complete scalar index on that column. An exact
-  range probe below zero supplies the only committed candidates. Resolve pending edge changes
-  before checking candidate edge keys and endpoint visibility in the same statement view.
+  searching (#1355). A row-authoritative mapping with a selected signed integer weight can
+  use an ordinary scalar index that contains only invalid weights. The supported SQL form is
+  `CREATE INDEX name ON edge_table ((1)) WHERE weight IS NULL OR weight < 0`, where
+  `weight` is the exact selected column. The constant key admits rows even when the
+  weight is absent. The index must match the relation, column and definition visible in the
+  statement snapshot. Each candidate still requires a valid graph key and both endpoints in
+  that view before it causes `22023`. Pending rows must be accounted for in the same view,
+  or the statement uses the exact path.
   The full controlled validation scan applies wherever coverage cannot be established,
-  including nullable weights and exact NUMERIC weights. That scan is O(selected edges) and
-  decodes only edge keys, endpoints and weights. `graph_validation_rows` counts the edge rows
-  examined by validation. No graph-owned sidecar certifies weights.
+  including exact NUMERIC weights. That scan is O(selected edges) and decodes only edge
+  keys, endpoints and weights. `graph_validation_rows` counts the edge rows examined by
+  validation. No graph-owned sidecar certifies weights.
 - The `cassie_graph.vertex_ref` and `edge_ref` constructors find the element through the
   scalar index that backs the mapped key (one index entry and one row read, plus the
   transaction's own pending changes, plus the two endpoint vertex lookups for an edge); only

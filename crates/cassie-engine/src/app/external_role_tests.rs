@@ -91,3 +91,67 @@ fn should_reject_a_replacement_role_given_a_previously_captured_external_authori
     // Assert
     assert!(matches!(outcome, Err(CassieError::Unauthorized)));
 }
+
+#[test]
+fn should_only_grant_the_named_database_given_a_literal_star_in_its_name() {
+    // Arrange
+    let cassie = fixture();
+    let admin = cassie.create_session("root", None);
+    cassie
+        .execute_sql(&admin, r#"CREATE DATABASE "analytics*""#, vec![])
+        .expect("create database with a literal star");
+    cassie
+        .execute_sql(&admin, "CREATE DATABASE analytics", vec![])
+        .expect("create another database");
+
+    // Act
+    let authority = cassie
+        .capture_external_role("external_reader", &["db:analytics*".to_owned()], u64::MAX)
+        .expect("capture exact database name");
+    let principal = cassie.external_principal(&authority).expect("principal");
+    let exact =
+        cassie.network_database_session(&principal.session, Some(&principal.role), "analytics*");
+    let other =
+        cassie.network_database_session(&principal.session, Some(&principal.role), "analytics");
+
+    // Assert
+    assert!(exact.is_ok());
+    assert!(matches!(other, Err(CassieError::InsufficientPrivilege)));
+}
+
+#[test]
+fn should_distinguish_case_sensitive_database_names_when_checking_external_connect() {
+    // Arrange
+    let cassie = fixture();
+    let admin = cassie.create_session("root", None);
+    cassie
+        .execute_sql(&admin, r#"CREATE DATABASE "Analytics""#, vec![])
+        .expect("create mixed-case database");
+    cassie
+        .execute_sql(&admin, "CREATE DATABASE analytics", vec![])
+        .expect("create folded database");
+    let authority = cassie
+        .capture_external_role("external_reader", &["db:Analytics".to_owned()], u64::MAX)
+        .expect("capture exact grant");
+    let principal = cassie.external_principal(&authority).expect("principal");
+    let session = cassie
+        .network_database_session(&principal.session, Some(&principal.role), "Analytics")
+        .expect("rebind to exact database");
+
+    // Act
+    let privilege = cassie.execute_sql(
+        &session,
+        "SELECT has_database_privilege('Analytics', 'CONNECT'), \
+         has_database_privilege('analytics', 'CONNECT')",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(
+        privilege.expect("CONNECT inquiry").rows(),
+        &[vec![
+            crate::types::Value::Bool(true),
+            crate::types::Value::Bool(false)
+        ]]
+    );
+}

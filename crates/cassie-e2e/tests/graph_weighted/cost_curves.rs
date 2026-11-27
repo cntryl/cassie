@@ -3,7 +3,7 @@
 //! neighbourhood). Each test fixes the queried neighbourhood and grows only what the
 //! contract says may grow. Every value is a counter, never a timing.
 
-use crate::world::{fast, started, vertex, Link, Variant, VariantGuard, Wg};
+use crate::world::{fast, started, vertex, Fixture, Link, Variant, VariantGuard, Wg};
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
 
 const INDEXED: Variant = Variant {
@@ -129,51 +129,227 @@ fn should_reject_an_invalid_weight_outside_the_visited_neighbourhood() {
     assert_eq!(outcome.err().as_deref(), Some("22023"));
 }
 
-#[test]
-fn should_reject_a_missing_not_null_weight_written_by_projection_replay() {
-    // Arrange
-    let fixture = started(
-        None,
+const INVALID_WEIGHTS: &str = "CREATE INDEX e_weight ON e ((1)) WHERE weight IS NULL OR weight < 0";
+const NEGATIVE_ONLY: &str = "CREATE INDEX e_weight ON e ((1)) WHERE weight < 0";
+
+fn signed_fixture(index: &str, disconnected_edges: &str) -> Fixture {
+    signed_fixture_with_config(None, index, disconnected_edges)
+}
+
+fn signed_fixture_with_config(
+    config: Option<cassie::config::CassieRuntimeConfig>,
+    index: &str,
+    disconnected_edges: &str,
+) -> Fixture {
+    started(
+        config,
         &[
             "CREATE TABLE v (id BIGINT PRIMARY KEY)",
             "CREATE TABLE e (id BIGINT PRIMARY KEY, a BIGINT NOT NULL, b BIGINT NOT NULL, \
-             weight INTEGER NOT NULL)",
-            "CREATE INDEX e_weight ON e (weight)",
-            "INSERT INTO v VALUES (1), (2), (3)",
-            "INSERT INTO e VALUES (1, 1, 2, 1)",
+             weight BIGINT NOT NULL, unrelated JSONB)",
+            "CREATE INDEX e_a ON e (a)",
+            index,
+            "INSERT INTO v VALUES (1), (2), (3), (4)",
+            "INSERT INTO e (id, a, b, weight) VALUES (1, 1, 2, 0)",
+            disconnected_edges,
             "CREATE PROPERTY GRAPH wg \
              VERTEX TABLES (v AS n KEY (id) LABEL node PROPERTIES (id)) \
              EDGE TABLES (e AS s KEY (id) SOURCE KEY (a) REFERENCES n (id) \
                DESTINATION KEY (b) REFERENCES n (id) LABEL slow PROPERTIES (weight))",
         ],
-    );
+    )
+}
+
+fn signed_query() -> String {
+    Wg::select(&format!("'wg', {}, {}, 'weight', 1", vertex(1), vertex(2)))
+}
+
+fn validation_counts(fixture: &Fixture) -> (u64, u64, u64) {
+    let metrics = fixture.cassie.metrics();
+    let read = |name: &str| metrics["read_paths"][name].as_u64().expect("counter");
+    (
+        read("graph_validation_rows"),
+        read("graph_weight_validation_index_probes"),
+        read("graph_weight_validation_full_scans"),
+    )
+}
+
+fn replay_weights(fixture: &Fixture, payload: serde_json::Value) {
     let replay = fixture
         .cassie
         .replay_projection_batch(ProjectionReplayBatch {
             projection: fixture.cassie.midge.canonical_collection_name("e"),
             source_identity: "edges".to_owned(),
-            batch_id: "missing-weight".to_owned(),
+            batch_id: "invalid-weight".to_owned(),
             lag: 0,
             events: vec![ProjectionReplayEvent {
-                event_id: "edge-2".to_owned(),
-                checkpoint: "2".to_owned(),
+                event_id: "edge-3".to_owned(),
+                checkpoint: "3".to_owned(),
                 position: None,
-                document_id: "edge-2".to_owned(),
-                payload: Some(serde_json::json!({"id": 2, "a": 3, "b": 3})),
+                document_id: "edge-3".to_owned(),
+                payload: Some(payload),
             }],
         });
     assert_eq!(
         replay.expect("replay writes the edge").applied_event_count,
         1
     );
+}
+
+#[test]
+fn should_reject_a_missing_not_null_weight_written_by_projection_replay() {
+    for index in ["CREATE INDEX e_weight ON e (weight)", INVALID_WEIGHTS] {
+        // Arrange
+        let fixture = signed_fixture(
+            index,
+            "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 1)",
+        );
+        replay_weights(&fixture, serde_json::json!({"id": 3, "a": 4, "b": 3}));
+
+        // Act
+        let outcome = fixture.execute(&signed_query());
+
+        // Assert
+        assert_eq!(outcome.err().map(|error| error.sql_state()), Some("22023"));
+    }
+}
+
+#[test]
+fn should_reject_an_explicit_null_weight_written_by_projection_replay() {
+    // Arrange
+    let fixture = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 1)",
+    );
+    replay_weights(
+        &fixture,
+        serde_json::json!({"id": 3, "a": 4, "b": 3, "weight": null}),
+    );
 
     // Act
-    let outcome = fixture.execute(&Wg::select(&format!(
-        "'wg', {}, {}, 'weight', 1",
-        vertex(1),
-        vertex(2)
-    )));
+    let outcome = fixture.execute(&signed_query());
 
     // Assert
     assert_eq!(outcome.err().map(|error| error.sql_state()), Some("22023"));
+}
+
+#[test]
+fn should_skip_nonnegative_disconnected_rows_given_a_complete_invalid_weight_index() {
+    // Arrange
+    let small = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 9223372036854775807)",
+    );
+    let large = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 9223372036854775807), (3, 4, 3, 0), (4, 3, 4, 1)",
+    );
+    let query = signed_query();
+
+    // Act
+    let indexed = [&small, &large].map(|fixture| fixture.rows(&query));
+    let counts = [&small, &large].map(validation_counts);
+    small.cassie.set_graph_exact_reads(true);
+    let exact = small.rows(&query);
+
+    // Assert
+    assert_eq!(exact.len(), 1);
+    assert_eq!(indexed, [exact.clone(), exact]);
+    assert_eq!(counts, [(0, 1, 0), (0, 1, 0)]);
+}
+
+#[test]
+fn should_reject_a_disconnected_edge_after_its_weight_enters_the_index() {
+    for negative in ["-1", "CAST('-9223372036854775808' AS BIGINT)"] {
+        // Arrange
+        let fixture = signed_fixture(
+            INVALID_WEIGHTS,
+            "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 0)",
+        );
+
+        // Act
+        fixture
+            .execute(&format!("UPDATE e SET weight = {negative} WHERE id = 2"))
+            .expect("update the disconnected weight");
+        let outcome = fixture.execute(&signed_query());
+
+        // Assert
+        assert_eq!(outcome.err().map(|error| error.sql_state()), Some("22023"));
+    }
+}
+
+#[test]
+fn should_read_pending_weights_when_the_committed_index_has_no_candidate() {
+    // Arrange
+    let fixture = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 0)",
+    );
+    let query = signed_query();
+    fixture.execute("BEGIN").expect("begin");
+    fixture
+        .execute("UPDATE e SET weight = -1 WHERE id = 2")
+        .expect("stage negative weight");
+
+    // Act
+    let outcome = fixture.execute(&query);
+    fixture.execute("ROLLBACK").expect("rollback");
+    let committed = fixture.rows(&query);
+
+    // Assert
+    assert_eq!(outcome.err().map(|error| error.sql_state()), Some("22023"));
+    assert_eq!(committed.len(), 1);
+}
+
+#[test]
+fn should_fall_back_after_the_invalid_weight_index_is_replaced_by_an_incomplete_one() {
+    // Arrange
+    let fixture = signed_fixture(
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 0)",
+    );
+    fixture
+        .execute("DROP INDEX e_weight")
+        .expect("drop the complete index");
+    fixture
+        .execute(NEGATIVE_ONLY)
+        .expect("publish different predicate");
+
+    // Act
+    let _ = fixture.rows(&signed_query());
+    let counts = validation_counts(&fixture);
+
+    // Assert
+    assert_eq!(counts, (2, 0, 1));
+}
+
+#[test]
+fn should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_property() {
+    // Arrange
+    let mut config = cassie::config::CassieRuntimeConfig::default();
+    config.limits.query_memory_budget_bytes = 256 * 1024;
+    config.limits.parallel_scan_workers = 1;
+    let fixture = signed_fixture_with_config(
+        Some(config),
+        INVALID_WEIGHTS,
+        "INSERT INTO e (id, a, b, weight) VALUES (2, 3, 4, 0)",
+    );
+    replay_weights(
+        &fixture,
+        serde_json::json!({"id": 3, "a": 4, "b": 5, "weight": -1, "unrelated": "x".repeat(64 * 1024)}),
+    );
+    let query = signed_query();
+
+    // Act
+    let indexed = fixture.rows(&query);
+    let counts = validation_counts(&fixture);
+    fixture
+        .execute("DROP INDEX e_weight")
+        .expect("use full validation");
+    let scanned = fixture.rows(&query);
+
+    // Assert
+    assert_eq!(scanned.len(), 1);
+    assert_eq!(indexed, scanned);
+    assert_eq!(counts, (1, 1, 0));
 }

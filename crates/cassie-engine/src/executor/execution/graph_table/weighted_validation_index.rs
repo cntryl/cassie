@@ -160,3 +160,42 @@ fn covers_invalid_weights(index: &IndexMeta, weight: &str) -> bool {
                 if column(left) && matches!(right.as_ref(), Expr::IntegerLiteral(0))
         )
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::time::Instant;
+
+    use super::{InvalidWeights, QueryError, SourceExecutionEnv};
+    use crate::executor::execution::graph_memory_test_observer as observer;
+    use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+
+    #[test]
+    fn should_reject_interruption_before_choosing_weight_validation() {
+        // Arrange
+        let (cassie, session) = observer::fixture();
+        let cancellation = QueryCancellationHandle::new();
+        cancellation.cancel();
+        let controls = QueryExecutionControls::with_cancellation(
+            cassie.runtime.limits(),
+            Instant::now(),
+            cancellation,
+        );
+        let functions = HashMap::new();
+        let env = SourceExecutionEnv {
+            cassie: &cassie,
+            session: Some(&session),
+            binding_context: None,
+            user_functions: &functions,
+            params: &[],
+            parameter_type_oids: &[],
+            controls: &controls,
+        };
+
+        // Act
+        let result = InvalidWeights::for_mapping(&env, "e", "id", &[]);
+
+        // Assert
+        assert!(matches!(result, Err(QueryError::Cassie(error)) if error.sql_state() == "57014"));
+    }
+}

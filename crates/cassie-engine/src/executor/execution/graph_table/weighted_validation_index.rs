@@ -23,6 +23,7 @@ impl InvalidWeights {
         column: &str,
         fields: &[String],
     ) -> Result<Option<Self>, QueryError> {
+        env.controls.check_interruption()?;
         let midge = &env.cassie.midge;
         if env.session.is_some_and(|session| {
             session.read_transaction_is_explicit() || session.has_collection_changes(table)
@@ -113,6 +114,8 @@ impl InvalidWeights {
                         scan::projected_row_bytes(document, fields, schema.as_ref())?,
                     )?)?;
                     let row = scan::projected_document_to_row(document, fields, schema.as_ref());
+                    drop(source);
+                    env.controls.check_interruption()?;
                     visit(&row)?;
                 }
                 Ok::<_, QueryError>(true)

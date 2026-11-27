@@ -3,7 +3,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde_json::{json, Value};
 
 use super::tokens::{verify, TokenPair};
-use super::{authorization_scope, safe_return, Settings, Store};
+use super::{authorization_scope, random, safe_return, Settings, Store};
 
 fn settings() -> Settings {
     Settings::new(
@@ -48,9 +48,10 @@ fn should_use_only_the_api_token_permissions_given_distinct_verified_audiences()
     // Arrange
     let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
         .expect("RSA key");
+    let nonce = random().expect("nonce");
     let id = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
-        "iat": 900, "exp": 1_700, "nonce": "nonce", "permissions": ["db:*"]
+        "iat": 900, "exp": 1_700, "nonce": nonce.as_str(), "permissions": ["db:*"]
     });
     let api = json!({
         "iss": "https://issuer.example/", "sub": "fixture",
@@ -64,7 +65,7 @@ fn should_use_only_the_api_token_permissions_given_distinct_verified_audiences()
     };
 
     // Act
-    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000).expect("verified login");
+    let verified = verify(&settings(), &jwks(&key), &pair, &nonce, 1_000).expect("verified login");
 
     // Assert
     assert_eq!(verified.permissions, ["db:analytics"]);
@@ -76,9 +77,10 @@ fn should_reject_token_pairs_that_disagree_about_the_subject() {
     // Arrange
     let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
         .expect("RSA key");
+    let nonce = random().expect("nonce");
     let id = json!({
         "iss": "https://issuer.example/", "sub": "user-one", "aud": "console-client",
-        "iat": 900, "exp": 1_700, "nonce": "nonce"
+        "iat": 900, "exp": 1_700, "nonce": nonce.as_str()
     });
     let api = json!({
         "iss": "https://issuer.example/", "sub": "user-two", "aud": "https://cassie.example/api",
@@ -90,7 +92,7 @@ fn should_reject_token_pairs_that_disagree_about_the_subject() {
     };
 
     // Act
-    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
+    let verified = verify(&settings(), &jwks(&key), &pair, &nonce, 1_000);
 
     // Assert
     assert!(verified.is_err());
@@ -101,9 +103,10 @@ fn should_reject_a_signed_api_token_given_a_different_requesting_client() {
     // Arrange
     let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
         .expect("RSA key");
+    let nonce = random().expect("nonce");
     let id = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
-        "iat": 900, "exp": 1_700, "nonce": "nonce"
+        "iat": 900, "exp": 1_700, "nonce": nonce.as_str()
     });
     let api = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "https://cassie.example/api",
@@ -116,7 +119,7 @@ fn should_reject_a_signed_api_token_given_a_different_requesting_client() {
     };
 
     // Act
-    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
+    let verified = verify(&settings(), &jwks(&key), &pair, &nonce, 1_000);
 
     // Assert
     assert!(verified.is_err());
@@ -158,9 +161,10 @@ fn should_reject_an_access_token_that_disagrees_with_the_signed_access_hash() {
     // Arrange
     let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
         .expect("RSA key");
+    let nonce = random().expect("nonce");
     let id = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
-        "iat": 900, "exp": 1_700, "nonce": "nonce", "at_hash": "unmatched"
+        "iat": 900, "exp": 1_700, "nonce": nonce.as_str(), "at_hash": "unmatched"
     });
     let api = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "https://cassie.example/api",
@@ -172,7 +176,7 @@ fn should_reject_an_access_token_that_disagrees_with_the_signed_access_hash() {
     };
 
     // Act
-    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
+    let verified = verify(&settings(), &jwks(&key), &pair, &nonce, 1_000);
 
     // Assert
     assert!(verified.is_err());
@@ -385,7 +389,7 @@ mod issuer {
 
     fn cassie_fixture() -> Cassie {
         let config = CassieRuntimeConfig {
-            password: "oidc-test-root-password".to_owned(),
+            password: uuid::Uuid::new_v4().to_string(),
             rest_external_https: true,
             ..CassieRuntimeConfig::default()
         };

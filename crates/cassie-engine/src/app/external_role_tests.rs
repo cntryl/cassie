@@ -3,7 +3,7 @@ use crate::config::CassieRuntimeConfig;
 
 fn fixture() -> Cassie {
     let config = CassieRuntimeConfig {
-        password: "external-role-fixture-password".to_owned(),
+        password: uuid::Uuid::new_v4().to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_in_memory_with_config(config).expect("memory instance");

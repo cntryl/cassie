@@ -1,4 +1,4 @@
-//! Configured OpenID Connect login and process-local browser sessions.
+//! Configured `OpenID Connect` login and process-local browser sessions.
 
 mod provider;
 #[cfg(test)]

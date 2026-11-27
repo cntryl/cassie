@@ -38,7 +38,8 @@ struct Key {
     alg: Option<String>,
     #[serde(rename = "use")]
     usage: Option<String>,
-    key_ops: Option<Vec<String>>,
+    #[serde(rename = "key_ops")]
+    operations: Option<Vec<String>>,
     n: Option<String>,
     e: Option<String>,
 }
@@ -49,7 +50,7 @@ impl Key {
             || self.alg.as_deref().is_some_and(|alg| alg != "RS256")
             || self.usage.as_deref().is_some_and(|usage| usage != "sig")
             || self
-                .key_ops
+                .operations
                 .as_ref()
                 .is_some_and(|ops| !ops.iter().any(|op| op == "verify"))
         {

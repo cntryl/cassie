@@ -15,7 +15,6 @@ fn settings() -> Settings {
         "external_reader".into(),
         "permissions".into(),
     )
-    .ok()
     .expect("settings")
 }
 
@@ -533,6 +532,22 @@ mod issuer {
         assert_eq!(discoveries, 0);
     }
 
+    async fn execute_samples_query(
+        client: &reqwest::Client,
+        base: &str,
+        cookie: &str,
+        database: &str,
+    ) -> StatusCode {
+        client
+            .post(format!("{base}/api/v1/admin/query/execute"))
+            .header("cookie", cookie)
+            .json(&json!({"database": database, "sql": "SELECT id FROM samples"}))
+            .send()
+            .await
+            .expect("query response")
+            .status()
+    }
+
     #[test]
     fn should_enforce_database_scope_through_rest_given_a_browser_login() {
         // Arrange
@@ -592,18 +607,8 @@ mod issuer {
                     .json::<serde_json::Value>()
                     .await
                     .expect("database JSON");
-                let execute = |database| {
-                    client
-                        .post(format!("{base}/api/v1/admin/query/execute"))
-                        .header("cookie", &cookie)
-                        .json(&json!({"database": database, "sql": "SELECT id FROM samples"}))
-                };
-                let allowed = execute("analytics").send().await.expect("allowed query");
-                let denied = execute("postgres")
-                    .send()
-                    .await
-                    .expect("denied query")
-                    .status();
+                let allowed = execute_samples_query(&client, &base, &cookie, "analytics").await;
+                let denied = execute_samples_query(&client, &base, &cookie, "postgres").await;
                 let logout = client
                     .post(format!("{base}/api/v1/auth/logout"))
                     .header("cookie", &cookie)
@@ -624,7 +629,7 @@ mod issuer {
                     methods,
                     subject,
                     databases,
-                    allowed.status(),
+                    allowed,
                     denied,
                     logout,
                     after_logout,

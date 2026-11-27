@@ -1,4 +1,4 @@
-//! Public browser endpoints for beginning and finishing OpenID Connect login.
+//! Public browser endpoints for beginning and finishing `OpenID Connect` login.
 
 use std::sync::Arc;
 

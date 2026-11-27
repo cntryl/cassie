@@ -1,4 +1,4 @@
-//! Fixed, bounded HTTPS exchanges with the configured OpenID provider.
+//! Fixed, bounded HTTPS exchanges with the configured `OpenID Connect` provider.
 
 use std::time::Duration;
 

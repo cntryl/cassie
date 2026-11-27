@@ -292,11 +292,10 @@ mod issuer {
         (Oidc::new(settings, client), issuer, task)
     }
 
-    #[test]
-    fn should_finish_browser_login_against_the_bound_https_issuer() {
-        // Arrange
+    fn cassie_fixture() -> Cassie {
         let config = CassieRuntimeConfig {
             password: "oidc-test-root-password".to_owned(),
+            rest_external_https: true,
             ..CassieRuntimeConfig::default()
         };
         let cassie = Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
@@ -307,58 +306,192 @@ mod issuer {
         cassie
             .create_logical_database("analytics", false)
             .expect("create granted database");
+        let admin = cassie.create_session("root", Some("analytics".to_owned()));
+        for sql in [
+            "CREATE TABLE samples (id INTEGER PRIMARY KEY)",
+            "INSERT INTO samples VALUES (7)",
+            "GRANT USAGE ON SCHEMA public TO external_reader",
+            "GRANT SELECT ON TABLE samples TO external_reader",
+        ] {
+            cassie
+                .execute_sql(&admin, sql, vec![])
+                .expect("grant fixture");
+        }
+        cassie
+    }
+
+    fn response_cookie(response: &reqwest::Response, name: &str) -> String {
+        response
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|header| header.to_str().ok())
+            .find(|cookie| cookie.split_once('=').is_some_and(|(key, _)| key == name))
+            .filter(|cookie| cookie.contains("; Secure") && cookie.contains("; HttpOnly"))
+            .and_then(|cookie| cookie.split(';').next())
+            .expect("secure cookie")
+            .to_owned()
+    }
+
+    async fn browser_login(client: &reqwest::Client, issuer: &Issuer, base: &str) -> String {
+        let response = client
+            .get(format!("{base}/api/v1/auth/oidc/start?next=%2Fquery"))
+            .send()
+            .await
+            .expect("begin browser login");
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let browser = response_cookie(&response, "__Host-cassie_oidc");
+        let location = response.headers()["location"]
+            .to_str()
+            .expect("redirect location");
+        let authorization = url::Url::parse(location).expect("authorization URL");
+        let params = authorization.query_pairs().collect::<HashMap<_, _>>();
+        let param = |name| {
+            params
+                .get(name)
+                .expect("authorization parameter")
+                .to_string()
+        };
+        assert_eq!(param("code_challenge_method"), "S256");
+        assert_eq!(param("audience"), "cassie-api");
+        assert!(issuer
+            .browser
+            .set(BrowserRequest {
+                nonce: param("nonce"),
+                challenge: param("code_challenge"),
+            })
+            .is_ok());
+        let callback = format!(
+            "{base}/api/v1/auth/oidc/callback?code=fixture-code&state={}",
+            param("state"),
+        );
+        let completed = client
+            .get(&callback)
+            .header("cookie", &browser)
+            .send()
+            .await
+            .expect("finish callback");
+        assert_eq!(completed.status(), StatusCode::SEE_OTHER);
+        assert_eq!(completed.headers()["location"], "/query");
+        let session = response_cookie(&completed, "cassie_session");
+        let replay = client
+            .get(callback)
+            .header("cookie", browser)
+            .send()
+            .await
+            .expect("replay callback");
+        assert_eq!(replay.headers()["location"], "/login?oidc_error=1");
+        assert_eq!(replay.headers().get_all("set-cookie").iter().count(), 1);
+        session
+    }
+
+    #[test]
+    fn should_finish_browser_login_and_enforce_database_scope_through_rest() {
+        // Arrange
+        let cassie = cassie_fixture();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("runtime");
 
         // Act
-        let (completed, enabled, second_callback, after_logout) = runtime.block_on(async {
-            let (oidc, issuer, listener) = start().await;
-            let started = oidc.start("/query").await.expect("start browser login");
-            let params = started.location.query_pairs().collect::<HashMap<_, _>>();
-            let param = |name| {
-                params
-                    .get(name)
-                    .expect("authorization parameter")
-                    .to_string()
-            };
-            assert_eq!(param("code_challenge_method"), "S256");
-            assert_eq!(param("audience"), "cassie-api");
-            assert!(issuer
-                .browser
-                .set(BrowserRequest {
-                    nonce: param("nonce"),
-                    challenge: param("code_challenge"),
-                })
-                .is_ok());
-            let state = param("state");
-            let completed = oidc
-                .complete(&cassie, &state, &started.browser, "fixture-code")
-                .await
-                .expect("verified callback");
-            let session = oidc.session(&completed.token).expect("opaque session");
-            let principal = cassie
-                .external_principal(&session.authority)
-                .expect("revalidate role");
-            let enabled = (
-                principal.role.can_access_database("analytics"),
-                principal.role.can_access_database("postgres"),
-            );
-            let second_callback = oidc
-                .complete(&cassie, &state, &started.browser, "fixture-code")
-                .await;
-            oidc.revoke(&completed.token);
-            let after_logout = oidc.session(&completed.token);
-            listener.abort();
-            (completed, enabled, second_callback, after_logout)
-        });
+        let (methods, subject, databases, allowed, denied, logout, after_logout) = runtime
+            .block_on(async {
+                let (oidc, issuer, provider_task) = start().await;
+                let listener = TcpListener::bind("127.0.0.1:0")
+                    .await
+                    .expect("bind Cassie REST");
+                let base = format!(
+                    "http://{}",
+                    listener.local_addr().expect("Cassie REST address")
+                );
+                let rest_task = tokio::spawn(crate::rest::router::run_oidc_test_listener(
+                    listener,
+                    cassie,
+                    Arc::new(oidc),
+                ));
+                let client = reqwest::Client::builder()
+                    .redirect(reqwest::redirect::Policy::none())
+                    .timeout(std::time::Duration::from_secs(5))
+                    .build()
+                    .expect("browser");
+                let methods = client
+                    .get(format!("{base}/api/v1/auth/methods"))
+                    .send()
+                    .await
+                    .expect("login methods")
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("method JSON");
+                let cookie = browser_login(&client, &issuer, &base).await;
+                let session_url = format!("{base}/api/v1/auth/session");
+                let subject = client
+                    .get(&session_url)
+                    .header("cookie", &cookie)
+                    .send()
+                    .await
+                    .expect("browser session")
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("session JSON");
+                let databases = client
+                    .get(format!("{base}/api/v1/admin/databases"))
+                    .header("cookie", &cookie)
+                    .send()
+                    .await
+                    .expect("database list")
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("database JSON");
+                let execute = |database| {
+                    client
+                        .post(format!("{base}/api/v1/admin/query/execute"))
+                        .header("cookie", &cookie)
+                        .json(&json!({"database": database, "sql": "SELECT id FROM samples"}))
+                };
+                let allowed = execute("analytics").send().await.expect("allowed query");
+                let denied = execute("postgres")
+                    .send()
+                    .await
+                    .expect("denied query")
+                    .status();
+                let logout = client
+                    .post(format!("{base}/api/v1/auth/logout"))
+                    .header("cookie", &cookie)
+                    .send()
+                    .await
+                    .expect("logout")
+                    .status();
+                let after_logout = client
+                    .get(&session_url)
+                    .header("cookie", cookie)
+                    .send()
+                    .await
+                    .expect("revoked session")
+                    .status();
+                rest_task.abort();
+                provider_task.abort();
+                (
+                    methods,
+                    subject,
+                    databases,
+                    allowed.status(),
+                    denied,
+                    logout,
+                    after_logout,
+                )
+            });
 
         // Assert
-        assert_eq!(completed.location, "/query");
-        assert!((1..=300).contains(&completed.max_age));
-        assert_eq!(enabled, (true, false));
-        assert!(second_callback.is_err());
-        assert!(after_logout.is_none());
+        assert_eq!(methods, json!({"oidc": true}));
+        assert_eq!(subject["role"], "external_reader");
+        assert!(subject["user"]
+            .as_str()
+            .is_some_and(|user| user.starts_with("oidc:")));
+        assert_eq!(databases, json!([{"name": "analytics"}]));
+        assert_eq!(allowed, StatusCode::OK);
+        assert_eq!(denied, StatusCode::FORBIDDEN);
+        assert_eq!(logout, StatusCode::OK);
+        assert_eq!(after_logout, StatusCode::UNAUTHORIZED);
     }
 }

@@ -742,11 +742,15 @@ model, fallback rules and read bounds are specified in `docs/performance-contrac
   together, and index reads happen in the statement's snapshot with the transaction overlay
   merged. Arbitrary storage corruption of an index is out of the model, exactly as for
   indexed SQL queries; graph reads claim no stronger detection.
-- `graph_weighted_paths` keeps its full controlled validation scan of the selected edges and
-  is O(selected edges) by contract (#1355): invalid-weight rejection must hold for every
-  graph-visible edge, including edges outside the visited neighbourhood, and no sidecar may
-  certify weights. The scan decodes only each edge row's key, endpoint and weight columns,
-  never its other properties, and is counted separately as `graph_validation_rows`.
+- `graph_weighted_paths` validates every graph-visible edge in the selected mappings before
+  searching (#1355). A row-authoritative mapping with a selected, plain integer `NOT NULL`
+  weight column can use a snapshot-visible, complete scalar index on that column. An exact
+  range probe below zero supplies the only committed candidates. Resolve pending edge changes
+  before checking candidate edge keys and endpoint visibility in the same statement view.
+  The full controlled validation scan applies wherever coverage cannot be established,
+  including nullable weights and exact NUMERIC weights. That scan is O(selected edges) and
+  decodes only edge keys, endpoints and weights. `graph_validation_rows` counts the edge rows
+  examined by validation. No graph-owned sidecar certifies weights.
 - The `cassie_graph.vertex_ref` and `edge_ref` constructors find the element through the
   scalar index that backs the mapped key (one index entry and one row read, plus the
   transaction's own pending changes, plus the two endpoint vertex lookups for an edge); only

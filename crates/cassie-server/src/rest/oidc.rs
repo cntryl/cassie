@@ -24,7 +24,7 @@ const SESSION_TTL: u64 = 8 * 60 * 60;
 const MAX_CHALLENGES: usize = 512;
 const MAX_SESSIONS: usize = 1_024;
 const SESSION_PREFIX: &str = "oidc.";
-const SETTINGS: [&str; 9] = [
+const SETTINGS: [&str; 10] = [
     "CASSIE_OIDC_ISSUER",
     "CASSIE_OIDC_CLIENT_ID",
     "CASSIE_OIDC_CLIENT_SECRET",
@@ -34,6 +34,7 @@ const SETTINGS: [&str; 9] = [
     "CASSIE_OIDC_PERMISSIONS_CLAIM",
     "CASSIE_OIDC_AUDIENCE_PARAMETER",
     "CASSIE_OIDC_CLIENT_AUTH_METHOD",
+    "CASSIE_OIDC_SCOPES",
 ];
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ struct Settings {
     permissions_claim: String,
     audience_parameter: AudienceParameter,
     client_auth: Option<provider::ClientAuth>,
+    authorization_scope: String,
 }
 
 enum AudienceParameter {
@@ -75,13 +77,13 @@ impl Settings {
             return Ok(None);
         }
         let invalid = || CassieError::Execution("invalid or incomplete OIDC configuration".into());
-        let [issuer, id, secret, audience, callback, role, claim, parameter, client_auth] = values
-            .map(|value| {
+        let [issuer, id, secret, audience, callback, role, claim, parameter, client_auth, scopes] =
+            values.map(|value| {
                 value
                     .map(|value| value.into_string().map_err(|_| invalid()))
                     .transpose()
             });
-        let [issuer, id, secret, audience, callback, role, claim, parameter, client_auth] = [
+        let [issuer, id, secret, audience, callback, role, claim, parameter, client_auth, scopes] = [
             issuer?,
             id?,
             secret?,
@@ -91,6 +93,7 @@ impl Settings {
             claim?,
             parameter?,
             client_auth?,
+            scopes?,
         ];
         let (Some(issuer), Some(id), Some(secret), Some(audience), Some(callback), Some(role)) =
             (issuer, id, secret, audience, callback, role)
@@ -119,6 +122,8 @@ impl Settings {
             Some("client_secret_basic") => Some(provider::ClientAuth::Basic),
             Some(_) => return Err(invalid()),
         };
+        settings.authorization_scope =
+            authorization_scope(scopes.as_deref().unwrap_or_default()).map_err(|_| invalid())?;
         Ok(Some(settings))
     }
 
@@ -166,8 +171,33 @@ impl Settings {
             permissions_claim,
             audience_parameter: AudienceParameter::Audience,
             client_auth: None,
+            authorization_scope: "openid".to_owned(),
         })
     }
+}
+
+// RFC 6749 scope-token uses visible ASCII excluding quotation mark and backslash.
+fn authorization_scope(value: &str) -> Result<String, Rejected> {
+    if value.len() > 1024 {
+        return Err(Rejected);
+    }
+    let mut selected = vec!["openid"];
+    for token in value.split(' ').filter(|token| !token.is_empty()) {
+        if token.len() > 128
+            || !token
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() && !matches!(byte, b'"' | b'\\'))
+        {
+            return Err(Rejected);
+        }
+        if !selected.contains(&token) {
+            if selected.len() == 33 {
+                return Err(Rejected);
+            }
+            selected.push(token);
+        }
+    }
+    Ok(selected.join(" "))
 }
 
 pub(super) struct Oidc {
@@ -237,7 +267,7 @@ impl Oidc {
             ("response_mode", "query"),
             ("client_id", self.settings.client_id.as_str()),
             ("redirect_uri", self.settings.redirect.as_str()),
-            ("scope", "openid"),
+            ("scope", self.settings.authorization_scope.as_str()),
             ("state", &state),
             ("nonce", &nonce),
             ("code_challenge", &challenge),

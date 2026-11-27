@@ -189,6 +189,10 @@ pub(super) fn verify(
         || !api.aud.contains(&settings.audience)
         || api.aud.contains(&settings.client_id)
         || api.sub != id.sub
+        || api
+            .additional
+            .get("client_id")
+            .is_some_and(|client| client.as_str() != Some(settings.client_id.as_str()))
     {
         return Err(Rejected);
     }

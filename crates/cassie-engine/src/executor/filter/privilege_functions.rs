@@ -169,22 +169,26 @@ fn database_privilege(
     requested: &[RequestedPrivilege],
     current_session: Option<&CassieSession>,
 ) -> Result<bool, QueryError> {
-    let database = catalog
-        .list_databases()
-        .into_iter()
-        .find(|database| database.name.eq_ignore_ascii_case(name))
-        .ok_or_else(|| {
-            QueryError::Cassie(CassieError::CatalogObjectNotFound {
-                kind: CatalogObjectKind::Database,
-                name: name.to_owned(),
-            })
-        })?;
+    let external_access =
+        current_session.and_then(|session| session.external_database_access(name));
+    let database = if external_access.is_some() {
+        catalog.get_database(name)
+    } else {
+        catalog
+            .list_databases()
+            .into_iter()
+            .find(|database| database.name.eq_ignore_ascii_case(name))
+    }
+    .ok_or_else(|| {
+        QueryError::Cassie(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Database,
+            name: name.to_owned(),
+        })
+    })?;
     Ok(requested
         .iter()
         .any(|privilege| matches!(*privilege, RequestedPrivilege::Connect))
-        && current_session
-            .and_then(|session| session.external_database_access(&database.name))
-            .unwrap_or_else(|| role.can_access_database(&database.name)))
+        && external_access.unwrap_or_else(|| role.can_access_database(&database.name)))
 }
 
 fn schema_privilege(

@@ -61,7 +61,7 @@ impl Cassie {
             .filter_map(|permission| permission.strip_prefix("db:"))
             .filter(|name| {
                 !name.is_empty()
-                    && !name.contains('*')
+                    && *name != "*"
                     && !name.chars().any(|character| character.is_control())
                     && name.trim() == *name
             })

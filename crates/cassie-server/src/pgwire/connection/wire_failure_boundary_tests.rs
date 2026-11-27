@@ -2,6 +2,8 @@
 use super::*;
 use crate::config::CassieRuntimeConfig;
 use crate::pgwire::protocol::{Portal, PreparedStatement};
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
@@ -37,39 +39,41 @@ fn tagged_frames(mut bytes: &[u8]) -> Vec<(u8, &[u8])> {
     frames
 }
 
-async fn handle_frame(
-    cassie: &Arc<Cassie>,
-    state: &mut SessionState,
-    frame: &[u8],
-    awaiting_sync: &mut bool,
-) -> Vec<u8> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap())
-        .await
-        .unwrap();
-    let (server, _) = listener.accept().await.unwrap();
-    let transport = crate::transport::TimedWriteTransport::new(
-        super::transport::PgwireTransport::Plain(server),
-        Duration::from_secs(5),
-    );
-    let (read, _write) = tokio::io::split(transport);
-    let mut reader = tokio::io::BufReader::new(read);
-    client.write_all(frame).await.unwrap();
-    let mut output = Vec::new();
-    let step = super::handle_ready(
-        Arc::clone(cassie),
-        cassie.runtime(),
-        &mut reader,
-        &mut output,
-        state,
-        awaiting_sync,
-    )
-    .await;
-    assert!(matches!(
-        step,
-        ConnectionStep::Continue(HandshakeState::Ready)
-    ));
-    output
+fn handle_frame<'a>(
+    cassie: &'a Arc<Cassie>,
+    state: &'a mut SessionState,
+    frame: &'a [u8],
+    awaiting_sync: &'a mut bool,
+) -> Pin<Box<impl Future<Output = Vec<u8>> + 'a>> {
+    Box::pin(async move {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let transport = crate::transport::TimedWriteTransport::new(
+            super::transport::PgwireTransport::Plain(server),
+            Duration::from_secs(5),
+        );
+        let (read, _write) = tokio::io::split(transport);
+        let mut reader = tokio::io::BufReader::new(read);
+        client.write_all(frame).await.unwrap();
+        let mut output = Vec::new();
+        let step = super::handle_ready(
+            Arc::clone(cassie),
+            cassie.runtime(),
+            &mut reader,
+            &mut output,
+            state,
+            awaiting_sync,
+        )
+        .await;
+        assert!(matches!(
+            step,
+            ConnectionStep::Continue(HandshakeState::Ready)
+        ));
+        output
+    })
 }
 
 #[test]

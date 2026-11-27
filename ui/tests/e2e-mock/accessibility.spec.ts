@@ -94,5 +94,5 @@ test("should_have_no_accessibility_violations_while_signing_out", async ({ page 
   } finally {
     releaseLogout();
   }
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL("/login?signed_out=1");
 });

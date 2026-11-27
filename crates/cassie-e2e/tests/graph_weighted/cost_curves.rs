@@ -343,16 +343,19 @@ fn should_validate_a_dangling_candidate_within_budget_given_a_wide_unrelated_pro
 
     // Act
     let indexed = fixture.rows(&query);
-    let counts = validation_counts(&fixture);
+    let indexed_counts = validation_counts(&fixture);
     fixture
-        .execute("DROP INDEX e_weight")
-        .expect("use full validation");
+        .execute("BEGIN")
+        .expect("begin explicit transaction");
     let scanned = fixture.rows(&query);
+    let total_counts = validation_counts(&fixture);
+    fixture.execute("ROLLBACK").expect("rollback");
 
     // Assert
     assert_eq!(scanned.len(), 1);
     assert_eq!(indexed, scanned);
-    assert_eq!(counts, (1, 1, 0));
+    assert_eq!(indexed_counts, (1, 1, 0));
+    assert_eq!(total_counts, (4, 1, 1));
 }
 
 #[test]

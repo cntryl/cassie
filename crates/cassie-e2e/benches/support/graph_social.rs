@@ -40,7 +40,7 @@ impl Plan {
     /// through the document write path in batches, as the other Tier 3 fixtures do.
     pub fn apply(self, cassie: &Cassie, session: &CassieSession) {
         self.create_tables(cassie, session);
-        self.load_rows(cassie);
+        let _load_totals = self.load_rows(cassie);
         self.define_graph(cassie, session);
     }
 
@@ -50,7 +50,10 @@ impl Plan {
         }
     }
 
-    pub fn load_rows(&self, cassie: &Cassie) {
+    /// Loads the planned rows and reports acknowledged document and batch counts.
+    pub fn load_rows(&self, cassie: &Cassie) -> (usize, usize) {
+        let mut acknowledged_documents = 0;
+        let mut successful_batches = 0;
         for load in &self.loads {
             let mut first = 1;
             while first <= load.rows {
@@ -58,7 +61,8 @@ impl Plan {
                 let documents = (first..=last)
                     .map(|key| (Some(key.to_string()), (load.row)(key)))
                     .collect::<Vec<_>>();
-                cassie
+                let batch_size = documents.len();
+                let acknowledged = cassie
                     .midge
                     .put_documents(load.table, documents)
                     .unwrap_or_else(|error| {
@@ -68,9 +72,17 @@ impl Plan {
                             CassieError::from(error).sql_state()
                         )
                     });
+                assert_eq!(
+                    acknowledged.len(),
+                    batch_size,
+                    "complete graph fixture batch"
+                );
+                acknowledged_documents += acknowledged.len();
+                successful_batches += 1;
                 first = last + 1;
             }
         }
+        (acknowledged_documents, successful_batches)
     }
 
     pub fn define_graph(&self, cassie: &Cassie, session: &CassieSession) {

@@ -1,11 +1,11 @@
 //! Paired product evidence for the selected mapping's weight validation path.
 
+use std::fmt::Write as _;
 use std::path::Path;
 use std::time::Instant;
 
 use cassie::types::graph::{path_to_json, Path as GraphPath};
-use cassie::types::typed::TypedValue;
-use cassie::types::Value;
+use cassie::types::{TypedValue, Value};
 use serde::Serialize;
 use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
@@ -80,11 +80,13 @@ fn build_fixture(store: &StoreDir, social: &graph_social::Social, indexed: bool)
     } else {
         None
     };
-    let storage_before = fixture.cassie.metrics()["storage"]["data"].clone();
     let load_started = Instant::now();
-    plan.load_rows(&fixture.cassie);
+    let (acknowledged_documents, successful_batches) = plan.load_rows(&fixture.cassie);
     let load_ms = load_started.elapsed().as_secs_f64() * 1_000.0;
-    let storage_after = fixture.cassie.metrics()["storage"]["data"].clone();
+    assert_eq!(
+        i64::try_from(acknowledged_documents),
+        Ok(SOCIAL_PEOPLE + SOCIAL_EDGES)
+    );
     plan.define_graph(&fixture.cassie, &fixture.session);
     let shutdown_started = Instant::now();
     fixture.cassie.shutdown();
@@ -92,8 +94,8 @@ fn build_fixture(store: &StoreDir, social: &graph_social::Social, indexed: bool)
         "weight_index_ddl": indexed.then_some(WEIGHT_INDEX),
         "weight_index_creation_ms": index_ms,
         "load_write_ms": load_ms,
-        "storage_before_load": storage_before,
-        "storage_after_load": storage_after,
+        "load_acknowledged_documents": acknowledged_documents,
+        "load_successful_batch_calls": successful_batches,
         "shutdown_ms": shutdown_started.elapsed().as_secs_f64() * 1_000.0,
         "total_setup_ms": started.elapsed().as_secs_f64() * 1_000.0,
     })
@@ -310,10 +312,14 @@ pub(super) fn run(output_dir: &Path) {
         control_paths, index_paths,
         "complete ranked paths and edge costs"
     );
-    let path_digest = format!(
-        "{:x}",
-        Sha256::digest(serde_json::to_vec(&control_paths).expect("serialize ranked paths"))
-    );
+    let path_bytes = serde_json::to_vec(&control_paths).expect("serialize ranked paths");
+    let path_digest =
+        Sha256::digest(path_bytes)
+            .iter()
+            .fold(String::with_capacity(64), |mut out, byte| {
+                write!(out, "{byte:02x}").expect("encode route digest");
+                out
+            });
     for (index, fixture) in fixtures.iter().enumerate() {
         for _ in 0..WARMUPS {
             observe(fixture, &sql, &expected, index == 1);

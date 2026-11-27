@@ -570,7 +570,8 @@ invalid-weight index is present during the indexed arm's load so the fixture pay
 maintenance predicate cost. All fixture weights are valid. The runner retains the original rank-and-cost SQL and checks
 complete ranked paths and per-edge costs once outside the timed queries. After five warmups,
 the runner records 100 alternating query pairs with result caching disabled, the validation
-and search phases, extra index load cost, and whether indexed p95 is at most 100 ms. Set
+and search phases, the observed load time and acknowledged document counts, and whether
+indexed p95 is at most 100 ms. Set
 `CASSIE_BENCH_GRAPH_DISK_VARIANT=paired_weight_validation`, `CASSIE_STORAGE_MODE=local`,
 `CASSIE_BENCH_PRODUCT_PROFILE=full` and `CASSIE_BENCH_PRODUCT_OUTPUT_DIR` to run
 `tier3_product_graph` and write `weighted_validation_pair.json`. The standard product

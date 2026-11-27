@@ -97,6 +97,28 @@ fn should_reject_token_pairs_that_disagree_about_the_subject() {
 }
 
 #[test]
+fn should_reject_an_access_token_that_disagrees_with_the_signed_access_hash() {
+    // Arrange
+    let key =
+        aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048).expect("RSA key");
+    let id = json!({
+        "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
+        "iat": 900, "exp": 1_700, "nonce": "nonce", "at_hash": "unmatched"
+    });
+    let api = json!({
+        "iss": "https://issuer.example/", "sub": "fixture", "aud": "https://cassie.example/api",
+        "iat": 900, "exp": 1_600, "permissions": ["db:*"]
+    });
+    let pair = TokenPair { id_token: sign(&key, &id), access_token: sign(&key, &api) };
+
+    // Act
+    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
+
+    // Assert
+    assert!(verified.is_err());
+}
+
+#[test]
 fn should_consume_state_once_for_only_the_bound_browser() {
     // Arrange
     let mut store = Store::default();
@@ -144,7 +166,8 @@ mod issuer {
     use tokio::net::TcpListener;
     use tokio_rustls::TlsAcceptor;
 
-    use super::{json, jwks, sign, Engine as _, URL_SAFE_NO_PAD};
+    use super::{json, jwks, sign, URL_SAFE_NO_PAD};
+    use base64::Engine as _;
     use crate::app::Cassie;
     use crate::config::CassieRuntimeConfig;
     use crate::rest::oidc::{now, provider, Oidc, Settings};

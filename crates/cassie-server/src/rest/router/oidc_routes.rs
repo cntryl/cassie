@@ -59,9 +59,9 @@ pub(super) async fn dispatch(
                         session.max_age,
                     );
                     append_cookie(&mut response, &session_cookie);
+                    browser_cookie(&mut response, "", 0);
                 }
             }
-            browser_cookie(&mut response, "", 0);
             Some(response)
         }
         _ => None,

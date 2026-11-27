@@ -1,5 +1,7 @@
 //! Public browser endpoints for beginning and finishing OpenID Connect login.
 
+use std::sync::Arc;
+
 use hyper::header::{HeaderMap, HeaderValue, CACHE_CONTROL, COOKIE, LOCATION, SET_COOKIE};
 use hyper::{Method, Response, StatusCode};
 
@@ -14,7 +16,7 @@ pub(super) async fn dispatch(
     segments: &[&str],
     query: &str,
     headers: &HeaderMap,
-    cassie: &Cassie,
+    cassie: &Arc<Cassie>,
     oidc: Option<&Oidc>,
     secure: bool,
 ) -> Option<Response<RestBody>> {

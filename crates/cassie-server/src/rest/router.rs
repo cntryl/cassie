@@ -32,6 +32,7 @@ mod recovery_admission;
 mod request_execution;
 #[cfg(test)]
 pub(super) use request_execution::run_oidc_test_listener;
+pub(super) use request_execution::RestRequestExecution;
 mod security;
 
 use auth_routes::{authenticate_request_context, dispatch_auth_routes};
@@ -49,7 +50,7 @@ const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REST_HEADER_BYTES: usize = 32 * 1024;
 const REST_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(10);
 const REST_BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
-const REST_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(super) const REST_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// # Errors
 ///

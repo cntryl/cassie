@@ -236,14 +236,14 @@ async fn serve_application<S>(
 }
 
 #[derive(Clone)]
-pub(super) struct RestRequestExecution {
+pub(in crate::rest) struct RestRequestExecution {
     cancellation: QueryCancellationHandle,
     deadline: Instant,
 }
 
 impl RestRequestExecution {
     #[must_use]
-    pub(super) fn new(timeout: Duration) -> Self {
+    pub(in crate::rest) fn new(timeout: Duration) -> Self {
         Self::with_cancellation(timeout, QueryCancellationHandle::new())
     }
 
@@ -259,7 +259,7 @@ impl RestRequestExecution {
         }
     }
 
-    pub(super) async fn run_blocking<T>(
+    pub(in crate::rest) async fn run_blocking<T>(
         &self,
         cassie: Arc<Cassie>,
         operation_name: &'static str,
@@ -455,7 +455,7 @@ pub(super) async fn run_rest_blocking_route_with_cancellation(
 }
 
 #[derive(Debug)]
-pub(super) enum RestBlockingError {
+pub(in crate::rest) enum RestBlockingError {
     Engine(CassieError),
     TimedOut,
 }

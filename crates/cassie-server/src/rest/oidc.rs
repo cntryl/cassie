@@ -16,6 +16,8 @@ use tokio::sync::Semaphore;
 use url::Url;
 
 use crate::app::{Cassie, CassieError, ExternalRoleAuthority};
+use crate::midge::adapter::PublicationControlScope;
+use crate::rest::router::{RestRequestExecution, REST_REQUEST_TIMEOUT};
 
 pub(super) const CALLBACK_PATH: &str = "/api/v1/auth/oidc/callback";
 pub(super) const BROWSER_COOKIE: &str = "__Host-cassie_oidc";
@@ -253,6 +255,10 @@ impl Oidc {
     }
 
     pub(super) async fn start(&self, next: &str) -> Result<LoginStart, Rejected> {
+        self.store
+            .lock()
+            .map_err(|_| Rejected)?
+            .require_challenge_slot(now()?)?;
         let _permit = self.outbound.try_acquire().map_err(|_| Rejected)?;
         let discovered = provider::discover(&self.http, &self.settings).await?;
         let (state, browser, nonce, verifier) = self
@@ -283,7 +289,7 @@ impl Oidc {
 
     pub(super) async fn complete(
         &self,
-        cassie: &Cassie,
+        cassie: &Arc<Cassie>,
         state: &str,
         browser: &str,
         code: &str,
@@ -307,18 +313,28 @@ impl Oidc {
         )
         .await?;
         let keys = provider::get_keys(&self.http, discovered.keys).await?;
-        let now = now()?;
-        let verified = tokens::verify(&self.settings, &keys, &pair, &pending.nonce, now)?;
-        let expires_at = verified.expires_at.min(now.saturating_add(SESSION_TTL));
+        let verified_at = now()?;
+        let verified = tokens::verify(&self.settings, &keys, &pair, &pending.nonce, verified_at)?;
+        let expires_at = verified
+            .expires_at
+            .min(verified_at.saturating_add(SESSION_TTL));
         let user = digest_subject(&self.settings.issuer, &verified.subject);
-        let cassie = cassie.clone();
         let role = self.settings.role.clone();
-        let authority = tokio::task::spawn_blocking(move || {
-            cassie.capture_external_role(&role, &verified.permissions, expires_at)
-        })
-        .await
-        .map_err(|_| Rejected)?
-        .map_err(|_| Rejected)?;
+        let authority = RestRequestExecution::new(REST_REQUEST_TIMEOUT)
+            .run_blocking(Arc::clone(cassie), "rest_oidc_role", move |cassie, _| {
+                PublicationControlScope::check_current()?;
+                let authority =
+                    cassie.capture_external_role(&role, &verified.permissions, expires_at)?;
+                PublicationControlScope::check_current()?;
+                Ok(authority)
+            })
+            .await
+            .map_err(|_| Rejected)?;
+        let issued_at = now()?;
+        let max_age = expires_at
+            .checked_sub(issued_at)
+            .filter(|age| *age > 0)
+            .ok_or(Rejected)?;
         let session = ExternalSession {
             authority,
             user,
@@ -328,11 +344,11 @@ impl Oidc {
             .store
             .lock()
             .map_err(|_| Rejected)?
-            .issue(session, now)?;
+            .issue(session, issued_at)?;
         Ok(LoginComplete {
             location: pending.next,
             token,
-            max_age: expires_at - now,
+            max_age,
         })
     }
 
@@ -413,11 +429,7 @@ impl Store {
         next: &str,
         now: u64,
     ) -> Result<(String, String, String, String), Rejected> {
-        self.challenges
-            .retain(|_, challenge| challenge.expires_at > now);
-        if self.challenges.len() >= MAX_CHALLENGES {
-            return Err(Rejected);
-        }
+        self.require_challenge_slot(now)?;
         let [state, browser, nonce, verifier] = [random()?, random()?, random()?, random()?];
         self.challenges.insert(
             fingerprint(&state),
@@ -430,6 +442,16 @@ impl Store {
             },
         );
         Ok((state, browser, nonce, verifier))
+    }
+
+    fn require_challenge_slot(&mut self, now: u64) -> Result<(), Rejected> {
+        if self.challenges.len() >= MAX_CHALLENGES {
+            self.challenges
+                .retain(|_, challenge| challenge.expires_at > now);
+        }
+        (self.challenges.len() < MAX_CHALLENGES)
+            .then_some(())
+            .ok_or(Rejected)
     }
 
     fn take(&mut self, state: &str, browser: &str, now: u64) -> Result<Challenge, Rejected> {

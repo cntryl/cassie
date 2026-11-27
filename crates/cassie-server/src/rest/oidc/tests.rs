@@ -3,7 +3,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde_json::{json, Value};
 
 use super::tokens::{verify, TokenPair};
-use super::{safe_return, Settings, Store};
+use super::{authorization_scope, safe_return, Settings, Store};
 
 fn settings() -> Settings {
     Settings::new(
@@ -56,7 +56,8 @@ fn should_use_only_the_api_token_permissions_given_distinct_verified_audiences()
     let api = json!({
         "iss": "https://issuer.example/", "sub": "fixture",
         "aud": ["https://cassie.example/api", "https://issuer.example/userinfo"],
-        "iat": 900, "exp": 1_600, "azp": "console-client", "permissions": ["db:analytics"]
+        "iat": 900, "exp": 1_600, "azp": "console-client", "client_id": "console-client",
+        "permissions": ["db:analytics"]
     });
     let pair = TokenPair {
         id_token: sign(&key, &id),
@@ -97,10 +98,67 @@ fn should_reject_token_pairs_that_disagree_about_the_subject() {
 }
 
 #[test]
+fn should_reject_a_signed_api_token_given_a_different_requesting_client() {
+    // Arrange
+    let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
+        .expect("RSA key");
+    let id = json!({
+        "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
+        "iat": 900, "exp": 1_700, "nonce": "nonce"
+    });
+    let api = json!({
+        "iss": "https://issuer.example/", "sub": "fixture", "aud": "https://cassie.example/api",
+        "iat": 900, "exp": 1_600, "azp": "console-client", "client_id": "other-client",
+        "permissions": ["db:*"]
+    });
+    let pair = TokenPair {
+        id_token: sign(&key, &id),
+        access_token: sign(&key, &api),
+    };
+
+    // Act
+    let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
+
+    // Assert
+    assert!(verified.is_err());
+}
+
+#[test]
+fn should_reject_scope_settings_outside_the_oauth_token_grammar_and_limits() {
+    // Arrange
+    let too_long = "x".repeat(129);
+    let too_many = (0..33)
+        .map(|index| format!("scope:{index}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let over_budget = " ".repeat(1025);
+    let malformed = [
+        "read\twrite",
+        "read\nwrite",
+        "read\\write",
+        "read\"write",
+        "rèad",
+        &too_long,
+        &too_many,
+        &over_budget,
+    ];
+
+    // Act
+    let valid = authorization_scope(" read:db  openid profile read:db ").expect("OAuth scopes");
+    let default = authorization_scope("").expect("mandatory scope");
+    let rejected = malformed.map(|value| authorization_scope(value).is_err());
+
+    // Assert
+    assert_eq!(valid, "openid read:db profile");
+    assert_eq!(default, "openid");
+    assert_eq!(rejected, [true; 8]);
+}
+
+#[test]
 fn should_reject_an_access_token_that_disagrees_with_the_signed_access_hash() {
     // Arrange
-    let key =
-        aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048).expect("RSA key");
+    let key = aws_lc_rs::signature::RsaKeyPair::generate(aws_lc_rs::rsa::KeySize::Rsa2048)
+        .expect("RSA key");
     let id = json!({
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "console-client",
         "iat": 900, "exp": 1_700, "nonce": "nonce", "at_hash": "unmatched"
@@ -109,7 +167,10 @@ fn should_reject_an_access_token_that_disagrees_with_the_signed_access_hash() {
         "iss": "https://issuer.example/", "sub": "fixture", "aud": "https://cassie.example/api",
         "iat": 900, "exp": 1_600, "permissions": ["db:*"]
     });
-    let pair = TokenPair { id_token: sign(&key, &id), access_token: sign(&key, &api) };
+    let pair = TokenPair {
+        id_token: sign(&key, &id),
+        access_token: sign(&key, &api),
+    };
 
     // Act
     let verified = verify(&settings(), &jwks(&key), &pair, "nonce", 1_000);
@@ -166,11 +227,11 @@ mod issuer {
     use tokio::net::TcpListener;
     use tokio_rustls::TlsAcceptor;
 
-    use super::{json, jwks, sign, URL_SAFE_NO_PAD};
-    use base64::Engine as _;
+    use super::{authorization_scope, json, jwks, sign, URL_SAFE_NO_PAD};
     use crate::app::Cassie;
     use crate::config::CassieRuntimeConfig;
     use crate::rest::oidc::{now, provider, Oidc, Settings};
+    use base64::Engine as _;
 
     struct BrowserRequest {
         nonce: String,
@@ -284,7 +345,7 @@ mod issuer {
             signing,
             browser: OnceLock::new(),
         });
-        let settings = Settings::new(
+        let mut settings = Settings::new(
             base,
             "cassie-client".into(),
             "fixture-secret".into(),
@@ -294,6 +355,8 @@ mod issuer {
             "permissions".into(),
         )
         .expect("issuer settings");
+        settings.authorization_scope =
+            authorization_scope("read:db profile").expect("request API scopes");
         let owner = Arc::clone(&issuer);
         let task = tokio::spawn(async move {
             let acceptor = TlsAcceptor::from(Arc::new(tls));
@@ -377,6 +440,7 @@ mod issuer {
         };
         assert_eq!(param("code_challenge_method"), "S256");
         assert_eq!(param("audience"), "cassie-api");
+        assert_eq!(param("scope"), "openid read:db profile");
         assert!(issuer
             .browser
             .set(BrowserRequest {

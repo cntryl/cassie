@@ -56,7 +56,7 @@ struct Observation {
     latency_ms: f64,
     counters: Json,
     phases: ValidationPhases,
-    peak_accounted_query_bytes: u64,
+    instance_query_memory_high_water_bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -170,7 +170,7 @@ fn observe(fixture: &Fixture, sql: &str, expected: &[Vec<String>], indexed: bool
         latency_ms,
         counters: graph.to_json(),
         phases,
-        peak_accounted_query_bytes: peak,
+        instance_query_memory_high_water_bytes: peak,
     }
 }
 
@@ -344,6 +344,8 @@ pub(super) fn run(output_dir: &Path) {
             "mapped_rows": SOCIAL_PEOPLE + SOCIAL_EDGES,
             "snapshot": "both stores independently loaded, closed and reopened before timing",
             "configuration": configs[0],
+            "cold_scope": "first query after reopen; OS page cache is retained",
+            "memory_scope": "instance lifetime accounted query memory high-water",
         },
         "route": { "sql": sql, "oracle_costs": route.costs, "ranked_paths": control_paths, "ranked_paths_sha256": path_digest },
         "warmups_per_arm": WARMUPS,

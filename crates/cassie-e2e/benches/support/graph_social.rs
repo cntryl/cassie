@@ -40,7 +40,7 @@ impl Plan {
     /// through the document write path in batches, as the other Tier 3 fixtures do.
     pub fn apply(self, cassie: &Cassie, session: &CassieSession) {
         self.create_tables(cassie, session);
-        let _load_totals = self.load_rows(cassie);
+        let _ = self.load_rows(cassie);
         self.define_graph(cassie, session);
     }
 

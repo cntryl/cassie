@@ -1,6 +1,7 @@
 //! Paired product evidence for the selected mapping's weight validation path.
 
 use std::fmt::Write as _;
+use std::io::{BufWriter, Write as _};
 use std::path::Path;
 use std::time::Instant;
 
@@ -263,7 +264,10 @@ fn interleaved_samples(
     fixtures: &[Fixture; 2],
     sql: &str,
     expected: &[Vec<String>],
+    raw_path: &Path,
 ) -> [Vec<Sample>; 2] {
+    let file = std::fs::File::create(raw_path).expect("create graph pair raw journal");
+    let mut raw = BufWriter::new(file);
     let mut samples = std::array::from_fn(|_| Vec::with_capacity(PAIRS));
     for pair in 0..PAIRS {
         let order = if pair % 2 == 0 { [0, 1] } else { [1, 0] };
@@ -275,6 +279,12 @@ fn interleaved_samples(
             });
         }
         assert_same_expansion(&samples[0][pair].observation, &samples[1][pair].observation);
+        for (arm, history) in ["control", "indexed"].into_iter().zip(&samples) {
+            serde_json::to_writer(&mut raw, &json!({ "arm": arm, "sample": history[pair] }))
+                .expect("serialize graph pair sample");
+            writeln!(raw).expect("separate graph pair samples");
+        }
+        raw.flush().expect("preserve completed graph pair");
     }
     samples
 }
@@ -326,7 +336,13 @@ pub(super) fn run(output_dir: &Path) {
         }
     }
 
-    let [control_samples, index_samples] = interleaved_samples(&fixtures, &sql, &expected);
+    std::fs::create_dir_all(output_dir).expect("create graph pair output directory");
+    let [control_samples, index_samples] = interleaved_samples(
+        &fixtures,
+        &sql,
+        &expected,
+        &output_dir.join("weighted_validation_samples.jsonl"),
+    );
     for fixture in &fixtures {
         fixture.cassie.shutdown();
     }
@@ -359,7 +375,6 @@ pub(super) fn run(output_dir: &Path) {
             "summary": index_summary, "per_query": index_samples,
         },
     });
-    std::fs::create_dir_all(output_dir).expect("create graph pair output directory");
     let path = output_dir.join("weighted_validation_pair.json");
     let temporary = path.with_extension("json.tmp");
     std::fs::write(

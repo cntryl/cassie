@@ -105,7 +105,7 @@ pub(super) struct Query<'a> {
     pub(super) max_hops: usize,
     pub(super) max_cost: Option<&'a Numeric>,
     pub(super) k: usize,
-    /// All selected weights are signed integers. Even i32::MAX edges at i64::MAX
+    /// All selected weights are signed integers. Even `i32::MAX` edges at `i64::MAX`
     /// have a representable NUMERIC sum.
     pub(super) stop_at_target: bool,
     /// The weight column of each edge mapping, by mapping index; `None` when not selected.

@@ -20,6 +20,20 @@ impl Cassie {
         database: &str,
     ) -> Result<CassieSession, CassieError> {
         self.ensure_database_exists(database)?;
+        if let Some(authority) = session.external_role.as_ref() {
+            self.check_external_role(authority, &session.user)?;
+            if !authority.allows_database(database) || self.midge.get_database(database)?.is_none()
+            {
+                return Err(CassieError::InsufficientPrivilege);
+            }
+            let mut scoped = CassieSession::authenticated(
+                session.user.clone(),
+                Some(database.to_owned()),
+                false,
+            );
+            scoped.external_role = Some(std::sync::Arc::clone(authority));
+            return Ok(scoped);
+        }
         if role.is_some_and(|role| !role.can_access_database(database)) {
             return Err(CassieError::InsufficientPrivilege);
         }
@@ -85,7 +99,10 @@ impl Cassie {
             .current_database()
             .unwrap_or(self.default_database.as_str());
         let role = self.current_network_role(session)?;
-        if role.is_some_and(|role| role.can_access_database(database)) {
+        if session
+            .external_database_access(database)
+            .unwrap_or_else(|| role.is_some_and(|role| role.can_access_database(database)))
+        {
             Ok(())
         } else {
             Err(CassieError::InsufficientPrivilege)
@@ -96,6 +113,9 @@ impl Cassie {
         &self,
         session: &CassieSession,
     ) -> Result<Option<RoleMeta>, CassieError> {
+        if let Some(authority) = session.external_role.as_deref() {
+            return self.check_external_role(authority, &session.user).map(Some);
+        }
         if let Some(authority) = session.aws_iam_authority.as_deref() {
             return self
                 .check_aws_iam_authority(authority, &session.user)

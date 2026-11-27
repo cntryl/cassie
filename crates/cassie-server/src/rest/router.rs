@@ -12,7 +12,7 @@ use bytes::{Bytes, BytesMut};
 use http_body_util::{BodyExt, LengthLimitError, Limited};
 use hyper::{
     body::{Body, Incoming},
-    header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, RETRY_AFTER},
+    header::{HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, RETRY_AFTER},
     Method, Request, Response, StatusCode,
 };
 use tokio::{net::TcpListener, sync::Notify};
@@ -21,20 +21,24 @@ use crate::app::Cassie;
 use crate::app::CassieSession;
 use crate::app::NetworkRole;
 use crate::rest::body::{full_body, RestBody};
+use crate::rest::oidc::Oidc;
 use crate::rest::static_files::AdminUiStaticFiles;
 
 mod auth_routes;
 mod collection_routes;
+mod oidc_routes;
 mod query_response;
 mod recovery_admission;
 mod request_execution;
+#[cfg(test)]
+pub(super) use request_execution::run_oidc_test_listener;
 mod security;
 
-use auth_routes::dispatch_auth_routes;
+use auth_routes::{authenticate_request_context, dispatch_auth_routes};
 use collection_routes::dispatch_collection_routes;
 use request_execution::{
     run_rest_blocking_route, run_rest_blocking_route_controlled,
-    run_rest_blocking_route_with_cancellation, RestBlockingError, RestRequestExecution,
+    run_rest_blocking_route_with_cancellation,
 };
 use security::{
     canonical_request_path, is_api_path, validate_rest_content_type, validate_rest_origin,
@@ -124,6 +128,7 @@ struct RestRequestContext {
     session: CassieSession,
     role: Option<NetworkRole>,
     token: Option<String>,
+    external_user: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -137,6 +142,7 @@ struct RouteDispatchContext<'a> {
     secure_transport: bool,
     peer_ip: IpAddr,
     admitted_error_response: bool,
+    oidc: Option<&'a Oidc>,
 }
 
 async fn route(
@@ -145,6 +151,7 @@ async fn route(
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
     peer_ip: IpAddr,
+    oidc: Option<&Oidc>,
 ) -> Result<Response<RestBody>, Infallible> {
     let is_api = is_api_path(request.uri().path());
     let secure_transport = cassie.rest_secure_transport(secure_transport);
@@ -155,6 +162,7 @@ async fn route(
         secure_transport,
         peer_ip,
         true,
+        oidc,
     )
     .await
     {
@@ -327,6 +335,7 @@ pub async fn route_request(
         false,
         IpAddr::V4(Ipv4Addr::LOCALHOST),
         true,
+        None,
     )
     .await
 }
@@ -338,6 +347,7 @@ async fn route_request_with_admin_ui(
     secure_transport: bool,
     peer_ip: IpAddr,
     admitted_error_response: bool,
+    oidc: Option<&Oidc>,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let secure_transport = cassie.rest_secure_transport(secure_transport);
     let method = request.method().clone();
@@ -356,58 +366,35 @@ async fn route_request_with_admin_ui(
         );
         return Ok(response);
     }
-    let mut role = None;
-    let mut token = None;
-    let mut session = None;
-    if !is_route_public(&method, segments.as_slice())
-        && !is_authentication_exempt(&method, segments.as_slice())
-        && cassie.authentication_enabled()
+    if let Some(response) = oidc_routes::dispatch(
+        &method,
+        &segments,
+        query.as_deref().unwrap_or_default(),
+        request.headers(),
+        &cassie,
+        oidc,
+        secure_transport,
+    )
+    .await
     {
-        let (authenticated_session, authenticated_role, authenticated_token) =
-            match authenticate_rest_request(cassie.clone(), request.headers()).await {
-                Ok(principal) => (
-                    principal.session,
-                    principal.role,
-                    cookie_token(request.headers()),
-                ),
-                Err((status, message)) => {
-                    cassie.runtime().record_rest_request(
-                        method.as_str(),
-                        &path,
-                        status.as_u16(),
-                        started_at.elapsed(),
-                    );
-                    return Err((status, message));
-                }
-            };
-
-        if !authenticated_role.is_admin()
-            && !is_read_only_sql_route(&method, segments.as_slice())
-            && !is_self_service_auth_route(&method, segments.as_slice())
-        {
-            cassie.runtime().record_rest_request(
-                method.as_str(),
-                &path,
-                StatusCode::FORBIDDEN.as_u16(),
-                started_at.elapsed(),
-            );
-            return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
-        }
-        session = Some(authenticated_session);
-        role = Some(authenticated_role);
-        token = authenticated_token;
+        cassie.runtime().record_rest_request(
+            method.as_str(),
+            &path,
+            response.status().as_u16(),
+            started_at.elapsed(),
+        );
+        return Ok(response);
     }
-    let session = session.unwrap_or_else(|| {
-        cassie.create_session(
-            cassie.default_network_user(),
-            Some(cassie.default_database().to_owned()),
-        )
-    });
-    let request_context = RestRequestContext {
-        session,
-        role,
-        token,
-    };
+    let request_context = authenticate_request_context(
+        &cassie,
+        &method,
+        &path,
+        &segments,
+        request.headers(),
+        started_at,
+        oidc,
+    )
+    .await?;
     let body = read_request_body(request, &cassie, &method, &path, started_at).await?;
 
     let response = route_dispatch(
@@ -421,6 +408,7 @@ async fn route_request_with_admin_ui(
             secure_transport,
             peer_ip,
             admitted_error_response,
+            oidc,
         },
         cassie.clone(),
         admin_ui,
@@ -947,43 +935,6 @@ fn is_authentication_exempt(method: &Method, segments: &[&str]) -> bool {
 
 fn default_admin_ui_dir() -> PathBuf {
     std::env::var("CASSIE_ADMIN_UI_DIR").map_or_else(|_| PathBuf::from("./ui/dist"), PathBuf::from)
-}
-
-async fn authenticate_rest_request(
-    cassie: Arc<Cassie>,
-    headers: &HeaderMap,
-) -> Result<crate::app::NetworkPrincipal, (StatusCode, String)> {
-    let Some(token) = cookie_token(headers) else {
-        return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
-    };
-
-    RestRequestExecution::new(REST_REQUEST_TIMEOUT)
-        .run_blocking(cassie, "rest_auth", move |cassie, _cancellation| {
-            crate::rest::sessions::authenticate(&cassie, &token)
-        })
-        .await
-        .map_err(|error| match error {
-            RestBlockingError::Engine(crate::app::CassieError::Unauthorized) => {
-                (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
-            }
-            RestBlockingError::TimedOut => (
-                StatusCode::REQUEST_TIMEOUT,
-                "REST request timed out".to_string(),
-            ),
-            RestBlockingError::Engine(other) => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("authentication unavailable: {other}"),
-            ),
-        })
-}
-
-fn cookie_token(headers: &HeaderMap) -> Option<String> {
-    let raw = headers.get("cookie")?.to_str().ok()?;
-    raw.split(';').find_map(|part| {
-        let (name, value) = part.trim().split_once('=')?;
-        (name == crate::rest::sessions::SESSION_COOKIE && !value.is_empty())
-            .then(|| value.to_string())
-    })
 }
 
 #[cfg(test)]

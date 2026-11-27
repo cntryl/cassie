@@ -38,7 +38,8 @@ pub(super) async fn run_server(
     let listener = TcpListener::bind(&listen)
         .await
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    serve(listener, cassie, shutdown, admin_ui_dir, tls_config).await
+    let oidc = super::Oidc::from_env(&cassie)?;
+    serve(listener, cassie, shutdown, admin_ui_dir, tls_config, oidc).await
 }
 
 pub(super) async fn run_bound_server(
@@ -48,7 +49,25 @@ pub(super) async fn run_bound_server(
     admin_ui_dir: PathBuf,
 ) -> Result<(), CassieError> {
     let tls_config = rest_tls_config(&cassie)?;
-    serve(listener, cassie, shutdown, admin_ui_dir, tls_config).await
+    let oidc = super::Oidc::from_env(&cassie)?;
+    serve(listener, cassie, shutdown, admin_ui_dir, tls_config, oidc).await
+}
+
+#[cfg(test)]
+pub(in crate::rest) async fn run_oidc_test_listener(
+    listener: TcpListener,
+    cassie: Cassie,
+    oidc: Arc<super::Oidc>,
+) -> Result<(), CassieError> {
+    serve(
+        listener,
+        cassie,
+        Arc::new(Notify::new()),
+        super::default_admin_ui_dir(),
+        None,
+        Some(oidc),
+    )
+    .await
 }
 
 fn rest_tls_config(cassie: &Cassie) -> Result<Option<Arc<rustls::ServerConfig>>, CassieError> {
@@ -62,6 +81,7 @@ async fn serve(
     shutdown: Arc<Notify>,
     admin_ui_dir: PathBuf,
     tls_config: Option<Arc<rustls::ServerConfig>>,
+    oidc: Option<Arc<super::Oidc>>,
 ) -> Result<(), CassieError> {
     let actual_addr = listener
         .local_addr()
@@ -95,6 +115,7 @@ async fn serve(
                 let cassie = Arc::clone(&cassie);
                 let admin_ui = Arc::clone(&admin_ui);
                 let tls_config = tls_config.clone();
+                let oidc = oidc.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
                     if let Some(config) = tls_config {
@@ -105,7 +126,7 @@ async fn serve(
                         .await
                         {
                             Ok(Ok(stream)) => {
-                                serve_application(stream, cassie, admin_ui, true, peer.ip()).await;
+                                serve_application(stream, cassie, admin_ui, true, peer.ip(), oidc).await;
                             }
                             Ok(Err(error)) => {
                                 tracing::warn!(%error, "rest TLS handshake rejected");
@@ -115,7 +136,7 @@ async fn serve(
                             }
                         }
                     } else {
-                        serve_application(stream, cassie, admin_ui, false, peer.ip()).await;
+                        serve_application(stream, cassie, admin_ui, false, peer.ip(), oidc).await;
                     }
                 });
             }
@@ -176,6 +197,7 @@ async fn serve_application<S>(
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
     peer_ip: std::net::IpAddr,
+    oidc: Option<Arc<super::Oidc>>,
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -183,7 +205,18 @@ async fn serve_application<S>(
     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
         let cassie = Arc::clone(&cassie);
         let admin_ui = Arc::clone(&admin_ui);
-        async move { route(request, cassie, admin_ui, secure_transport, peer_ip).await }
+        let oidc = oidc.clone();
+        async move {
+            route(
+                request,
+                cassie,
+                admin_ui,
+                secure_transport,
+                peer_ip,
+                oidc.as_deref(),
+            )
+            .await
+        }
     });
     let connection = http1::Builder::new()
         .timer(TokioTimer::new())

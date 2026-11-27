@@ -181,6 +181,8 @@ mod query_wire;
 pub(crate) use domain_enforcement::DomainRowRule;
 mod type_scope;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;
+#[cfg(test)]
+mod external_role_tests;
 mod iam_roles;
 mod projection_publication;
 mod query_metrics;

@@ -23,7 +23,16 @@ source code.
 | `CASSIE_PGWIRE_TLS_CERT_FILE` | PEM certificate-chain path | Unset | Pgwire TLS certificate chain. Must be paired with `CASSIE_PGWIRE_TLS_KEY_FILE`. |
 | `CASSIE_PGWIRE_TLS_KEY_FILE` | PEM private-key path | Unset | Pgwire TLS private key. Must be paired with `CASSIE_PGWIRE_TLS_CERT_FILE`. |
 | `CASSIE_PGWIRE_AWS_IAM_TRUST_FILE` | JSON file path | Unset | Enables the AWS IAM pgwire selector when TLS and a root password are configured. See [AWS IAM workload authentication](pgwire-iam-authentication.md). |
-| `CASSIE_PGWIRE_WORKLOAD_TRUST_FILE` | JSON file path | Unset | Enables the AWS, Azure, and Google Cloud pgwire workload selector when TLS and a root password are configured. Use one trust-file variable per server. See [pgwire workload authentication](pgwire-iam-authentication.md). |
+| `CASSIE_PGWIRE_WORKLOAD_TRUST_FILE` | JSON file path | Unset | Enables the AWS, Azure, and Google Cloud pgwire workload selector when TLS and a root password are configured. Choose file-based or flat trust per server. See [pgwire workload authentication](pgwire-iam-authentication.md). |
+| `CASSIE_PGWIRE_AWS_IAM_ACCOUNT_ID` | 12-digit account ID | Unset | Flat AWS trust. Set with the AWS issuer and audience. |
+| `CASSIE_PGWIRE_AWS_IAM_ISSUER` | AWS account token issuer HTTPS URL | Unset | Flat AWS trust. |
+| `CASSIE_PGWIRE_AWS_IAM_AUDIENCE` | Audience string | Unset | Flat AWS trust. |
+| `CASSIE_PGWIRE_AWS_IAM_ALGORITHMS` | Comma-separated `RS256`, `ES384`, or both | `RS256,ES384` | Allowed flat AWS signing algorithms. |
+| `CASSIE_PGWIRE_AWS_IAM_MAX_TOKEN_LIFETIME_SECONDS` | Integer from 60 to 3600 | `300` | Maximum flat AWS token lifetime in seconds. |
+| `CASSIE_PGWIRE_AZURE_TENANT_ID` | Microsoft Entra tenant GUID | Unset | Flat Azure trust. Set with the Azure audience. |
+| `CASSIE_PGWIRE_AZURE_AUDIENCE` | Audience string | Unset | Flat Azure trust. |
+| `CASSIE_PGWIRE_AZURE_TOKEN_VERSION` | `1.0` or `2.0` | `2.0` | Microsoft Entra access-token version for flat Azure trust. |
+| `CASSIE_PGWIRE_GOOGLE_AUDIENCE` | Audience string | Unset | Enables flat Google Cloud service-account ID token trust. |
 | `CASSIE_REST_TLS_CERT_FILE` | PEM certificate-chain path | Unset | REST TLS certificate chain. Must be paired with `CASSIE_REST_TLS_KEY_FILE`. |
 | `CASSIE_REST_TLS_KEY_FILE` | PEM private-key path | Unset | REST TLS private key. Must be paired with `CASSIE_REST_TLS_CERT_FILE`. |
 | `CASSIE_REST_EXTERNAL_HTTPS` | Boolean | `false` | Declares that a trusted external edge provides HTTPS. Enables HSTS and `Secure` login/logout cookies; forwarding headers are not trusted. |

@@ -94,11 +94,12 @@ impl Cassie {
             runtime_config.auth_ip_attempts_per_minute,
             runtime_config.auth_rate_limit_max_entries,
         ));
+        let aws_iam_login_enabled = runtime_config.pgwire_workload_trust_source_count() > 0;
+        let workload_selector_enabled = runtime_config.pgwire_workload_trust_file.is_some()
+            || runtime_config.pgwire_workload_env.is_some();
         let CassieRuntimeConfig {
             database: default_database,
             password: auth_password,
-            pgwire_aws_iam_trust_file,
-            pgwire_workload_trust_file,
             rest_tls_cert_file,
             rest_tls_key_file,
             rest_external_https,
@@ -132,9 +133,8 @@ impl Cassie {
             )),
             auth_user: "root".to_string(),
             auth_password,
-            aws_iam_login_enabled: pgwire_aws_iam_trust_file.is_some()
-                || pgwire_workload_trust_file.is_some(),
-            workload_selector_enabled: pgwire_workload_trust_file.is_some(),
+            aws_iam_login_enabled,
+            workload_selector_enabled,
             bootstrap_password_hash: super::auth::LazyPasswordHash::default(),
             dummy_password_hash: super::auth::LazyPasswordHash::default(),
             auth_rate_limiter,

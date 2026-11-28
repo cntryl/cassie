@@ -1,4 +1,6 @@
-# AWS IAM workload authentication for pgwire
+# Cloud workload authentication for pgwire
+
+## AWS IAM
 
 Cassie uses AWS IAM outbound identity federation. A workload requests a
 short-lived token from regional STS using the credentials already available to
@@ -59,7 +61,7 @@ public keys for verification. Its S3 credentials are independent.
 ## Azure and Google Cloud workload identity
 
 Set `CASSIE_PGWIRE_WORKLOAD_TRUST_FILE` to a JSON trust file to enable
-`cassie_workload`. Set only one trust-file environment variable. The new file
+`cassie_workload`. Choose one trust source per server. The new file
 can include the AWS `audience` and `accounts` settings alongside Azure and Google
 Cloud. AWS clients can use either selector when their account is configured in
 the workload trust file. Each provider verifies its own configured audience.
@@ -115,5 +117,28 @@ verified TLS with the target database, startup username `cassie_workload`, and
 the short-lived token in the password field. Run `SELECT current_user;` to verify
 the mapping. Use `UNBIND WORKLOAD IDENTITY` with the same subject and issuer to
 revoke the binding. Cassie then denies subsequent statements under that binding.
+
+## Flat environment settings
+
+For simple deployments, configure one AWS account, one Azure tenant, and/or
+one Google Cloud audience without a JSON file. Leave both trust-file variables
+unset. Every configured provider uses the same pgwire TLS requirements and SQL
+role bindings shown above. For example, these variables enable all three
+providers for a single server.
+
+```sh
+export CASSIE_PGWIRE_AWS_IAM_ACCOUNT_ID=123456789012
+export CASSIE_PGWIRE_AWS_IAM_ISSUER=https://example.tokens.sts.global.api.aws
+export CASSIE_PGWIRE_AWS_IAM_AUDIENCE=https://cassie.example/aws
+export CASSIE_PGWIRE_AZURE_TENANT_ID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+export CASSIE_PGWIRE_AZURE_AUDIENCE=00000000-1111-2222-3333-444444444444
+export CASSIE_PGWIRE_GOOGLE_AUDIENCE=https://cassie.example/google
+```
+
+Set `CASSIE_PGWIRE_AZURE_TOKEN_VERSION=1.0` for v1 access tokens. Azure defaults
+to v2. AWS permits `RS256,ES384` and a 300-second maximum lifetime by default.
+Use `CASSIE_PGWIRE_AWS_IAM_ALGORITHMS` and
+`CASSIE_PGWIRE_AWS_IAM_MAX_TOKEN_LIFETIME_SECONDS` to restrict that trust.
+Use the JSON workload trust file for multiple AWS accounts or Azure tenants.
 
 [Microsoft Entra claims validation](https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation) · [Google Cloud service account ID tokens](https://cloud.google.com/docs/authentication/token-types#service-account-id-tokens)

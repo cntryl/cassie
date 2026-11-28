@@ -14,14 +14,23 @@ use password::{password_from_env, validate_bootstrap_password};
 #[path = "config/tls.rs"]
 mod tls;
 use tls::validate_transport_tls_policy;
+#[path = "config/workload.rs"]
+mod workload;
 #[doc(hidden)]
 pub use tls::{validate_pgwire_listener_transport, validate_rest_listener_transport};
+pub use workload::{PgwireAwsWorkloadEnv, PgwireAzureWorkloadEnv, PgwireWorkloadEnv};
 #[path = "config/switches.rs"]
 mod switches;
 pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
+    #[error("workload authentication requires a valid setting for {key}")]
+    InvalidWorkloadEnv { key: &'static str },
+
+    #[error("configure one pgwire workload trust source at a time")]
+    ConflictingWorkloadTrustSources,
+
     #[error("{key} must be a positive integer byte count")]
     InvalidNativeMemoryBytes { key: &'static str },
 
@@ -75,6 +84,7 @@ pub struct CassieRuntimeConfig {
     pub pgwire_tls_key_file: Option<String>,
     pub pgwire_aws_iam_trust_file: Option<String>,
     pub pgwire_workload_trust_file: Option<String>,
+    pub pgwire_workload_env: Option<PgwireWorkloadEnv>,
     pub rest_listen: String,
     pub rest_tls_cert_file: Option<String>,
     pub rest_tls_key_file: Option<String>,
@@ -210,6 +220,7 @@ impl Default for CassieRuntimeConfig {
             pgwire_tls_key_file: None,
             pgwire_aws_iam_trust_file: None,
             pgwire_workload_trust_file: None,
+            pgwire_workload_env: None,
             rest_listen: "127.0.0.1:8080".to_string(),
             rest_tls_cert_file: None,
             rest_tls_key_file: None,
@@ -286,6 +297,19 @@ impl Default for OpenAiRuntimeConfig {
 }
 
 impl CassieRuntimeConfig {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn pgwire_workload_trust_source_count(&self) -> usize {
+        [
+            self.pgwire_aws_iam_trust_file.is_some(),
+            self.pgwire_workload_trust_file.is_some(),
+            self.pgwire_workload_env.is_some(),
+        ]
+        .into_iter()
+        .filter(|enabled| *enabled)
+        .count()
+    }
+
     /// # Errors
     ///
     /// Returns an error when an environment-provided setting is invalid.
@@ -331,6 +355,10 @@ impl CassieRuntimeConfig {
         config.pgwire_tls_key_file = env_reader("CASSIE_PGWIRE_TLS_KEY_FILE");
         config.pgwire_aws_iam_trust_file = env_reader("CASSIE_PGWIRE_AWS_IAM_TRUST_FILE");
         config.pgwire_workload_trust_file = env_reader("CASSIE_PGWIRE_WORKLOAD_TRUST_FILE");
+        config.pgwire_workload_env = workload::from_env(&env_reader)?;
+        if config.pgwire_workload_trust_source_count() > 1 {
+            return Err(CassieRuntimeConfigError::ConflictingWorkloadTrustSources);
+        }
         config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
         config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
         config.rest_external_https =

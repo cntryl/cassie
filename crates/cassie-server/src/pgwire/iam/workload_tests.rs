@@ -78,6 +78,28 @@ fn google_claims() -> Value {
 }
 
 #[test]
+fn should_verify_a_signed_google_token_using_flat_trust() {
+    // Arrange
+    let env = crate::config::PgwireWorkloadEnv {
+        aws: None,
+        azure: None,
+        google_audience: Some(GOOGLE_AUDIENCE.into()),
+    };
+    let trust = TrustSet::from_env(&env).unwrap();
+    let keys = keys(&rsa_jwk());
+    let token = sign(&google_claims());
+
+    // Act
+    let principal = verify(&trust, &keys, &token);
+
+    // Assert
+    assert_eq!(
+        principal,
+        Some((GOOGLE_ISSUER.into(), GOOGLE_SUBJECT.into()))
+    );
+}
+
+#[test]
 fn should_resolve_the_azure_object_id_for_an_entra_v1_app_token() {
     // Arrange
     let trust = workload_trust();

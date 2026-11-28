@@ -119,7 +119,53 @@ impl TrustSet {
         if bytes.len() > MAX_TRUST_BYTES {
             return Err(Rejected);
         }
-        let doc: TrustDocument = serde_json::from_slice(bytes).map_err(|_| Rejected)?;
+        Self::from_document(serde_json::from_slice(bytes).map_err(|_| Rejected)?)
+    }
+
+    fn from_env(env: &crate::config::PgwireWorkloadEnv) -> Result<Self, Rejected> {
+        let mut doc = TrustDocument {
+            audience: None,
+            max_token_lifetime_seconds: default_token_lifetime(),
+            accounts: Vec::new(),
+            azure: Vec::new(),
+            google: env
+                .google_audience
+                .clone()
+                .map(|audience| GoogleDocument { audience }),
+        };
+        if let Some(aws) = &env.aws {
+            doc.audience = Some(aws.audience.clone());
+            doc.max_token_lifetime_seconds = aws.max_token_lifetime_seconds;
+            let algorithms = aws
+                .algorithms
+                .iter()
+                .map(|value| match value.as_str() {
+                    "RS256" => Ok(Algorithm::Rs256),
+                    "ES384" => Ok(Algorithm::Es384),
+                    _ => Err(Rejected),
+                })
+                .collect::<Result<_, _>>()?;
+            doc.accounts.push(AccountDocument {
+                account_id: aws.account_id.clone(),
+                issuer: aws.issuer.clone(),
+                algorithms,
+            });
+        }
+        if let Some(azure) = &env.azure {
+            doc.azure.push(AzureDocument {
+                tenant_id: azure.tenant_id.clone(),
+                audience: azure.audience.clone(),
+                token_version: match azure.token_version.as_str() {
+                    "1.0" => AzureVersion::V1,
+                    "2.0" => AzureVersion::V2,
+                    _ => return Err(Rejected),
+                },
+            });
+        }
+        Self::from_document(doc)
+    }
+
+    fn from_document(doc: TrustDocument) -> Result<Self, Rejected> {
         let issuer_count = doc.accounts.len() + doc.azure.len() + usize::from(doc.google.is_some());
         if !(1..=32).contains(&issuer_count)
             || !(60..=MAX_TOKEN_LIFETIME_SECONDS).contains(&doc.max_token_lifetime_seconds)
@@ -259,9 +305,10 @@ pub(super) fn configure(
     config: &crate::config::CassieRuntimeConfig,
     tls_available: bool,
 ) -> Result<Option<Arc<Verifier>>, crate::CassieError> {
-    if config.pgwire_workload_trust_file.is_some() && config.pgwire_aws_iam_trust_file.is_some() {
+    let sources = config.pgwire_workload_trust_source_count();
+    if sources > 1 {
         return Err(crate::CassieError::Execution(
-            "configure only one pgwire workload trust file".into(),
+            "configure only one pgwire workload trust source".into(),
         ));
     }
     let path = config
@@ -269,16 +316,24 @@ pub(super) fn configure(
         .as_deref()
         .or(config.pgwire_aws_iam_trust_file.as_deref())
         .map(Path::new);
-    cassie.validate_aws_iam_pgwire_selector(path.is_some())?;
-    if path.is_some() && (!tls_available || !cassie.authentication_enabled()) {
+    cassie.validate_aws_iam_pgwire_selector(sources == 1)?;
+    if sources == 1 && (!tls_available || !cassie.authentication_enabled()) {
         return Err(crate::CassieError::Execution(
-            "AWS IAM pgwire authentication requires TLS and a root password".into(),
+            "pgwire workload authentication requires TLS and a root password".into(),
         ));
     }
-    path.map(|path| Verifier::from_path(path, config.pgwire_workload_trust_file.is_some()))
+    let verifier = if let Some(env) = &config.pgwire_workload_env {
+        let result = TrustSet::from_env(env).and_then(Verifier::from_trust);
+        Some(result)
+    } else {
+        path.map(|path| Verifier::from_path(path, config.pgwire_workload_trust_file.is_some()))
+    };
+    verifier
         .transpose()
         .map(|verifier| verifier.map(Arc::new))
-        .map_err(|_| crate::CassieError::Execution("invalid pgwire workload trust file".into()))
+        .map_err(|_| {
+            crate::CassieError::Execution("invalid pgwire workload trust configuration".into())
+        })
 }
 
 fn client_builder() -> reqwest::ClientBuilder {
@@ -350,6 +405,10 @@ impl Verifier {
         {
             return Err(Rejected);
         }
+        Self::from_trust(trust)
+    }
+
+    fn from_trust(trust: TrustSet) -> Result<Self, Rejected> {
         let client = client_builder().build().map_err(|_| Rejected)?;
         Ok(Self {
             trust,

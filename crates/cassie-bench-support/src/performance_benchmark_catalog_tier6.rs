@@ -4,7 +4,7 @@ use super::{
 };
 
 pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
-    // Tier 6: exactly two bounded one-hour endurance scenarios.
+    // Tier 6: one-hour endurance scenarios.
     scenario!(
         "perf.soak.mixed.100k",
         "mixed",
@@ -27,6 +27,22 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "transport_lifecycle",
         "tier6_soak_transport",
         "transport_lifecycle",
+        "10k",
+        10_000,
+        Tier6,
+        External,
+        Soak,
+        "operation",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
+        "perf.soak.indexed_ingest_reopen.10k",
+        "pgwire",
+        "indexed_ingest_reopen",
+        "tier6_soak_indexed_recovery",
+        "indexed_ingest_reopen",
         "10k",
         10_000,
         Tier6,

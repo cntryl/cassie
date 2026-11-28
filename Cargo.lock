@@ -311,6 +311,7 @@ dependencies = [
  "cassie",
  "cassie-bench-support",
  "cassie-core",
+ "cassie-storage",
  "chrono",
  "cntryl-lexkey",
  "cntryl-midge",

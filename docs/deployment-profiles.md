@@ -19,7 +19,7 @@ credential sources are in [Environment Variables](environment-variables.md).
 - Host: Apple M5, arm64, macOS, APFS.
 - Storage: disk-backed `CASSIE_STORAGE_PATH` on the local APFS volume.
 - Runtime: repository defaults unless a benchmark owner declares an override in the artifact.
-- Fixtures: Tier 1-4 declared workload fixtures plus Tier 5 scale axes and both Tier 6 endurance scenarios.
+- Fixtures: Tier 1-4 declared workload fixtures plus Tier 5 scale axes and the Tier 6 endurance scenarios.
 - Workload: mixed SQL reads/writes, retrieval, projections, transport, restart, and recovery-sensitive paths.
 - Toolchain: exact `rust-toolchain`/Cargo lock state recorded with the artifact.
 - Status: existing local evidence profile; not representative native-Linux production evidence.

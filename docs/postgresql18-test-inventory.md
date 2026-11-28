@@ -135,7 +135,7 @@ regressions above. The repository performance contract already defines the
 available scale axes: representative Tier 3 cases at 100k rows; Tier 4 real
 client paths at 10k rows; Tier 5 applicable row counts at 10k, 100k, and 250k,
 client counts at 1, 2, 4, 8, and 16, and worker counts at 1, 2, and 4; and the
-two Tier 6 one-hour profiles at 100k and 10k. Apply only the axes relevant to
+Tier 6 one-hour profiles at 100k and 10k. Apply only the axes relevant to
 each workload, and retain the exact fixture, configuration, toolchain, client,
 and immutable Cassie revision in the artifact.
 

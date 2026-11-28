@@ -61,6 +61,7 @@ rust-stemmers.workspace = true
 rustix = { version = "1.1.6", features = ["process"] }
 
 [dev-dependencies]
+cassie-storage = { workspace = true, features = ["storage-test-hooks"] }
 cntryl-midge = { workspace = true, features = ["failpoints"] }
 fail = "0.5.1"
 cassie-core.workspace = true
@@ -363,6 +364,11 @@ path = "benches/tier5_time_series_mixed.rs"
 name = "tier6_soak_mixed"
 harness = false
 path = "benches/tier6_soak_mixed.rs"
+
+[[bench]]
+name = "tier6_soak_indexed_recovery"
+harness = false
+path = "benches/tier6_soak_indexed_recovery.rs"
 
 [[bench]]
 name = "tier6_soak_transport"

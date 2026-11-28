@@ -1,5 +1,6 @@
 use super::auth::LazyPasswordHash;
 use super::auth_rate_limit::AuthRateLimiter;
+use super::iam_roles::PgwireWorkloadSelectors;
 use super::vector_search::VectorResultCache;
 use super::{
     Arc, AtomicBool, BTreeMap, Catalog, Midge, Mutex, NormalizedVectorCacheEntry,
@@ -50,7 +51,7 @@ pub struct Cassie {
     pub(super) vector_search_result_cache: Arc<Mutex<VectorResultCache>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
-    pub(super) aws_iam_login_enabled: bool,
+    pub(super) pgwire_workload_selectors: PgwireWorkloadSelectors,
     pub(crate) bootstrap_password_hash: LazyPasswordHash,
     pub(crate) dummy_password_hash: LazyPasswordHash,
     pub(crate) auth_rate_limiter: Arc<AuthRateLimiter>,

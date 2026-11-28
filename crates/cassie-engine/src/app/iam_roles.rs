@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use super::auth_rate_limit::AuthAttempt;
 use super::{Cassie, CassieError, CassieSession, CatalogObjectKind, RoleMeta};
-use crate::config::AWS_IAM_PGWIRE_SELECTOR;
+use crate::config::{AWS_IAM_PGWIRE_SELECTOR, WORKLOAD_PGWIRE_SELECTOR};
 use crate::sql::ast::AlterAwsIamBinding;
 
 #[cfg(test)]
@@ -41,7 +41,39 @@ impl CassieSession {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PgwireWorkloadSelectors {
+    Disabled,
+    AwsOnly,
+    Workload,
+}
+
+impl PgwireWorkloadSelectors {
+    pub(super) fn from_config(config: &crate::config::CassieRuntimeConfig) -> Self {
+        if config.pgwire_workload_trust_file.is_some() || config.pgwire_workload_env.is_some() {
+            Self::Workload
+        } else if config.pgwire_aws_iam_trust_file.is_some() {
+            Self::AwsOnly
+        } else {
+            Self::Disabled
+        }
+    }
+
+    fn enabled(self) -> bool {
+        self != Self::Disabled
+    }
+}
+
 impl Cassie {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_workload_pgwire_selector(&self, user: &str) -> bool {
+        (self.pgwire_workload_selectors.enabled()
+            && user.trim().eq_ignore_ascii_case(AWS_IAM_PGWIRE_SELECTOR))
+            || (self.pgwire_workload_selectors == PgwireWorkloadSelectors::Workload
+                && user.trim().eq_ignore_ascii_case(WORKLOAD_PGWIRE_SELECTOR))
+    }
+
     /// Checks that constructor and listener settings agree and that the selector is available.
     ///
     /// # Errors
@@ -51,8 +83,10 @@ impl Cassie {
         &self,
         listener_enabled: bool,
     ) -> Result<(), CassieError> {
-        if listener_enabled != self.aws_iam_login_enabled
+        if listener_enabled != self.pgwire_workload_selectors.enabled()
             || (listener_enabled && self.lookup_role(AWS_IAM_PGWIRE_SELECTOR)?.is_some())
+            || (self.pgwire_workload_selectors == PgwireWorkloadSelectors::Workload
+                && self.lookup_role(WORKLOAD_PGWIRE_SELECTOR)?.is_some())
         {
             return Err(CassieError::Execution(
                 "AWS IAM configuration or reserved pgwire startup selector conflicts".into(),
@@ -67,7 +101,7 @@ impl Cassie {
     /// Returns an error when IAM is disabled or admission is exhausted.
     #[doc(hidden)]
     pub fn begin_aws_iam_login(&self, peer: IpAddr) -> Result<AwsIamLoginAttempt, CassieError> {
-        if !self.aws_iam_login_enabled {
+        if !self.pgwire_workload_selectors.enabled() {
             return Err(CassieError::Unauthorized);
         }
         self.auth_rate_limiter
@@ -154,9 +188,14 @@ impl Cassie {
         if !role.aws_iam_login || role.is_admin || role.object_id == 0 {
             return Err(CassieError::InsufficientPrivilege);
         }
-        if !valid_issuer(&binding.issuer) || !valid_role_arn(&binding.role_arn) {
+        let valid = if binding.workload {
+            valid_workload_binding(&binding.issuer, &binding.role_arn)
+        } else {
+            valid_issuer(&binding.issuer) && valid_role_arn(&binding.role_arn)
+        };
+        if !valid {
             return Err(CassieError::Planner(
-                "expected an AWS account issuer and IAM role ARN".into(),
+                "invalid issuer or subject for the selected workload binding".into(),
             ));
         }
         self.midge.update_aws_iam_role_binding(
@@ -193,4 +232,27 @@ fn valid_role_arn(arn: &str) -> bool {
                 && !role.ends_with('/')
                 && role.bytes().all(|b| b.is_ascii_graphic())
         })
+}
+
+fn valid_workload_binding(issuer: &str, subject: &str) -> bool {
+    if valid_issuer(issuer) {
+        return valid_role_arn(subject);
+    }
+    if issuer == "https://accounts.google.com" {
+        return (1..=32).contains(&subject.len())
+            && subject.bytes().all(|byte| byte.is_ascii_digit());
+    }
+    let tenant = issuer
+        .strip_prefix("https://sts.windows.net/")
+        .and_then(|v| v.strip_suffix('/'))
+        .or_else(|| {
+            issuer
+                .strip_prefix("https://login.microsoftonline.com/")
+                .and_then(|v| v.strip_suffix("/v2.0"))
+        });
+    let valid_guid = |value: &str| {
+        value.len() == 36
+            && uuid::Uuid::parse_str(value).is_ok_and(|guid| guid.to_string() == value)
+    };
+    tenant.is_some_and(valid_guid) && valid_guid(subject)
 }

@@ -844,6 +844,8 @@ pub struct AlterRoleStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterAwsIamBinding {
     pub bind: bool,
+    #[serde(default)]
+    pub workload: bool,
     pub role_arn: String,
     pub issuer: String,
 }

@@ -36,7 +36,17 @@ impl Drop for IssuerFixture {
 
 impl IssuerFixture {
     pub(super) async fn start(responses: Vec<Reply>) -> Self {
-        let host = ISSUER.strip_prefix("https://").unwrap();
+        Self::start_for(trust(), ISSUER, responses).await
+    }
+
+    pub(super) async fn start_for(
+        trust: super::TrustSet,
+        issuer: &str,
+        responses: Vec<Reply>,
+    ) -> Self {
+        let jwks = reqwest::Url::parse(&trust.accounts[issuer].jwks_url).unwrap();
+        let host = jwks.host_str().unwrap();
+        let jwks_path = jwks.path().to_owned();
         let identity = rcgen::generate_simple_self_signed(vec![host.to_owned()]).unwrap();
         let private = rustls::pki_types::PrivateKeyDer::Pkcs8(
             rustls::pki_types::PrivatePkcs8KeyDer::from(identity.signing_key.serialize_der()),
@@ -58,6 +68,7 @@ impl IssuerFixture {
                 let (socket, _) = listener.accept().await.unwrap();
                 let acceptor = acceptor.clone();
                 let observed = Arc::clone(&observed);
+                let jwks_path = jwks_path.clone();
                 connections.spawn(async move {
                     let tls = acceptor.accept(socket).await.unwrap();
                     let reply = std::sync::Mutex::new(Some(reply));
@@ -68,9 +79,10 @@ impl IssuerFixture {
                             .take()
                             .expect("one request per fixture connection");
                         let observed = Arc::clone(&observed);
+                        let jwks_path = jwks_path.clone();
                         async move {
                             assert_eq!(request.method(), hyper::Method::GET);
-                            assert_eq!(request.uri().path(), "/.well-known/jwks.json");
+                            assert_eq!(request.uri().path(), jwks_path);
                             observed.fetch_add(1, Ordering::SeqCst);
                             let body = match response {
                                 Reply::Body(bytes) => Full::new(Bytes::from(bytes)),
@@ -97,7 +109,7 @@ impl IssuerFixture {
         let clock = Arc::new(FixtureClock::new(NOW));
         Self {
             verifier: Arc::new(Verifier {
-                trust: trust(),
+                trust,
                 client,
                 fixture_clock: Some(Arc::clone(&clock)),
             }),

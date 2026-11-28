@@ -2,7 +2,9 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::Deserialize;
 
 use super::jwks::{valid_key_id, IssuerKeys};
-use super::{AccountTrust, Algorithm, Rejected, TrustSet};
+use super::{
+    valid_google_subject, valid_guid, AccountTrust, Algorithm, AzureVersion, Provider, Rejected,
+};
 
 pub(crate) const MAX_TOKEN_BYTES: usize = 16 * 1024;
 const CLOCK_SKEW_SECONDS: u64 = 30;
@@ -13,6 +15,8 @@ struct Header {
     alg: Algorithm,
     kid: String,
     typ: Option<String>,
+    #[serde(rename = "x5t")]
+    _x5t: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +39,7 @@ impl Audience {
 struct AwsClaims {
     aws_account: String,
     principal_id: String,
+    subject_mode: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -47,12 +52,20 @@ struct Claims {
     nbf: Option<u64>,
     subject_mode: Option<String>,
     #[serde(rename = "https://sts.amazonaws.com/")]
-    aws: AwsClaims,
+    aws: Option<AwsClaims>,
+    tid: Option<String>,
+    oid: Option<String>,
+    idtyp: Option<String>,
+    ver: Option<String>,
+    azp: Option<String>,
+    appid: Option<String>,
+    scp: Option<String>,
 }
 
 pub(in crate::pgwire) struct VerifiedIdentity {
     pub(in crate::pgwire) issuer: String,
     pub(in crate::pgwire) role_arn: String,
+    pub(in crate::pgwire) is_aws: bool,
 }
 
 pub(super) struct Token<'a> {
@@ -117,7 +130,6 @@ impl<'a> Token<'a> {
 
     pub(super) fn verify(
         self,
-        trust: &TrustSet,
         account: &AccountTrust,
         keys: &IssuerKeys,
         now: u64,
@@ -129,25 +141,69 @@ impl<'a> Token<'a> {
             &self.signature,
         )?;
         let claims = self.claims;
-        if !claims.aud.matches(&trust.audience)
-            || claims.aws.aws_account != account.account_id
-            || claims.sub != claims.aws.principal_id
-            || !aws_role(&claims.sub, &account.account_id)
-            || claims
-                .subject_mode
-                .as_deref()
-                .is_some_and(|mode| mode != "AWSIdentity")
+        if !claims.aud.matches(&account.audience)
             || claims.exp <= now
             || claims.iat > now.saturating_add(CLOCK_SKEW_SECONDS)
             || claims.nbf.is_some_and(|when| when > now)
-            || !(1..=trust.max_token_lifetime_seconds)
+            || !(1..=account.max_token_lifetime_seconds)
                 .contains(&claims.exp.saturating_sub(claims.iat))
         {
             return Err(Rejected);
         }
+        let is_aws = matches!(account.provider, Provider::Aws { .. });
+        let identity = match &account.provider {
+            Provider::Aws { account_id } => claims.aws_subject(account_id)?,
+            Provider::Azure { tenant_id, version } => claims.azure_subject(tenant_id, *version)?,
+            Provider::Google => claims.google_subject()?,
+        }
+        .to_owned();
         Ok(VerifiedIdentity {
             issuer: claims.iss,
-            role_arn: claims.sub,
+            role_arn: identity,
+            is_aws,
         })
+    }
+}
+
+impl Claims {
+    fn aws_subject(&self, account: &str) -> Result<&str, Rejected> {
+        let aws = self.aws.as_ref().ok_or(Rejected)?;
+        if aws.aws_account != account
+            || self.sub != aws.principal_id
+            || !aws_role(&self.sub, account)
+            || [self.subject_mode.as_deref(), aws.subject_mode.as_deref()]
+                .into_iter()
+                .flatten()
+                .any(|mode| mode != "AWSIdentity")
+        {
+            return Err(Rejected);
+        }
+        Ok(&self.sub)
+    }
+
+    fn azure_subject(&self, tenant: &str, version: AzureVersion) -> Result<&str, Rejected> {
+        let (version, actor) = match version {
+            AzureVersion::V1 => ("1.0", self.appid.as_deref()),
+            AzureVersion::V2 => ("2.0", self.azp.as_deref()),
+        };
+        if self.tid.as_deref() != Some(tenant)
+            || self.ver.as_deref() != Some(version)
+            || self.idtyp.as_deref() != Some("app")
+            || self.scp.is_some()
+            || !actor.is_some_and(valid_guid)
+        {
+            return Err(Rejected);
+        }
+        self.oid
+            .as_deref()
+            .filter(|id| valid_guid(id))
+            .ok_or(Rejected)
+    }
+
+    fn google_subject(&self) -> Result<&str, Rejected> {
+        if !valid_google_subject(&self.sub) || self.azp.as_deref() != Some(self.sub.as_str()) {
+            return Err(Rejected);
+        }
+        Ok(&self.sub)
     }
 }

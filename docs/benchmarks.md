@@ -35,12 +35,22 @@ server's `tier2_subsystem_protocol_handlers` benchmark.
 
 GitHub Actions uses `ubuntu-24.04-arm` and the repository-pinned Rust 1.100.0.
 Benchmark smoke compiles workspace bench targets on relevant pull requests;
-manual dispatch also runs registered timed and product smoke owners. Nightly runs Tiers 1–4
-serially. Manual tier dispatch selects one tier or all six; Tier 5 runs one
-owner per job, and every Tier 6 soak has a separate job with a six-hour job
-limit and a minimum 3,600-second full measurement. Raw owner artifacts upload
-even when an owner fails. Smoke artifacts are diagnostic and do not establish
-performance targets.
+manual dispatch also runs registered timed and product smoke owners.
+
+| Workflow | Profiles | Trigger |
+| --- | --- | --- |
+| **Benchmark Tiers 1–4** (`benchmark-tiers.yml`) | `smoke`, `standard`, `full` | Manual or daily |
+| **Benchmark Tier 5 Saturation** (`saturation.yml`) | `smoke`, `standard`, `full` | Manual |
+| **Benchmark Tier 6 Endurance** (`endurance.yml`) | `smoke`, `full` | Manual |
+
+Tiers 1–4 can run together or individually. Each timed owner gets its own job
+and report, so a failed owner leaves other reports available. The scheduled
+Tiers 1–4 run uses `full`. Tier 6 full runs require at least 3,600 seconds of
+measurement and have a six-hour job limit. Smoke results are diagnostic.
+
+The registry classifies `relevance_cranfield`, `tier3_replay_durability`, and
+`tier4_pgwire_fixture_profile` as diagnostics. The smoke workflow compiles
+those targets and the measurement workflows leave them for direct Cargo runs.
 
 The product workflow is manually dispatched from `main` on the same Linux
 arm64 runner. It runs non-vector owners serially. A vector run selects one of

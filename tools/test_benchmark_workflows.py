@@ -70,6 +70,28 @@ class BenchmarkWorkflowTests(unittest.TestCase):
         self.assertEqual(env["STRESS_OUTPUT_DIR"], str(Path("target/stress").resolve()))
         self.assertEqual(env["CASSIE_BENCH_SOAK_DURATION_SECONDS"], "5")
 
+    def test_should_select_the_native_standard_measurement_profile(self) -> None:
+        # Arrange
+        registry = [{
+            "package": "cassie-core",
+            "target": "tier1_kernel",
+            "tier": 1,
+            "category": "timed",
+            "required_features": [],
+        }]
+
+        # Act
+        with (
+            patch.object(workflow.subprocess, "check_output", return_value="source-head\n"),
+            patch.object(workflow.subprocess, "run") as run,
+        ):
+            workflow.run_target(
+                "tier1_kernel", "timed", "standard", Path("target/stress"), registry
+            )
+
+        # Assert
+        self.assertEqual(run.call_args.kwargs["env"]["STRESS_PROFILE"], "default")
+
     def test_should_parse_all_and_selected_tiers(self) -> None:
         # Arrange / Act / Assert
         self.assertEqual(workflow.parse_tiers("all"), set(range(1, 7)))

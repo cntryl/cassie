@@ -538,9 +538,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9705506ec9234a5c6bd22d341dda6cc809e3a2fd91ec1712bc858e45322a4dc"
+checksum = "f8846edc97f276720bef79180955ef2f477b7240ac8a25640b8c5dd13e043faf"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -568,9 +568,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge-core"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f976da1f230644235b4decc62399ec096a0dc35d74aa4e700dbafdf8df1ee039"
+checksum = "154bccfcd407aad4e55cda195eed767d82eeedf113b9424c4e3b8f2330d60616"
 dependencies = [
  "bytes",
  "crc32c",
@@ -587,9 +587,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge-durability"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af7f28acd8a9057fdea92150fd5c66f5ae941576f237d372c661cc2c161a71c2"
+checksum = "9295fd5ef4b231fa3d4f358c956468ef7858e0dcce2f9386df757c33e2a7d8df"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -615,9 +615,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge-storage"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3971552637afe852f4ab0e96812f1bcf583f7d0d903f2818ae7973f87059e715"
+checksum = "9595e9f386010409b90b9db7c1d127d6376b55dca3e3e53a01d9768974bbad81"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -648,9 +648,9 @@ dependencies = [
 
 [[package]]
 name = "cntryl-midge-table"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd3011ed325060803abe37bf611b5599a85480d00b2455812e56355264c9c1dc"
+checksum = "1d3acead56a681067405cad754a586f25ef725e4cda7f2613070de351ce97755"
 dependencies = [
  "arc-swap",
  "bytes",

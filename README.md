@@ -27,7 +27,7 @@ baseline and Cassie-owned persistent formats start at version 1. Use the
 - [0.1.0 release baseline](docs/release-baseline.md)
 - [POC quickstart](docs/poc-quickstart.md)
 
-Cassie uses published `cntryl-midge` 0.5.3. The Midge 0.5 series introduced
+Cassie uses published `cntryl-midge` 0.6.2. The Midge 0.5 series introduced
 database FORMAT 9 and SST V5. Midge 0.4.x stores require logical export and
 import into a fresh store. See the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-051-fresh-store-boundary-2026-10-30).
 

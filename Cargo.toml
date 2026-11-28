@@ -39,7 +39,7 @@ cassie-sql = { path = "crates/cassie-sql" }
 cassie-storage = { path = "crates/cassie-storage" }
 cassie-vector = { path = "crates/cassie-vector" }
 chrono = "0.4"
-cntryl-midge = "0.6.1"
+cntryl-midge = "0.6.2"
 cntryl-stress = "0.5.1"
 cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.1" }
 fancy-regex = { version = "=0.20.2", default-features = false, features = ["std", "unicode"] }

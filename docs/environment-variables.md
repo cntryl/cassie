@@ -23,6 +23,7 @@ source code.
 | `CASSIE_PGWIRE_TLS_CERT_FILE` | PEM certificate-chain path | Unset | Pgwire TLS certificate chain. Must be paired with `CASSIE_PGWIRE_TLS_KEY_FILE`. |
 | `CASSIE_PGWIRE_TLS_KEY_FILE` | PEM private-key path | Unset | Pgwire TLS private key. Must be paired with `CASSIE_PGWIRE_TLS_CERT_FILE`. |
 | `CASSIE_PGWIRE_AWS_IAM_TRUST_FILE` | JSON file path | Unset | Enables the AWS IAM pgwire selector when TLS and a root password are configured. See [AWS IAM workload authentication](pgwire-iam-authentication.md). |
+| `CASSIE_PGWIRE_WORKLOAD_TRUST_FILE` | JSON file path | Unset | Enables the AWS, Azure, and Google Cloud pgwire workload selector when TLS and a root password are configured. Use one trust-file variable per server. See [pgwire workload authentication](pgwire-iam-authentication.md). |
 | `CASSIE_REST_TLS_CERT_FILE` | PEM certificate-chain path | Unset | REST TLS certificate chain. Must be paired with `CASSIE_REST_TLS_KEY_FILE`. |
 | `CASSIE_REST_TLS_KEY_FILE` | PEM private-key path | Unset | REST TLS private key. Must be paired with `CASSIE_REST_TLS_CERT_FILE`. |
 | `CASSIE_REST_EXTERNAL_HTTPS` | Boolean | `false` | Declares that a trusted external edge provides HTTPS. Enables HSTS and `Secure` login/logout cookies; forwarding headers are not trusted. |

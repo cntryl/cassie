@@ -55,3 +55,65 @@ federation in each issuing account. The server receives role proof and uses
 public keys for verification. Its S3 credentials are independent.
 
 [AWS setup](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_outbound_getting_started.html) · [AWS STS API](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetWebIdentityToken.html) · [AWS claims](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_outbound_token_claims.html)
+
+## Azure and Google Cloud workload identity
+
+Set `CASSIE_PGWIRE_WORKLOAD_TRUST_FILE` to a JSON trust file to enable
+`cassie_workload`. Set only one trust-file environment variable. The new file
+can include the AWS `audience` and `accounts` settings alongside Azure and Google
+Cloud. AWS clients can use either selector when their account is configured in
+the workload trust file. Each provider verifies its own configured audience.
+
+An Azure and Google Cloud trust file can look like this.
+
+```json
+{
+  "azure": [
+    {
+      "tenant_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "token_version": "2.0",
+      "audience": "00000000-1111-2222-3333-444444444444"
+    }
+  ],
+  "google": {"audience": "https://cassie.example/google"}
+}
+```
+
+For Azure, register a Cassie resource application in Microsoft Entra ID.
+Configure its access-token version and the `idtyp` optional access-token claim
+so managed identity tokens carry `idtyp=app`. Request a token for the registered
+resource using the platform's managed identity credential. In the trust file,
+set `audience` to the exact access-token audience, the resource application's
+client ID for v2 tokens and its resource application ID URI for the illustrated
+v1 form. The issuer is
+`https://login.microsoftonline.com/<tenant_id>/v2.0` for v2 tokens or
+`https://sts.windows.net/<tenant_id>/` for v1 tokens. Use the managed identity's
+tenant-local object ID as the binding subject.
+
+For Google Cloud, request a Google-signed ID token for the configured audience
+from the attached service account using the workload platform's metadata server.
+Use the service account's numeric unique ID as the binding subject and
+`https://accounts.google.com` as the issuer.
+
+Create an external login and bind the exact subject and issuer to it. For example
+these statements grant distinct application identities their own Cassie roles.
+
+```sql
+CREATE ROLE azure_service EXTERNAL LOGIN;
+ALTER ROLE azure_service BIND WORKLOAD IDENTITY 'ffffffff-bbbb-cccc-dddd-aaaaaaaaaaaa'
+  ISSUER 'https://login.microsoftonline.com/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/v2.0';
+
+CREATE ROLE google_service EXTERNAL LOGIN;
+ALTER ROLE google_service BIND WORKLOAD IDENTITY '112010400000000710080'
+  ISSUER 'https://accounts.google.com';
+```
+
+The same `BIND WORKLOAD IDENTITY` form also accepts an AWS IAM role ARN and its
+issuer. AWS clients can continue using existing `BIND AWS IAM ROLE` bindings.
+Grant each Cassie role its required privileges and connect over certificate-
+verified TLS with the target database, startup username `cassie_workload`, and
+the short-lived token in the password field. Run `SELECT current_user;` to verify
+the mapping. Use `UNBIND WORKLOAD IDENTITY` with the same subject and issuer to
+revoke the binding. Cassie then denies subsequent statements under that binding.
+
+[Microsoft Entra claims validation](https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation) · [Google Cloud service account ID tokens](https://cloud.google.com/docs/authentication/token-types#service-account-id-tokens)

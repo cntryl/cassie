@@ -207,7 +207,9 @@ pub(super) async fn run_connection_with_iam(
                             user: user.clone(),
                             database: database.clone(),
                             peer_ip,
-                            iam: iam.as_deref().filter(|_| is_iam_selector(user)),
+                            iam: iam
+                                .as_deref()
+                                .filter(|_| cassie.is_workload_pgwire_selector(user)),
                         },
                     ),
                 )
@@ -297,7 +299,7 @@ async fn handle_startup(
                 .clone()
                 .unwrap_or_else(|| "root".to_string());
             let startup_database = state.startup_database.clone();
-            if is_iam_selector(&startup_user) && iam_tls == Some(false) {
+            if cassie.is_workload_pgwire_selector(&startup_user) && iam_tls == Some(false) {
                 runtime.record_pgwire_auth_failed();
                 let _ = write_error_response(
                     write_half,
@@ -307,7 +309,7 @@ async fn handle_startup(
                 return ConnectionStep::Break;
             }
             if cassie.authentication_enabled()
-                || (is_iam_selector(&startup_user) && iam_tls.is_some())
+                || (cassie.is_workload_pgwire_selector(&startup_user) && iam_tls.is_some())
             {
                 let _ = write_auth_cleartext(write_half).await;
                 ConnectionStep::Continue(HandshakeState::AwaitPassword {
@@ -382,11 +384,6 @@ async fn finish_startup(
     ConnectionStep::Continue(HandshakeState::Ready)
 }
 
-fn is_iam_selector(user: &str) -> bool {
-    user.trim()
-        .eq_ignore_ascii_case(crate::config::AWS_IAM_PGWIRE_SELECTOR)
-}
-
 struct PasswordAuthContext<'a> {
     user: String,
     database: Option<String>,
@@ -411,6 +408,13 @@ async fn authenticate_startup_credential(
             .verify(&credential)
             .await
             .map_err(|_| CassieError::Unauthorized)?;
+        if user
+            .trim()
+            .eq_ignore_ascii_case(crate::config::AWS_IAM_PGWIRE_SELECTOR)
+            && !identity.is_aws
+        {
+            return Err(CassieError::Unauthorized);
+        }
         drop(credential);
         return run_pgwire_blocking(cassie, "pgwire_auth", move |cassie| {
             cassie.complete_aws_iam_login(attempt, &identity.issuer, &identity.role_arn, database)

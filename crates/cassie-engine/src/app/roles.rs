@@ -221,9 +221,9 @@ impl Cassie {
         if normalized.is_empty() {
             return Err(CassieError::Planner("CREATE ROLE requires a name".into()));
         }
-        if self.aws_iam_login_enabled && normalized == crate::config::AWS_IAM_PGWIRE_SELECTOR {
+        if self.is_workload_pgwire_selector(&normalized) {
             return Err(CassieError::Planner(
-                "the pgwire AWS IAM startup selector is reserved".into(),
+                "the pgwire workload startup selector is reserved".into(),
             ));
         }
         if self.lookup_role(&normalized)?.is_some() {

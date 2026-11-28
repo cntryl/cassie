@@ -40,10 +40,14 @@ pub(super) struct Rejected;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TrustDocument {
-    audience: String,
+    audience: Option<String>,
     #[serde(default = "default_token_lifetime")]
     max_token_lifetime_seconds: u64,
+    #[serde(default)]
     accounts: Vec<AccountDocument>,
+    #[serde(default)]
+    azure: Vec<AzureDocument>,
+    google: Option<GoogleDocument>,
 }
 
 const fn default_token_lifetime() -> u64 {
@@ -58,6 +62,39 @@ struct AccountDocument {
     algorithms: Vec<Algorithm>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AzureDocument {
+    tenant_id: String,
+    token_version: AzureVersion,
+    audience: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GoogleDocument {
+    audience: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+enum AzureVersion {
+    #[serde(rename = "1.0")]
+    V1,
+    #[serde(rename = "2.0")]
+    V2,
+}
+
+enum Provider {
+    Aws {
+        account_id: String,
+    },
+    Azure {
+        tenant_id: String,
+        version: AzureVersion,
+    },
+    Google,
+}
+
 #[derive(Default)]
 struct KeyCache {
     keys: Option<(Instant, Arc<IssuerKeys>)>,
@@ -65,15 +102,15 @@ struct KeyCache {
 }
 
 struct AccountTrust {
-    account_id: String,
-    public_issuer_host: String,
+    provider: Provider,
+    audience: String,
+    max_token_lifetime_seconds: u64,
+    jwks_url: String,
     algorithms: HashSet<Algorithm>,
     cache: Mutex<KeyCache>,
 }
 
 struct TrustSet {
-    audience: String,
-    max_token_lifetime_seconds: u64,
     accounts: HashMap<String, AccountTrust>,
 }
 
@@ -83,12 +120,10 @@ impl TrustSet {
             return Err(Rejected);
         }
         let doc: TrustDocument = serde_json::from_slice(bytes).map_err(|_| Rejected)?;
-        if doc.audience.is_empty()
-            || doc.audience.len() > 1_000
-            || doc.audience.chars().any(char::is_control)
-            || doc.accounts.is_empty()
-            || doc.accounts.len() > 32
+        let issuer_count = doc.accounts.len() + doc.azure.len() + usize::from(doc.google.is_some());
+        if !(1..=32).contains(&issuer_count)
             || !(60..=MAX_TOKEN_LIFETIME_SECONDS).contains(&doc.max_token_lifetime_seconds)
+            || (doc.accounts.is_empty() != doc.audience.is_none())
         {
             return Err(Rejected);
         }
@@ -98,28 +133,71 @@ impl TrustSet {
             if !valid_account_id(&account.account_id) || account.algorithms.is_empty() {
                 return Err(Rejected);
             }
-            let public_issuer_host = validate_issuer_host(&account.issuer)?;
-            if !account_ids.insert(account.account_id.clone())
-                || accounts
-                    .insert(
-                        account.issuer,
-                        AccountTrust {
-                            account_id: account.account_id,
-                            public_issuer_host,
-                            algorithms: account.algorithms.into_iter().collect(),
-                            cache: Mutex::default(),
-                        },
-                    )
-                    .is_some()
-            {
+            let host = validate_issuer_host(&account.issuer)?;
+            if !account_ids.insert(account.account_id.clone()) {
                 return Err(Rejected);
             }
+            insert_issuer(
+                &mut accounts,
+                account.issuer,
+                AccountTrust {
+                    provider: Provider::Aws {
+                        account_id: account.account_id,
+                    },
+                    audience: doc.audience.clone().ok_or(Rejected)?,
+                    max_token_lifetime_seconds: doc.max_token_lifetime_seconds,
+                    jwks_url: format!("https://{host}/.well-known/jwks.json"),
+                    algorithms: account.algorithms.into_iter().collect(),
+                    cache: Mutex::default(),
+                },
+            )?;
         }
-        Ok(Self {
-            audience: doc.audience,
-            max_token_lifetime_seconds: doc.max_token_lifetime_seconds,
-            accounts,
-        })
+        for azure in doc.azure {
+            if !valid_guid(&azure.tenant_id) {
+                return Err(Rejected);
+            }
+            let azure_endpoint = format!("https://login.microsoftonline.com/{}", azure.tenant_id);
+            let (issuer, jwks_url) = match azure.token_version {
+                AzureVersion::V1 => (
+                    format!("https://sts.windows.net/{}/", azure.tenant_id),
+                    format!("{azure_endpoint}/discovery/keys"),
+                ),
+                AzureVersion::V2 => (
+                    format!("{azure_endpoint}/v2.0"),
+                    format!("{azure_endpoint}/discovery/v2.0/keys"),
+                ),
+            };
+            insert_issuer(
+                &mut accounts,
+                issuer,
+                AccountTrust {
+                    provider: Provider::Azure {
+                        tenant_id: azure.tenant_id,
+                        version: azure.token_version,
+                    },
+                    audience: azure.audience,
+                    max_token_lifetime_seconds: 86_400,
+                    jwks_url,
+                    algorithms: HashSet::from([Algorithm::Rs256]),
+                    cache: Mutex::default(),
+                },
+            )?;
+        }
+        if let Some(google) = doc.google {
+            insert_issuer(
+                &mut accounts,
+                "https://accounts.google.com".to_owned(),
+                AccountTrust {
+                    provider: Provider::Google,
+                    audience: google.audience,
+                    max_token_lifetime_seconds: MAX_TOKEN_LIFETIME_SECONDS,
+                    jwks_url: "https://www.googleapis.com/oauth2/v3/certs".to_owned(),
+                    algorithms: HashSet::from([Algorithm::Rs256]),
+                    cache: Mutex::default(),
+                },
+            )?;
+        }
+        Ok(Self { accounts })
     }
 
     fn account_for(&self, token: &Token<'_>) -> Result<&AccountTrust, Rejected> {
@@ -128,6 +206,29 @@ impl TrustSet {
             .filter(|account| account.algorithms.contains(&token.algorithm()))
             .ok_or(Rejected)
     }
+}
+
+fn insert_issuer(
+    accounts: &mut HashMap<String, AccountTrust>,
+    issuer: String,
+    account: AccountTrust,
+) -> Result<(), Rejected> {
+    if account.audience.is_empty()
+        || account.audience.len() > 1_000
+        || account.audience.chars().any(char::is_control)
+        || accounts.insert(issuer, account).is_some()
+    {
+        return Err(Rejected);
+    }
+    Ok(())
+}
+
+fn valid_guid(value: &str) -> bool {
+    value.len() == 36 && uuid::Uuid::parse_str(value).is_ok_and(|guid| guid.to_string() == value)
+}
+
+fn valid_google_subject(value: &str) -> bool {
+    (1..=32).contains(&value.len()) && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn valid_account_id(id: &str) -> bool {
@@ -158,17 +259,26 @@ pub(super) fn configure(
     config: &crate::config::CassieRuntimeConfig,
     tls_available: bool,
 ) -> Result<Option<Arc<Verifier>>, crate::CassieError> {
-    let path = config.pgwire_aws_iam_trust_file.as_deref().map(Path::new);
+    if config.pgwire_workload_trust_file.is_some() && config.pgwire_aws_iam_trust_file.is_some() {
+        return Err(crate::CassieError::Execution(
+            "configure only one pgwire workload trust file".into(),
+        ));
+    }
+    let path = config
+        .pgwire_workload_trust_file
+        .as_deref()
+        .or(config.pgwire_aws_iam_trust_file.as_deref())
+        .map(Path::new);
     cassie.validate_aws_iam_pgwire_selector(path.is_some())?;
     if path.is_some() && (!tls_available || !cassie.authentication_enabled()) {
         return Err(crate::CassieError::Execution(
             "AWS IAM pgwire authentication requires TLS and a root password".into(),
         ));
     }
-    path.map(Verifier::from_path)
+    path.map(|path| Verifier::from_path(path, config.pgwire_workload_trust_file.is_some()))
         .transpose()
         .map(|verifier| verifier.map(Arc::new))
-        .map_err(|_| crate::CassieError::Execution("invalid AWS IAM pgwire trust file".into()))
+        .map_err(|_| crate::CassieError::Execution("invalid pgwire workload trust file".into()))
 }
 
 fn client_builder() -> reqwest::ClientBuilder {
@@ -225,13 +335,21 @@ pub(super) struct Verifier {
 }
 
 impl Verifier {
-    fn from_path(path: &Path) -> Result<Self, Rejected> {
+    fn from_path(path: &Path, allow_federated: bool) -> Result<Self, Rejected> {
         let file = std::fs::File::open(path).map_err(|_| Rejected)?;
         let mut contents = Vec::new();
         file.take(u64::try_from(MAX_TRUST_BYTES + 1).map_err(|_| Rejected)?)
             .read_to_end(&mut contents)
             .map_err(|_| Rejected)?;
         let trust = TrustSet::from_json(&contents)?;
+        if !allow_federated
+            && trust
+                .accounts
+                .values()
+                .any(|account| !matches!(account.provider, Provider::Aws { .. }))
+        {
+            return Err(Rejected);
+        }
         let client = client_builder().build().map_err(|_| Rejected)?;
         Ok(Self {
             trust,
@@ -253,7 +371,7 @@ impl Verifier {
                 .as_ref()
                 .map_or_else(system_seconds, |clock| Ok(clock.seconds()))
         };
-        token.verify(&self.trust, account, &keys, current_seconds()?)
+        token.verify(account, &keys, current_seconds()?)
     }
 
     async fn keys_for(
@@ -285,20 +403,15 @@ impl Verifier {
             return Err(Rejected);
         }
         cache.refreshed_at = Some(now);
-        let keys = self.fetch_issuer_keys(&account.public_issuer_host).await?;
+        let keys = self.fetch_issuer_keys(&account.jwks_url).await?;
         cache.keys = Some((current_instant(), Arc::clone(&keys)));
         Ok(keys)
     }
 
-    async fn fetch_issuer_keys(
-        &self,
-        public_issuer_host: &str,
-    ) -> Result<Arc<IssuerKeys>, Rejected> {
+    async fn fetch_issuer_keys(&self, jwks_url: &str) -> Result<Arc<IssuerKeys>, Rejected> {
         let mut response = self
             .client
-            .get(format!(
-                "https://{public_issuer_host}/.well-known/jwks.json"
-            ))
+            .get(jwks_url)
             .send()
             .await
             .map_err(|_| Rejected)?;

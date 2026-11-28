@@ -63,7 +63,7 @@ fn sign(key: &EcdsaKeyPair, kid: &str, claims: &Value) -> String {
 fn verify(trust: &TrustSet, keys: &IssuerKeys, token: &str) -> Option<(String, String)> {
     let token = Token::parse(token).ok()?;
     let account = trust.account_for(&token).ok()?;
-    let identity = token.verify(trust, account, keys, NOW).ok()?;
+    let identity = token.verify(account, keys, NOW).ok()?;
     Some((identity.issuer, identity.role_arn))
 }
 
@@ -238,13 +238,17 @@ fn tls_identities() -> (
     (server, client)
 }
 
-fn driver_config() -> tokio_postgres::Config {
+fn driver_config_for(user: &str) -> tokio_postgres::Config {
     let mut client = tokio_postgres::Config::new();
     client
-        .user(crate::config::AWS_IAM_PGWIRE_SELECTOR)
+        .user(user)
         .dbname("postgres")
         .ssl_mode(tokio_postgres::config::SslMode::Require);
     client
+}
+
+fn driver_config() -> tokio_postgres::Config {
+    driver_config_for(crate::config::AWS_IAM_PGWIRE_SELECTOR)
 }
 
 async fn connect_driver(
@@ -258,7 +262,28 @@ async fn connect_driver(
     ),
     tokio_postgres::Error,
 > {
-    let mut client = driver_config();
+    connect_driver_for(
+        address,
+        connector,
+        credential,
+        crate::config::AWS_IAM_PGWIRE_SELECTOR,
+    )
+    .await
+}
+
+async fn connect_driver_for(
+    address: std::net::SocketAddr,
+    connector: &tokio_rustls::TlsConnector,
+    credential: &str,
+    user: &str,
+) -> Result<
+    (
+        tokio_postgres::Client,
+        tokio::task::JoinHandle<Result<(), tokio_postgres::Error>>,
+    ),
+    tokio_postgres::Error,
+> {
+    let mut client = driver_config_for(user);
     client
         .host("localhost")
         .hostaddr(address.ip())
@@ -484,6 +509,9 @@ fn should_never_challenge_for_credentials_on_invalid_iam_transport_configuration
 
 #[path = "rotation_tests.rs"]
 mod rotation_tests;
+
+#[path = "workload_tests.rs"]
+mod workload_tests;
 
 #[path = "portal_tests.rs"]
 mod portal_tests;

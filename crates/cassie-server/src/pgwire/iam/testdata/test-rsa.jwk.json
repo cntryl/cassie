@@ -1,0 +1,8 @@
+{
+  "kty": "RSA",
+  "use": "sig",
+  "kid": "workload-fixture",
+  "alg": "RS256",
+  "n": "ygPrTHOXkf_uNHCDI9bqPUBUc91D-eB9mcG2BHRcr8-bC9S8d27Noxl_YJrvVH3yjaMI3MBrVKgFjJqqdFC2Su0j6RpSxM1fYxfON8j1iGtmr8d32kOEsUobM-cW45tZ_TvVELmD3IBomonMYZjCbgr26h6uMmyS7Jl2RCsOJzqPlTjYxYtnAyV5Cc07ZVn2010c0PvvgpSsnbY4nVkd6CmCP2CTyryEBS42QbSu6VGEUNPhD4ij05FAgWlvLDwZo37RcAbqIHg_4FctJQAhRPRNQMzqrm4ptVef3XOsT3OdlIhNN0TzlUm6u4UYxNggP4p01VAjNRbUqkB8kKvGVw",
+  "e": "AQAB"
+}

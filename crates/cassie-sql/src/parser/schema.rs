@@ -694,20 +694,26 @@ fn parse_aws_iam_binding(
     } else {
         return Ok(None);
     };
-    let [_, aws, iam, role, arn, issuer, uri] = options else {
-        return Err(SqlError::new(
-            "expected BIND or UNBIND AWS IAM ROLE '<arn>' ISSUER '<url>'".into(),
-        ));
+    let (workload, subject, uri) = match options {
+        [_, aws, iam, role, subject, issuer, uri]
+            if aws.eq_ignore_ascii_case("AWS")
+                && iam.eq_ignore_ascii_case("IAM")
+                && role.eq_ignore_ascii_case("ROLE")
+                && issuer.eq_ignore_ascii_case("ISSUER") =>
+        {
+            (false, subject, uri)
+        }
+        [_, workload, identity, subject, issuer, uri]
+            if workload.eq_ignore_ascii_case("WORKLOAD")
+                && identity.eq_ignore_ascii_case("IDENTITY")
+                && issuer.eq_ignore_ascii_case("ISSUER") =>
+        {
+            (true, subject, uri)
+        }
+        _ => return Err(SqlError::new(
+            "expected BIND or UNBIND AWS IAM ROLE '<arn>' or WORKLOAD IDENTITY '<subject>', followed by ISSUER '<url>'".into(),
+        )),
     };
-    if !aws.eq_ignore_ascii_case("AWS")
-        || !iam.eq_ignore_ascii_case("IAM")
-        || !role.eq_ignore_ascii_case("ROLE")
-        || !issuer.eq_ignore_ascii_case("ISSUER")
-    {
-        return Err(SqlError::new(
-            "expected BIND or UNBIND AWS IAM ROLE '<arn>' ISSUER '<url>'".into(),
-        ));
-    }
     let unquote = |token: &str| {
         token
             .strip_prefix('\'')
@@ -715,12 +721,13 @@ fn parse_aws_iam_binding(
             .filter(|value| !value.is_empty() && !value.contains('\''))
             .map(str::to_owned)
             .ok_or_else(|| {
-                SqlError::new("AWS IAM role ARN and issuer require quoted strings".into())
+                SqlError::new("workload identity and issuer require quoted strings".into())
             })
     };
     Ok(Some(crate::ast::AlterAwsIamBinding {
         bind,
-        role_arn: unquote(arn)?,
+        workload,
+        role_arn: unquote(subject)?,
         issuer: unquote(uri)?,
     }))
 }

@@ -41,12 +41,36 @@ impl CassieSession {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PgwireWorkloadSelectors {
+    Disabled,
+    AwsOnly,
+    Workload,
+}
+
+impl PgwireWorkloadSelectors {
+    pub(super) fn from_config(config: &crate::config::CassieRuntimeConfig) -> Self {
+        if config.pgwire_workload_trust_file.is_some() || config.pgwire_workload_env.is_some() {
+            Self::Workload
+        } else if config.pgwire_aws_iam_trust_file.is_some() {
+            Self::AwsOnly
+        } else {
+            Self::Disabled
+        }
+    }
+
+    fn enabled(self) -> bool {
+        self != Self::Disabled
+    }
+}
+
 impl Cassie {
     #[doc(hidden)]
     #[must_use]
     pub fn is_workload_pgwire_selector(&self, user: &str) -> bool {
-        (self.aws_iam_login_enabled && user.trim().eq_ignore_ascii_case(AWS_IAM_PGWIRE_SELECTOR))
-            || (self.workload_selector_enabled
+        (self.pgwire_workload_selectors.enabled()
+            && user.trim().eq_ignore_ascii_case(AWS_IAM_PGWIRE_SELECTOR))
+            || (self.pgwire_workload_selectors == PgwireWorkloadSelectors::Workload
                 && user.trim().eq_ignore_ascii_case(WORKLOAD_PGWIRE_SELECTOR))
     }
 
@@ -59,9 +83,9 @@ impl Cassie {
         &self,
         listener_enabled: bool,
     ) -> Result<(), CassieError> {
-        if listener_enabled != self.aws_iam_login_enabled
+        if listener_enabled != self.pgwire_workload_selectors.enabled()
             || (listener_enabled && self.lookup_role(AWS_IAM_PGWIRE_SELECTOR)?.is_some())
-            || (self.workload_selector_enabled
+            || (self.pgwire_workload_selectors == PgwireWorkloadSelectors::Workload
                 && self.lookup_role(WORKLOAD_PGWIRE_SELECTOR)?.is_some())
         {
             return Err(CassieError::Execution(
@@ -77,7 +101,7 @@ impl Cassie {
     /// Returns an error when IAM is disabled or admission is exhausted.
     #[doc(hidden)]
     pub fn begin_aws_iam_login(&self, peer: IpAddr) -> Result<AwsIamLoginAttempt, CassieError> {
-        if !self.aws_iam_login_enabled {
+        if !self.pgwire_workload_selectors.enabled() {
             return Err(CassieError::Unauthorized);
         }
         self.auth_rate_limiter

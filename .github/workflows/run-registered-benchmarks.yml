@@ -1,0 +1,87 @@
+name: Run registered benchmarks
+
+on:
+  workflow_call:
+    inputs:
+      tiers:
+        type: string
+        required: true
+      profile:
+        type: string
+        required: true
+      max_parallel:
+        type: number
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  RUSTUP_TOOLCHAIN: "1.100.0"
+  CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: native-linux-arm64-disk
+
+jobs:
+  registry:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    outputs:
+      owners: ${{ steps.owners.outputs.matrix }}
+    steps:
+      - &checkout
+        name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - &install_rust
+        name: Install Rust
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+
+      - name: Select benchmark owners
+        id: owners
+        env:
+          BENCH_TIERS: ${{ inputs.tiers }}
+        run: |
+          cargo run --locked -q -p cassie-bench-support --bin cassie-bench -- check
+          owners="$(python3 tools/benchmark_workflows.py list --tiers "$BENCH_TIERS")"
+          test -n "$owners"
+          matrix="$(printf '%s\n' "$owners" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read().splitlines()))')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  bench:
+    needs: registry
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: ${{ inputs.tiers == '5' && 360 || inputs.tiers == '6' && 360 || 120 }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel }}
+      matrix:
+        owner: ${{ fromJSON(needs.registry.outputs.owners) }}
+    env:
+      BENCH_OWNER: ${{ matrix.owner }}
+      BENCH_PROFILE: ${{ inputs.profile }}
+      CASSIE_BENCH_SOURCE_COMMIT: ${{ github.sha }}
+      CASSIE_BENCH_JOB_ID: ${{ matrix.owner }}
+    steps:
+      - *checkout
+
+      - *install_rust
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: bench-release-workspace
+
+      - name: Run benchmark
+        run: python3 tools/benchmark_workflows.py run "$BENCH_OWNER" --profile "$BENCH_PROFILE" --output-dir target/stress
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-${{ matrix.owner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/stress/
+            Cargo.lock
+          if-no-files-found: warn
+          retention-days: 90

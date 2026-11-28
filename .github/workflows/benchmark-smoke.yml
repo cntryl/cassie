@@ -9,6 +9,9 @@ on:
       - "docs/benchmarks.md"
       - "docs/performance-contracts.md"
       - ".github/workflows/benchmark-*.yml"
+      - ".github/workflows/saturation.yml"
+      - ".github/workflows/endurance.yml"
+      - ".github/workflows/run-registered-benchmarks.yml"
       - "Cargo.toml"
       - "Cargo.lock"
   workflow_dispatch:

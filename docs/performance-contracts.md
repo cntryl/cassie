@@ -653,7 +653,7 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
 | 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
 | 5 - Scaling/saturation | Curves and limits | Query, retrieval, lifecycle, and transport owners over 10k, 100k, and 250k fixture classes, including column decode curves and one-row column DML amplification; clients at 1/2/4/8/16; and workers at 1/2/4. Large SQL, join, search, vector, hybrid, replay, rebuild, and concurrency cases belong here. |
-| 6 - Soak/endurance | Long-lived stability | Exactly two default scenarios: mixed query/ingest/retrieval over a 100k-row indexed query fixture with a dedicated transient mutation collection, and pgwire/HTTP lifecycle over 10k rows. Each scenario runs for one hour by default and proves correctness, resource bounds, permit accounting, cleanup, and zero failed operations. |
+| 6 - Soak/endurance | Long-lived stability | Three default scenarios: mixed query/ingest/retrieval over a 100k-row indexed fixture, pgwire/HTTP lifecycle over 10k rows, and concurrent pgwire ingest and indexed lookup against a growing local store seeded with 10k rows. Each scenario measures one hour by default. |
 
 Tier 2 projection-replay samples use one shared Cassie runtime but consume separate, prebuilt empty projection lanes. Each timed batch therefore exercises the same 2,048-event production replay path from an equivalent source position without including fixture setup or accumulating prior samples' event history. Runtime evidence remains scoped to the shared runtime, and the gate continues to report one logical event per applied event.
 
@@ -969,7 +969,13 @@ Tier 6 disables warmup and cooldown. It divides the resolved total duration acro
 
 Durations below 3,600 seconds are rejected outside the smoke profile. The complete-suite validator also requires every Tier 6 owner to declare at least 3,600 configured seconds and every Tier 6 summary to contain at least one hour of observed measured wall time, so shortened artifacts cannot satisfy endurance acceptance.
 
-Both Tier 6 scenarios enforce exact result and state checks, configured memory/cache/result bounds, shared worker permits, connection and task cleanup, and zero failed operations. A complete default Tier 6 run therefore measures at least two hours: one hour for each declared scenario.
+A complete default Tier 6 suite measures at least one hour per scenario. The
+indexed recovery soak runs two pgwire writers and one reader against a growing
+local table and flushes its data family while traffic runs. It checks that
+EXPLAIN selects the marker index before and after reopening. After a graceful
+shutdown and reopen, it reconciles the exact sequence range and count for each
+writer and probes early, middle, and late markers through the index. The
+fixture setup and recovery verification sit outside the measured window.
 
 Transport-soak throughput is retained as diagnostic evidence because its sustained create/get/delete lifecycle intentionally changes the disk-backed store throughout the run. Completed-operation variance across equal wall-clock windows therefore describes non-stationary transport churn rather than a stable optimization baseline. Its result, resource, cleanup, and duration requirements remain hard gates, and the artifact retains every sample so degradation remains visible.
 

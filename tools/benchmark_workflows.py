@@ -77,8 +77,10 @@ def run_target(
     target: str, category: str, profile: str, output_dir: Path,
     registry: list[dict[str, Any]],
 ) -> None:
-    if category not in {"timed", "product"} or profile not in {"smoke", "full"}:
-        raise ValueError("category must be timed/product and profile must be smoke/full")
+    if category not in {"timed", "product"} or profile not in {"smoke", "standard", "full"}:
+        raise ValueError("category must be timed/product and profile must be smoke/standard/full")
+    if category == "product" and profile == "standard":
+        raise ValueError("product benchmarks support smoke and full profiles")
     output_dir = output_dir.expanduser().resolve()
     env = os.environ.copy()
     env.setdefault("CASSIE_BENCH_SOURCE_COMMIT", subprocess.check_output(
@@ -86,7 +88,7 @@ def run_target(
     ).strip())
     env.setdefault("CASSIE_BENCH_RUN_ID", f"{env.get('GITHUB_RUN_ID', 'local')}-{env.get('GITHUB_RUN_ATTEMPT', '1')}")
     env.setdefault("CASSIE_BENCH_JOB_ID", env.get("GITHUB_JOB", target))
-    env["STRESS_PROFILE"] = "smoke" if profile == "smoke" else "release"
+    env["STRESS_PROFILE"] = {"smoke": "smoke", "standard": "default", "full": "release"}[profile]
     env["STRESS_OUTPUT_DIR"] = str(output_dir)
     if profile == "smoke" and "CASSIE_BENCH_SOAK_DURATION_SECONDS" not in env:
         env["CASSIE_BENCH_SOAK_DURATION_SECONDS"] = "5"
@@ -115,7 +117,7 @@ def main() -> int:
     run = sub.add_parser("run", help="run one registered owner")
     run.add_argument("target")
     run.add_argument("--category", choices=("timed", "product"), default="timed")
-    run.add_argument("--profile", choices=("smoke", "full"), default="full")
+    run.add_argument("--profile", choices=("smoke", "standard", "full"), default="full")
     run.add_argument("--output-dir", type=Path, default=Path("target/stress"))
     run.add_argument("--registry", type=Path, help="registry JSON; default runs the shared CLI")
     vector = sub.add_parser("validate-vector", help="check one allowed vector configuration and ID range")

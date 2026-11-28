@@ -1,0 +1,25 @@
+name: Benchmark Tier 6 Endurance
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Measurement profile
+        type: choice
+        options: [smoke, full]
+        default: full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: endurance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    uses: ./.github/workflows/run-registered-benchmarks.yml
+    with:
+      tiers: '6'
+      profile: ${{ inputs.profile || 'full' }}
+      max_parallel: 2

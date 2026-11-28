@@ -1,0 +1,25 @@
+name: Benchmark Tier 5 Saturation
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Measurement profile
+        type: choice
+        options: [smoke, standard, full]
+        default: standard
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saturation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    uses: ./.github/workflows/run-registered-benchmarks.yml
+    with:
+      tiers: '5'
+      profile: ${{ inputs.profile || 'full' }}
+      max_parallel: 4
